@@ -57,6 +57,7 @@ from tests.candidate_sorter_support import (
     section_stamper,
     threshold_resolver,
 )
+from tests.media_files_support import WEIGHT_UNKNOWN, RemovedMediaFiles
 from tests.phrase_support import phrase
 from tests.source_order_support import added_order
 from tests.vocabulary_support import user_vocabulary
@@ -92,7 +93,7 @@ def time_of_line(line: int) -> tuple[int, int]:
 
 
 def at(
-    line: int, score: float = 0.5, *, text: str | None = None, new: tuple[str, ...] = (),
+    line: int, score: float = 50.0, *, text: str | None = None, new: tuple[str, ...] = (),
 ) -> OccurrenceDTO:
     """An occurrence on `line`; `text` stands in for a phrase the analysis now cuts there;
     `new`: words of the phrase that are new to the user."""
@@ -147,6 +148,7 @@ class Bench:
         self.candidates = SqlaCandidateRepository(session)
         self.sources = SqlaSourceRepository(session)
         self.vocabulary = user_vocabulary()
+        self.media_files = RemovedMediaFiles()
 
     def rebuilder(self) -> SourceRebuilder:
         settings = SqlaSettingsRepository(self.session)
@@ -156,12 +158,14 @@ class Bench:
             occurrence_repo=self.occurrences,
             job_repo=self.jobs,
             media_repo=self.media,
+            media_files=self.media_files,
             settings_repo=settings,
             vocabulary=self.vocabulary,
             threshold_resolver=threshold_resolver(settings),
             stamper=section_stamper(settings),
             analyze_text_use_case=self.analyze_text,
             unit_of_work=SqlaUnitOfWork(self.session, self.vocabulary.scope),
+            weight_unknown=WEIGHT_UNKNOWN,
         )
 
     def rebuild(self) -> RebuildSourceUseCase:

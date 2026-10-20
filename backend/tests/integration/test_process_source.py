@@ -27,11 +27,11 @@ def bench(db_session: Session) -> Bench:
 
 
 def test_every_occurrence_becomes_an_auto_phrase_with_its_key_and_score(bench: Bench) -> None:
-    bench.processed(word("glare", at(0, 5.0), at(1, 2.0), at(5, 2.0)))
+    bench.processed(word("glare", at(0, 500.0), at(1, 200.0), at(5, 200.0)))
 
     phrases = bench.phrases()
     assert [(p.block, p.line, p.char) for p in phrases] == [(0, 0, 0), (0, 1, 0), (0, 5, 0)]
-    assert [p.fragment_score for p in phrases] == [5.0, 2.0, 2.0]
+    assert [p.fragment_score for p in phrases] == [500.0, 200.0, 200.0]
     assert {p.origin for p in phrases} == {"auto"}
     assert [OccurrenceRow.hash_text(LINES[line]) for line in (0, 1, 5)] == [
         row.text_hash for row in bench.occurrences.projection(SOURCE)
@@ -39,13 +39,13 @@ def test_every_occurrence_becomes_an_auto_phrase_with_its_key_and_score(bench: B
 
 
 def test_selection_shows_the_best_phrase_ties_to_the_first(bench: Bench) -> None:
-    bench.processed(word("glare", at(0, 5.0), at(1, 2.0), at(5, 2.0)))
+    bench.processed(word("glare", at(0, 500.0), at(1, 200.0), at(5, 200.0)))
 
     assert [p.shown_by for p in bench.phrases()] == [None, ShownBy.SELECTION.value, None]
 
 
 def test_the_card_of_a_word_is_its_selection_phrase(bench: Bench) -> None:
-    bench.processed(word("glare", at(0, 5.0), at(1, 2.0)), word("linger", at(3), at(4, 0.1)))
+    bench.processed(word("glare", at(0, 500.0), at(1, 200.0)), word("linger", at(3), at(4, 10.0)))
 
     words = {w.lemma: w for w in bench.candidates.get_by_source(SOURCE)}
     shown = bench.occurrences.shown_by_word(SOURCE)

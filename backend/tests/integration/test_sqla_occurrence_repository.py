@@ -16,6 +16,7 @@ from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
+from backend.domain.value_objects.phrase_generation import PhraseGeneration
 from backend.domain.value_objects.phrase_origin_kind import ShownBy
 from backend.infrastructure.persistence.models import (
     JobModel,
@@ -264,13 +265,15 @@ def test_projection_is_light_and_marks_what_matters(
     assert rows[phrase_id] == OccurrenceRow(
         id=phrase_id, candidate_id=WORD, key=OccurrenceKey(block=1, line=0, char=3),
         origin=rows[phrase_id].origin, shown_by=None, choice=CardChoice.NONE,
-        revision=0, edited_by_user=False, has_results=True, binding=None,
-        has_active_job=False, text_hash=OccurrenceRow.hash_text("He glared at me."),
+        revision=0, edited_by_user=False, generation=PhraseGeneration(cloze=True),
+        binding=None, has_active_job=False,
+        text_hash=OccurrenceRow.hash_text("He glared at me."),
         fragment_score=None, shows_polish=False,
         phrase_hash=OccurrenceRow.hash_phrase(phrase("He glared at me."), POSITION),
-        shown_phrase=phrase("He glared at me."), earned_section=rows[phrase_id].earned_section,
+        source_phrase=phrase("He glared at me."), shown_phrase=phrase("He glared at me."),
+        earned_section=rows[phrase_id].earned_section,
     )
-    assert not rows[WORD_PHRASE].has_results
+    assert not rows[WORD_PHRASE].generation.any
     assert [row.candidate_id for row in repo.projection(OTHER_SOURCE)] == [OTHER_WORD]
 
 

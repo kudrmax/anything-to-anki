@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel
 
 from backend.domain.services.source_operations import busy_caption
+from backend.domain.value_objects.rebuild_mode import RebuildMode  # noqa: TC001
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
 
 if TYPE_CHECKING:
@@ -14,27 +15,24 @@ if TYPE_CHECKING:
     from backend.domain.services.rebuild_plan import RebuildPlan
 
 
-class RebuildRequest(BaseModel):
-    """`include_open`: the selection may also move off cards with generation, and phrases
-    whose text changed lose their generation."""
-
-    include_open: bool = False
-
-
 class RebuildCountsDTO(BaseModel):
     """What a rebuild changes, as the user is told.
 
-    `cards_new_phrase`: cards that get a phrase with nothing generated yet;
-    `cards_text_reset`: cards whose text changed and whose generation is reset;
-    `cards_without_generation`: shown cards with nothing generated after the rebuild;
-    `nothing_to_update`: the rebuild would change nothing.
+    `cards_lost_generation`: removed cards that had something made for them;
+    `cards_moved`: cards that move to a phrase with nothing made for it yet;
+    `cards_recut`: cards cut again; `cards_recut_lost_text_generation`: those of them that
+    lose their polish, audio or video; `cards_became_ready` and `cards_left_ready`: cards
+    moving into Ready or out of it; `nothing_to_update`: the rebuild would change nothing.
     """
 
     words_added: int
     words_removed: int
-    cards_new_phrase: int
-    cards_text_reset: int
-    cards_without_generation: int
+    cards_lost_generation: int
+    cards_moved: int
+    cards_recut: int
+    cards_recut_lost_text_generation: int
+    cards_became_ready: int
+    cards_left_ready: int
     nothing_to_update: bool
 
     @staticmethod
@@ -43,9 +41,12 @@ class RebuildCountsDTO(BaseModel):
         return RebuildCountsDTO(
             words_added=counts.words_added,
             words_removed=counts.words_removed,
-            cards_new_phrase=counts.cards_new_phrase,
-            cards_text_reset=counts.cards_text_reset,
-            cards_without_generation=counts.cards_without_generation,
+            cards_lost_generation=counts.cards_lost_generation,
+            cards_moved=counts.cards_moved,
+            cards_recut=counts.cards_recut,
+            cards_recut_lost_text_generation=counts.cards_recut_lost_text_generation,
+            cards_became_ready=counts.cards_became_ready,
+            cards_left_ready=counts.cards_left_ready,
             nothing_to_update=plan.is_empty,
         )
 
@@ -55,9 +56,14 @@ class RebuildCountsDTO(BaseModel):
         return RebuildCountsDTO(
             words_added=sum(c.words_added for c in counts),
             words_removed=sum(c.words_removed for c in counts),
-            cards_new_phrase=sum(c.cards_new_phrase for c in counts),
-            cards_text_reset=sum(c.cards_text_reset for c in counts),
-            cards_without_generation=sum(c.cards_without_generation for c in counts),
+            cards_lost_generation=sum(c.cards_lost_generation for c in counts),
+            cards_moved=sum(c.cards_moved for c in counts),
+            cards_recut=sum(c.cards_recut for c in counts),
+            cards_recut_lost_text_generation=sum(
+                c.cards_recut_lost_text_generation for c in counts
+            ),
+            cards_became_ready=sum(c.cards_became_ready for c in counts),
+            cards_left_ready=sum(c.cards_left_ready for c in counts),
             nothing_to_update=all(c.nothing_to_update for c in counts),
         )
 
@@ -71,41 +77,35 @@ class SetOutcomeDTO(BaseModel):
 
 
 class RebuildPreviewDTO(SetOutcomeDTO):
-    """A rebuild as it would go, without and with «Also unreviewed cards»; a source without
-    text of its own has no such switch, so no `with_open`."""
+    """A rebuild as it would go in `mode`."""
 
-    without_open: RebuildCountsDTO
-    with_open: RebuildCountsDTO | None
+    mode: RebuildMode
+    counts: RebuildCountsDTO
 
     @staticmethod
     def total(
-        previews: Sequence[RebuildPreviewDTO], outcome: SetOutcomeDTO,
+        mode: RebuildMode, previews: Sequence[RebuildPreviewDTO], outcome: SetOutcomeDTO,
     ) -> RebuildPreviewDTO:
-        """The switch is there if any source has it; a source without it counts the same
-        either way."""
-        has_switch = any(p.with_open is not None for p in previews)
         return RebuildPreviewDTO(
-            without_open=RebuildCountsDTO.total([p.without_open for p in previews]),
-            with_open=RebuildCountsDTO.total(
-                [p.with_open or p.without_open for p in previews],
-            ) if has_switch else None,
+            mode=mode,
+            counts=RebuildCountsDTO.total([p.counts for p in previews]),
             skipped=outcome.skipped,
             failed=outcome.failed,
         )
 
 
 class RebuildSummaryDTO(SetOutcomeDTO):
-    """What a rebuild changed."""
+    """What a rebuild in `mode` changed."""
 
-    include_open: bool
+    mode: RebuildMode
     counts: RebuildCountsDTO
 
     @staticmethod
     def total(
-        summaries: Sequence[RebuildSummaryDTO], outcome: SetOutcomeDTO,
+        mode: RebuildMode, summaries: Sequence[RebuildSummaryDTO], outcome: SetOutcomeDTO,
     ) -> RebuildSummaryDTO:
         return RebuildSummaryDTO(
-            include_open=any(s.include_open for s in summaries),
+            mode=mode,
             counts=RebuildCountsDTO.total([s.counts for s in summaries]),
             skipped=outcome.skipped,
             failed=outcome.failed,

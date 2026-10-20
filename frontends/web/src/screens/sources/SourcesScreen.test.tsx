@@ -8,7 +8,7 @@ import { SourcesScreen } from './SourcesScreen'
 
 const counts: ScopeCounts = {
   total: 3, reviewed: 1, pending: 0, progress: { decided: 0, total: 0 }, status: 'new', can_process: false, can_review: false, review_fraction: 0, progress_caption: '',
-  available_operations: ['rebuild'], can_start_operation: true, operation_hint: null, can_export: true,
+  available_operations: ['update'], can_start_operation: true, operation_hint: null, can_export: true,
 }
 const tree: CollectionTree = {
   all: counts,
@@ -329,15 +329,15 @@ describe('SourcesScreen', () => {
     expect(seen.state).toEqual({ back: '/?scope=11' })
   })
 
-  it('rebuilds the open collection through the same dialog a source uses', async () => {
+  it('updates the open collection through the same dialog a source uses', async () => {
     const preview = vi.spyOn(api, 'previewRebuild').mockReturnValue(new Promise(() => {}))
     await render('/?scope=11')
     act(() => button('Collection actions', host.querySelector('header')!).click())
-    act(() => button('Rebuild…', host.querySelector('header')!).click())
+    act(() => button('Find words again…', host.querySelector('header')!).click())
     const dialog = document.body.querySelector('[role="dialog"]')!
-    expect(dialog.textContent).toContain('Rebuild “Season 1”')
+    expect(dialog.textContent).toContain('Find words again in “Season 1”')
     act(() => button('Preview', dialog).click())
-    expect(preview).toHaveBeenCalledWith(11)
+    expect(preview).toHaveBeenCalledWith(11, 'update')
   })
 
   it('opens the review of the open collection from its header', async () => {

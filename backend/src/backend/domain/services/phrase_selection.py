@@ -5,12 +5,15 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from backend.domain.services.candidate_sections import new_words
+from backend.domain.services.fragment_selection.scoring.scorer import FragmentScore
 from backend.domain.services.phrase_protection import is_untouchable
 from backend.domain.value_objects.card_choice import is_skipped
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.occurrence_row import OccurrenceRow
+    from backend.domain.value_objects.user_knowledge import UserKnowledge
 
 UNSCORED = math.inf
 UNPLACED = (math.inf, math.inf, math.inf)
@@ -28,16 +31,31 @@ class SelectionChange:
         return self.set_selection is None and not self.clear_selection
 
 
-def is_frozen(o: OccurrenceRow, include_open: bool) -> bool:
-    """A shown phrase the selection does not take its mark from.
+@dataclass(frozen=True)
+class SelectionScore:
+    """How good a phrase is for its word now: its stored cut score with the words besides
+    the target that are new to the user counted again, by what the user knows now. The cut
+    may be older than what the user knows; the rest of its score stays as stored."""
 
-    An untouchable phrase always; results and a running job unless open cards are rebuilt too.
-    """
-    return is_untouchable(o) or (not include_open and (o.has_results or o.has_active_job))
+    knowledge: UserKnowledge | None
+    weight_unknown: int
+
+    def of(self, o: OccurrenceRow) -> float:
+        if o.fragment_score is None:
+            return UNSCORED
+        unknowns = len(new_words(o.source_phrase, self.knowledge))
+        stored = FragmentScore.from_number(o.fragment_score)
+        return stored.with_unknowns(self.weight_unknown * unknowns).as_number()
+
+
+def is_frozen(o: OccurrenceRow) -> bool:
+    """A shown phrase the selection does not take its mark from: the user's own, or one
+    something is being made for."""
+    return is_untouchable(o) or o.has_active_job
 
 
 def select_phrases(
-    word_occurrences: list[OccurrenceRow], word_decided: bool, include_open: bool,
+    word_occurrences: list[OccurrenceRow], word_decided: bool, score: SelectionScore,
 ) -> SelectionChange:
     """The selection marks of one word after processing or a rebuild.
 
@@ -50,7 +68,7 @@ def select_phrases(
     if word_decided:
         return SelectionChange()
     selected = [o for o in word_occurrences if o.shown_by is ShownBy.SELECTION]
-    frozen = [o for o in selected if is_frozen(o, include_open)]
+    frozen = [o for o in selected if is_frozen(o)]
     if frozen:
         return _keep(selected, {o.id for o in frozen})
     if any(o.is_shown and o.replaces_selection for o in word_occurrences):
@@ -62,7 +80,7 @@ def select_phrases(
     ]
     if not candidates:
         return _keep(selected, set())
-    best = min(candidates, key=_rank)
+    best = min(candidates, key=lambda o: _rank(o, score))
     change = _keep(selected, {best.id})
     if best.shown_by is ShownBy.SELECTION:
         return change
@@ -73,7 +91,8 @@ def _keep(selected: list[OccurrenceRow], kept: set[int]) -> SelectionChange:
     return SelectionChange(clear_selection=tuple(o.id for o in selected if o.id not in kept))
 
 
-def _rank(o: OccurrenceRow) -> tuple[float, tuple[float, float, float], int]:
-    score = UNSCORED if o.fragment_score is None else o.fragment_score
+def _rank(
+    o: OccurrenceRow, score: SelectionScore,
+) -> tuple[float, tuple[float, float, float], int]:
     place = UNPLACED if o.key is None else (o.key.block, o.key.line, o.key.char)
-    return score, place, o.id
+    return score.of(o), place, o.id

@@ -20,6 +20,7 @@ from backend.domain.value_objects.card_choice import CardChoice, Press
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import (
@@ -124,7 +125,7 @@ def _at(line: int, char: int) -> OccurrenceDTO:
             block=0, start_line=line, start_char=0, end_line=line, end_char=len(shown),
         ),
         key=OccurrenceKeyDTO(block=0, line=line, char=char),
-        fragment_score=0.5,
+        fragment_score=50.0,
     )
 
 
@@ -148,7 +149,7 @@ def test_a_manual_phrase_then_rebuild_keeps_one_card_at_its_place(bench: Bench) 
     Manual(bench).add(LINGER_LINE, 1)
     bench.analysis = [word("glare", at(0)), word("linger", _at(LINGER_LINE, LINGER_CHAR))]
 
-    bench.rebuild().execute(SOURCE, include_open=True)
+    bench.rebuild().execute(SOURCE, RebuildMode.RECUT)
 
     assert [o.key for o in _shown(bench, "linger")] == [
         OccurrenceKey(block=0, line=LINGER_LINE, char=LINGER_CHAR),
@@ -175,7 +176,7 @@ def test_an_existing_word_gets_a_second_shown_phrase(bench: Bench) -> None:
 def test_a_manual_add_at_a_hidden_auto_phrase_shows_it_without_a_duplicate(
     bench: Bench,
 ) -> None:
-    bench.processed(word("glare", at(0, 0.1), _at(GLARE_LINE, GLARE_CHAR)))
+    bench.processed(word("glare", at(0, 10.0), _at(GLARE_LINE, GLARE_CHAR)))
     hidden = bench.phrase_on("glare", GLARE_LINE)
     assert hidden.shown_by is None
     bench.set_choice(hidden.id, "skip")
@@ -189,13 +190,13 @@ def test_a_manual_add_at_a_hidden_auto_phrase_shows_it_without_a_duplicate(
     assert made_shown.choice is not CardChoice.SKIP
     assert not made_shown.replaces_selection
 
-    bench.rebuild().execute(SOURCE, include_open=True)
+    bench.rebuild().execute(SOURCE, RebuildMode.RECUT)
 
     assert sorted(o.id for o in _shown(bench, "glare")) == sorted(o.id for o in occurrences)
 
 
 def test_showing_a_hidden_phrase_restamps_the_section_it_earns_now(bench: Bench) -> None:
-    bench.processed(word("glare", at(0, 0.1), _at(GLARE_LINE, GLARE_CHAR)))
+    bench.processed(word("glare", at(0, 10.0), _at(GLARE_LINE, GLARE_CHAR)))
     [hidden] = [o for o in _of(bench, "glare") if o.shown_by is None]
     stale = CandidateSection.PROBABLY_KNOWN
     bench.occurrences.set_earned_sections([SectionChange(hidden.id, stale)])
@@ -212,7 +213,7 @@ def test_showing_a_hidden_phrase_restamps_the_section_it_earns_now(bench: Bench)
 def test_a_skipped_phrase_of_a_decided_word_is_shown_and_stays_done(
     bench: Bench, decided: str,
 ) -> None:
-    bench.processed(word("glare", at(0, 0.1), _at(GLARE_LINE, GLARE_CHAR)))
+    bench.processed(word("glare", at(0, 10.0), _at(GLARE_LINE, GLARE_CHAR)))
     hidden = bench.phrase_on("glare", GLARE_LINE)
     bench.set_choice(hidden.id, "skip")
     if decided == "on_another_card":
@@ -228,12 +229,12 @@ def test_a_skipped_phrase_of_a_decided_word_is_shown_and_stays_done(
 
 
 def test_a_manual_add_on_the_selection_card_keeps_one_card(bench: Bench) -> None:
-    bench.processed(word("glare", _at(GLARE_LINE, GLARE_CHAR), at(4, 0.9)))
+    bench.processed(word("glare", _at(GLARE_LINE, GLARE_CHAR), at(4, 90.0)))
     card = bench.phrase_on("glare", GLARE_LINE)
     assert card.shown_by == ShownBy.SELECTION.value
 
     Manual(bench).add(GLARE_LINE, 1)
-    bench.rebuild().execute(SOURCE, include_open=True)
+    bench.rebuild().execute(SOURCE, RebuildMode.RECUT)
 
     shown = _shown(bench, "glare")
     assert [(o.id, o.shown_by) for o in shown] == [(card.id, ShownBy.USER)]
@@ -257,12 +258,12 @@ def test_adding_the_same_selection_twice_shows_one_manual_card(bench: Bench) -> 
 
 
 def test_a_manual_add_keeps_the_decision_card(bench: Bench) -> None:
-    bench.processed(word("glare", at(0, 0.1), _at(GLARE_LINE, GLARE_CHAR)))
+    bench.processed(word("glare", at(0, 10.0), _at(GLARE_LINE, GLARE_CHAR)))
     decision = bench.phrase_on("glare", 0)
     bench.decide_learn("glare", decision.id)
 
     Manual(bench).add(GLARE_LINE, 1)
-    bench.rebuild().execute(SOURCE, include_open=True)
+    bench.rebuild().execute(SOURCE, RebuildMode.RECUT)
 
     shown = _shown(bench, "glare")
     assert [o.id for o in shown if o.card_state.is_decision] == [decision.id]

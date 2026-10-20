@@ -126,7 +126,7 @@ def test_generate_meaning_is_refused_while_the_source_is_rebuilt() -> None:
 
     with pytest.raises(SourceOperationBusyError):
         _use_case(
-            MagicMock(), ai_service, busy_with=SourceOperationKind.REBUILD,
+            MagicMock(), ai_service, busy_with=SourceOperationKind.UPDATE,
         ).execute(PHRASE_ID)
     ai_service.generate_meaning.assert_not_called()
 

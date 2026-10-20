@@ -6,7 +6,7 @@ import { COLLECTION_MIME, CollectionTree } from './CollectionTree'
 
 const counts: ScopeCounts = {
   total: 1, reviewed: 0, pending: 1, progress: { decided: 0, total: 0 }, status: 'new', can_process: true, can_review: false, review_fraction: 0, progress_caption: '',
-  available_operations: ['rebuild'], can_start_operation: true, operation_hint: null, can_export: true,
+  available_operations: ['update'], can_start_operation: true, operation_hint: null, can_export: true,
 }
 const node = (id: number, name: string, accepts: boolean, moveTargets: (number | null)[] = [null]): CollectionNode => ({
   id, name, parent_id: null, counts, depth: 1, accepts_collections: accepts, move_targets: moveTargets, children: [],
@@ -216,9 +216,9 @@ describe('CollectionTree', () => {
   it('offers a collection the actions of a source, in the same order', () => {
     openMenu('Top')
     const labels = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(el => el.textContent)
-    expect(labels).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Rebuild…', 'Delete'])
-    act(() => menuItem('Rebuild…').click())
-    expect(handlers.onOperation).toHaveBeenCalledWith(1, 'rebuild')
+    expect(labels).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Find words again…', 'Delete'])
+    act(() => menuItem('Find words again…').click())
+    expect(handlers.onOperation).toHaveBeenCalledWith(1, 'update')
   })
 
   it('shows the decision progress of a collection and only the source count without candidates', () => {

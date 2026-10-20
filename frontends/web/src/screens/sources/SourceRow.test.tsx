@@ -119,37 +119,39 @@ describe('SourceRow', () => {
   const menuItem = (label: string) =>
     [...host.querySelectorAll('[role="menuitem"]')].find(item => item.textContent?.startsWith(label)) as HTMLButtonElement | undefined
 
-  it('offers every operation the backend names, Refresh before Rebuild', () => {
-    render(false, false, { ...source, available_operations: ['refresh', 'rebuild'] })
+  it('offers every operation the backend names, Refresh before Update', () => {
+    render(false, false, { ...source, available_operations: ['refresh', 'update'] })
     openMenu()
     const labels = [...host.querySelectorAll('[role="menuitem"]')].map(item => item.textContent ?? '')
     const refresh = labels.findIndex(label => label.startsWith('Refresh…'))
     expect(refresh).toBeGreaterThanOrEqual(0)
-    expect(labels.findIndex(label => label.startsWith('Rebuild…'))).toBe(refresh + 1)
+    expect(labels.findIndex(label => label.startsWith('Find words again…'))).toBe(refresh + 1)
     act(() => menuItem('Refresh…')?.click())
     expect(onOperation).toHaveBeenCalledWith(7, 'refresh')
     openMenu()
-    act(() => menuItem('Rebuild…')?.click())
-    expect(onOperation).toHaveBeenCalledWith(7, 'rebuild')
+    act(() => menuItem('Find words again…')?.click())
+    expect(onOperation).toHaveBeenCalledWith(7, 'update')
   })
 
   it('lists the source actions in the order a collection has them', () => {
-    render(false, false, { ...source, available_operations: ['rebuild'], can_export: true, can_delete: true })
+    render(false, false, { ...source, available_operations: ['update', 'recut'], can_export: true, can_delete: true })
     openMenu()
     const labels = [...host.querySelectorAll('[role="menuitem"]')].map(item => item.textContent)
-    expect(labels).toEqual(['Export', 'Rename', 'Move to…', 'Rebuild…', 'Delete'])
+    expect(labels).toEqual(['Export', 'Rename', 'Move to…', 'Find words again…', 'Process again…', 'Delete'])
+    act(() => menuItem('Process again…')?.click())
+    expect(onOperation).toHaveBeenCalledWith(7, 'recut')
   })
 
   it('keeps the operation visible but unavailable with the backend hint while the source is busy', () => {
     render(false, false, {
-      ...source, available_operations: ['rebuild'], can_start_operation: false, busy_with: 'preview',
-      operation_hint: 'Wait until the rebuild preview finishes', progress_caption: 'Checking what a rebuild changes…',
+      ...source, available_operations: ['update'], can_start_operation: false, busy_with: 'preview',
+      operation_hint: 'Wait until the count of changes finishes', progress_caption: 'Counting what will change…',
     })
-    expect(host.textContent).toContain('Checking what a rebuild changes…')
+    expect(host.textContent).toContain('Counting what will change…')
     openMenu()
-    const item = menuItem('Rebuild…')
+    const item = menuItem('Find words again…')
     expect(item?.disabled).toBe(true)
-    expect(item?.textContent).toContain('Wait until the rebuild preview finishes')
+    expect(item?.textContent).toContain('Wait until the count of changes finishes')
   })
 
   it('shows the caption the backend wrote', () => {

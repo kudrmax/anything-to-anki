@@ -75,7 +75,7 @@ class TestDeleteSourceUseCase:
         self.source_repo.get_by_id.return_value = Source(
             id=1, status=SourceStatus.DONE, format=Format.PLAIN, kind=Kind.TEXT,
             )
-        self.lock.held.return_value = SourceOperationKind.REBUILD
+        self.lock.held.return_value = SourceOperationKind.UPDATE
         with pytest.raises(SourceIsProcessingError):
             self.use_case.execute(1)
         self.candidate_repo.delete_by_source.assert_not_called()

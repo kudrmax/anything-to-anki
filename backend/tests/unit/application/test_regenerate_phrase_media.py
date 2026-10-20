@@ -159,7 +159,7 @@ class TestRegeneratePhraseMedia:
             _Setup(tmp_path, position=None).use_case.execute(PHRASE_ID)
 
     def test_is_refused_while_the_source_is_rebuilt(self, tmp_path: Path) -> None:
-        setup = _Setup(tmp_path, busy_with=SourceOperationKind.REBUILD)
+        setup = _Setup(tmp_path, busy_with=SourceOperationKind.UPDATE)
 
         with pytest.raises(SourceOperationBusyError):
             setup.use_case.execute(PHRASE_ID)

@@ -1,6 +1,7 @@
 """Light phrase rows, words and analysis results for tests of selection and rebuild."""
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,7 @@ from backend.domain.value_objects.cefr_breakdown import (
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
+from backend.domain.value_objects.phrase_generation import NO_GENERATION, PhraseGeneration
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.word_row import WordRow
 from backend.domain.value_objects.word_status import WordStatus
@@ -29,6 +31,8 @@ from backend.domain.value_objects.word_status import WordStatus
 from tests.phrase_support import phrase
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from backend.domain.value_objects.phrase import Phrase
 
 SELECTION = ShownBy.SELECTION
@@ -42,6 +46,8 @@ EXPORTED = Binding(NoteKind.LEARN, datetime(2026, 1, 1, tzinfo=UTC))
 WORD_ID = 1
 # Every other word of a phrase is known: a new phrase earns Ready.
 READY_RULE = SectionRule(knowledge=None, frequent_threshold=None)
+MEANING = PhraseGeneration(meaning=True)
+TTS = PhraseGeneration(text_media=True)
 
 
 def key_at(line: int) -> OccurrenceKey:
@@ -54,9 +60,10 @@ def position_at(line: int, text: str) -> DocumentPosition:
     )
 
 
-def text_phrase(text: str, *, variant: bool = False) -> Phrase:
-    """The same text with other facts about its words when `variant`."""
-    return phrase(text, new=[text.split()[0]] if variant else [])
+def text_phrase(text: str, *, variant: bool = False, new: Iterable[str] = ()) -> Phrase:
+    """The same text with other facts about its words when `variant`; `new`: its words
+    that are rare and above any level."""
+    return phrase(text, new=[*new, text.split()[0]] if variant else list(new))
 
 
 def row(
@@ -71,19 +78,20 @@ def row(
     is_decision: bool = False,
     revision: int = 0,
     edited: bool = False,
-    has_results: bool = False,
+    generation: PhraseGeneration = NO_GENERATION,
     exported: bool = False,
     has_job: bool = False,
     text: str = DEFAULT_TEXT,
     variant: bool = False,
     shows_polish: bool = False,
+    new: Iterable[str] = (),
     replaces: bool = False,
     choice: CardChoice | None = None,
     section: CandidateSection = CandidateSection.READY,
 ) -> OccurrenceRow:
     """A phrase row; its key is at `line` (the id unless given). `is_decision` makes it a
-    Learn decision, `choice` any other, `exported` puts it in Anki;
-    `section` is the section stored on it."""
+    Learn decision, `choice` any other, `exported` puts it in Anki; `shows_polish` gives it
+    a polish it shows; `section` is the section stored on it."""
     at = id if line is None else line
     if choice is None:
         choice = (
@@ -98,7 +106,7 @@ def row(
         choice=choice,
         revision=revision,
         edited_by_user=edited,
-        has_results=has_results,
+        generation=replace(generation, polish=True) if shows_polish else generation,
         binding=EXPORTED if exported else None,
         has_active_job=has_job,
         text_hash=OccurrenceRow.hash_text(text),
@@ -106,9 +114,10 @@ def row(
         shows_polish=shows_polish,
         replaces_selection=replaces,
         phrase_hash=OccurrenceRow.hash_phrase(
-            text_phrase(text, variant=variant), position_at(at, text),
+            text_phrase(text, variant=variant, new=new), position_at(at, text),
         ),
-        shown_phrase=text_phrase(text, variant=variant),
+        source_phrase=text_phrase(text, variant=variant, new=new),
+        shown_phrase=text_phrase(text, variant=variant, new=new),
         earned_section=section,
     )
 
@@ -136,7 +145,7 @@ def word(
 
 
 def occ(
-    line: int, score: float = 0.5, *, text: str = DEFAULT_TEXT, variant: bool = False,
+    line: int, score: float = 50.0, *, text: str = DEFAULT_TEXT, variant: bool = False,
 ) -> BuiltOccurrence:
     return BuiltOccurrence(
         phrase=text_phrase(text, variant=variant),

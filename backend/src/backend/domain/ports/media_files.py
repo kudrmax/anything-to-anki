@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from backend.domain.value_objects.media_file_draft import MediaFileDraft
 
 
@@ -25,3 +27,8 @@ class MediaFiles(ABC):
     @abstractmethod
     def discard(self, draft: MediaFileDraft) -> None:
         """Drop the draft if it is still there; a kept draft is gone already."""
+
+    @abstractmethod
+    def remove(self, paths: Sequence[str]) -> None:
+        """Remove the final files of phrases that no longer have them; a missing one is
+        gone already."""

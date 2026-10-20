@@ -18,6 +18,7 @@ from backend.application.dto.analysis_dtos import (
 from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.infrastructure.persistence.database import (
     SQLITE_BUSY_TIMEOUT_MS,
     Base,
@@ -37,6 +38,7 @@ from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import text
 
 from tests.candidate_sorter_support import section_stamper, threshold_resolver
+from tests.media_files_support import WEIGHT_UNKNOWN, RemovedMediaFiles
 from tests.phrase_support import phrase
 from tests.vocabulary_support import user_vocabulary
 
@@ -145,12 +147,14 @@ def _rebuilder(
         occurrence_repo=worker,  # type: ignore[arg-type]
         job_repo=SqlaJobRepository(session),
         media_repo=SqlaCandidateMediaRepository(session),
+        media_files=RemovedMediaFiles(),
         settings_repo=settings,
         vocabulary=vocabulary,
         threshold_resolver=threshold_resolver(settings),
         stamper=section_stamper(settings),
         analyze_text_use_case=analyze,
         unit_of_work=SqlaUnitOfWork(session, vocabulary.scope),
+        weight_unknown=WEIGHT_UNKNOWN,
     )
 
 
@@ -163,7 +167,7 @@ def _apply(factory: sessionmaker[Session], edition: int) -> tuple[float, _Worker
         rebuilder = _rebuilder(session, worker, _analysis(edition))
         analysed = rebuilder.analyse(SOURCE)
         started = time.perf_counter()
-        rebuilder.apply(analysed, include_open=False)
+        rebuilder.apply(analysed, RebuildMode.UPDATE)
         elapsed = time.perf_counter() - started
     finally:
         session.close()

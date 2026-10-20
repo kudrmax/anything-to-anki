@@ -13,7 +13,7 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     SourceOperationBusyError,
 )
-from backend.domain.services.source_operations import available_operations
+from backend.domain.services.source_operations import REBUILD_OPERATION, available_operations
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 if TYPE_CHECKING:
@@ -21,12 +21,14 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.unit_of_work import UnitOfWork
+    from backend.domain.value_objects.rebuild_mode import RebuildMode
 
 logger = logging.getLogger(__name__)
 
 
 class RebuildSourceUseCase:
-    """Rebuilds a source by the current logic, level and knowledge without losing work.
+    """Updates or re-cuts a source by the current logic, level and knowledge without losing
+    the user's work.
 
     `start` takes the source for the operation and must be committed before `run` or
     `run_preview`, which free it whatever happens; `execute` and `preview` do all of it.
@@ -44,47 +46,38 @@ class RebuildSourceUseCase:
         self._unit_of_work = unit_of_work
         self._rebuilder = rebuilder
 
-    def start(self, source_id: int, kind: SourceOperationKind) -> None:
+    def start(self, source_id: int, mode: RebuildMode, kind: SourceOperationKind) -> None:
+        """Takes the source for `kind`: the rebuild in `mode` or its preview."""
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
-        if SourceOperationKind.REBUILD not in available_operations(source):
+        if REBUILD_OPERATION[mode] not in available_operations(source):
             raise RebuildNotSupportedError(source_id)
         if not self._lock.acquire(source_id, kind):
             raise SourceOperationBusyError(source_id, self._lock.held(source_id))
 
-    def execute(self, source_id: int, include_open: bool) -> RebuildSummaryDTO:
-        self.start(source_id, SourceOperationKind.REBUILD)
+    def execute(self, source_id: int, mode: RebuildMode) -> RebuildSummaryDTO:
+        self.start(source_id, mode, REBUILD_OPERATION[mode])
         self._unit_of_work.commit()
-        return self.run(source_id, include_open)
+        return self.run(source_id, mode)
 
-    def preview(self, source_id: int) -> RebuildPreviewDTO:
-        self.start(source_id, SourceOperationKind.PREVIEW)
+    def preview(self, source_id: int, mode: RebuildMode) -> RebuildPreviewDTO:
+        self.start(source_id, mode, SourceOperationKind.PREVIEW)
         self._unit_of_work.commit()
-        return self.run_preview(source_id)
+        return self.run_preview(source_id, mode)
 
-    def run(self, source_id: int, include_open: bool) -> RebuildSummaryDTO:
+    def run(self, source_id: int, mode: RebuildMode) -> RebuildSummaryDTO:
         try:
-            analysed = self._rebuilder.analyse(source_id)
-            has_text = analysed.words is not None
-            plan = self._rebuilder.apply(analysed, include_open)
-            return RebuildSummaryDTO(
-                include_open=include_open and has_text, counts=RebuildCountsDTO.of(plan),
-            )
+            plan = self._rebuilder.apply(self._rebuilder.analyse(source_id), mode)
+            return RebuildSummaryDTO(mode=mode, counts=RebuildCountsDTO.of(plan))
         finally:
             self._release(source_id)
 
-    def run_preview(self, source_id: int) -> RebuildPreviewDTO:
-        """The analysis and both plans; nothing is written."""
+    def run_preview(self, source_id: int, mode: RebuildMode) -> RebuildPreviewDTO:
+        """The analysis and the plan; nothing is written."""
         try:
-            analysed = self._rebuilder.analyse(source_id)
-            without_open = RebuildCountsDTO.of(self._rebuilder.plan(analysed, False))
-            if analysed.words is None:
-                return RebuildPreviewDTO(without_open=without_open, with_open=None)
-            return RebuildPreviewDTO(
-                without_open=without_open,
-                with_open=RebuildCountsDTO.of(self._rebuilder.plan(analysed, True)),
-            )
+            plan = self._rebuilder.plan(self._rebuilder.analyse(source_id), mode)
+            return RebuildPreviewDTO(mode=mode, counts=RebuildCountsDTO.of(plan))
         finally:
             self._release(source_id)
 

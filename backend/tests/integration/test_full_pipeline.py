@@ -13,6 +13,7 @@ from backend.domain.value_objects.document import (
     ParagraphMode,
 )
 from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.dependencies import get_session_factory
 from backend.infrastructure.container import Container
@@ -193,10 +194,10 @@ class TestRebuildWithTheRealAnalysis:
             session.commit()
             process.execute(source.id)
 
-            preview = container.rebuild_source_use_case(session).preview(source.id)
+            rebuild = container.rebuild_source_use_case(session)
 
-            assert preview.without_open.nothing_to_update
-            assert preview.with_open.nothing_to_update
+            assert rebuild.preview(source.id, RebuildMode.UPDATE).counts.nothing_to_update
+            assert rebuild.preview(source.id, RebuildMode.RECUT).counts.nothing_to_update
         finally:
             session.rollback()
             if source.id is not None:

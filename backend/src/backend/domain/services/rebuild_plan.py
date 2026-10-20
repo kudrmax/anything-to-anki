@@ -1,20 +1,23 @@
-"""The plan of a lossless rebuild: what a fresh analysis changes in a source's words and
-phrases, without losing the user's work."""
+"""The plan of a rebuild: what a fresh analysis changes in a source's words and phrases,
+without losing the user's work."""
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from backend.domain.services.card_view import is_decided, keeps_section, keeps_word
-from backend.domain.services.phrase_protection import is_touched, is_untouchable
+from backend.domain.services.card_view import is_decided, is_ready, keeps_section, keeps_word
+from backend.domain.services.phrase_protection import is_untouchable
 from backend.domain.services.phrase_selection import SelectionChange, select_phrases
 from backend.domain.value_objects.card_choice import CardChoice, WordState
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
+from backend.domain.value_objects.phrase_generation import NO_GENERATION
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.rebuild_mode import RebuildMode
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import OccurrenceKey
     from backend.domain.services.candidate_sections import SectionRule, WordFacts
+    from backend.domain.services.phrase_selection import SelectionScore
     from backend.domain.value_objects.built_analysis import (
         BuiltOccurrence,
         BuiltWord,
@@ -52,14 +55,17 @@ class OccurrenceInsert:
 
 @dataclass(frozen=True)
 class OccurrenceTextUpdate:
-    """A new source phrase for a phrase; its words follow the text the phrase shows."""
+    """A new source phrase for a phrase; its words follow the text the phrase shows.
+
+    `bump_revision`: the text changed. `drop_text_generation`: what was made of the old text
+    (polish, TTS, video frame and clip) goes."""
 
     occurrence_id: int
     phrase: Phrase
     phrase_position: DocumentPosition
     fragment_score: float
     bump_revision: bool
-    reset_results: bool
+    drop_text_generation: bool
     earned_section: CandidateSection
 
 
@@ -89,16 +95,36 @@ class OccurrenceScoreUpdate:
 class RebuildCounts:
     """What the user is told about a rebuild.
 
-    `cards_new_phrase`: cards whose phrase moved to one with nothing generated yet;
-    `cards_text_reset`: phrases whose generation is dropped because their text changed;
-    `cards_without_generation`: shown phrases with nothing generated after the rebuild.
+    `cards_lost_generation`: shown phrases deleted with something made for them;
+    `cards_moved`: words whose card moved to a phrase with nothing made for it yet;
+    `cards_recut`: shown phrases cut again; `cards_recut_lost_text_generation`: those of
+    them that lose what was made of their old text; `cards_became_ready` and
+    `cards_left_ready`: shown phrases whose section moves into Ready or out of it.
     """
 
     words_added: int = 0
     words_removed: int = 0
-    cards_new_phrase: int = 0
-    cards_text_reset: int = 0
-    cards_without_generation: int = 0
+    cards_lost_generation: int = 0
+    cards_moved: int = 0
+    cards_recut: int = 0
+    cards_recut_lost_text_generation: int = 0
+    cards_became_ready: int = 0
+    cards_left_ready: int = 0
+
+
+@dataclass(frozen=True)
+class RebuildRules:
+    """How a rebuild goes.
+
+    `sections`: what the user knows, for the sections phrases earn; `score`: how the selection
+    weighs a phrase; `done_on_the_fly`: words the user knows or learns via another source —
+    their cards already show done, and a rebuild keeps them as they are.
+    """
+
+    mode: RebuildMode
+    sections: SectionRule
+    score: SelectionScore
+    done_on_the_fly: frozenset[WordKey] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -127,13 +153,21 @@ class RebuildPlan:
         )
 
 
+@dataclass(frozen=True)
+class AppliedPlan:
+    """What writing a plan did: the ids of the inserted phrases, in the order of
+    `occ_to_insert`, and the files of what it dropped, to remove once it is committed."""
+
+    inserted: list[int]
+    dropped_files: list[str]
+
+
 def plan_rebuild(
     source_id: int,
     existing: list[OccurrenceRow],
     words: list[WordRow],
     built: list[BuiltWord],
-    include_open: bool,
-    rule: SectionRule,
+    rules: RebuildRules,
 ) -> RebuildPlan:
     """Match a fresh analysis to the stored words and phrases of a source.
 
@@ -142,16 +176,22 @@ def plan_rebuild(
     (its very phrase first, else the nearest), and takes its key — an older analysis or a
     migrated card may have keyed the same place differently. Manual, example and collected
     ones are not part of the plan, and an auto occurrence where the word already has one of
-    them is not created. Untouchable phrases keep everything; a touched phrase with the
-    same text gets its new score, and its new words unless polished; a touched phrase whose
-    text changed waits for `include_open` (then its revision goes up and its results are
-    reset); an untouched phrase gets everything. Occurrences the analysis no longer has go
-    unless touched — with `include_open`, unless untouchable. A word goes when no phrase is
-    left and nothing keeps it (`keeps_word`). The selection then runs on what is left. Each
-    new phrase is stamped with the section `rule` says it earns, and so is every kept phrase
-    without a choice and out of Anki, by the data of its word as the analysis leaves it.
+    them is not created.
+
+    Untouchable phrases, and every phrase of a decided word or of a word done on the fly,
+    stay as they are. A word the analysis no longer finds loses its other phrases, whatever
+    was made for them. Of a word still found:
+    - a phrase with the same text gets its new score, and its new words unless polished;
+    - a phrase whose text changed is cut again only by a recut, losing what was made of its
+      old text;
+    - a phrase whose place is gone goes when nothing was made for it, or by a recut; one
+      that stays keeps its line free of new phrases of its word.
+    A word goes when no phrase is left and nothing keeps it (`keeps_word`). The selection
+    then runs on what is left. Each new phrase is stamped with the section it earns, and so
+    is every kept phrase without a choice and out of Anki, by the data of its word as the
+    analysis leaves it.
     """
-    planner = _Planner(source_id, include_open, rule)
+    planner = _Planner(source_id, rules)
     rows_by_word: dict[int, list[OccurrenceRow]] = {}
     for o in existing:
         rows_by_word.setdefault(o.candidate_id, []).append(o)
@@ -201,10 +241,9 @@ def _restamped(
 class _Planner:
     """Collects the plan word by word."""
 
-    def __init__(self, source_id: int, include_open: bool, rule: SectionRule) -> None:
+    def __init__(self, source_id: int, rules: RebuildRules) -> None:
         self._source_id = source_id
-        self._include_open = include_open
-        self._rule = rule
+        self._rules = rules
         self._new_words: list[NewWord] = []
         self._word_updates: list[WordUpdate] = []
         self._word_deletes: list[int] = []
@@ -217,9 +256,12 @@ class _Planner:
         self._sections: list[SectionChange] = []
         self._rewritten: set[int] = set()
         self._next_placeholder = -1
-        self._new_phrase = 0
-        self._text_reset = 0
-        self._without_generation = 0
+        self._lost_generation = 0
+        self._moved = 0
+        self._recut = 0
+        self._recut_lost = 0
+        self._became_ready = 0
+        self._left_ready = 0
 
     def plan(self) -> RebuildPlan:
         return RebuildPlan(
@@ -237,9 +279,12 @@ class _Planner:
             counts=RebuildCounts(
                 words_added=len(self._new_words),
                 words_removed=len(self._word_deletes),
-                cards_new_phrase=self._new_phrase,
-                cards_text_reset=self._text_reset,
-                cards_without_generation=self._without_generation,
+                cards_lost_generation=self._lost_generation,
+                cards_moved=self._moved,
+                cards_recut=self._recut,
+                cards_recut_lost_text_generation=self._recut_lost,
+                cards_became_ready=self._became_ready,
+                cards_left_ready=self._left_ready,
             ),
         )
 
@@ -250,20 +295,20 @@ class _Planner:
             w.id, w.lemma, w.data.pos, self._source_id, tuple(o.card_state for o in rows),
         )
         decided = is_decided(state)
-        after: list[OccurrenceRow] = []
-        for o in sorted(rows, key=lambda o: o.id):
-            kept = self._phrase(
-                o, analysed.get(o.key) if o.key is not None else None, decided,
-                b if b is not None else w,
-            )
-            if kept is not None:
-                after.append(kept)
         facts = b if b is not None else w
-        self._sections.extend(
-            _restamped([o for o in after if o.id not in self._rewritten], facts, self._rule),
-        )
-        taken = {o.key for o in rows if o.key is not None}
-        fresh = [occ for key, occ in analysed.items() if key not in taken]
+        if decided or w.key in self._rules.done_on_the_fly:
+            after = rows
+        else:
+            after = [
+                kept for o in sorted(rows, key=lambda o: o.id)
+                if (kept := self._phrase(o, _analysed_at(o, analysed), facts, b is None))
+                is not None
+            ]
+        restamped = [o for o in after if o.id not in self._rewritten]
+        changes = _restamped(restamped, facts, self._rules.sections)
+        self._count_regrouped(restamped, changes)
+        self._sections.extend(changes)
+        fresh = _fresh_places(rows, after, analysed)
         if not keeps_word(state, {o.id: o.user_work for o in rows}) and not after and not fresh:
             self._word_deletes.append(w.id)
             return
@@ -292,31 +337,37 @@ class _Planner:
         self,
         o: OccurrenceRow,
         analysed: BuiltOccurrence | None,
-        word_decided: bool,
         facts: WordFacts,
+        word_gone: bool,
     ) -> OccurrenceRow | None:
         """The phrase as the plan leaves it, or None when the plan deletes it."""
         if o.origin is not OccurrenceOrigin.AUTO or is_untouchable(o):
             return o
-        touched = is_touched(o, word_decided)
         if analysed is None:
-            if touched and not self._include_open:
-                return o
-            self._deletes.append(o.id)
-            return None
-        same_text = o.text_hash == OccurrenceRow.hash_text(analysed.phrase.text)
-        new_phrase = OccurrenceRow.hash_phrase(analysed.phrase, analysed.phrase_position)
-        if not touched or (same_text and not o.shows_polish):
-            if o.phrase_hash != new_phrase:
-                return self._rewrite(o, analysed, facts, bump=not same_text, reset=False)
-            return self._rescore(o, analysed.fragment_score)
-        if same_text:
-            return self._rescore(o, analysed.fragment_score)
-        if not self._include_open:
+            if word_gone or self._recuts or not (o.generation.any or o.has_active_job):
+                self._delete(o)
+                return None
             return o
-        if o.has_results or o.has_active_job:
-            self._text_reset += 1
-        return self._rewrite(o, analysed, facts, bump=True, reset=True)
+        if o.text_hash == OccurrenceRow.hash_text(analysed.phrase.text):
+            if not o.shows_polish and o.phrase_hash != _phrase_hash(analysed):
+                return self._rewrite(o, analysed, facts, recut=False)
+            return self._rescore(o, analysed.fragment_score)
+        if not self._recuts:
+            return o
+        if o.is_shown:
+            self._recut += 1
+            if o.generation.of_text:
+                self._recut_lost += 1
+        return self._rewrite(o, analysed, facts, recut=True)
+
+    @property
+    def _recuts(self) -> bool:
+        return self._rules.mode is RebuildMode.RECUT
+
+    def _delete(self, o: OccurrenceRow) -> None:
+        if o.is_shown and o.generation.any:
+            self._lost_generation += 1
+        self._deletes.append(o.id)
 
     def _rewrite(
         self,
@@ -324,29 +375,35 @@ class _Planner:
         analysed: BuiltOccurrence,
         facts: WordFacts,
         *,
-        bump: bool,
-        reset: bool,
+        recut: bool,
     ) -> OccurrenceRow:
-        assert reset or not o.shows_polish, "a shown polish counts as results and is always reset"
-        earned = self._rule.earned(analysed.phrase, facts)
+        """A new source phrase: by a recut, a new text, losing what was made of the old one;
+        else the same text with new facts about its words, the phrase showing it."""
+        assert recut or not o.shows_polish, "a polished phrase keeps its source phrase"
+        drop = recut and o.generation.of_text
+        earned = self._rules.sections.earned(analysed.phrase, facts)
         self._rewritten.add(o.id)
         self._text_updates.append(OccurrenceTextUpdate(
             occurrence_id=o.id,
             phrase=analysed.phrase,
             phrase_position=analysed.phrase_position,
             fragment_score=analysed.fragment_score,
-            bump_revision=bump,
-            reset_results=reset,
+            bump_revision=recut,
+            drop_text_generation=drop,
             earned_section=earned,
         ))
+        generation = (
+            replace(o.generation, polish=False, text_media=False) if drop else o.generation
+        )
         return replace(
             o,
             text_hash=OccurrenceRow.hash_text(analysed.phrase.text),
-            phrase_hash=OccurrenceRow.hash_phrase(analysed.phrase, analysed.phrase_position),
+            phrase_hash=_phrase_hash(analysed),
             fragment_score=analysed.fragment_score,
-            revision=o.revision + 1 if bump else o.revision,
-            has_results=False if reset else o.has_results,
-            shows_polish=False if reset else o.shows_polish,
+            revision=o.revision + 1 if recut else o.revision,
+            generation=generation,
+            shows_polish=False,
+            source_phrase=analysed.phrase,
             shown_phrase=analysed.phrase,
             earned_section=earned,
         )
@@ -368,7 +425,7 @@ class _Planner:
     ) -> None:
         placeholders = {self._placeholder(): occ for occ in fresh.occurrences}
         earned = {
-            placeholder: self._rule.earned(occ.phrase, fresh.word)
+            placeholder: self._rules.sections.earned(occ.phrase, fresh.word)
             for placeholder, occ in placeholders.items()
             if fresh.word is not None
         }
@@ -376,7 +433,7 @@ class _Planner:
             _fresh_row(placeholder, word_id or 0, occ, earned[placeholder])
             for placeholder, occ in placeholders.items()
         ]
-        change = select_phrases(candidates, decided, self._include_open)
+        change = select_phrases(candidates, decided, self._rules.score)
         chosen = change.set_selection
         for placeholder, occ in placeholders.items():
             assert fresh.word is not None
@@ -392,24 +449,28 @@ class _Planner:
         )
         if not kept.is_empty:
             self._selection.append(kept)
-        self._count(before, candidates, change)
+        self._count_move(before, candidates, change)
 
-    def _count(
+    def _count_move(
         self,
         before: list[OccurrenceRow],
         after: list[OccurrenceRow],
         change: SelectionChange,
     ) -> None:
-        cleared = set(change.clear_selection)
-        shown_after = [
-            o for o in after
-            if (o.is_shown and o.id not in cleared) or o.id == change.set_selection
-        ]
-        self._without_generation += sum(1 for o in shown_after if not o.has_results)
         had_selection = any(o.shown_by is ShownBy.SELECTION for o in before)
         chosen = next((o for o in after if o.id == change.set_selection), None)
-        if had_selection and chosen is not None and not chosen.has_results:
-            self._new_phrase += 1
+        if had_selection and chosen is not None and not chosen.generation.any:
+            self._moved += 1
+
+    def _count_regrouped(self, rows: list[OccurrenceRow], changes: list[SectionChange]) -> None:
+        before = {o.id: o.earned_section for o in rows if o.is_shown}
+        for change in changes:
+            if change.occurrence_id not in before:
+                continue
+            if is_ready(change.earned_section):
+                self._became_ready += 1
+            elif is_ready(before[change.occurrence_id]):
+                self._left_ready += 1
 
     def _placeholder(self) -> int:
         """An id for a phrase not stored yet; stored ids are positive."""
@@ -460,6 +521,30 @@ def _moved_keys(
     return moved
 
 
+def _analysed_at(
+    o: OccurrenceRow, analysed: dict[OccurrenceKey, BuiltOccurrence],
+) -> BuiltOccurrence | None:
+    return analysed.get(o.key) if o.key is not None else None
+
+
+def _fresh_places(
+    rows: list[OccurrenceRow],
+    after: list[OccurrenceRow],
+    analysed: dict[OccurrenceKey, BuiltOccurrence],
+) -> list[BuiltOccurrence]:
+    """The analysed places of a word no phrase holds yet; a kept phrase whose place the
+    analysis no longer has holds its line, so the place gets no second phrase."""
+    taken = {o.key for o in rows if o.key is not None}
+    held_lines = {
+        (o.key.block, o.key.line) for o in after
+        if o.key is not None and o.key not in analysed and o.origin is OccurrenceOrigin.AUTO
+    }
+    return [
+        occ for key, occ in analysed.items()
+        if key not in taken and (key.block, key.line) not in held_lines
+    ]
+
+
 def _phrase_hash(occ: BuiltOccurrence) -> str:
     return OccurrenceRow.hash_phrase(occ.phrase, occ.phrase_position)
 
@@ -484,13 +569,14 @@ def _fresh_row(
         choice=CardChoice.NONE,
         revision=0,
         edited_by_user=False,
-        has_results=False,
+        generation=NO_GENERATION,
         binding=None,
         has_active_job=False,
         text_hash=OccurrenceRow.hash_text(occ.phrase.text),
         fragment_score=occ.fragment_score,
         shows_polish=False,
         phrase_hash=OccurrenceRow.hash_phrase(occ.phrase, occ.phrase_position),
+        source_phrase=occ.phrase,
         shown_phrase=occ.phrase,
         earned_section=earned,
     )

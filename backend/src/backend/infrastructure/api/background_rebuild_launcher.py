@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from backend.domain.ports.sources_rebuild_launcher import SourcesRebuildLauncher
+from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.source_scope import SourceScope
 
 if TYPE_CHECKING:
@@ -57,7 +58,7 @@ REBUILD_PASSES = RebuildPasses()
 
 
 class BackgroundSourcesRebuildLauncher(SourcesRebuildLauncher):
-    """Rebuilds every source on a worker of its own, the way Rebuild of All does: each
+    """Updates every source on a worker of its own, the way Update of All does: each
     takes its lock only when its turn comes, and a source that is busy then is skipped."""
 
     def __init__(
@@ -78,7 +79,7 @@ class BackgroundSourcesRebuildLauncher(SourcesRebuildLauncher):
     def _rebuild_pass(self) -> None:
         with self._session_factory() as session:
             summary = self._scope_operation(session).rebuild(
-                SourceScope.all(), include_open=False,
+                SourceScope.all(), RebuildMode.UPDATE,
             )
         logger.info(
             "rebuild of all sources: done (skipped=%d, failed=%d)",

@@ -12,18 +12,18 @@ class TestSourceOperationRegistry:
         registry = SourceOperationRegistry()
         started = registry.started(SCOPE, SourceOperationKind.PREVIEW)
         assert started.state is OperationState.RUNNING
-        assert started.caption == "Checking what a rebuild changes…"
+        assert started.caption == "Counting what will change…"
 
     def test_a_failed_operation_keeps_its_error(self) -> None:
         registry = SourceOperationRegistry()
-        started = registry.started(SCOPE, SourceOperationKind.REBUILD)
+        started = registry.started(SCOPE, SourceOperationKind.UPDATE)
 
         registry.failed(SCOPE, started.operation_id, "parser crashed")
 
         last = registry.last(SCOPE)
         assert last is not None
         assert (last.state, last.error, last.kind) == (
-            OperationState.ERROR, "parser crashed", SourceOperationKind.REBUILD,
+            OperationState.ERROR, "parser crashed", SourceOperationKind.UPDATE,
         )
         assert last.summary is None
 
@@ -41,7 +41,7 @@ class TestSourceOperationRegistry:
     def test_an_older_operation_does_not_overwrite_a_newer_one(self) -> None:
         registry = SourceOperationRegistry()
         older = registry.started(SCOPE, SourceOperationKind.PREVIEW)
-        newer = registry.started(SCOPE, SourceOperationKind.REBUILD)
+        newer = registry.started(SCOPE, SourceOperationKind.UPDATE)
 
         registry.failed(SCOPE, older.operation_id, "late")
 

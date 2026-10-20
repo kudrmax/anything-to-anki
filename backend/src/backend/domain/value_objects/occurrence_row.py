@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.card_choice import Binding, CardChoice
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
+    from backend.domain.value_objects.phrase_generation import PhraseGeneration
 
 
 @dataclass(frozen=True)
@@ -23,9 +24,11 @@ class OccurrenceRow:
     `text_hash` identifies the source text of the phrase (see `hash_text`); `phrase_hash`
     the source phrase with the facts about its words and its place (see `hash_phrase`).
     `shows_polish`: the card shows the polished phrase, not the source one.
+    `generation`: what was made for the phrase.
     `replaces_selection`: the phrase took the place of the word's selection card.
-    `binding`: the card's active binding to an Anki note. `shown_phrase`: the phrase the card
-    shows. `earned_section`: the section stored on the phrase.
+    `binding`: the card's active binding to an Anki note. `source_phrase`: the phrase cut from
+    the source; `shown_phrase`: the phrase the card shows. `earned_section`: the section
+    stored on the phrase.
     """
 
     id: int
@@ -36,13 +39,14 @@ class OccurrenceRow:
     choice: CardChoice
     revision: int
     edited_by_user: bool
-    has_results: bool
+    generation: PhraseGeneration
     binding: Binding | None
     has_active_job: bool
     text_hash: str
     fragment_score: float | None
     shows_polish: bool
     phrase_hash: str
+    source_phrase: Phrase
     shown_phrase: Phrase
     earned_section: CandidateSection
     replaces_selection: bool = False

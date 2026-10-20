@@ -15,7 +15,8 @@ export interface ScopeMenuHandlers {
 }
 
 const OPERATION_LABEL: Record<SetOperation, string> = {
-  rebuild: 'Rebuild…',
+  update: 'Find words again…',
+  recut: 'Process again…',
   refresh: 'Refresh…',
 }
 

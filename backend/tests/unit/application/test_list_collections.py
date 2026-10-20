@@ -321,7 +321,7 @@ def test_a_set_offers_the_operations_of_its_sources_and_export() -> None:
         progress={10: DecisionProgress(decided=3, total=3)},
     ).execute()
     friends = reviewed.collections[0].counts
-    assert friends.available_operations == [SourceOperationKind.REBUILD]
+    assert friends.available_operations == [SourceOperationKind.UPDATE, SourceOperationKind.RECUT]
     assert (friends.can_start_operation, friends.operation_hint) == (True, None)
     assert friends.can_export is True
     assert (reviewed.unsorted.available_operations, reviewed.unsorted.can_export) == ([], False)
@@ -334,8 +334,8 @@ def test_a_set_whose_every_rebuildable_source_is_busy_cannot_start() -> None:
             Source(id=10, status=SourceStatus.DONE, collection_id=1),
             Source(id=11, status=SourceStatus.NEW, collection_id=1),
         ],
-        _held({10: HeldOperation(SourceOperationKind.REBUILD)}),
+        _held({10: HeldOperation(SourceOperationKind.UPDATE)}),
     ).collections[0].counts
-    assert friends.available_operations == [SourceOperationKind.REBUILD]
+    assert friends.available_operations == [SourceOperationKind.UPDATE, SourceOperationKind.RECUT]
     assert friends.can_start_operation is False
-    assert friends.operation_hint == "Wait until the rebuild finishes"
+    assert friends.operation_hint == "Wait until the word search finishes"

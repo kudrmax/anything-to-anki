@@ -15,6 +15,7 @@ from backend.domain.value_objects.card_choice import (
 )
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
+from backend.domain.value_objects.phrase_generation import PhraseGeneration
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.unsectioned_phrase import UnsectionedPhrase
 from backend.domain.value_objects.word_row import WordRow
@@ -36,6 +37,7 @@ from backend.infrastructure.persistence.models import (
     load_phrase,
     load_position,
 )
+from backend.infrastructure.persistence.phrase_writes import queued_jobs_follow
 from backend.infrastructure.persistence.rebuild_plan_writer import RebuildPlanWriter
 
 if TYPE_CHECKING:
@@ -49,7 +51,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
     from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
-    from backend.domain.services.rebuild_plan import RebuildPlan, SectionChange
+    from backend.domain.services.rebuild_plan import AppliedPlan, RebuildPlan, SectionChange
     from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.document_position import DocumentPosition
     from backend.domain.value_objects.phrase import Phrase
@@ -135,13 +137,12 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         return self._occurrences(self._of_source(source_id))
 
     def projection(self, source_id: int) -> list[OccurrenceRow]:
-        has_results = or_(
-            PhraseModel.polished_phrase.is_not(None),
-            exists().where(
-                CandidateMeaningModel.phrase_id == PhraseModel.id,
-                CandidateMeaningModel.meaning.is_not(None),
-                CandidateMeaningModel.meaning != "",
-            ),
+        has_meaning = exists().where(
+            CandidateMeaningModel.phrase_id == PhraseModel.id,
+            CandidateMeaningModel.meaning.is_not(None),
+            CandidateMeaningModel.meaning != "",
+        )
+        has_text_media = or_(
             exists().where(
                 CandidateMediaModel.phrase_id == PhraseModel.id,
                 or_(
@@ -153,12 +154,14 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 CandidateTTSModel.phrase_id == PhraseModel.id,
                 CandidateTTSModel.audio_path.is_not(None),
             ),
-            exists().where(CandidateClozeModel.phrase_id == PhraseModel.id),
         )
+        has_cloze = exists().where(CandidateClozeModel.phrase_id == PhraseModel.id)
         rows = self._session.execute(
             select(
                 PhraseModel,
-                has_results.label("has_results"),
+                has_meaning.label("has_meaning"),
+                has_text_media.label("has_text_media"),
+                has_cloze.label("has_cloze"),
                 AnkiSyncedCardModel.note_kind,
                 AnkiSyncedCardModel.learning_since,
                 self._has_active_job().label("has_active_job"),
@@ -176,7 +179,12 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 choice=CardChoice(phrase.choice),
                 revision=phrase.revision,
                 edited_by_user=phrase.edited_by_user,
-                has_results=bool(results),
+                generation=PhraseGeneration(
+                    polish=phrase.polished_phrase is not None,
+                    meaning=bool(meaning),
+                    text_media=bool(text_media),
+                    cloze=bool(cloze),
+                ),
                 binding=Binding(NoteKind(kind), since) if kind is not None else None,
                 has_active_job=bool(active),
                 text_hash=OccurrenceRow.hash_text(json.loads(phrase.source_phrase)["text"]),
@@ -186,6 +194,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 phrase_hash=OccurrenceRow.hash_phrase(
                     _required(phrase.source_phrase), load_position(phrase.phrase_position),
                 ),
+                source_phrase=_required(phrase.source_phrase),
                 shown_phrase=shown_phrase(
                     _required(phrase.source_phrase),
                     load_phrase(phrase.polished_phrase),
@@ -193,7 +202,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 ),
                 earned_section=earned_section_of(phrase.earned_section, phrase.id),
             )
-            for phrase, results, kind, since, active in rows
+            for phrase, meaning, text_media, cloze, kind, since, active in rows
         ]
 
     def get(self, occurrence_id: int) -> Occurrence | None:
@@ -242,22 +251,10 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         model.earned_section = earned_section.value
         if _text_of(model.shown_text) != shown_before:
             model.revision += 1
-            self._queued_jobs_follow(occurrence_id, model.revision)
+            queued_jobs_follow(self._session, occurrence_id, model.revision)
         if edited_by_user:
             model.edited_by_user = True
         self._session.flush()
-
-    def _queued_jobs_follow(self, occurrence_id: int, revision: int) -> None:
-        """Queued jobs read the phrase when they run, so they work on the new text."""
-        self._session.execute(
-            update(JobModel)
-            .where(
-                JobModel.phrase_id == occurrence_id,
-                JobModel.status == JobStatus.QUEUED.value,
-            )
-            .values(phrase_revision=revision)
-            .execution_options(synchronize_session=False)
-        )
 
     def holds_revision(self, occurrence_id: int, revision: int) -> bool:
         # A write, not a read: it takes the database's write lock, so no Rebuild can change
@@ -320,7 +317,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             for word in words
         ]
 
-    def apply_plan(self, plan: RebuildPlan) -> list[int]:
+    def apply_plan(self, plan: RebuildPlan) -> AppliedPlan:
         return self._plans.apply(plan)
 
     def unsectioned(self) -> list[UnsectionedPhrase]:

@@ -25,10 +25,10 @@ def test_a_source_is_held_by_one_operation_at_a_time(db_session: Session) -> Non
     insert_source(db_session, OTHER_SOURCE)
     lock = SqlaSourceOperationLock(db_session)
 
-    assert lock.acquire(SOURCE, SourceOperationKind.REBUILD)
+    assert lock.acquire(SOURCE, SourceOperationKind.UPDATE)
     assert not lock.acquire(SOURCE, SourceOperationKind.PROCESS)
     assert lock.acquire(OTHER_SOURCE, SourceOperationKind.PROCESS)
-    assert lock.held(SOURCE) is SourceOperationKind.REBUILD
+    assert lock.held(SOURCE) is SourceOperationKind.UPDATE
 
     lock.release(SOURCE)
     assert lock.held(SOURCE) is None

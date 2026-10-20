@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, cast
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from backend.domain.services.rebuild_plan import AppliedPlan
 from backend.domain.value_objects.built_analysis import WordKey
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.word_status import WordStatus
@@ -15,7 +16,13 @@ from backend.infrastructure.persistence.models import (
     dump_phrase,
     dump_position,
 )
-from backend.infrastructure.persistence.phrase_writes import chunks, drop_results
+from backend.infrastructure.persistence.phrase_writes import (
+    cancel_running_jobs,
+    chunks,
+    drop_text_results,
+    files_of,
+    queued_jobs_follow,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -45,8 +52,9 @@ class RebuildPlanWriter:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def apply(self, plan: RebuildPlan) -> list[int]:
-        """Returns the ids of the inserted phrases, in the order of the plan's inserts."""
+    def apply(self, plan: RebuildPlan) -> AppliedPlan:
+        dropped = [u.occurrence_id for u in plan.occ_to_update_text if u.drop_text_generation]
+        dropped_files = files_of(self._session, [*plan.occ_to_delete, *dropped])
         self._delete_phrases(plan.occ_to_delete)
         self._rekey(plan.occ_to_rekey)
         self._delete_words(plan.words_to_delete)
@@ -58,7 +66,7 @@ class RebuildPlanWriter:
         self._select(plan.selection_changes)
         self.restamp(plan.section_changes)
         self._session.flush()
-        return inserted
+        return AppliedPlan(inserted=inserted, dropped_files=dropped_files)
 
     def _delete_phrases(self, ids: Sequence[int]) -> None:
         for chunk in chunks(ids):
@@ -115,8 +123,11 @@ class RebuildPlanWriter:
         return {WordKey.of(lemma, phrasal): word_id for word_id, lemma, phrasal in rows}
 
     def _rewrite(self, updates: Sequence[OccurrenceTextUpdate]) -> None:
+        """A phrase cut again drops what was made of its old text; its queued jobs follow
+        its new revision, and its running ones, working on the old text, are cancelled."""
         by_id = {u.occurrence_id: u for u in updates}
-        reset: list[int] = []
+        dropped: list[int] = []
+        recut: list[int] = []
         for chunk in chunks(list(by_id)):
             for phrase in self._session.scalars(
                 select(PhraseModel).where(PhraseModel.id.in_(chunk))
@@ -128,12 +139,15 @@ class RebuildPlanWriter:
                 phrase.earned_section = planned.earned_section.value
                 if planned.bump_revision:
                     phrase.revision += 1
-                if planned.reset_results:
+                    queued_jobs_follow(self._session, phrase.id, phrase.revision)
+                    recut.append(phrase.id)
+                if planned.drop_text_generation:
                     phrase.polished_phrase = None
                     phrase.polish_reverted = False
-                    reset.append(phrase.id)
+                    dropped.append(phrase.id)
         self._session.flush()
-        drop_results(self._session, reset)
+        drop_text_results(self._session, dropped)
+        cancel_running_jobs(self._session, recut)
 
     def _rescore(self, updates: Sequence[OccurrenceScoreUpdate]) -> None:
         if updates:

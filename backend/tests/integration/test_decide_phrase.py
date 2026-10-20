@@ -440,7 +440,7 @@ def test_the_removal_waits_for_a_busy_source(bench: Bench) -> None:
     bench.press(FIRST, KNOWN)
     bench.known_in_other_source()
     bench.decisions.lock.held.side_effect = lambda source_id: (
-        SourceOperationKind.REBUILD if source_id == OTHER_SOURCE else None
+        SourceOperationKind.UPDATE if source_id == OTHER_SOURCE else None
     )
 
     with pytest.raises(SourceOperationBusyError):

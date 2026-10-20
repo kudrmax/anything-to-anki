@@ -95,7 +95,10 @@ export interface SourcePlacement {
   collection_id: number | null
 }
 
-export type SetOperation = 'rebuild' | 'refresh'
+export type SetOperation = 'update' | 'recut' | 'refresh'
+
+/** Rebuild раскладывает карточки по знанию; с новыми фразами — ещё и режет фразы заново. */
+export type RebuildMode = 'update' | 'recut'
 
 /** Что предлагает меню «…» источника или набора: одни поля у обоих; решает backend. */
 export interface SetOffer {
@@ -142,7 +145,7 @@ export interface SourceSummary extends SetOffer {
   progress_caption: string
 }
 
-export type SourceOperationKind = 'process' | 'rebuild' | 'preview' | 'refresh'
+export type SourceOperationKind = 'process' | 'update' | 'recut' | 'preview' | 'refresh'
 
 export type GenerationStatus = 'queued' | 'running' | 'failed'
 
@@ -582,20 +585,24 @@ export interface GenerationOverview {
   in_progress: boolean
 }
 
-/** Что меняет Rebuild — числа для человека; считает backend. */
+/** Что меняет Update или Re-cut — числа для человека; считает backend. */
 export interface RebuildCounts {
   words_added: number
   words_removed: number
-  /** Карточки получат другую фразу без генерации. */
-  cards_new_phrase: number
-  /** У карточек изменился текст: их генерация сбросится. */
-  cards_text_reset: number
-  /** Показанные карточки без генерации после Rebuild. */
-  cards_without_generation: number
+  /** Удалённые карточки, для которых что-то было сделано. */
+  cards_lost_generation: number
+  /** Карточки, переехавшие на фразу без генерации. */
+  cards_moved: number
+  /** Фразы, нарезанные заново. */
+  cards_recut: number
+  /** Из них потерявшие Polish, озвучку или видео. */
+  cards_recut_lost_text_generation: number
+  /** Карточки, попавшие в ready или ушедшие из него. */
+  cards_became_ready: number
+  cards_left_ready: number
   nothing_to_update: boolean
 }
 
-/** Превью Rebuild: без галочки «Also unreviewed cards» и с ней. */
 /** Как прошли источники набора: занятые пропущены, упавшие посчитаны; у одного источника обоих нет. */
 export interface SetOutcome {
   skipped: number
@@ -603,13 +610,12 @@ export interface SetOutcome {
 }
 
 export interface RebuildPreview extends SetOutcome {
-  without_open: RebuildCounts
-  /** null — у источника нет своего текста: галочки нет. */
-  with_open: RebuildCounts | null
+  mode: RebuildMode
+  counts: RebuildCounts
 }
 
 export interface RebuildSummary extends SetOutcome {
-  include_open: boolean
+  mode: RebuildMode
   counts: RebuildCounts
 }
 

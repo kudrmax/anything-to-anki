@@ -320,6 +320,11 @@ def keeps_section(card: CardState) -> bool:
     return card.choice is not CardChoice.NONE or in_anki(card)
 
 
+def is_ready(section: CandidateSection) -> bool:
+    """The section shown on top of review: only the target is new."""
+    return section is CandidateSection.READY
+
+
 def wants_ready_generation(wants_generation: bool, section: CandidateSection) -> bool:
     """✨ for ready phrases makes the card's missing parts: the card wants generation and
     it is shown in Ready (only the target is new), decided or not."""

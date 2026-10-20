@@ -131,7 +131,7 @@ def test_removing_the_last_entry_waits_for_a_busy_source(
     client: TestClient, factory: sessionmaker[Session],
 ) -> None:
     with factory() as session:
-        SqlaSourceOperationLock(session).acquire(THERE, SourceOperationKind.REBUILD)
+        SqlaSourceOperationLock(session).acquire(THERE, SourceOperationKind.UPDATE)
         session.commit()
 
     response = client.delete(f"/known-words/{_removal_key(client, 'glare', 'NOUN')}")

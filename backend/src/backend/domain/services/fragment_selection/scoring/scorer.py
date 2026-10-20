@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Protocol
 
 from backend.domain.services.fragment_selection.utils import count_content_words
@@ -51,9 +51,27 @@ class FragmentScore:
             number = number * SCORE_FIELD_BASE + min(field, SCORE_FIELD_BASE - 1)
         return float(number)
 
+    @staticmethod
+    def from_number(number: float) -> FragmentScore:
+        """The score `as_number` packed; capped fields come back capped."""
+        rest = int(number)
+        digits: list[int] = []
+        for _ in range(_FIELD_COUNT):
+            rest, digit = divmod(rest, SCORE_FIELD_BASE)
+            digits.append(digit)
+        overflow, incomplete, boundary, unknowns, content = reversed(digits)
+        return FragmentScore(
+            length_overflow=overflow, incomplete=incomplete, boundary_penalty=boundary,
+            unknowns=unknowns, content_count=content,
+        )
+
+    def with_unknowns(self, unknowns: int) -> FragmentScore:
+        return replace(self, unknowns=unknowns)
+
 
 # Five fields of base 1000 stay below 2**53: the number is exact as a float.
 SCORE_FIELD_BASE = 1000
+_FIELD_COUNT = 5
 _WORST = sys.maxsize
 WORST_FRAGMENT_SCORE = FragmentScore(
     length_overflow=_WORST, incomplete=1, boundary_penalty=_WORST, unknowns=_WORST,

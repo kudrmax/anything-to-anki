@@ -380,10 +380,13 @@ class TestSavedPhrasesAPI:
 
         [saved] = client.get("/sources").json()
         assert client.delete(f"/sources/{source_id}").status_code == 409
-        assert saved["available_operations"] == ["rebuild"]
+        assert saved["available_operations"] == ["update"]
         assert client.post(
-            "/api/operations/rebuild/preview", params={"scope": f"source-{source_id}"},
+            "/api/operations/preview", params={"scope": f"source-{source_id}", "of": "update"},
         ).status_code == 202
+        assert client.post(
+            "/api/operations/preview", params={"scope": f"source-{source_id}", "of": "recut"},
+        ).status_code == 400
 
 
 @pytest.mark.integration

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
+from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
@@ -17,8 +19,9 @@ _REBUILDABLE_STATUSES = frozenset({SourceStatus.DONE, SourceStatus.ERROR})
 
 _BUSY_NAME: dict[SourceOperationKind, str] = {
     SourceOperationKind.PROCESS: "processing",
-    SourceOperationKind.REBUILD: "rebuild",
-    SourceOperationKind.PREVIEW: "rebuild preview",
+    SourceOperationKind.UPDATE: "word search",
+    SourceOperationKind.RECUT: "reprocessing",
+    SourceOperationKind.PREVIEW: "count of changes",
     SourceOperationKind.REFRESH: "refresh",
 }
 
@@ -27,17 +30,23 @@ def available_operations(source: Source) -> tuple[SourceOperationKind, ...]:
     """What a processed source can be brought up to date with, in menu order. While another
     operation holds the source, they are still offered, but can't start (see `operation_hint`).
 
-    A source with its own text is rebuilt; a topic is refreshed from the other sources,
-    adding phrases only, and rebuilt, which moves the sections of its phrases; the saved
-    phrases are only rebuilt that way.
+    A source with its own text is rebuilt, its phrases kept or cut anew; a topic is
+    refreshed from the other sources, adding phrases only, and rebuilt, which moves the
+    sections of its phrases; the saved phrases are only rebuilt that way.
     """
     if source.role is SourceRole.CONTENT and source.status in _REBUILDABLE_STATUSES:
-        return (SourceOperationKind.REBUILD,)
+        return (SourceOperationKind.UPDATE, SourceOperationKind.RECUT)
     if source.role is SourceRole.TOPIC and source.status is SourceStatus.DONE:
-        return (SourceOperationKind.REFRESH, SourceOperationKind.REBUILD)
+        return (SourceOperationKind.REFRESH, SourceOperationKind.UPDATE)
     if source.role is SourceRole.SAVED_PHRASES:
-        return (SourceOperationKind.REBUILD,)
+        return (SourceOperationKind.UPDATE,)
     return ()
+
+
+REBUILD_OPERATION: Mapping[RebuildMode, SourceOperationKind] = MappingProxyType({
+    RebuildMode.UPDATE: SourceOperationKind.UPDATE,
+    RebuildMode.RECUT: SourceOperationKind.RECUT,
+})
 
 
 def operation_hint(busy_with: SourceOperationKind | None) -> str | None:
@@ -47,7 +56,9 @@ def operation_hint(busy_with: SourceOperationKind | None) -> str | None:
     return f"Wait until the {_BUSY_NAME[busy_with]} finishes"
 
 
-_MENU_ORDER = (SourceOperationKind.REFRESH, SourceOperationKind.REBUILD)
+_MENU_ORDER = (
+    SourceOperationKind.REFRESH, SourceOperationKind.UPDATE, SourceOperationKind.RECUT,
+)
 
 
 @dataclass(frozen=True)
@@ -81,8 +92,9 @@ def operations_offer(
 
 _BUSY_CAPTION: dict[SourceOperationKind, str] = {
     SourceOperationKind.PROCESS: "Processing…",
-    SourceOperationKind.REBUILD: "Rebuilding…",
-    SourceOperationKind.PREVIEW: "Checking what a rebuild changes…",
+    SourceOperationKind.UPDATE: "Finding words again…",
+    SourceOperationKind.RECUT: "Processing again…",
+    SourceOperationKind.PREVIEW: "Counting what will change…",
     SourceOperationKind.REFRESH: "Refreshing…",
 }
 
