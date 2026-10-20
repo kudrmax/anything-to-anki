@@ -148,7 +148,7 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 - `6 cards get a different phrase` / `5 of them lose Polish and audio`
 - План не пуст, но ни одной строки: `Your cards stay as they are; only behind-the-scenes data gets refreshed.`
 - План пуст: `Nothing to change: your cards already match the words you know.` и только Close.
-- Сноска при непустом превью: `The numbers are an estimate and may differ by a few cards.`
+- Сноска при непустом превью: `The result may differ a little if cards change before you press it: you mark a card, or generation running in the background finishes.`
 
 Подписи backend: `Counting what will change…` (превью), подсказка занятого источника — `Wait until the word search finishes` / `Wait until the reprocessing finishes` / `Wait until the count of changes finishes`.
 

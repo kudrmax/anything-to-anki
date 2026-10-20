@@ -127,7 +127,7 @@ export function RebuildDialog({ scope, title, operation, onFinished, onClose }: 
     return (
       <>
         <Counts counts={counts} outcome={preview} />
-        {!counts.nothing_to_update && <Text tone="muted" size="s">The numbers are an estimate and may differ by a few cards.</Text>}
+        {!counts.nothing_to_update && <Text tone="muted" size="s">The result may differ a little if cards change before you press it: you mark a card, or generation running in the background finishes.</Text>}
       </>
     )
   })()
