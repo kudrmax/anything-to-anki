@@ -21,10 +21,12 @@ class NamingRule:
             msg = f"Titles must contain {NUMBER_PLACEHOLDER} or {TITLE_PLACEHOLDER}"
             raise ValueError(msg)
 
-    def render(self, collection: str | None, number: int, own_title: str) -> str:
+    def render(
+        self, collection: str | None, number: int, own_title: str, digits: int = 1,
+    ) -> str:
         title = (
             self.pattern.replace(COLLECTION_PLACEHOLDER, collection or "")
-            .replace(NUMBER_PLACEHOLDER, str(number))
+            .replace(NUMBER_PLACEHOLDER, str(number).zfill(digits))
             .replace(TITLE_PLACEHOLDER, own_title)
         )
         return " ".join(title.split())

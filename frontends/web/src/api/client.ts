@@ -93,10 +93,10 @@ export const api = {
       }),
     }),
 
-  renderNames: (rule: string, collectionName: string | null, ownTitles: string[], signal?: AbortSignal) =>
+  renderNames: (rule: string, collectionName: string | null, ownTitles: string[], numberDigits: number | null, signal?: AbortSignal) =>
     req<string[]>('/sources/render-names', {
       method: 'POST',
-      body: JSON.stringify({ rule, collection_name: collectionName, own_titles: ownTitles }),
+      body: JSON.stringify({ rule, collection_name: collectionName, own_titles: ownTitles, number_digits: numberDigits }),
       signal,
     }),
 

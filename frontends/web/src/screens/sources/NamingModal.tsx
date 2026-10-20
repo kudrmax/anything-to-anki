@@ -3,7 +3,7 @@ import { ArrowRight, Undo2 } from 'lucide-react'
 import { api } from '@/api/client'
 import type { CollectionChoice, CollectionNode, CollectionTree, Naming, NamingRequired } from '@/api/types'
 import { messageOf } from '@/lib/apiError'
-import { Button, Field, Icon, Label, Modal, Text } from '@/ui'
+import { Button, Field, Icon, Label, Modal, Segmented, Text } from '@/ui'
 import { RuleField } from './RuleField'
 import css from './NamingModal.module.css'
 
@@ -28,6 +28,9 @@ function flatten(nodes: CollectionNode[], path: string[] = []): Existing[] {
   return nodes.flatMap(node => [{ id: node.id, name: node.name, path }, ...flatten(node.children, [...path, node.name])])
 }
 
+const AUTO_DIGITS = 'auto'
+const keyOf = (digits: number | null): string => (digits === null ? AUTO_DIGITS : String(digits))
+
 /** Коллекция с набранным именем: сперва верхнего уровня, иначе единственная вложенная с таким именем. */
 function sameNamed(existing: Existing[], typed: string): Existing | undefined {
   const named = existing.filter(e => e.name.toLowerCase() === typed.toLowerCase())
@@ -44,19 +47,20 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
   const [search, setSearch] = useState(() => nameOf(required.default_collection) ?? '')
   const [picking, setPicking] = useState(false)
   const [rule, setRule] = useState(required.default_rule)
+  const [digits, setDigits] = useState<number | null>(null)
   const [rendered, setRendered] = useState<string[]>([])
   const [ruleError, setRuleError] = useState<string | null>(null)
   // Для какого правила и коллекции пришёл последний ответ: пока не для текущих — проверка идёт.
   const [checkedFor, setCheckedFor] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<number, string>>({})
   const collectionName = nameOf(collection)
-  const checkKey = `${rule}\n${collectionName ?? ''}`
+  const checkKey = `${rule}\n${collectionName ?? ''}\n${digits ?? ''}`
   const checking = checkedFor !== checkKey
 
   useEffect(() => {
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
-      api.renderNames(rule, collectionName, required.items.map(item => item.own_title), controller.signal)
+      api.renderNames(rule, collectionName, required.items.map(item => item.own_title), digits, controller.signal)
         .then(names => { setRendered(names); setRuleError(null); setCheckedFor(checkKey) })
         .catch(e => { if (!controller.signal.aborted) { setRuleError(messageOf(e)); setCheckedFor(checkKey) } })
     }, RENDER_DELAY_MS)
@@ -64,7 +68,7 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [rule, collectionName, checkKey, required.items])
+  }, [rule, collectionName, digits, checkKey, required.items])
 
   const listRef = useRef<HTMLDivElement>(null)
   const query = search.trim().toLowerCase()
@@ -103,6 +107,7 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
   const confirm = () => onConfirm({
     collection,
     rule,
+    number_digits: digits,
     titles: Object.fromEntries(Object.entries(edits).filter(([, title]) => title.trim() !== '')),
   })
 
@@ -151,6 +156,14 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
       <div className={css.section}>
         <Label flush>Name them</Label>
         <RuleField value={rule} variables={required.variables} onChange={setRule} />
+        <div className={css.numbers}>
+          <Text tone="muted" size="s">Numbers</Text>
+          <Segmented
+            value={keyOf(digits)}
+            options={required.number_formats.map(format => ({ value: keyOf(format.digits), label: format.label }))}
+            onChange={key => setDigits(required.number_formats.find(format => keyOf(format.digits) === key)?.digits ?? null)}
+          />
+        </div>
         {ruleError && <Text tone="err" size="s">{ruleError}</Text>}
       </div>
       <div className={css.rows}>

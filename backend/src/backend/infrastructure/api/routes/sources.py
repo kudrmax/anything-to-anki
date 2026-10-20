@@ -58,6 +58,7 @@ from backend.domain.exceptions import (
 )
 from backend.domain.value_objects.collection_choice import CollectionChoice
 from backend.domain.value_objects.naming_rule import NamingRule
+from backend.domain.value_objects.number_format import NumberFormat
 from backend.domain.value_objects.question import Answers
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.background import free_source, in_background
@@ -115,7 +116,7 @@ def render_names(
     """The titles a naming rule gives the sources of one add, for the naming window."""
     try:
         return container.render_names_use_case().execute(
-            request.rule, request.collection_name, request.own_titles,
+            request.rule, request.collection_name, request.own_titles, request.number_digits,
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail={"message": str(e)}) from e
@@ -153,6 +154,7 @@ def _naming(dto: NamingDTO | None) -> Naming | None:
         ),
         rule=NamingRule(dto.rule),
         titles=dto.titles,
+        number_format=NumberFormat(dto.number_digits),
     )
 
 

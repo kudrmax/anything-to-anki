@@ -725,6 +725,12 @@ export interface NamingVariable {
   label: string
 }
 
+/** Как писать номер: нули до digits; без digits — сколько нужно на число источников. */
+export interface NumberFormat {
+  digits: number | null
+  label: string
+}
+
 /** Добавление даёт несколько источников: backend спрашивает коллекцию и названия. */
 export interface NamingRequired {
   heading: string
@@ -732,6 +738,7 @@ export interface NamingRequired {
   default_collection: CollectionChoice | null
   default_rule: string
   variables: NamingVariable[]
+  number_formats: NumberFormat[]
 }
 
 /** Как пользователь назвал источники: коллекция, правило и переписанные руками строки по номеру. */
@@ -739,6 +746,7 @@ export interface Naming {
   collection: CollectionChoice | null
   rule: string
   titles: Record<number, string>
+  number_digits: number | null
 }
 
 export type AddSourceResult =
