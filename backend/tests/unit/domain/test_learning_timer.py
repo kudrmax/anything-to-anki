@@ -64,13 +64,6 @@ class TestLemmaKnowledge:
         assert knowledge.is_known is True
         assert knowledge.timer_known is True
 
-    def test_unknown_wins_over_the_known_list(self) -> None:
-        """Stage 4's migration removes such conflicts; till then Unknown wins the list."""
-        knowledge = _knowledge(known_marked=True, unknown=True)
-        assert knowledge.listed_known is False
-        assert knowledge.is_known is False
-        assert knowledge.elsewhere is None
-
     def test_unknown_masks_neither_the_timer_nor_a_learn(self) -> None:
         """Spec §1: Unknown never meets a Learn or a note in Anki, so it hides neither."""
         assert _knowledge(unknown=True, active_since=(DUE,)).timer_known is True

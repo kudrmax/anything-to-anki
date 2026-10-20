@@ -48,9 +48,8 @@ class LemmaKnowledge:
 
     @property
     def listed_known(self) -> bool:
-        """In the Known list, and not in Unknown too."""
-        # Stage 4 migration removes pre-existing conflicts
-        return self.known_marked and not self.unknown
+        """In the Known list."""
+        return self.known_marked
 
     @property
     def is_known(self) -> bool:

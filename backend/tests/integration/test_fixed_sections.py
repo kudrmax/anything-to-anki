@@ -16,10 +16,10 @@ from backend.infrastructure.persistence.database import (
 )
 from backend.infrastructure.persistence.models import WordDecisionModel, dump_phrase
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
+from backend.infrastructure.persistence.sqla_word_mark_repository import (
+    SqlaWordMarkRepository,
+)
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
@@ -109,7 +109,7 @@ def _drift(client: TestClient) -> str:
 
 
 def _known_zephyr(session: Session) -> None:
-    SqlaKnownWordRepository(session, SessionChangeRecorder(session)).add("zephyr", None)
+    SqlaWordMarkRepository(session, SessionChangeRecorder(session)).mark_known("zephyr", None)
 
 
 def _learning_timer_expired(session: Session) -> None:

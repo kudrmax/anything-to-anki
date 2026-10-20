@@ -426,7 +426,7 @@ def test_undoing_a_migrated_known_takes_the_lemma_out_of_known(db_url: str) -> N
     with Session(engine) as session:
         Decisions(session).decide_phrase().press(phrase_id, Press.KNOWN)
         session.commit()
-    assert _rows(db_url, "SELECT lemma FROM known_words WHERE lemma = 'ponder'") == []
+    assert _rows(db_url, "SELECT lemma FROM word_marks WHERE lemma = 'ponder'") == []
     assert _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_O) == [
         {"status": "pending"},
     ]
@@ -558,10 +558,12 @@ def test_a_stored_review_status_becomes_done_it_is_derived_on_read(db_url: str) 
 
 
 def test_known_words_keep_no_anki_progress_and_there_is_no_note_table(db_url: str) -> None:
+    """Known words live in word marks since 0054."""
     engine = inspect(create_engine(db_url))
-    assert {c["name"] for c in engine.get_columns("known_words")} == {
-        "id", "lemma", "pos", "created_at",
+    assert {c["name"] for c in engine.get_columns("word_marks")} == {
+        "lemma", "mark", "created_at",
     }
+    assert {c["name"] for c in engine.get_columns("known_pos")} == {"lemma", "pos"}
     assert "anki_notes" not in engine.get_table_names()
 
 

@@ -27,7 +27,7 @@ class TestGetBootstrapWordsUseCase:
     def test_computes_grid_levels_from_settings(self) -> None:
         """User CEFR=B1 -> grid={B2, C1, C2}."""
         self.settings_repo.get.return_value = "B1"
-        self.known_word_repo.get_all_pairs.return_value = set()
+        self.known_word_repo.known_lemmas.return_value = set()
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
             _entry("nuance", CEFRLevel.C1, 4.2),
@@ -44,7 +44,7 @@ class TestGetBootstrapWordsUseCase:
     def test_grid_shrinks_for_high_cefr(self) -> None:
         """User CEFR=B2 -> grid={C1, C2}."""
         self.settings_repo.get.return_value = "B2"
-        self.known_word_repo.get_all_pairs.return_value = set()
+        self.known_word_repo.known_lemmas.return_value = set()
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
             _entry("nuance", CEFRLevel.C1, 4.2),
@@ -58,7 +58,7 @@ class TestGetBootstrapWordsUseCase:
 
     def test_excludes_known_words(self) -> None:
         self.settings_repo.get.return_value = "B1"
-        self.known_word_repo.get_all_pairs.return_value = {("elaborate", None)}
+        self.known_word_repo.known_lemmas.return_value = {"elaborate"}
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
             _entry("nuance", CEFRLevel.C1, 4.2),
@@ -71,7 +71,7 @@ class TestGetBootstrapWordsUseCase:
 
     def test_excludes_words_being_learned(self) -> None:
         self.settings_repo.get.return_value = "B1"
-        self.known_word_repo.get_all_pairs.return_value = set()
+        self.known_word_repo.known_lemmas.return_value = set()
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
             _entry("nuance", CEFRLevel.C1, 4.2),
@@ -88,7 +88,7 @@ class TestGetBootstrapWordsUseCase:
 
     def test_passes_excluded_lemmas(self) -> None:
         self.settings_repo.get.return_value = "B1"
-        self.known_word_repo.get_all_pairs.return_value = set()
+        self.known_word_repo.known_lemmas.return_value = set()
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
             _entry("nuance", CEFRLevel.C1, 4.2),
@@ -101,7 +101,7 @@ class TestGetBootstrapWordsUseCase:
 
     def test_returns_bootstrap_word_dtos(self) -> None:
         self.settings_repo.get.return_value = "B1"
-        self.known_word_repo.get_all_pairs.return_value = set()
+        self.known_word_repo.known_lemmas.return_value = set()
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
         ]

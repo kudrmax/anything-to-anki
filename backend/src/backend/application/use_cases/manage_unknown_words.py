@@ -27,5 +27,10 @@ class ManageUnknownWordsUseCase:
         ]
 
     def delete(self, unknown_word_id: int) -> None:
+        """Nothing happens for an id the list does not give."""
         with self._unit_of_work.write():
-            self._vocabulary.remove_unknown(unknown_word_id)
+            entry = next(
+                (w for w in self._vocabulary.unknown_words() if w.id == unknown_word_id), None,
+            )
+            if entry is not None:
+                self._vocabulary.forget_unknown(entry.lemma)

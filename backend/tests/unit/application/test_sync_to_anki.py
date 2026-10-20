@@ -706,7 +706,7 @@ class TestSyncInOneBatch:
             for i in range(1, self.CARDS + 1)
         ])
         known = MagicMock()
-        known.get_all_pairs.return_value = set()
+        known.known_lemmas.return_value = set()
         connector = MagicMock()
         connector.is_available.return_value = True
         connector.get_model_field_names.return_value = _EveryField()
@@ -724,4 +724,4 @@ class TestSyncInOneBatch:
 
         assert result.added == self.CARDS
         assert len(cards.bindings) == self.CARDS
-        assert known.get_all_pairs.call_count <= 2  # noqa: PLR2004 — before, and once after
+        assert known.known_lemmas.call_count <= 2  # noqa: PLR2004 — before, and once after

@@ -18,15 +18,12 @@ from backend.infrastructure.api.dependencies import get_db_session, get_session_
 from backend.infrastructure.container import KNOWLEDGE_SCOPE_KEY
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
-from backend.infrastructure.persistence.sqla_unknown_word_repository import (
-    SqlaUnknownWordRepository,
+from backend.infrastructure.persistence.sqla_word_mark_repository import (
+    SqlaWordMarkRepository,
 )
 from fastapi.testclient import TestClient
 from httpx import Response  # noqa: TC002
@@ -36,6 +33,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.decision_support import NOW, FixedClock
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.word_marks_support import insert_known
 from tests.word_support import bind, insert_word, phrase_id_of
 
 pytestmark = pytest.mark.integration
@@ -76,10 +74,7 @@ class Seed:
         return self
 
     def listed_known(self) -> Seed:
-        self.session.execute(text(
-            "INSERT INTO known_words (lemma, pos, created_at)"
-            " VALUES ('glare', 'NOUN', '2026-01-01')"
-        ))
+        insert_known(self.session, "glare", "NOUN")
         return self
 
     def known_in_another_source(self) -> Seed:
@@ -248,10 +243,7 @@ def client(factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
         with factory() as session:
             session.info[KNOWLEDGE_SCOPE_KEY] = KnowledgeScope(
                 clock=FixedClock(NOW),
-                known_word_repo=SqlaKnownWordRepository(session, SessionChangeRecorder(session)),
-                unknown_word_repo=SqlaUnknownWordRepository(
-                    session, SessionChangeRecorder(session),
-                ),
+                word_mark_repo=SqlaWordMarkRepository(session, SessionChangeRecorder(session)),
                 learning_query=SqlaLearningQuery(session),
             )
             yield session

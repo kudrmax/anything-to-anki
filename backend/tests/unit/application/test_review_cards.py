@@ -32,7 +32,7 @@ DUE = (NOW - LEARNING_KNOWN_AFTER,)
 
 def _known(*lemmas: str) -> MagicMock:
     repo = MagicMock()
-    repo.get_all_pairs.return_value = {(lemma, None) for lemma in lemmas}
+    repo.known_lemmas.return_value = set(lemmas)
     return repo
 
 

@@ -1,6 +1,6 @@
 """A real ``UserVocabulary`` over mocked word lists.
 
-Tests keep asserting on the known-word repository mock they pass; the unknown
+Tests keep asserting on the word-mark repository mock they pass; the unknown
 words and the learning words are the given lemmas.
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 def user_vocabulary(
-    known_word_repo: MagicMock | None = None,
+    word_mark_repo: MagicMock | None = None,
     unknown_lemmas: Iterable[str] = (),
     *,
     learning_lemmas: Iterable[str] = (),
@@ -31,11 +31,10 @@ def user_vocabulary(
     """`learning_query`: a real query in place of the given learning lemmas, which are
     Learn words waiting for export; `active_since`: when each lemma's notes in Anki were
     exported."""
-    known = known_word_repo if known_word_repo is not None else MagicMock()
-    if isinstance(known.get_all_pairs.return_value, MagicMock):
-        known.get_all_pairs.return_value = set()
-    unknown = MagicMock()
-    unknown.lemmas.return_value = set(unknown_lemmas)
+    marks = word_mark_repo if word_mark_repo is not None else MagicMock()
+    if isinstance(marks.known_lemmas.return_value, MagicMock):
+        marks.known_lemmas.return_value = set()
+    marks.unknown_lemmas.return_value = set(unknown_lemmas)
     learning: LearningQuery | MagicMock
     if learning_query is not None:
         learning = learning_query
@@ -43,4 +42,4 @@ def user_vocabulary(
         learning = MagicMock()
         learning.awaiting_export.return_value = frozenset(learning_lemmas)
         learning.active_since.return_value = dict(active_since or {})
-    return UserVocabulary(known, unknown, KnowledgeScope(FixedClock(), known, unknown, learning))
+    return UserVocabulary(marks, KnowledgeScope(FixedClock(), marks, learning))

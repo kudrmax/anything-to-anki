@@ -63,12 +63,6 @@ class TestLearning:
         assert both.is_learning("gull") is False
         assert _knowledge(both).is_new(_word("gull")) is False
 
-    def test_a_word_in_both_lists_is_unknown(self) -> None:
-        """Stage 4's migration removes such conflicts; till then Unknown wins the list."""
-        both = Vocabulary.of(known={"gull"}, unknown={"gull"})
-        assert both.is_unknown("gull") is True
-        assert both.is_known("gull") is False
-
     def test_known_or_learning_is_no_new_candidate(self) -> None:
         vocabulary = Vocabulary.of(known={"gull"}, unknown=set(), learning={"Tern"})
         assert vocabulary.is_known_or_learning("gull") is True

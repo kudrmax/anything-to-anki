@@ -10,8 +10,7 @@ if TYPE_CHECKING:
     from backend.application.utils.knowledge_scope import KnowledgeScope, KnowledgeSnapshot
     from backend.domain.entities.known_word import KnownWord
     from backend.domain.entities.unknown_word import UnknownWord
-    from backend.domain.ports.known_word_repository import KnownWordRepository
-    from backend.domain.ports.unknown_word_repository import UnknownWordRepository
+    from backend.domain.ports.word_mark_repository import WordMarkRepository
     from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
     from backend.domain.value_objects.vocabulary import Vocabulary
 
@@ -19,22 +18,20 @@ if TYPE_CHECKING:
 class UserVocabulary:
     """The only way to ask what words the user knows and is learning, and to mark them.
 
-    Behind it are two lists, known and unknown words. A word is in at most
-    one: marking it in one list takes it out of the other. If it is in both
-    anyway, it is unknown. Learning words come from the decisions and their Anki bindings;
-    an exported word reads Known 30 days after its export. A word learned is never marked
-    unknown (`unknown_mark`), and a Learn takes it out of unknown. Every read goes through
-    the request's knowledge scope, and every write here makes it read anew.
+    Behind it are the word marks: a word is marked Known (in some parts of speech) or
+    Unknown, never both; marking it one way takes the other mark off. Learning words come
+    from the decisions and their Anki bindings; an exported word reads Known 30 days after
+    its export. A word learned is never marked unknown (`unknown_mark`), and a Learn takes it
+    out of unknown. Every read goes through the request's knowledge scope, and every write
+    here makes it read anew.
     """
 
     def __init__(
         self,
-        known_word_repo: KnownWordRepository,
-        unknown_word_repo: UnknownWordRepository,
+        word_mark_repo: WordMarkRepository,
         scope: KnowledgeScope,
     ) -> None:
-        self.__known = known_word_repo
-        self.__unknown = unknown_word_repo
+        self.__word_marks = word_mark_repo
         self.__scope = scope
         self.__marks: Mapping[UnknownMark, Callable[[str], None]] = {
             UnknownMark.MARK: self.__put_in_unknown,
@@ -60,13 +57,12 @@ class UserVocabulary:
         return self.__scope.of(lemma).is_known
 
     def mark_known(self, lemma: str, pos: str | None) -> None:
-        self.__unknown.remove_by_lemma(lemma)
-        self.__known.add(lemma, pos)
+        self.__word_marks.mark_known(lemma, pos)
         self.__scope.invalidate()
 
     def forget_every_pos(self, lemma: str) -> None:
         """Undo of Known makes the word not known: every POS of the lemma goes."""
-        self.__known.remove_every_pos(lemma)
+        self.__word_marks.remove_known(lemma)
         self.__scope.invalidate()
 
     def mark_unknown(self, lemma: str) -> UnknownMark:
@@ -77,12 +73,11 @@ class UserVocabulary:
         return mark
 
     def forget_unknown(self, lemma: str) -> None:
-        self.__unknown.remove_by_lemma(lemma)
+        self.__word_marks.remove_unknown(lemma)
         self.__scope.invalidate()
 
     def __put_in_unknown(self, lemma: str) -> None:
-        self.__known.remove_every_pos(lemma)
-        self.__unknown.add(lemma)
+        self.__word_marks.mark_unknown(lemma)
         self.__scope.invalidate()
 
     def __leave(self, lemma: str) -> None:
@@ -90,17 +85,14 @@ class UserVocabulary:
         its Known removal."""
 
     def known_words(self) -> list[KnownWord]:
-        return self.__known.list_all()
+        return self.__word_marks.known_entries()
 
     def unknown_words(self) -> list[UnknownWord]:
-        return self.__unknown.list_all()
+        return self.__word_marks.unknown_entries()
 
-    def remove_known(self, known_word_id: int) -> None:
-        self.__known.remove(known_word_id)
-        self.__scope.invalidate()
-
-    def remove_unknown(self, unknown_word_id: int) -> None:
-        self.__unknown.remove(unknown_word_id)
+    def remove_known_entry(self, lemma: str, pos: str | None) -> None:
+        """One entry of the Known list; the lemma's last one takes its Known mark off."""
+        self.__word_marks.remove_known_entry(lemma, pos)
         self.__scope.invalidate()
 
     def known_count(self) -> int:
@@ -108,4 +100,4 @@ class UserVocabulary:
         return len(self.__scope.snapshot().known_lemmas())
 
     def unknown_count(self) -> int:
-        return self.__unknown.count()
+        return self.__word_marks.unknown_count()

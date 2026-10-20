@@ -24,11 +24,11 @@ from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
+from backend.infrastructure.persistence.sqla_word_mark_repository import (
+    SqlaWordMarkRepository,
+)
 
 from tests.candidate_sorter_support import section_stamper
 from tests.decision_support import Decisions
@@ -222,9 +222,9 @@ def test_a_skipped_phrase_of_a_decided_word_is_shown_and_stays_done(
     if decided == "on_another_card":
         bench.decide_learn("glare", bench.phrase_on("glare", 0).id)
     else:
-        SqlaKnownWordRepository(
+        SqlaWordMarkRepository(
             bench.session, SessionChangeRecorder(bench.session),
-        ).add("glare", None)
+        ).mark_known("glare", None)
         bench.session.commit()
 
     Manual(bench).add(GLARE_LINE, 1)

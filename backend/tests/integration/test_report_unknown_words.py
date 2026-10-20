@@ -26,6 +26,7 @@ from sqlalchemy import text
 
 from tests.decision_support import NOW, Decisions
 from tests.integration.conftest import insert_source
+from tests.word_marks_support import insert_known, known_rows, unknown_lemmas
 from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -72,9 +73,7 @@ class Bench:
         ), {"note": note_id}).scalar_one() == 1
 
     def list_known(self) -> None:
-        self.session.execute(text(
-            "INSERT INTO known_words (lemma, pos, created_at) VALUES (:l, NULL, '2026-01-01')"
-        ), {"l": LEMMA})
+        insert_known(self.session, LEMMA)
 
     def report_unknown(self) -> None:
         self.session.commit()
@@ -97,12 +96,10 @@ class Bench:
         return self.session.execute(text(sql)).scalar_one()
 
     def unknown(self) -> set[str]:
-        return {str(lemma) for (lemma,) in self.session.execute(
-            text("SELECT lemma FROM unknown_words"),
-        )}
+        return unknown_lemmas(self.session)
 
     def known(self) -> int:
-        return int(str(self.scalar("SELECT count(*) FROM known_words")))
+        return len(known_rows(self.session))
 
     def status(self, word_id: int) -> str:
         return str(self.scalar(f"SELECT status FROM candidates WHERE id = {word_id}"))  # noqa: S608

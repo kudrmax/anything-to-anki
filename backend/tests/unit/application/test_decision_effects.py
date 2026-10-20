@@ -52,7 +52,7 @@ def _facts(*, phrasal: bool = False) -> StoredCandidate:
 class Bench:
     def __init__(self, *, known: set[tuple[str, str | None]] | None = None) -> None:
         self.known = MagicMock()
-        self.known.get_all_pairs.return_value = known or set()
+        self.known.known_lemmas.return_value = {lemma for lemma, _ in known or set()}
         self.vocabulary = user_vocabulary(self.known)
         self.words = MagicMock()
         self.words.of_lemma.return_value = []
@@ -78,7 +78,7 @@ def test_known_saves_marks_known_and_calibrates() -> None:
     bench.press(word, Press.KNOWN)
 
     bench.words.save.assert_called_once_with(word.with_cards(CardState(CARD, CardChoice.KNOWN)))
-    bench.known.add.assert_called_once_with(LEMMA, "VERB")
+    bench.known.mark_known.assert_called_once_with(LEMMA, "VERB")
     bench.decisions.record.assert_called_once_with(
         WordDecision(lemma=LEMMA, zipf_frequency=3.0, is_known=True),
     )
@@ -91,7 +91,7 @@ def test_a_choice_only_change_saves_the_choice_and_nothing_else() -> None:
 
     bench.words.save.assert_called_once()
     bench.decisions.record.assert_not_called()
-    bench.known.add.assert_not_called()
+    bench.known.mark_known.assert_not_called()
 
 
 def test_a_phrasal_verb_is_not_calibrated() -> None:
@@ -152,7 +152,7 @@ class TestKnownRemoval:
 
         bench.press(acting, Press.KNOWN)
 
-        bench.known.remove_every_pos.assert_called_once_with(LEMMA)
+        bench.known.remove_known.assert_called_once_with(LEMMA)
         saved = [c.args[0] for c in bench.words.save.call_args_list]
         assert saved == [
             acting.with_cards(CardState(CARD, CardChoice.NONE)),
@@ -171,7 +171,7 @@ class TestKnownRemoval:
         with pytest.raises(SourceOperationBusyError):
             bench.press(acting, Press.KNOWN)
 
-        bench.known.remove_every_pos.assert_not_called()
+        bench.known.remove_known.assert_not_called()
 
     def test_a_removal_from_a_report_reaches_every_word(self) -> None:
         bench, acting, other = self._bench()

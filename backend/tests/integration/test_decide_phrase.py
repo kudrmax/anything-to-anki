@@ -37,6 +37,7 @@ from sqlalchemy import text
 from tests.decision_support import NOW, Decisions
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.word_marks_support import insert_known, insert_unknown, known_rows, unknown_lemmas
 from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -110,33 +111,16 @@ class Bench:
         ).scalar_one())
 
     def known(self) -> set[tuple[str, str | None]]:
-        return {
-            (str(lemma), pos) for lemma, pos in self.session.execute(
-                text("SELECT lemma, pos FROM known_words"),
-            )
-        }
+        return known_rows(self.session)
 
     def unknown(self) -> set[str]:
-        return {
-            str(lemma) for (lemma,) in self.session.execute(
-                text("SELECT lemma FROM unknown_words"),
-            )
-        }
+        return unknown_lemmas(self.session)
 
     def list_unknown(self) -> None:
-        self.session.execute(text(
-            "INSERT INTO unknown_words (lemma, created_at) VALUES (:l, '2026-01-01')"
-        ), {"l": LEMMA})
+        insert_unknown(self.session, LEMMA)
 
     def list_known(self, *pos: str | None) -> None:
-        for one in pos:
-            self.session.execute(
-                text(
-                    "INSERT INTO known_words (lemma, pos, created_at)"
-                    " VALUES (:l, :p, '2026-01-01')"
-                ),
-                {"l": LEMMA, "p": one},
-            )
+        insert_known(self.session, LEMMA, *pos)
 
     def in_anki(self, phrase_id: int, choice: CardChoice, *, since: str = FRESH) -> None:
         """The card, decided `choice`, as an export left it."""

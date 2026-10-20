@@ -11,13 +11,12 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from backend.domain.ports.clock import Clock
-    from backend.domain.ports.known_word_repository import KnownWordRepository
     from backend.domain.ports.learning_query import LearningQuery
-    from backend.domain.ports.unknown_word_repository import UnknownWordRepository
+    from backend.domain.ports.word_mark_repository import WordMarkRepository
 
 
 class KnowledgeSnapshot:
-    """The lists and the active bindings at one moment, lemma by lemma (lowercase)."""
+    """The marks and the active bindings at one moment, lemma by lemma (lowercase)."""
 
     def __init__(
         self,
@@ -75,13 +74,11 @@ class KnowledgeScope:
     def __init__(
         self,
         clock: Clock,
-        known_word_repo: KnownWordRepository,
-        unknown_word_repo: UnknownWordRepository,
+        word_mark_repo: WordMarkRepository,
         learning_query: LearningQuery,
     ) -> None:
         self._clock = clock
-        self._known = known_word_repo
-        self._unknown = unknown_word_repo
+        self._marks = word_mark_repo
         self._learning = learning_query
         self._now: datetime | None = None
         self._snapshot: KnowledgeSnapshot | None = None
@@ -96,8 +93,8 @@ class KnowledgeScope:
         if self._snapshot is None:
             self._snapshot = KnowledgeSnapshot(
                 self.now,
-                known=frozenset(lemma.lower() for lemma, _ in self._known.get_all_pairs()),
-                unknown=frozenset(lemma.lower() for lemma in self._unknown.lemmas()),
+                known=frozenset(self._marks.known_lemmas()),
+                unknown=frozenset(self._marks.unknown_lemmas()),
                 awaiting_export=frozenset(self._learning.awaiting_export()),
                 active_since=self._learning.active_since(),
             )

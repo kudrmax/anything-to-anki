@@ -172,9 +172,6 @@ from backend.infrastructure.persistence.sqla_collection_repository import (
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_queue import SqlaJobQueue
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
@@ -193,11 +190,11 @@ from backend.infrastructure.persistence.sqla_topic_target_repository import (
     SqlaTopicTargetRepository,
 )
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
-from backend.infrastructure.persistence.sqla_unknown_word_repository import (
-    SqlaUnknownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_word_decision_repository import (
     SqlaWordDecisionRepository,
+)
+from backend.infrastructure.persistence.sqla_word_mark_repository import (
+    SqlaWordMarkRepository,
 )
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
@@ -860,8 +857,7 @@ class Container:
 
     def _user_vocabulary(self, session: Session) -> UserVocabulary:
         return UserVocabulary(
-            known_word_repo=SqlaKnownWordRepository(session, self._change_recorder(session)),
-            unknown_word_repo=SqlaUnknownWordRepository(session, self._change_recorder(session)),
+            word_mark_repo=SqlaWordMarkRepository(session, self._change_recorder(session)),
             scope=self.knowledge_scope(session),
         )
 
@@ -883,10 +879,7 @@ class Container:
         if not isinstance(scope, KnowledgeScope):
             scope = KnowledgeScope(
                 clock=self._clock,
-                known_word_repo=SqlaKnownWordRepository(session, self._change_recorder(session)),
-                unknown_word_repo=SqlaUnknownWordRepository(
-                    session, self._change_recorder(session),
-                ),
+                word_mark_repo=SqlaWordMarkRepository(session, self._change_recorder(session)),
                 learning_query=SqlaLearningQuery(session),
             )
             session.info[KNOWLEDGE_SCOPE_KEY] = scope

@@ -19,15 +19,12 @@ from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
-from backend.infrastructure.persistence.sqla_known_word_repository import SqlaKnownWordRepository
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
-from backend.infrastructure.persistence.sqla_unknown_word_repository import (
-    SqlaUnknownWordRepository,
-)
+from backend.infrastructure.persistence.sqla_word_mark_repository import SqlaWordMarkRepository
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
@@ -68,13 +65,11 @@ class Decisions:
         self.decision_repo = MagicMock()
         self.scope = KnowledgeScope(
             clock=self.clock,
-            known_word_repo=SqlaKnownWordRepository(session, SessionChangeRecorder(session)),
-            unknown_word_repo=SqlaUnknownWordRepository(session, SessionChangeRecorder(session)),
+            word_mark_repo=SqlaWordMarkRepository(session, SessionChangeRecorder(session)),
             learning_query=SqlaLearningQuery(session),
         )
         self.vocabulary = UserVocabulary(
-            SqlaKnownWordRepository(session, SessionChangeRecorder(session)),
-            SqlaUnknownWordRepository(session, SessionChangeRecorder(session)),
+            SqlaWordMarkRepository(session, SessionChangeRecorder(session)),
             self.scope,
         )
         self.word_states = SqlaWordStateRepository(session, SessionChangeRecorder(session))

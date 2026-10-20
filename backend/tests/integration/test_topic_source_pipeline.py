@@ -38,9 +38,6 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -48,6 +45,9 @@ from backend.infrastructure.persistence.sqla_settings_repository import SqlaSett
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from backend.infrastructure.persistence.sqla_topic_target_repository import (
     SqlaTopicTargetRepository,
+)
+from backend.infrastructure.persistence.sqla_word_mark_repository import (
+    SqlaWordMarkRepository,
 )
 from sqlalchemy import text
 
@@ -158,7 +158,8 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
         db_session, "Subtitles", Kind.SUBTITLES, LATER_ARTICLE,
         status=SourceStatus.NEW,
     )
-    SqlaKnownWordRepository(db_session, SessionChangeRecorder(db_session)).add("salary", "NOUN")
+    marks = SqlaWordMarkRepository(db_session, SessionChangeRecorder(db_session))
+    marks.mark_known("salary", "NOUN")
     topic_id = _add_topic(db_session)
 
     use_case = container.process_source_use_case(db_session)

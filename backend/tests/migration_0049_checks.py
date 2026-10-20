@@ -285,12 +285,7 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
         assert started - timedelta(seconds=1) <= moment <= finished + timedelta(seconds=1)
 
     # known_words, unknown_words, clozes, calibration unchanged
-    assert frozenset(conn.execute("SELECT lemma, pos FROM known_words").fetchall()) == (
-        before.known_words
-    )
-    assert frozenset(
-        str(row[0]).lower() for row in conn.execute("SELECT lemma FROM unknown_words")
-    ) == before.unknown_words
+    _check_lists_kept(conn, before)
     assert _count(conn, "SELECT count(*) FROM candidate_clozes") == before.clozes
     assert frozenset(conn.execute("SELECT * FROM word_decisions").fetchall()) == (
         before.calibration
@@ -445,3 +440,21 @@ def _phrase_of_card(conn: sqlite3.Connection, before: Before) -> dict[int, int]:
 
 def _count(conn: sqlite3.Connection, sql: str, params: tuple[object, ...] = ()) -> int:
     return int(conn.execute(sql, params).fetchone()[0])
+
+
+def _check_lists_kept(conn: sqlite3.Connection, before: Before) -> None:
+    """The Known and Unknown lists as they were; once 0054 merged them into word marks,
+    every lemma of either list is marked."""
+    tables = {str(row[0]) for row in conn.execute("SELECT name FROM sqlite_master")}
+    if "word_marks" in tables:
+        marked = frozenset(str(row[0]) for row in conn.execute("SELECT lemma FROM word_marks"))
+        assert marked == (
+            frozenset(lemma.lower() for lemma, _ in before.known_words) | before.unknown_words
+        )
+        return
+    assert frozenset(conn.execute("SELECT lemma, pos FROM known_words").fetchall()) == (
+        before.known_words
+    )
+    assert frozenset(
+        str(row[0]).lower() for row in conn.execute("SELECT lemma FROM unknown_words")
+    ) == before.unknown_words

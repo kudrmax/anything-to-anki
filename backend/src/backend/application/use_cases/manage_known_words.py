@@ -75,10 +75,10 @@ class ManageKnownWordsUseCase:
     def _delete(self, known_word_id: int) -> None:
         entries = self._vocabulary.known_words()
         entry = next((e for e in entries if e.id == known_word_id), None)
-        if entry is None or any(
-            e.lemma.lower() == entry.lemma.lower() and e.id != entry.id for e in entries
-        ):
-            self._vocabulary.remove_known(known_word_id)
+        if entry is None:
+            return
+        if any(e.lemma.lower() == entry.lemma.lower() and e.id != entry.id for e in entries):
+            self._vocabulary.remove_known_entry(entry.lemma, entry.pos)
             return
         self._effects.known_removed(entry.lemma, self._vocabulary.of(entry.lemma))
 

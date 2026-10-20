@@ -33,9 +33,7 @@ class Vocabulary:
         )
 
     def is_known(self, lemma: str) -> bool:
-        key = lemma.lower()
-        # Stage 4 migration removes pre-existing conflicts: a word in both lists is unknown
-        return key in self.known and key not in self.unknown
+        return lemma.lower() in self.known
 
     def is_unknown(self, lemma: str) -> bool:
         return lemma.lower() in self.unknown
