@@ -10,6 +10,7 @@ from backend.domain.services.card_view import chosen_to_learn, in_export_queue, 
 from backend.domain.value_objects.card_choice import CardChoice, CardState, NoteKind, is_skipped
 from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
 from backend.infrastructure.persistence.models import PhraseModel, StoredCandidateModel
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
@@ -79,7 +80,7 @@ def _second_phrase(session: Session, word_id: int) -> int:
 
 
 def _store(session: Session, word_id: int, shape: Shape) -> WordState:
-    words = SqlaWordStateRepository(session)
+    words = SqlaWordStateRepository(session, SessionChangeRecorder(session))
     insert_word(session, word_id, source_id=shape.source_id)
     ids = [phrase_id_of(word_id)] + [_second_phrase(session, word_id) for _ in shape.cards[1:]]
     stored = words.of_word(word_id)
@@ -125,7 +126,7 @@ def test_chosen_to_learn_in_sql_is_the_predicate(
     assert expected != set(words)
 
     assert _word_ids(db_session, StoredCandidateModel.chosen_to_learn()) == expected
-    candidates = SqlaCandidateRepository(db_session)
+    candidates = SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session))
     assert {w.id for w in candidates.chosen_to_learn()} == expected
     assert {w.id for w in candidates.chosen_to_learn([OTHER_SOURCE])} == {
         word_id for word_id in expected if words[word_id].source_id == OTHER_SOURCE
@@ -159,7 +160,9 @@ def test_learning_in_anki_in_sql_is_the_predicate(
     assert expected
 
     assert _word_ids(db_session, StoredCandidateModel.learning_in_anki()) == expected
-    assert SqlaCandidateRepository(db_session).count_learning_in_anki() == len(expected)
+    assert SqlaCandidateRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).count_learning_in_anki() == len(expected)
 
 
 def test_a_learn_listed_known_since_leaves_the_queue_only_by_its_knowledge(

@@ -9,6 +9,7 @@ from backend.application.use_cases.fix_sections import FixSectionsUseCase
 from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.infrastructure.persistence.database import create_session_factory
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_source_operation_lock import (
     SqlaSourceOperationLock,
@@ -40,7 +41,9 @@ def _fix(bench: Bench) -> FixSectionsUseCase:
     return FixSectionsUseCase(
         source_repo=bench.sources,
         occurrence_repo=bench.occurrences,
-        stamper=section_stamper(SqlaSettingsRepository(bench.session)),
+        stamper=section_stamper(SqlaSettingsRepository(
+            bench.session, SessionChangeRecorder(bench.session),
+        )),
         rebuild_source=bench.rebuild(),
         unit_of_work=SqlaUnitOfWork(bench.session, bench.vocabulary.scope),
     )

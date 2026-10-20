@@ -5,19 +5,22 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func
 
 from backend.domain.ports.known_word_repository import KnownWordRepository
+from backend.domain.value_objects.card_change import MarkChanged
 from backend.infrastructure.persistence.models import KnownWordModel
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Query, Session
 
     from backend.domain.entities.known_word import KnownWord
+    from backend.domain.ports.change_recorder import ChangeRecorder
 
 
 class SqlaKnownWordRepository(KnownWordRepository):
     """SQLAlchemy implementation of KnownWordRepository."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
 
     def add(self, lemma: str, pos: str | None) -> KnownWord:
         query = self._session.query(KnownWordModel).filter(
@@ -33,6 +36,7 @@ class SqlaKnownWordRepository(KnownWordRepository):
         model = KnownWordModel(lemma=lemma, pos=pos)
         self._session.add(model)
         self._session.flush()
+        self._recorder.record(MarkChanged(lemma))
         return model.to_entity()
 
     def remove(self, known_word_id: int) -> None:
@@ -40,6 +44,7 @@ class SqlaKnownWordRepository(KnownWordRepository):
         if model is not None:
             self._session.delete(model)
             self._session.flush()
+            self._recorder.record(MarkChanged(model.lemma))
 
     def list_all(self) -> list[KnownWord]:
         models = (
@@ -48,14 +53,18 @@ class SqlaKnownWordRepository(KnownWordRepository):
         return [m.to_entity() for m in models]
 
     def remove_by_lemma(self, lemma: str, pos: str | None) -> None:
-        self._matching(lemma, pos).delete(synchronize_session="fetch")
+        removed = self._matching(lemma, pos).delete(synchronize_session="fetch")
         self._session.flush()
+        if removed:
+            self._recorder.record(MarkChanged(lemma))
 
     def remove_every_pos(self, lemma: str) -> None:
-        self._session.query(KnownWordModel).filter(
+        removed = self._session.query(KnownWordModel).filter(
             func.lower(KnownWordModel.lemma) == lemma.lower(),
         ).delete(synchronize_session="fetch")
         self._session.flush()
+        if removed:
+            self._recorder.record(MarkChanged(lemma))
 
     def exists(self, lemma: str, pos: str | None) -> bool:
         return self._matching(lemma, pos).first() is not None

@@ -13,6 +13,7 @@ from backend.domain.entities.job import Job
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.database import Base, create_session_factory
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.session_work import SessionWork
 from backend.infrastructure.persistence.sqla_job_queue import SqlaJobQueue
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
@@ -40,7 +41,7 @@ class _Counter:
     """Adds one to a stored number: a read, then a write of what was read plus one."""
 
     def __init__(self, session: Session) -> None:
-        self._settings = SqlaSettingsRepository(session)
+        self._settings = SqlaSettingsRepository(session, SessionChangeRecorder(session))
         self._unit_of_work = SqlaUnitOfWork(session, MagicMock())
 
     def add_one(self) -> None:
@@ -117,5 +118,7 @@ def test_no_write_is_lost(factory: sessionmaker[Session]) -> None:
 
     assert errors == []
     with factory() as session:
-        assert SqlaSettingsRepository(session).get(COUNTER) == str(WRITERS * WRITES_EACH)
+        assert SqlaSettingsRepository(
+            session, SessionChangeRecorder(session),
+        ).get(COUNTER) == str(WRITERS * WRITES_EACH)
         assert SqlaJobRepository(session).get_jobs_by_status(list(JobStatus)) == []

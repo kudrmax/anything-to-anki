@@ -12,6 +12,7 @@ from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.user_knowledge import UserKnowledge
 from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
@@ -62,7 +63,8 @@ def _make_candidate(
 def _cards(session: Session) -> list[ReviewCard]:
     decisions = Decisions(session)
     return ReviewCards(
-        SqlaCandidateRepository(session), SqlaOccurrenceRepository(session),
+        SqlaCandidateRepository(session, SessionChangeRecorder(session)),
+        SqlaOccurrenceRepository(session, SessionChangeRecorder(session)),
         decisions.word_states, decisions.vocabulary,
     ).of_sources([1])
 
@@ -102,7 +104,7 @@ class TestSortingWithDb:
 
     def test_is_sweet_spot_computed_after_load(self, db_session: Session) -> None:
         """is_sweet_spot is computed from zipf, not read from DB column."""
-        repo = SqlaCandidateRepository(db_session)
+        repo = SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session))
         store_cards(db_session, [
             _make_candidate(1, "mid_word", 4.0),      # MID -> sweet spot
             _make_candidate(1, "common_word", 5.0),    # COMMON -> not sweet spot

@@ -17,6 +17,7 @@ from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.container import KNOWLEDGE_SCOPE_KEY
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
@@ -226,7 +227,7 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
         insert_source(session, HERE)
         insert_source(session, THERE)
         insert_word(session, WORD, lemma=LEMMA, phrase_text="He glared at me.")
-        sibling = SqlaOccurrenceRepository(session).add(Occurrence(
+        sibling = SqlaOccurrenceRepository(session, SessionChangeRecorder(session)).add(Occurrence(
             candidate_id=WORD, origin=OccurrenceOrigin.MANUAL,
             source_phrase=phrase("She glared back.", "glared"), phrase_position=None,
             key=None, fragment_score=None,
@@ -247,8 +248,10 @@ def client(factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
         with factory() as session:
             session.info[KNOWLEDGE_SCOPE_KEY] = KnowledgeScope(
                 clock=FixedClock(NOW),
-                known_word_repo=SqlaKnownWordRepository(session),
-                unknown_word_repo=SqlaUnknownWordRepository(session),
+                known_word_repo=SqlaKnownWordRepository(session, SessionChangeRecorder(session)),
+                unknown_word_repo=SqlaUnknownWordRepository(
+                    session, SessionChangeRecorder(session),
+                ),
                 learning_query=SqlaLearningQuery(session),
             )
             yield session

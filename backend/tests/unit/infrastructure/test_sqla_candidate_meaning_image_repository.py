@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import pytest
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_meaning_image_repository import (
     SqlaCandidateMeaningImageRepository,
 )
@@ -42,7 +43,7 @@ def session() -> Generator[Session, None, None]:
 
 
 def _image(session: Session) -> CandidateMeaningImage | None:
-    word = SqlaCandidateRepository(session).get_by_id(CANDIDATE_ID)
+    word = SqlaCandidateRepository(session, SessionChangeRecorder(session)).get_by_id(CANDIDATE_ID)
     assert word is not None
     return word.meaning_image
 
@@ -50,13 +51,13 @@ def _image(session: Session) -> CandidateMeaningImage | None:
 @pytest.mark.unit
 class TestCandidateMeaningImageRepository:
     def test_upsert_then_get_roundtrip(self, session: Session) -> None:
-        repo = SqlaCandidateMeaningImageRepository(session)
+        repo = SqlaCandidateMeaningImageRepository(session, SessionChangeRecorder(session))
         image = CandidateMeaningImage(CANDIDATE_ID, FIRST_PATH)
         repo.upsert(image)
         assert _image(session) == image
 
     def test_upsert_replaces_the_previous_image(self, session: Session) -> None:
-        repo = SqlaCandidateMeaningImageRepository(session)
+        repo = SqlaCandidateMeaningImageRepository(session, SessionChangeRecorder(session))
         repo.upsert(CandidateMeaningImage(CANDIDATE_ID, FIRST_PATH))
         repo.upsert(CandidateMeaningImage(CANDIDATE_ID, SECOND_PATH))
         assert _image(session) == CandidateMeaningImage(
@@ -64,16 +65,16 @@ class TestCandidateMeaningImageRepository:
         )
 
     def test_delete(self, session: Session) -> None:
-        repo = SqlaCandidateMeaningImageRepository(session)
+        repo = SqlaCandidateMeaningImageRepository(session, SessionChangeRecorder(session))
         repo.upsert(CandidateMeaningImage(CANDIDATE_ID, FIRST_PATH))
         repo.delete_by_candidate_id(CANDIDATE_ID)
         assert _image(session) is None
 
     def test_candidate_carries_its_meaning_image(self, session: Session) -> None:
-        SqlaCandidateMeaningImageRepository(session).upsert(
+        SqlaCandidateMeaningImageRepository(session, SessionChangeRecorder(session)).upsert(
             CandidateMeaningImage(CANDIDATE_ID, FIRST_PATH),
         )
-        candidates = SqlaCandidateRepository(session)
+        candidates = SqlaCandidateRepository(session, SessionChangeRecorder(session))
 
         one = candidates.get_by_id(CANDIDATE_ID)
         [many] = candidates.get_by_source(SOURCE_ID)

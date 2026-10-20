@@ -22,6 +22,7 @@ from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.infrastructure.persistence.models import PhraseModel
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_word_state_repository import (
@@ -76,7 +77,9 @@ class Fixture:
         self.reader.read.side_effect = lambda text_, _spans: phrase(
             text_, new=BOUNDARY_NEW_WORDS,
         )
-        self.stamper = section_stamper(SqlaSettingsRepository(session))
+        self.stamper = section_stamper(SqlaSettingsRepository(
+            session, SessionChangeRecorder(session),
+        ))
         self.rewrite = RewritePhrase(self.reader, self.bench.occurrences, self.stamper)
 
     def stored(self) -> str | None:
@@ -102,7 +105,8 @@ class Fixture:
         ai_service.polish_phrases_batch.return_value = [PolishedPhrase(1, answer)]
         job_phrases = JobPhrases(
             self.bench.candidates, self.bench.occurrences,
-            SqlaWordStateRepository(self.session), self.bench.vocabulary,
+            SqlaWordStateRepository(self.session, SessionChangeRecorder(self.session)),
+            self.bench.vocabulary,
         )
         revision = self.bench.occurrences.get(self.phrase_id)
         assert revision is not None

@@ -5,19 +5,22 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func
 
 from backend.domain.ports.unknown_word_repository import UnknownWordRepository
+from backend.domain.value_objects.card_change import MarkChanged
 from backend.infrastructure.persistence.models import UnknownWordModel
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.unknown_word import UnknownWord
+    from backend.domain.ports.change_recorder import ChangeRecorder
 
 
 class SqlaUnknownWordRepository(UnknownWordRepository):
     """SQLAlchemy implementation of UnknownWordRepository; lemmas are stored lowercase."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
 
     def add(self, lemma: str) -> UnknownWord:
         key = lemma.lower()
@@ -29,6 +32,7 @@ class SqlaUnknownWordRepository(UnknownWordRepository):
         model = UnknownWordModel(lemma=key)
         self._session.add(model)
         self._session.flush()
+        self._recorder.record(MarkChanged(key))
         return model.to_entity()
 
     def remove(self, unknown_word_id: int) -> None:
@@ -36,12 +40,15 @@ class SqlaUnknownWordRepository(UnknownWordRepository):
         if model is not None:
             self._session.delete(model)
             self._session.flush()
+            self._recorder.record(MarkChanged(model.lemma))
 
     def remove_by_lemma(self, lemma: str) -> None:
-        self._session.query(UnknownWordModel).filter(
+        removed = self._session.query(UnknownWordModel).filter(
             UnknownWordModel.lemma == lemma.lower(),
         ).delete(synchronize_session="fetch")
         self._session.flush()
+        if removed:
+            self._recorder.record(MarkChanged(lemma))
 
     def list_all(self) -> list[UnknownWord]:
         models = (

@@ -24,6 +24,7 @@ from backend.infrastructure.persistence.database import (
     Base,
     create_session_factory,
 )
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
@@ -134,19 +135,19 @@ class _WorkerDuringApply:
 def _rebuilder(
     session: Session, worker: _WorkerDuringApply, words: list[WordDTO],
 ) -> SourceRebuilder:
-    settings = SqlaSettingsRepository(session)
+    settings = SqlaSettingsRepository(session, SessionChangeRecorder(session))
     analyze = MagicMock()
     analyze.execute.return_value = AnalyzeTextResponse(
         text="", words=words, total_tokens=0, unique_lemmas=0,
     )
-    sources = SqlaSourceRepository(session)
+    sources = SqlaSourceRepository(session, SessionChangeRecorder(session))
     vocabulary = user_vocabulary()
     return SourceRebuilder(
         source_repo=sources,
         document_repo=SqlaDocumentRepository(session),
         occurrence_repo=worker,  # type: ignore[arg-type]
         job_repo=SqlaJobRepository(session),
-        media_repo=SqlaCandidateMediaRepository(session),
+        media_repo=SqlaCandidateMediaRepository(session, SessionChangeRecorder(session)),
         media_files=RemovedMediaFiles(),
         settings_repo=settings,
         vocabulary=vocabulary,
@@ -163,7 +164,9 @@ def _apply(factory: sessionmaker[Session], edition: int) -> tuple[float, _Worker
     try:
         SqlaDocumentRepository(session).save(SOURCE, _book(edition))
         session.commit()
-        worker = _WorkerDuringApply(SqlaOccurrenceRepository(session), factory)
+        worker = _WorkerDuringApply(SqlaOccurrenceRepository(
+            session, SessionChangeRecorder(session),
+        ), factory)
         rebuilder = _rebuilder(session, worker, _analysis(edition))
         analysed = rebuilder.analyse(SOURCE)
         started = time.perf_counter()

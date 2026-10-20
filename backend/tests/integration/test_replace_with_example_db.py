@@ -19,6 +19,7 @@ from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -77,16 +78,18 @@ class Bench:
         self.session = session
         insert_word(session, WORD, lemma="run", pos="VERB", phrase_text="He ran to the store.")
         session.commit()
-        self.occurrences = SqlaOccurrenceRepository(session)
+        self.occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
         reader = MagicMock()
         reader.read_for.side_effect = _read_for
         reader.read.side_effect = _read
         self.decisions = Decisions(session)
         self.use_case = ReplaceWithExampleUseCase(
             occurrence_repo=self.occurrences,
-            candidate_repo=SqlaCandidateRepository(session),
+            candidate_repo=SqlaCandidateRepository(session, SessionChangeRecorder(session)),
             phrase_reader=reader,
-            stamper=section_stamper(SqlaSettingsRepository(session)),
+            stamper=section_stamper(SqlaSettingsRepository(
+                session, SessionChangeRecorder(session),
+            )),
             job_repo=SqlaJobRepository(session),
             lock=free_lock(),
             card_views=card_views(session),
@@ -132,11 +135,15 @@ class Bench:
         )))
 
     def give_meaning_and_audio(self, phrase_id: int) -> None:
-        SqlaCandidateMeaningRepository(self.session).upsert_for_phrase(phrase_id, CandidateMeaning(
+        SqlaCandidateMeaningRepository(
+            self.session, SessionChangeRecorder(self.session),
+        ).upsert_for_phrase(phrase_id, CandidateMeaning(
             candidate_id=WORD, meaning="to move fast", translation=None, synonyms=None,
             examples=None, ipa=None, generated_at=None,
         ))
-        SqlaCandidateTTSRepository(self.session).upsert_for_phrase(phrase_id, CandidateTTS(
+        SqlaCandidateTTSRepository(
+            self.session, SessionChangeRecorder(self.session),
+        ).upsert_for_phrase(phrase_id, CandidateTTS(
             candidate_id=WORD, audio_path="/media/1/tts.mp3", generated_at=None,
         ))
         self.session.commit()
@@ -144,7 +151,9 @@ class Bench:
     def export_queue(self) -> ExportQueue:
         decisions = self.decisions.request()
         return ExportQueue(
-            SqlaCandidateRepository(self.session), self.occurrences, decisions.word_states,
+            SqlaCandidateRepository(self.session, SessionChangeRecorder(self.session)),
+            self.occurrences,
+            decisions.word_states,
             decisions.vocabulary,
         )
 

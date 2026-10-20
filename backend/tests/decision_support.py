@@ -13,6 +13,7 @@ from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.user_vocabulary import UserVocabulary
 from backend.domain.ports.clock import Clock
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
@@ -67,15 +68,17 @@ class Decisions:
         self.decision_repo = MagicMock()
         self.scope = KnowledgeScope(
             clock=self.clock,
-            known_word_repo=SqlaKnownWordRepository(session),
-            unknown_word_repo=SqlaUnknownWordRepository(session),
+            known_word_repo=SqlaKnownWordRepository(session, SessionChangeRecorder(session)),
+            unknown_word_repo=SqlaUnknownWordRepository(session, SessionChangeRecorder(session)),
             learning_query=SqlaLearningQuery(session),
         )
         self.vocabulary = UserVocabulary(
-            SqlaKnownWordRepository(session), SqlaUnknownWordRepository(session), self.scope,
+            SqlaKnownWordRepository(session, SessionChangeRecorder(session)),
+            SqlaUnknownWordRepository(session, SessionChangeRecorder(session)),
+            self.scope,
         )
-        self.word_states = SqlaWordStateRepository(session)
-        self.anki_sync = SqlaAnkiSyncRepository(session)
+        self.word_states = SqlaWordStateRepository(session, SessionChangeRecorder(session))
+        self.anki_sync = SqlaAnkiSyncRepository(session, SessionChangeRecorder(session))
 
     def request(self, now: datetime | None = None) -> Decisions:
         later = Decisions(self.session, now=now or self.clock.moment, lock=self.lock)
@@ -93,9 +96,15 @@ class Decisions:
 
     def save_cloze(self) -> SaveClozeUseCase:
         return SaveClozeUseCase(
-            occurrence_repo=SqlaOccurrenceRepository(self.session),
-            candidate_repo=SqlaCandidateRepository(self.session),
-            cloze_repo=SqlaCandidateClozeRepository(self.session),
+            occurrence_repo=SqlaOccurrenceRepository(
+                self.session, SessionChangeRecorder(self.session),
+            ),
+            candidate_repo=SqlaCandidateRepository(
+                self.session, SessionChangeRecorder(self.session),
+            ),
+            cloze_repo=SqlaCandidateClozeRepository(
+                self.session, SessionChangeRecorder(self.session),
+            ),
             card_views=MagicMock(),
             decide_phrase=self.decide_phrase(),
             builder=ClozeBuilder(),
@@ -105,8 +114,12 @@ class Decisions:
 
     def decide_phrase(self) -> DecidePhraseUseCase:
         return DecidePhraseUseCase(
-            occurrence_repo=SqlaOccurrenceRepository(self.session),
-            candidate_repo=SqlaCandidateRepository(self.session),
+            occurrence_repo=SqlaOccurrenceRepository(
+                self.session, SessionChangeRecorder(self.session),
+            ),
+            candidate_repo=SqlaCandidateRepository(
+                self.session, SessionChangeRecorder(self.session),
+            ),
             word_states=self.word_states,
             vocabulary=self.vocabulary,
             effects=self.effects(),

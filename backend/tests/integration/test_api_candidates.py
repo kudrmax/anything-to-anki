@@ -14,6 +14,7 @@ from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import SourceModel
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
@@ -141,7 +142,7 @@ class TestDecisionAPI:
 
     def test_a_decision_on_a_sibling_card_is_refused(self, client: TestClient) -> None:
         session = next(app.dependency_overrides[get_db_session]())
-        sibling = SqlaOccurrenceRepository(session).add(Occurrence(
+        sibling = SqlaOccurrenceRepository(session, SessionChangeRecorder(session)).add(Occurrence(
             candidate_id=WORD_ID, origin=OccurrenceOrigin.MANUAL,
             source_phrase=phrase("the pursuit of", "pursuit"), phrase_position=None,
             key=None, fragment_score=None,
@@ -157,7 +158,7 @@ class TestDecisionAPI:
 
     def test_learn_on_a_word_known_elsewhere_says_why(self, client: TestClient) -> None:
         session = next(app.dependency_overrides[get_db_session]())
-        SqlaKnownWordRepository(session).add("pursuit", "NOUN")
+        SqlaKnownWordRepository(session, SessionChangeRecorder(session)).add("pursuit", "NOUN")
         session.commit()
 
         response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
@@ -234,7 +235,7 @@ class TestCardReportsAPI:
         insert_source(session, OTHER_SOURCE)
         insert_word(session, OTHER_WORD, source_id=OTHER_SOURCE, lemma="pursuit", status="known")
         bind(session, OTHER_WORD, phrase_id_of(OTHER_WORD))
-        SqlaKnownWordRepository(session).add("pursuit", "NOUN")
+        SqlaKnownWordRepository(session, SessionChangeRecorder(session)).add("pursuit", "NOUN")
         session.commit()
 
         response = client.post(

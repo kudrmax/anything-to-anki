@@ -15,6 +15,7 @@ from backend.infrastructure.persistence.database import (
     _enable_sqlite_foreign_keys,
 )
 from backend.infrastructure.persistence.models import WordDecisionModel, dump_phrase
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
 )
@@ -108,7 +109,7 @@ def _drift(client: TestClient) -> str:
 
 
 def _known_zephyr(session: Session) -> None:
-    SqlaKnownWordRepository(session).add("zephyr", None)
+    SqlaKnownWordRepository(session, SessionChangeRecorder(session)).add("zephyr", None)
 
 
 def _learning_timer_expired(session: Session) -> None:
@@ -124,11 +125,13 @@ def _calibration(session: Session) -> None:
 
 
 def _threshold_setting(session: Session) -> None:
-    SqlaSettingsRepository(session).set("frequent_word_threshold", "off")
+    SqlaSettingsRepository(
+        session, SessionChangeRecorder(session),
+    ).set("frequent_word_threshold", "off")
 
 
 def _cefr_level_setting(session: Session) -> None:
-    SqlaSettingsRepository(session).set("cefr_level", "C2")
+    SqlaSettingsRepository(session, SessionChangeRecorder(session)).set("cefr_level", "C2")
 
 
 def _commit(factory: sessionmaker[Session], change: Callable[[Session], None]) -> None:
@@ -172,7 +175,9 @@ def test_a_threshold_change_takes_a_ready_card_out_of_ready(
 ) -> None:
     assert _drift(client) == "ready"
 
-    _commit(factory, lambda s: SqlaSettingsRepository(s).set("frequent_word_threshold", "4.0"))
+    _commit(factory, lambda s: SqlaSettingsRepository(
+        s, SessionChangeRecorder(s),
+    ).set("frequent_word_threshold", "4.0"))
 
     assert _drift(client) == "probably_known"
 

@@ -6,6 +6,7 @@ import os
 import re
 from typing import TYPE_CHECKING
 
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
@@ -74,7 +75,9 @@ class LazyMediaReconciler:
             return
 
         self._work.write(
-            lambda session: SqlaCandidateMediaRepository(session).clear_missing_file(full),
+            lambda session: SqlaCandidateMediaRepository(
+                session, SessionChangeRecorder(session),
+            ).clear_missing_file(full),
         )
         logger.warning(
             "LazyReconcile: cleared the rows pointing at %s (source %d, file missing)",

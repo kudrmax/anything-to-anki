@@ -11,6 +11,7 @@ from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
@@ -64,7 +65,7 @@ def _existing_source(source_id: int) -> int:
 @pytest.mark.integration
 class TestCEFRBreakdownDBRoundtrip:
     def test_breakdown_saved_and_loaded(self, db_session: Session) -> None:
-        repo = SqlaCandidateRepository(db_session)
+        repo = SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session))
         candidate = CardSeed(
             StoredCandidate(
                 source_id=1,
@@ -90,7 +91,7 @@ class TestCEFRBreakdownDBRoundtrip:
         assert c.cefr_breakdown.final_level == CEFRLevel.B1
 
     def test_breakdown_priority_votes_restored(self, db_session: Session) -> None:
-        repo = SqlaCandidateRepository(db_session)
+        repo = SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session))
         candidate = CardSeed(
             StoredCandidate(
                 source_id=1,
@@ -116,7 +117,7 @@ class TestCEFRBreakdownDBRoundtrip:
         assert cambridge.top_level == CEFRLevel.B1
 
     def test_voting_sources_restored(self, db_session: Session) -> None:
-        repo = SqlaCandidateRepository(db_session)
+        repo = SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session))
         candidate = CardSeed(
             StoredCandidate(
                 source_id=1,
@@ -143,7 +144,7 @@ class TestCEFRBreakdownDBRoundtrip:
 
     def test_efllex_distribution_survives_db(self, db_session: Session) -> None:
         """EFLLex distribution (JSON) must survive write → read."""
-        repo = SqlaCandidateRepository(db_session)
+        repo = SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session))
         candidate = CardSeed(
             StoredCandidate(
                 source_id=1,
@@ -169,7 +170,7 @@ class TestCEFRBreakdownDBRoundtrip:
 
     def test_no_breakdown_stays_none(self, db_session: Session) -> None:
         """Candidates without breakdown should have cefr_breakdown=None after load."""
-        repo = SqlaCandidateRepository(db_session)
+        repo = SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session))
         candidate = CardSeed(
             StoredCandidate(
                 source_id=1,
@@ -230,7 +231,7 @@ class TestCEFRBreakdownDBRoundtrip:
         We save cefr_level="C2" in the DB but the breakdown votes point to B1
         (Cambridge priority). After load, cefr_level must be B1 (runtime), not C2.
         """
-        repo = SqlaCandidateRepository(db_session)
+        repo = SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session))
         candidate = CardSeed(
             StoredCandidate(
                 source_id=1,

@@ -7,6 +7,7 @@ from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import KnownWordModel
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_known_word_repository import SqlaKnownWordRepository
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
@@ -125,7 +126,7 @@ class TestKnownWordRepoWildcard:
         engine = create_engine("sqlite:///:memory:", poolclass=StaticPool)
         Base.metadata.create_all(engine)
         session = Session(bind=engine)
-        return SqlaKnownWordRepository(session), session
+        return SqlaKnownWordRepository(session, SessionChangeRecorder(session)), session
 
     def test_add_wildcard(self) -> None:
         repo, _ = self._make_repo()

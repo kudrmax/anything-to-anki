@@ -10,6 +10,7 @@ from backend.application.utils.anki_template_renderer import AnkiTemplateRendere
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
@@ -55,7 +56,7 @@ def client(templates_dir: Path) -> Generator[TestClient, None, None]:
         mock_container = MagicMock()
         mock_container.get_anki_templates_use_case.side_effect = (
             lambda session: GetAnkiTemplatesUseCase(
-                settings_repo=SqlaSettingsRepository(session),
+                settings_repo=SqlaSettingsRepository(session, SessionChangeRecorder(session)),
                 template_renderer=AnkiTemplateRenderer(templates_dir),
             )
         )

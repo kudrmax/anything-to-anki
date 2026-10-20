@@ -10,6 +10,7 @@ from backend.application.utils.export_queue import ExportQueue
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import dump_phrase
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_known_word_repository import (
     SqlaKnownWordRepository,
@@ -39,7 +40,7 @@ class Bench:
 
     def __init__(self, session: Session) -> None:
         self.session = session
-        self.known = SqlaKnownWordRepository(session)
+        self.known = SqlaKnownWordRepository(session, SessionChangeRecorder(session))
         self.learning = SqlaLearningQuery(session)
         self.decisions = Decisions(session)
 
@@ -87,7 +88,7 @@ def test_known_is_stronger_than_a_note_in_anki(bench: Bench) -> None:
 
 def test_deleting_the_source_keeps_the_exported_word_learning(bench: Bench) -> None:
     bench.exported_learn_word(1, "glare", NOTE)
-    SqlaSourceRepository(bench.session).delete(1)
+    SqlaSourceRepository(bench.session, SessionChangeRecorder(bench.session)).delete(1)
     bench.session.flush()
 
     assert bench.is_learning("glare")
@@ -97,7 +98,7 @@ def test_a_deleted_sources_export_turns_the_word_known_by_its_timer(bench: Bench
     """Q13: the binding outlives its source (SET NULL); its timer still runs."""
     insert_word(bench.session, 1, lemma="glare", status=WordStatus.LEARN.value)
     bind(bench.session, 1, phrase_id_of(1), note_id=NOTE, since="2026-09-01 00:00:00")
-    SqlaSourceRepository(bench.session).delete(1)
+    SqlaSourceRepository(bench.session, SessionChangeRecorder(bench.session)).delete(1)
     bench.session.flush()
 
     orphan = bench.session.execute(text(
@@ -161,7 +162,8 @@ def test_a_decision_phrase_waits_for_export_though_another_phrase_was_exported(
     assert bench.learning.awaiting_export() == frozenset({"linger"})
     decisions = bench.decisions.request()
     queue = ExportQueue(
-        SqlaCandidateRepository(bench.session), SqlaOccurrenceRepository(bench.session),
+        SqlaCandidateRepository(bench.session, SessionChangeRecorder(bench.session)),
+        SqlaOccurrenceRepository(bench.session, SessionChangeRecorder(bench.session)),
         decisions.word_states, decisions.vocabulary,
     )
     batch = queue.for_sources([1])

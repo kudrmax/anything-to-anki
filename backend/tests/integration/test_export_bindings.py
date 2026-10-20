@@ -16,6 +16,7 @@ from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.value_objects.card_choice import CardChoice, Press
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.source_scope import SourceScope
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -70,13 +71,17 @@ class Bench:
 
     def _ready(self, phrase_id: int, word_id: int) -> None:
         """A meaning and audio: the card is ready to export."""
-        SqlaCandidateMeaningRepository(self.session).upsert_for_phrase(
+        SqlaCandidateMeaningRepository(
+            self.session, SessionChangeRecorder(self.session),
+        ).upsert_for_phrase(
             phrase_id, CandidateMeaning(
                 candidate_id=word_id, meaning="to look angrily", translation=None,
                 synonyms=None, examples=None, ipa=None, generated_at=None,
             ),
         )
-        SqlaCandidateTTSRepository(self.session).upsert_for_phrase(
+        SqlaCandidateTTSRepository(
+            self.session, SessionChangeRecorder(self.session),
+        ).upsert_for_phrase(
             phrase_id, CandidateTTS(
                 candidate_id=word_id, audio_path="/media/1/tts.mp3", generated_at=None,
             ),
@@ -96,7 +101,8 @@ class Bench:
 
     def queue(self) -> ExportQueue:
         return ExportQueue(
-            SqlaCandidateRepository(self.session), SqlaOccurrenceRepository(self.session),
+            SqlaCandidateRepository(self.session, SessionChangeRecorder(self.session)),
+            SqlaOccurrenceRepository(self.session, SessionChangeRecorder(self.session)),
             self.decisions.word_states, self.decisions.vocabulary,
         )
 

@@ -27,6 +27,7 @@ from backend.domain.value_objects.phrase_origin_kind import (
 )
 from backend.domain.value_objects.review_card import CardContext, ReviewCard
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 
 from tests.decision_support import NOW
 from tests.phrase_support import phrase
@@ -163,16 +164,21 @@ def card_views(session: Session) -> CardViews:
     vocabulary = user_vocabulary()
     return CardViews(
         review_cards=ReviewCards(
-            SqlaCandidateRepository(session), SqlaOccurrenceRepository(session),
-            SqlaWordStateRepository(session), vocabulary,
+            SqlaCandidateRepository(session, SessionChangeRecorder(session)),
+            SqlaOccurrenceRepository(session, SessionChangeRecorder(session)),
+            SqlaWordStateRepository(session, SessionChangeRecorder(session)), vocabulary,
         ),
-        candidate_sorter=candidate_sorter(SqlaSettingsRepository(session)),
+        candidate_sorter=candidate_sorter(SqlaSettingsRepository(
+            session, SessionChangeRecorder(session),
+        )),
         job_repo=SqlaJobRepository(session),
         report_repo=SqlaCardReportRepository(session),
         scope_resolver=SourceScopeResolver(
-            SqlaSourceRepository(session), SqlaCollectionRepository(session), added_order(),
+            SqlaSourceRepository(session, SessionChangeRecorder(session)),
+            SqlaCollectionRepository(session),
+            added_order(),
         ),
-        source_repo=SqlaSourceRepository(session),
+        source_repo=SqlaSourceRepository(session, SessionChangeRecorder(session)),
     )
 
 

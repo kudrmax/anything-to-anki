@@ -29,6 +29,7 @@ from backend.infrastructure.persistence import database
 from backend.infrastructure.persistence.database import run_alembic_migrations
 from backend.infrastructure.persistence.document_json import dump_document
 from backend.infrastructure.persistence.models import PhraseModel, dump_phrase, dump_position
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
@@ -146,16 +147,16 @@ def migrated(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, list[WordDT
 
 
 def _rebuilder(session: Session) -> SourceRebuilder:
-    settings = SqlaSettingsRepository(session)
+    settings = SqlaSettingsRepository(session, SessionChangeRecorder(session))
     vocabulary = user_vocabulary()
-    sources = SqlaSourceRepository(session)
-    occurrences = SqlaOccurrenceRepository(session)
+    sources = SqlaSourceRepository(session, SessionChangeRecorder(session))
+    occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
     return SourceRebuilder(
         source_repo=sources,
         document_repo=SqlaDocumentRepository(session),
         occurrence_repo=occurrences,
         job_repo=SqlaJobRepository(session),
-        media_repo=SqlaCandidateMediaRepository(session),
+        media_repo=SqlaCandidateMediaRepository(session, SessionChangeRecorder(session)),
         media_files=RemovedMediaFiles(),
         settings_repo=settings,
         vocabulary=vocabulary,
@@ -186,9 +187,12 @@ def test_a_rebuild_of_the_unchanged_text_keeps_every_migrated_phrase_in_place(
     assert len(phrases) == len(words)
     assert HYPHENATED in {w.lemma for w in words}
     assert {p.origin for p in phrases} == {"auto"}
+    reader = Session(create_engine(url))
     word_keys = {
         row.id: row.key
-        for row in SqlaOccurrenceRepository(Session(create_engine(url))).word_rows(SOURCE)
+        for row in SqlaOccurrenceRepository(
+            reader, SessionChangeRecorder(reader),
+        ).word_rows(SOURCE)
     }
     migrated_places = {(word_keys[p.candidate_id], _key(p)) for p in phrases}
     inserted_places = {(i.word, i.occurrence.key) for i in plan.occ_to_insert}

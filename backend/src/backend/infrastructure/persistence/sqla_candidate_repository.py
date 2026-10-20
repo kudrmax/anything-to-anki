@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 
 from backend.domain.ports.candidate_repository import CandidateRepository
+from backend.domain.value_objects.card_change import SourceDeleted, WordsChanged
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
     CandidateMeaningImageModel,
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.stored_candidate import StoredCandidate
+    from backend.domain.ports.change_recorder import ChangeRecorder
     from backend.domain.value_objects.built_analysis import WordKey
 
 
@@ -29,14 +31,16 @@ class SqlaCandidateRepository(CandidateRepository):
     """SQLAlchemy implementation of CandidateRepository: the words of sources, with their
     pronunciation and picture attached."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
 
     def add_word(self, word: StoredCandidate) -> int:
         model = StoredCandidateModel.from_entity(word)
         model.status = WordStatus.NEW.value
         self._session.add(model)
         self._session.flush()
+        self._recorder.record(WordsChanged(model.source_id, frozenset({model.lemma})))
         return model.id
 
     def get_by_source(self, source_id: int) -> list[StoredCandidate]:
@@ -109,15 +113,19 @@ class SqlaCandidateRepository(CandidateRepository):
             .filter(StoredCandidateModel.source_id == source_id)
             .all()
         )
+        lemmas = frozenset(model.lemma for model in models)
         for model in models:
             self._session.delete(model)
         self._session.flush()
+        if lemmas:
+            self._recorder.record(SourceDeleted(source_id, lemmas))
 
     def set_studied_at(self, word_id: int, studied_at: datetime | None) -> None:
         model = self._session.get(StoredCandidateModel, word_id)
         if model is not None:
             model.studied_at = studied_at
             self._session.flush()
+            self._recorder.record(WordsChanged(model.source_id, frozenset({model.lemma})))
 
     def last_studied(self, source_ids: Collection[int]) -> dict[int, datetime]:
         found: dict[int, datetime] = {}
