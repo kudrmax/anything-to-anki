@@ -251,6 +251,7 @@ def _set_boundary(session: Session) -> None:
     SetPhraseBoundaryUseCase(
         SqlaOccurrenceRepository(session), SqlaCandidateRepository(session),
         SqlaDocumentRepository(session), _reader(), free_lock(), _stamper(session),
+        MagicMock(),
     ).execute(PRIMARY, SelectionDTO(
         start_block=0, start_line=0, start_char=0,
         end_block=0, end_line=0, end_char=len(PHRASE_TEXT),
@@ -262,6 +263,7 @@ def _edit(session: Session) -> None:
     EditCardPhraseUseCase(
         occurrences, SqlaCandidateRepository(session),
         RewritePhrase(_reader(), occurrences, _stamper(session)), free_lock(),
+        MagicMock(),
     ).execute(PRIMARY, PHRASE_TEXT)
 
 
@@ -280,6 +282,7 @@ def _revert_polish(session: Session) -> None:
     RevertPhrasePolishUseCase(
         SqlaOccurrenceRepository(session), SqlaCandidateRepository(session),
         MagicMock(), free_lock(), _stamper(session),
+        MagicMock(),
     ).execute(PRIMARY, reverted=True)
 
 
@@ -289,6 +292,7 @@ def _enqueue_polish(session: Session) -> None:
     EnqueuePhrasePolishUseCase(
         RequestedCards(candidates, occurrences, free_lock()), occurrences,
         SqlaSourceRepository(session), SqlaJobRepository(session), _stamper(session),
+        MagicMock(),
     ).execute(PRIMARY)
 
 

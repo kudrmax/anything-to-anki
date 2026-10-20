@@ -45,6 +45,7 @@ def _use_case(
     use_case = RevertPhrasePolishUseCase(
         occurrence_repo=occurrences, candidate_repo=candidates, enrichment_reset=reset,
         lock=lock or free_lock(), stamper=_STAMPER,
+        unit_of_work=MagicMock(),
     )
     return use_case, occurrences, reset
 

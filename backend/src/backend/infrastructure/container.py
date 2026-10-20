@@ -429,6 +429,7 @@ class Container:
             phrase_reader=self._phrase_reader,
             lock=SqlaSourceOperationLock(session),
             stamper=self._section_stamper(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def get_review_documents_use_case(self, session: Session) -> GetReviewDocumentsUseCase:
@@ -684,6 +685,7 @@ class Container:
             topic_target_repo=SqlaTopicTargetRepository(session),
             job_repo=SqlaJobRepository(session),
             lock=SqlaSourceOperationLock(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def generate_topic_targets_use_case(self, session: Session) -> GenerateTopicTargetsUseCase:
@@ -732,6 +734,7 @@ class Container:
             vocabulary=self._user_vocabulary(session),
             knowledge=self._user_knowledge(session),
             effects=self._decision_effects(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def decide_phrase_use_case(self, session: Session) -> DecidePhraseUseCase:
@@ -893,12 +896,14 @@ class Container:
     def manage_unknown_words_use_case(self, session: Session) -> ManageUnknownWordsUseCase:
         return ManageUnknownWordsUseCase(
             vocabulary=self._user_vocabulary(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def manage_known_words_use_case(self, session: Session) -> ManageKnownWordsUseCase:
         return ManageKnownWordsUseCase(
             vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def manage_settings_use_case(self, session: Session) -> ManageSettingsUseCase:
@@ -933,6 +938,7 @@ class Container:
             scope_resolver=self._scope_resolver(session),
             vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def get_learning_words_use_case(self, session: Session) -> GetLearningWordsUseCase:
@@ -961,6 +967,7 @@ class Container:
             meaning_repo=SqlaCandidateMeaningRepository(session),
             ai_service=self._ai_service(SqlaSettingsRepository(session)),
             prompts_config=self._prompts_config,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def meaning_generation_use_case(self, session: Session) -> MeaningGenerationUseCase:
@@ -997,6 +1004,7 @@ class Container:
             source_repo=SqlaSourceRepository(session),
             job_repo=SqlaJobRepository(session),
             stamper=self._section_stamper(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _job_phrases(self, session: Session) -> JobPhrases:
@@ -1035,6 +1043,7 @@ class Container:
             enrichment_reset=self._phrase_enrichment_reset(session),
             lock=SqlaSourceOperationLock(session),
             stamper=self._section_stamper(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def edit_card_phrase_use_case(self, session: Session) -> EditCardPhraseUseCase:
@@ -1044,6 +1053,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session),
             rewrite_phrase=self._rewrite_phrase(session),
             lock=SqlaSourceOperationLock(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _phrase_enrichment_reset(self, session: Session) -> PhraseEnrichmentReset:
@@ -1146,6 +1156,7 @@ class Container:
             media_extractor=self._media_extractor,
             media_files=LocalMediaFiles(self._media_root),
             video_path_resolver=self._video_path_resolver,
+            unit_of_work=self._unit_of_work(session),
         )
 
     def download_video_use_case(self, session: Session) -> DownloadVideoUseCase:
@@ -1224,6 +1235,7 @@ class Container:
             image_sources=self._target_image_sources,
             file_downloader=self._image_downloader,
             picture_placer=self._meaning_image_placer(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def paste_target_image_use_case(self, session: Session) -> PasteTargetImageUseCase:
@@ -1231,6 +1243,7 @@ class Container:
         return PasteTargetImageUseCase(
             candidate_repo=SqlaCandidateRepository(session),
             picture_placer=self._meaning_image_placer(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _meaning_image_placer(self, session: Session) -> MeaningImagePlacer:
@@ -1288,12 +1301,14 @@ class Container:
             candidate_sorter=self._candidate_sorter(session),
             targets=self._generation_targets(session),
             lock=SqlaSourceOperationLock(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def cancel_generation_use_case(self, session: Session) -> CancelGenerationUseCase:
         from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
         return CancelGenerationUseCase(
             job_repo=SqlaJobRepository(session), scope_resolver=self._scope_resolver(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def get_queue_snapshot_use_case(self, session: Session) -> GetQueueSnapshotUseCase:
@@ -1317,10 +1332,12 @@ class Container:
         return RequestVideoDownloadUseCase(
             scope_resolver=self._scope_resolver(session),
             job_repo=SqlaJobRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def enqueue_phrase_tts_use_case(self, session: Session) -> EnqueuePhraseTTSUseCase:
         from backend.application.use_cases.enqueue_phrase_tts import EnqueuePhraseTTSUseCase
         return EnqueuePhraseTTSUseCase(
             cards=self._requested_cards(session), job_repo=SqlaJobRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.media_files import MediaFiles
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.ports.video_path_resolver import VideoPathResolver
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,9 @@ class RegeneratePhraseMediaUseCase:
         media_extractor: MediaExtractor,
         media_files: MediaFiles,
         video_path_resolver: VideoPathResolver,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._cards = cards
         self._occurrence_repo = occurrence_repo
         self._media_repo = media_repo
@@ -84,21 +87,22 @@ class RegeneratePhraseMediaUseCase:
                 audio.path,
                 audio_track_index=source.audio_track_index,
             )
-            if not self._occurrence_repo.holds_revision(phrase_id, card.phrase.revision):
-                raise PhraseChangedError(phrase_id)
-            self._media_files.keep(screenshot)
-            self._media_files.keep(audio)
+            with self._unit_of_work.write():
+                if not self._occurrence_repo.holds_revision(phrase_id, card.phrase.revision):
+                    raise PhraseChangedError(phrase_id)
+                self._media_files.keep(screenshot)
+                self._media_files.keep(audio)
+                self._media_repo.upsert_for_phrase(phrase_id, CandidateMedia(
+                    candidate_id=card.word_id,
+                    screenshot_path=screenshot.final_path,
+                    audio_path=audio.final_path,
+                    start_ms=start_ms,
+                    end_ms=end_ms,
+                    generated_at=datetime.now(tz=UTC),
+                ))
         finally:
             self._media_files.discard(screenshot)
             self._media_files.discard(audio)
-        self._media_repo.upsert_for_phrase(phrase_id, CandidateMedia(
-            candidate_id=card.word_id,
-            screenshot_path=screenshot.final_path,
-            audio_path=audio.final_path,
-            start_ms=start_ms,
-            end_ms=end_ms,
-            generated_at=datetime.now(tz=UTC),
-        ))
 
         logger.info(
             "Regenerated media for phrase %d: timecodes=(%d,%d) midpoint=%d",

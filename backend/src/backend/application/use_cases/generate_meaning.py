@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.ai_service import AIService
     from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.prompts_config import PromptsConfig
 
 
@@ -65,7 +66,9 @@ class GenerateMeaningUseCase:
         meaning_repo: CandidateMeaningRepository,
         ai_service: AIService,
         prompts_config: PromptsConfig,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._cards = cards
         self._occurrence_repo = occurrence_repo
         self._meaning_repo = meaning_repo
@@ -187,6 +190,7 @@ class GenerateMeaningUseCase:
 
     def _store(self, card: GenerationCard, meaning: CandidateMeaning) -> None:
         """AI took a while: the phrase must still have the text the meaning explains."""
-        if not self._occurrence_repo.holds_revision(card.phrase_id, card.phrase.revision):
-            raise PhraseChangedError(card.phrase_id)
-        self._meaning_repo.upsert_for_phrase(card.phrase_id, meaning)
+        with self._unit_of_work.write():
+            if not self._occurrence_repo.holds_revision(card.phrase_id, card.phrase.revision):
+                raise PhraseChangedError(card.phrase_id)
+            self._meaning_repo.upsert_for_phrase(card.phrase_id, meaning)

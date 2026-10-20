@@ -13,13 +13,13 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
 )
 from backend.domain.value_objects.export_group import ExportGroup  # noqa: TC001
-from backend.infrastructure.api.dependencies import get_container, get_db_session
+from backend.infrastructure.api.dependencies import use_case
 from backend.infrastructure.api.scope_param import parse_scope
+from backend.infrastructure.container import Container
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
-    from backend.infrastructure.container import Container
+    from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
+    from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 
 router = APIRouter(tags=["export"])
 
@@ -27,12 +27,12 @@ router = APIRouter(tags=["export"])
 @router.get("/export/cards")
 def get_scope_export_cards(
     scope: str = "all",
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    export_cards: GetExportCardsUseCase = Depends(  # noqa: B008
+        use_case(Container.get_export_cards_use_case),  # noqa: B008
+    ),
 ) -> GlobalExportDTO:
-    use_case = container.get_export_cards_use_case(session)
     try:
-        return use_case.execute(parse_scope(scope))
+        return export_cards.execute(parse_scope(scope))
     except (CollectionNotFoundError, SourceNotFoundError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -41,14 +41,11 @@ def get_scope_export_cards(
 def sync_scope_to_anki(
     group: ExportGroup,
     scope: str = "all",
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    sync: SyncToAnkiUseCase = Depends(use_case(Container.sync_to_anki_use_case)),  # noqa: B008
 ) -> SyncResultDTO:
     parsed_scope = parse_scope(scope)
-    use_case = container.sync_to_anki_use_case(session)
     try:
-        result = use_case.execute(parsed_scope, group)
-        session.commit()
+        result = sync.execute(parsed_scope, group)
         return result
     except (CollectionNotFoundError, SourceNotFoundError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

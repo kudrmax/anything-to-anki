@@ -59,6 +59,7 @@ def _use_case(
         meaning_repo=meaning_repo,
         ai_service=ai_service,
         prompts_config=_CONFIG,
+        unit_of_work=MagicMock(),
     )
 
 

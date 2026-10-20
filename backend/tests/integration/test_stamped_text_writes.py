@@ -94,6 +94,7 @@ class Fixture:
     def edit(self, new_text: str) -> None:
         EditCardPhraseUseCase(
             self.bench.occurrences, self.bench.candidates, self.rewrite, self.bench.lock,
+            MagicMock(),
         ).execute(self.phrase_id, new_text)
 
     def polish(self, answer: str) -> None:
@@ -122,12 +123,14 @@ class Fixture:
         RevertPhrasePolishUseCase(
             self.bench.occurrences, self.bench.candidates, MagicMock(), self.bench.lock,
             self.stamper,
+            MagicMock(),
         ).execute(self.phrase_id, reverted=reverted)
 
     def enqueue_polish(self) -> None:
         EnqueuePhrasePolishUseCase(
             RequestedCards(self.bench.candidates, self.bench.occurrences, self.bench.lock),
             self.bench.occurrences, self.bench.sources, self.bench.jobs, self.stamper,
+            MagicMock(),
         ).execute(self.phrase_id)
 
     def discard_polish(self) -> None:
@@ -142,6 +145,7 @@ class Fixture:
         SetPhraseBoundaryUseCase(
             self.bench.occurrences, self.bench.candidates,
             SqlaDocumentRepository(self.session), self.reader, self.bench.lock, self.stamper,
+            MagicMock(),
         ).execute(self.phrase_id, SelectionDTO(
             start_block=0, start_line=LINE, start_char=0,
             end_block=0, end_line=LINE, end_char=len(LINES[LINE]),

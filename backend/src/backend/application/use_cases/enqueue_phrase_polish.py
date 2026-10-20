@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 
 class EnqueuePhrasePolishUseCase:
@@ -24,7 +25,9 @@ class EnqueuePhrasePolishUseCase:
         source_repo: SourceRepository,
         job_repo: JobRepository,
         stamper: SectionStamper,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._cards = cards
         self._occurrence_repo = occurrence_repo
         self._source_repo = source_repo
@@ -33,6 +36,10 @@ class EnqueuePhrasePolishUseCase:
 
     def execute(self, phrase_id: int) -> None:
         """Polish the phrase again from its source text."""
+        with self._unit_of_work.write():
+            self._enqueue(phrase_id)
+
+    def _enqueue(self, phrase_id: int) -> None:
         card = self._cards.card(phrase_id)
         source_id = card.word.source_id
         source = self._source_repo.get_by_id(source_id)

@@ -8,6 +8,7 @@ from backend.domain.exceptions import CandidateNotFoundError
 if TYPE_CHECKING:
     from backend.application.utils.meaning_image_placer import MeaningImagePlacer
     from backend.domain.ports.candidate_repository import CandidateRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,9 @@ class PasteTargetImageUseCase:
         self,
         candidate_repo: CandidateRepository,
         picture_placer: MeaningImagePlacer,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._candidate_repo = candidate_repo
         self._picture_placer = picture_placer
 
@@ -29,5 +32,6 @@ class PasteTargetImageUseCase:
         if candidate is None:
             raise CandidateNotFoundError(candidate_id)
 
-        self._picture_placer.place(candidate, picture, origin=picture)
+        with self._unit_of_work.write():
+            self._picture_placer.place(candidate, picture, origin=picture)
         logger.info("paste_target_image: candidate %d got %d bytes", candidate_id, len(picture))

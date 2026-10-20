@@ -25,16 +25,21 @@ from backend.domain.value_objects.generation_kind import (
 from backend.domain.value_objects.generation_scope import (
     GenerationScope,  # noqa: TC001 — FastAPI parses it at runtime
 )
-from backend.infrastructure.api.dependencies import get_container, get_db_session
+from backend.infrastructure.api.dependencies import use_case
 from backend.infrastructure.api.scope_param import parse_scope
+from backend.infrastructure.container import Container
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from sqlalchemy.orm import Session
-
+    from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
+    from backend.application.use_cases.get_candidates import GetCandidatesUseCase
+    from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
+    from backend.application.use_cases.get_review import GetReviewUseCase
+    from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
+    from backend.application.use_cases.request_video_download import RequestVideoDownloadUseCase
+    from backend.application.use_cases.run_generation import RunGenerationUseCase
     from backend.domain.value_objects.source_scope import SourceScope
-    from backend.infrastructure.container import Container
 
 # Under /api: /review is the web app's own page, which a reload must get, not this JSON.
 router = APIRouter(prefix="/api/review", tags=["review"])
@@ -60,44 +65,46 @@ def _scope_errors() -> Iterator[None]:
 def get_review(
     scope: str = "all",
     sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    review: GetReviewUseCase = Depends(use_case(Container.get_review_use_case)),  # noqa: B008
 ) -> ReviewDTO:
     with _scope_errors():
-        return container.get_review_use_case(session).execute(review_scope(scope), sort)
+        return review.execute(review_scope(scope), sort)
 
 
 @router.get("/candidates")
 def get_review_candidates(
     scope: str = "all",
     sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    candidates: GetCandidatesUseCase = Depends(  # noqa: B008
+        use_case(Container.get_candidates_use_case),  # noqa: B008
+    ),
 ) -> list[CardDTO]:
     with _scope_errors():
-        return container.get_candidates_use_case(session).execute(review_scope(scope), sort)
+        return candidates.execute(review_scope(scope), sort)
 
 
 @router.get("/documents")
 def get_review_documents(
     scope: str = "all",
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    documents: GetReviewDocumentsUseCase = Depends(  # noqa: B008
+        use_case(Container.get_review_documents_use_case),  # noqa: B008
+    ),
 ) -> list[SourceDocumentDTO]:
     """The texts of the set's sources in the set's order, with the targets to mark."""
     with _scope_errors():
-        return container.get_review_documents_use_case(session).execute(review_scope(scope))
+        return documents.execute(review_scope(scope))
 
 
 @router.get("/generation")
 def get_generation_status(
     scope: str = "all",
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    status: GetGenerationStatusUseCase = Depends(  # noqa: B008
+        use_case(Container.get_generation_status_use_case),  # noqa: B008
+    ),
 ) -> GenerationStatusDTO:
     """How far every kind of background generation got for the set's cards."""
     with _scope_errors():
-        return container.get_generation_status_use_case(session).execute(review_scope(scope))
+        return status.execute(review_scope(scope))
 
 
 @router.post("/generation/{kind}", status_code=202)
@@ -106,21 +113,19 @@ def run_generation(
     cards: GenerationScope,
     scope: str = "all",
     sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    run: RunGenerationUseCase = Depends(use_case(Container.run_generation_use_case)),  # noqa: B008
 ) -> dict[str, int]:
     """Queue one kind of generation for the set's `cards`, in the `sort` order. Sources
     that can't run it now are skipped; it fails only when none of them could."""
     with _scope_errors():
         try:
-            enqueued = container.run_generation_use_case(session).execute(
+            enqueued = run.execute(
                 review_scope(scope), kind, cards, sort_order=sort,
             )
         except GenerationNotSupportedError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except (GenerationBlockedError, SourceOperationBusyError) as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
-    session.commit()
     return {"enqueued": enqueued}
 
 
@@ -128,33 +133,33 @@ def run_generation(
 def cancel_generation(
     kind: GenerationKind,
     scope: str = "all",
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    cancel: CancelGenerationUseCase = Depends(  # noqa: B008
+        use_case(Container.cancel_generation_use_case),  # noqa: B008
+    ),
 ) -> dict[str, int]:
     """Cancel queued and running jobs of one kind of generation on every source of the set."""
     with _scope_errors():
-        cancelled = container.cancel_generation_use_case(session).execute(
+        cancelled = cancel.execute(
             review_scope(scope), kind,
         )
-    session.commit()
     return {"cancelled": cancelled}
 
 
 @router.post("/download-video", status_code=202)
 def download_video(
     scope: str = "all",
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    download: RequestVideoDownloadUseCase = Depends(  # noqa: B008
+        use_case(Container.request_video_download_use_case),  # noqa: B008
+    ),
 ) -> dict[str, int]:
     """Queue the download of every video of the set that isn't here yet."""
     with _scope_errors():
         try:
-            queued = container.request_video_download_use_case(session).execute(
+            queued = download.execute(
                 review_scope(scope),
             )
         except SourceHasNoUrlError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except VideoAlreadyDownloadedError as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
-    session.commit()
     return {"queued": queued}

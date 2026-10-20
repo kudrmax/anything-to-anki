@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 
 class RevertPhrasePolishUseCase:
@@ -24,7 +25,9 @@ class RevertPhrasePolishUseCase:
         enrichment_reset: PhraseEnrichmentReset,
         lock: SourceOperationLock,
         stamper: SectionStamper,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._enrichment_reset = enrichment_reset
@@ -32,6 +35,10 @@ class RevertPhrasePolishUseCase:
         self._stamper = stamper
 
     def execute(self, phrase_id: int, reverted: bool) -> None:
+        with self._unit_of_work.write():
+            self._switch(phrase_id, reverted)
+
+    def _switch(self, phrase_id: int, reverted: bool) -> None:
         occ = self._occurrences.get(phrase_id)
         word = self._candidate_repo.get_by_id(occ.candidate_id) if occ is not None else None
         if occ is None or word is None:

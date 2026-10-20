@@ -115,6 +115,7 @@ class Bench:
             scope_resolver=sources_scope_resolver(source_id),
             vocabulary=self.decisions.vocabulary,
             effects=self.decisions.effects(),
+            unit_of_work=MagicMock(),
         ).execute(SourceScope.source(source_id), group)
 
     def status(self, word_id: int = WORD) -> str:

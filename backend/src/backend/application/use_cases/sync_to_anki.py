@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.anki_connector import AnkiConnector
     from backend.domain.ports.settings_repository import SettingsRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.services.cloze_builder import ClozeBuilder
     from backend.domain.value_objects.export_group import ExportGroup
     from backend.domain.value_objects.source_scope import SourceScope
@@ -53,6 +54,7 @@ class _Tally:
     errors: int = 0
     skipped_lemmas: list[str] = field(default_factory=list)
     error_lemmas: list[str] = field(default_factory=list)
+    bound: list[tuple[ExportCard, int]] = field(default_factory=list)
 
     def skip(self, lemma: str) -> None:
         self.skipped += 1
@@ -69,7 +71,8 @@ class SyncToAnkiUseCase:
     A cloze decision goes to the native cloze note type, the rest to the user's recognition
     note type; the note is made of the phrase of the decision. A note already in Anki is
     reused (`_find_existing`), so no duplicate is made. Then the card is bound to its note
-    (S1, `on_bind`): its 30 days start now.
+    (S1, `on_bind`): its 30 days start now. The bindings are written together after the
+    notes are in Anki, so no write transaction waits on AnkiConnect.
     """
 
     def __init__(
@@ -82,7 +85,9 @@ class SyncToAnkiUseCase:
         scope_resolver: SourceScopeResolver,
         vocabulary: UserVocabulary,
         effects: DecisionEffects,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._export_queue = export_queue
         self._connector = anki_connector
         self._settings_repo = settings_repo
@@ -131,19 +136,19 @@ class SyncToAnkiUseCase:
         cloze_target = _NoteTarget(settings.cloze_note_type, fields.target)
 
         tally = _Tally()
-        with self._effects.batch():
-            for card, cloze in plan:
-                target = recognition_target if cloze is None else cloze_target
-                try:
-                    note = (
-                        recognition.build(card) if cloze is None
-                        else cloze_notes.build(card, cloze)
-                    )
-                    self._add(deck_name, target, card, note, tally)
-                except AnkiNotAvailableError:
-                    raise
-                except Exception as exc:  # noqa: BLE001
-                    self._handle_failure(deck_name, target, card, exc, tally)
+        for card, cloze in plan:
+            target = recognition_target if cloze is None else cloze_target
+            try:
+                note = (
+                    recognition.build(card) if cloze is None
+                    else cloze_notes.build(card, cloze)
+                )
+                self._add(deck_name, target, card, note, tally)
+            except AnkiNotAvailableError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                self._handle_failure(deck_name, target, card, exc, tally)
+        self._bind(tally.bound)
 
         logger.info(
             "sync_to_anki: done (%s, deck=%s, added=%d, skipped=%d, errors=%d)",
@@ -166,7 +171,7 @@ class SyncToAnkiUseCase:
             deck_name=deck_name, model_name=target.model_name, notes=[note],
         )
         if results and results[0] is not None:
-            self._mark_exported(card, results[0])
+            tally.bound.append((card, results[0]))
             tally.added += 1
             return
         # Note rejected (allowDuplicate=False) — check if it already exists
@@ -174,7 +179,7 @@ class SyncToAnkiUseCase:
         if existing is None:
             tally.fail(card.word.lemma)
             return
-        self._mark_exported(card, existing)
+        tally.bound.append((card, existing))
         tally.skip(card.word.lemma)
 
     def _handle_failure(
@@ -202,7 +207,7 @@ class SyncToAnkiUseCase:
                 candidate.id, candidate.lemma,
             )
             return
-        self._mark_exported(card, existing)
+        tally.bound.append((card, existing))
         tally.skip(candidate.lemma)
         logger.info(
             "sync_to_anki: duplicate matched existing note "
@@ -218,13 +223,17 @@ class SyncToAnkiUseCase:
         )
         return existing[0] if existing else None
 
-    def _mark_exported(self, card: ExportCard, note_id: int) -> None:
-        """The card is bound to its note: the word is Learning, Known 30 days from now."""
-        outcome = on_bind(
-            card.state, card.phrase_id, self._vocabulary.of(card.word.lemma),
-            self._vocabulary.scope.now,
-        )
-        self._effects.apply(card.state, outcome, card.word, note_id=note_id)
+    def _bind(self, bound: list[tuple[ExportCard, int]]) -> None:
+        """Each card is bound to its note: the word is Learning, Known 30 days from now."""
+        if not bound:
+            return
+        with self._unit_of_work.write(), self._effects.batch():
+            for card, note_id in bound:
+                outcome = on_bind(
+                    card.state, card.phrase_id, self._vocabulary.of(card.word.lemma),
+                    self._vocabulary.scope.now,
+                )
+                self._effects.apply(card.state, outcome, card.word, note_id=note_id)
 
     def _setting(self, key: str, default: str) -> str:
         return self._settings_repo.get(key, default) or default

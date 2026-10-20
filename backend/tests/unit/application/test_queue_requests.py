@@ -62,6 +62,10 @@ def _resolver(sources: list[Source], collection: int | None = None) -> SourceSco
     return SourceScopeResolver(source_repo, collection_repo, added_order())
 
 
+def _downloads(resolver: SourceScopeResolver, job_repo: MagicMock) -> RequestVideoDownloadUseCase:
+    return RequestVideoDownloadUseCase(resolver, job_repo, MagicMock())
+
+
 def _jobs(downloading: frozenset[int] = frozenset()) -> MagicMock:
     job_repo = MagicMock()
     job_repo.has_active_jobs_for_source.side_effect = (
@@ -75,7 +79,7 @@ def _jobs(downloading: frozenset[int] = frozenset()) -> MagicMock:
 class TestRequestVideoDownload:
     def test_queues_one_source_level_job(self) -> None:
         job_repo = _jobs()
-        use_case = RequestVideoDownloadUseCase(_resolver([_youtube_source()]), job_repo)
+        use_case = _downloads(_resolver([_youtube_source()]), job_repo)
 
         assert use_case.execute(SourceScope.source(SOURCE_ID)) == 1
 
@@ -91,7 +95,7 @@ class TestRequestVideoDownload:
             Source(id=3, status=SourceStatus.DONE, collection_id=7),
         ]
         job_repo = _jobs()
-        use_case = RequestVideoDownloadUseCase(_resolver(sources, collection=7), job_repo)
+        use_case = _downloads(_resolver(sources, collection=7), job_repo)
 
         assert use_case.execute(SourceScope.collection(7)) == 1
 
@@ -104,7 +108,7 @@ class TestRequestVideoDownload:
             Source(id=2, status=SourceStatus.DONE, source_url="u2", collection_id=7),
         ]
         job_repo = _jobs(downloading=frozenset({1}))
-        use_case = RequestVideoDownloadUseCase(_resolver(sources, collection=7), job_repo)
+        use_case = _downloads(_resolver(sources, collection=7), job_repo)
 
         assert use_case.execute(SourceScope.collection(7)) == 1
 
@@ -113,7 +117,7 @@ class TestRequestVideoDownload:
 
     def test_a_second_request_queues_nothing(self) -> None:
         job_repo = _jobs(downloading=frozenset({SOURCE_ID}))
-        use_case = RequestVideoDownloadUseCase(_resolver([_youtube_source()]), job_repo)
+        use_case = _downloads(_resolver([_youtube_source()]), job_repo)
 
         assert use_case.execute(SourceScope.source(SOURCE_ID)) == 0
 
@@ -122,6 +126,7 @@ class TestRequestVideoDownload:
     def test_nothing_to_download_keeps_the_single_source_error(self) -> None:
         use_case = RequestVideoDownloadUseCase(
             _resolver([Source(id=3, status=SourceStatus.DONE)]), _jobs(),
+            MagicMock(),
         )
         with pytest.raises(SourceHasNoUrlError):
             use_case.execute(SourceScope.source(3))
@@ -129,7 +134,7 @@ class TestRequestVideoDownload:
     def test_unknown_source(self) -> None:
         job_repo = _jobs()
         with pytest.raises(SourceNotFoundError):
-            RequestVideoDownloadUseCase(_resolver([]), job_repo).execute(SourceScope.source(9))
+            _downloads(_resolver([]), job_repo).execute(SourceScope.source(9))
         job_repo.enqueue.assert_not_called()
 
     def test_rejects_already_downloaded_video(self) -> None:
@@ -138,7 +143,7 @@ class TestRequestVideoDownload:
         job_repo = _jobs()
 
         with pytest.raises(VideoAlreadyDownloadedError):
-            RequestVideoDownloadUseCase(_resolver([source]), job_repo).execute(
+            _downloads(_resolver([source]), job_repo).execute(
                 SourceScope.source(SOURCE_ID),
             )
         job_repo.enqueue.assert_not_called()
@@ -163,7 +168,7 @@ class TestEnqueuePhraseTTS:
     def test_queues_tts_for_the_phrase(self) -> None:
         job_repo = MagicMock()
 
-        EnqueuePhraseTTSUseCase(_requested(_shown_phrase()), job_repo).execute(7)
+        EnqueuePhraseTTSUseCase(_requested(_shown_phrase()), job_repo, MagicMock()).execute(7)
 
         [job] = job_repo.enqueue.call_args.args[0]
         assert (job.job_type, job.source_id, job.candidate_id) == (JobType.TTS, SOURCE_ID, 3)
@@ -171,14 +176,14 @@ class TestEnqueuePhraseTTS:
 
     def test_missing_phrase(self) -> None:
         with pytest.raises(PhraseNotFoundError):
-            EnqueuePhraseTTSUseCase(_requested(None), MagicMock()).execute(7)
+            EnqueuePhraseTTSUseCase(_requested(None), MagicMock(), MagicMock()).execute(7)
 
     def test_busy_source(self) -> None:
         job_repo = MagicMock()
         cards = _requested(_shown_phrase(), busy_with=SourceOperationKind.UPDATE)
 
         with pytest.raises(SourceOperationBusyError):
-            EnqueuePhraseTTSUseCase(cards, job_repo).execute(7)
+            EnqueuePhraseTTSUseCase(cards, job_repo, MagicMock()).execute(7)
         job_repo.enqueue.assert_not_called()
 
 
