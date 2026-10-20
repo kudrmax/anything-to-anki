@@ -29,9 +29,9 @@ describe('SourceTexts', () => {
     vi.unstubAllGlobals()
   })
 
-  const render = (editingSourceId: number | null) => act(() => root.render(
+  const render = (editingSourceId: number | null, documents = [doc(2, 'Episode 2'), doc(1, 'Pilot')]) => act(() => root.render(
     <SourceTexts
-      documents={[doc(2, 'Episode 2'), doc(1, 'Pilot')]}
+      documents={documents}
       candidates={[]}
       focusId={null}
       editingSourceId={editingSourceId}
@@ -57,5 +57,26 @@ describe('SourceTexts', () => {
   it('while a boundary is edited, only that source takes selections', () => {
     render(1)
     expect(selectableTitles()).toEqual(['Pilot'])
+  })
+
+  const toggle = (title: string) => {
+    const button = [...host.querySelectorAll('h3 button')].find(b => b.textContent?.includes(title))
+    act(() => (button as HTMLButtonElement).click())
+  }
+
+  it('folds a source text to its title and unfolds it back', () => {
+    render(null)
+    toggle('Pilot')
+    expect(host.textContent).not.toContain('Text of Pilot.')
+    expect(host.textContent).toContain('Text of Episode 2.')
+    expect(host.querySelector('[data-source-id="1"] button')?.getAttribute('aria-expanded')).toBe('false')
+    toggle('Pilot')
+    expect(host.textContent).toContain('Text of Pilot.')
+  })
+
+  it('a single source has nothing to fold', () => {
+    render(null, [doc(1, 'Pilot')])
+    expect(host.querySelector('h3 button')).toBeNull()
+    expect(titles()).toEqual(['Pilot'])
   })
 })

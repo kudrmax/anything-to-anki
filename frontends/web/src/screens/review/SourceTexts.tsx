@@ -1,5 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { SourceDocument, StoredCandidate } from '@/api/types'
+import { Icon } from '@/ui'
 import { findMark } from './findMark'
 import { SourceText, type SelectedText, type SelectionPoint } from './SourceText'
 import css from './review.module.css'
@@ -16,10 +18,18 @@ interface SourceTextsProps {
   onTextSelected: (selected: SelectedText, point: SelectionPoint) => void
 }
 
-/** Тексты всех источников набора подряд, у каждого заголовок; прокручиваются одной колонкой. */
+/** Тексты всех источников набора подряд, у каждого заголовок; прокручиваются одной колонкой.
+ * Когда текстов больше одного, каждый сворачивается до заголовка. */
 export function SourceTexts({ documents, candidates, focusId, editingSourceId, onWordClick, onTextSelected }: SourceTextsProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const focused = candidates.find(c => c.phrase_id === focusId)
+  const [folded, setFolded] = useState<ReadonlySet<number>>(new Set())
+  const foldable = documents.length > 1
+  const toggle = (sourceId: number) => setFolded(prev => {
+    const next = new Set(prev)
+    if (!next.delete(sourceId)) next.add(sourceId)
+    return next
+  })
 
   // Держим слово текущей фразы в видимой части колонки; ищем его в тексте источника карточки.
   useEffect(() => {
@@ -39,16 +49,27 @@ export function SourceTexts({ documents, candidates, focusId, editingSourceId, o
     <div ref={containerRef} className={css.source}>
       {documents.map(document => {
         const selectable = editingSourceId === null || editingSourceId === document.source_id
+        const open = !folded.has(document.source_id)
         return (
           <section key={document.source_id} className={css.sourceDocument} data-source-id={document.source_id} data-selectable={selectable || undefined}>
-            <h3 className={css.sourceTitle}>{document.title}</h3>
-            <SourceText
-              document={document}
-              candidates={candidates}
-              focusId={focusId}
-              onWordClick={onWordClick}
-              onTextSelected={selectable ? onTextSelected : undefined}
-            />
+            <h3 className={css.sourceTitle}>
+              {foldable
+                ? <button type="button" className={css.sourceFold} aria-expanded={open} onClick={() => toggle(document.source_id)}>
+                    <span className={css.sourceChevron}><Icon as={open ? ChevronDown : ChevronRight} size="s" /></span>
+                    <span className={css.sourceFoldTitle}>{document.title}</span>
+                    {!open && <span className={css.sourceEllipsis} aria-hidden>…</span>}
+                  </button>
+                : document.title}
+            </h3>
+            {open && (
+              <SourceText
+                document={document}
+                candidates={candidates}
+                focusId={focusId}
+                onWordClick={onWordClick}
+                onTextSelected={selectable ? onTextSelected : undefined}
+              />
+            )}
           </section>
         )
       })}
