@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { CardPreview, MissingCardPart } from '@/api/types'
+import { reviewPath, sourceScope } from '@/lib/scope'
 import type { AudioPlayer } from '@/lib/useAudioPlayer'
 import { Badge, MediaThumb } from '@/ui'
 import phrase from '@/ui/phrase.module.css'
@@ -28,7 +29,7 @@ export function ExportCardRow({ card, sourceId, withMedia, player }: ExportCardR
   const classes = [css.row, withMedia && css.withMedia].filter(Boolean).join(' ')
 
   return (
-    <div className={classes} onClick={() => navigate(`/sources/${sourceId}/review?candidate=${card.phrase_id}`)}>
+    <div className={classes} onClick={() => navigate(reviewPath(sourceScope(sourceId), card.phrase_id))}>
       <div className={css.main}>
         {/* sentence и meaning приходят из backend готовым HTML с выделенным словом */}
         <div className={css.sentenceRow}>

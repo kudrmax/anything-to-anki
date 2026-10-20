@@ -22,7 +22,7 @@ export function App() {
           <Route path="/usage" element={<ErrorBoundary><UsageScreen /></ErrorBoundary>} />
           <Route path="/sources/:id/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
           <Route path="/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
-          <Route path="/sources/:id/review" element={<ErrorBoundary><ReviewScreen /></ErrorBoundary>} />
+          <Route path="/review" element={<ErrorBoundary><ReviewScreen /></ErrorBoundary>} />
           <Route path="/" element={<ErrorBoundary><SourcesScreen /></ErrorBoundary>} />
         </Route>
       </Routes>

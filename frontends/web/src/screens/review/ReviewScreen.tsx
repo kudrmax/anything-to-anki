@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { backIn } from '@/lib/backLink'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { backIn, backTo } from '@/lib/backLink'
+import { parseSetScope, scopeQuery } from '@/lib/scope'
 import { allowedInClozeMarkup, reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { pastedPicture } from '@/lib/pastedPicture'
 import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
@@ -20,7 +21,7 @@ import { audioUrlForCandidate, useReview } from './useReview'
 import { useShownCandidates } from './useShownCandidates'
 import { useSwipe } from './useSwipe'
 import { listItems, sectionToggleLabel, visibleCandidates, type ListItem } from './sections'
-import type { CandidateSection, DecisionButton, SourceStatus } from '@/api/types'
+import type { CandidateSection, DecisionButton, SetScope, SourceStatus } from '@/api/types'
 import css from './review.module.css'
 
 const DECISION: Partial<Record<ReviewAction, DecisionButton>> = { learn: 'learn', cloze: 'cloze', known: 'known', skip: 'skip' }
@@ -32,14 +33,27 @@ const DONE = 'Done'
 const REVIEWED: SourceStatus = 'reviewed'
 /** Ссылка на конкретную карточку: с ней ревью открывается сразу на ней. */
 const CANDIDATE_PARAM = 'candidate'
+const SCOPE_PARAM = 'scope'
 
+/** Ревью любого набора — источника, коллекции или всех: у каждого набора свой экземпляр экрана. */
 export function ReviewScreen() {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const sourcesPath = backIn(useLocation().state, SOURCES_PATH)
   const [searchParams] = useSearchParams()
+  const scope = parseSetScope(searchParams.get(SCOPE_PARAM))
   const requestedCandidate = searchParams.get(CANDIDATE_PARAM)
-  const review = useReview(Number(id), requestedCandidate === null ? null : Number(requestedCandidate))
+  return (
+    <ReviewView
+      key={String(scope)}
+      scope={scope}
+      requestedId={requestedCandidate === null ? null : Number(requestedCandidate)}
+    />
+  )
+}
+
+function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: number | null }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const sourcesPath = backIn(location.state, SOURCES_PATH)
+  const review = useReview(scope, requestedId)
   const listRef = useRef<HTMLDivElement>(null)
   const [selection, setSelection] = useState<{ selected: SelectedText; point: SelectionPoint } | null>(null)
   const [sourceTextShown, setSourceTextShown] = useState(() => sourceTextShownPref.read())
@@ -53,7 +67,7 @@ export function ReviewScreen() {
     setPhraseListShown(!phraseListShown)
   }
 
-  const { source, candidates, currentId, counts, editing } = review
+  const { detail, candidates, currentId, counts, editing } = review
   // На телефоне карточка занимает экран, а текст источника и список открываются на её месте.
   const [phoneView, setPhoneView] = useState<PhoneView>('card')
   const togglePhoneView = (view: PhoneView) => setPhoneView(prev => (prev === view ? 'card' : view))
@@ -72,9 +86,9 @@ export function ReviewScreen() {
   const visible = sectioned ? visibleCandidates(candidates, openSections) : candidates
   const list = useShownCandidates(
     visible,
-    source?.initially_shown_candidates ?? null,
+    detail?.initially_shown_candidates ?? null,
     currentId,
-    `${id}:${review.sortOrder}`,
+    `${scope}:${review.sortOrder}`,
   )
 
   // Держим карточку в поле зрения: и когда список только появился (ревью открыли ссылкой на карточку),
@@ -93,7 +107,7 @@ export function ReviewScreen() {
     listRef.current?.querySelector(`[data-candidate-id="${currentId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [currentId, currentIndex, loading, phraseListShown])
 
-  const { press, setCurrentId, cancelEditing, sourceId, clozeEditing } = review
+  const { press, setCurrentId, cancelEditing, clozeEditing } = review
   const toggleAudio = review.player.toggle
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -110,7 +124,7 @@ export function ReviewScreen() {
       }
       if (!current) return
       if (action === 'audio') {
-        const url = audioUrlForCandidate(current, sourceId)
+        const url = audioUrlForCandidate(current)
         if (url) toggleAudio(url)
         return
       }
@@ -119,7 +133,7 @@ export function ReviewScreen() {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [current, prevId, nextId, editing, selection, press, setCurrentId, cancelEditing, toggleAudio, sourceId, clozeEditing])
+  }, [current, prevId, nextId, editing, selection, press, setCurrentId, cancelEditing, toggleAudio, clozeEditing])
 
   const { pasteImage } = review
   useEffect(() => {
@@ -137,8 +151,8 @@ export function ReviewScreen() {
   if (review.loading) {
     return <Page immersive header={<PageHeader title="Review" back={sourcesPath} />}><Empty><Spinner /></Empty></Page>
   }
-  if (!source) {
-    return <Page immersive header={<PageHeader title="Review" back={sourcesPath} />}><Empty>Source not found.</Empty></Page>
+  if (!detail) {
+    return <Page immersive header={<PageHeader title="Review" back={sourcesPath} />}><Empty>Nothing to review here.</Empty></Page>
   }
 
   const closeSelection = () => {
@@ -146,7 +160,7 @@ export function ReviewScreen() {
     window.getSelection()?.removeAllRanges()
   }
 
-  const hasSourceText = source.has_source_text
+  const hasSourceText = review.documents.length > 0
 
   // Правка границ фразы идёт по тексту источника — на телефоне показываем его.
   const view: PhoneView = editing ? 'text' : phoneView
@@ -165,7 +179,7 @@ export function ReviewScreen() {
     </div>
   )
 
-  const goToExport = () => navigate(`/sources/${sourceId}/export`)
+  const goToExport = () => navigate(`/export${scopeQuery(scope)}`, { state: backTo(location.pathname + location.search) })
   // На телефоне всё редкое — в одном меню, чтобы шапка уместилась в строку.
   const phoneMenu: MenuItem[] = [
     { label: 'Export to Anki', icon: Upload, value: `${counts.learn}`, onSelect: goToExport },
@@ -176,14 +190,14 @@ export function ReviewScreen() {
 
   const header = (
     <PageHeader
-      title={source.title}
+      title={detail.title}
       back={sourcesPath}
       metaWithActions
       meta={counts.total > 0 && (
         <>
           {/* Десктоп: прогресс — линия по нижнему краю вкладок, на всю ширину окна; видна краем глаза. */}
           <span className={css.windowProgress} style={{ '--p': `${Math.round(counts.progress * 100)}%` } as CSSProperties} />
-          {source.status === REVIEWED ? DONE : `${counts.reviewed} / ${counts.total}`}
+          {detail.status === REVIEWED ? DONE : `${counts.reviewed} / ${counts.total}`}
         </>
       )}
     >
@@ -234,9 +248,9 @@ export function ReviewScreen() {
     </>
   )
 
-  const sourceText = (onWordClick: (id: number) => void) => review.document && (
+  const sourceText = (onWordClick: (id: number) => void) => hasSourceText && (
     <SourceText
-      document={review.document}
+      document={review.documents[0]}
       candidates={candidates}
       focusId={editing?.candidateId ?? currentId}
       onWordClick={onWordClick}
@@ -251,7 +265,7 @@ export function ReviewScreen() {
   return (
     <Page fit wide immersive header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
       <div ref={listRef} className={phraseListShown ? css.body : `${css.body} ${css.focus}`}>
-        {candidates.length === 0 && <Empty>No candidates found for this source.</Empty>}
+        {candidates.length === 0 && <Empty>No candidates found.</Empty>}
         {view === 'text' && hasSourceText && <div className={css.textPanel}>{sourceText(showCard)}</div>}
         {view === 'list' && (
           <div className={css.listPanel}>
@@ -292,7 +306,7 @@ export function ReviewScreen() {
           point={selection.point}
           editing={editing}
           onSetBoundary={async () => { if (await review.setBoundary(selection.selected.selection)) setSelection(null) }}
-          onAddWord={async targetWords => { if (await review.addWord(targetWords, selection.selected.selection)) setSelection(null) }}
+          onAddWord={async targetWords => { if (await review.addWord(targetWords, selection.selected)) setSelection(null) }}
           onCancel={closeSelection}
         />
       )}

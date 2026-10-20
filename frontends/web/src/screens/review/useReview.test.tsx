@@ -2,18 +2,18 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import type { CandidateSection, GenerationOverview, SourceDetail, StoredCandidate } from '@/api/types'
+import type { CandidateSection, GenerationOverview, ReviewDetail, SetScope, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref } from '@/lib/preferences'
 import { buttons, state } from './reviewFixtures'
 import { useReview, type Review } from './useReview'
 
-const SOURCE_ID = 7
+const SCOPE: SetScope = 'source-7'
 const POLL_MS = 3000
 
 const card = (id: number, section: CandidateSection, isDone = section === 'reviewed') =>
   ({ phrase_id: id, word_id: id, section, is_done: isDone, state: state() }) as StoredCandidate
 const detail = (candidates: StoredCandidate[]) =>
-  ({ id: SOURCE_ID, candidates, has_source_text: false, busy_with: null, progress: { decided: 0, total: 0 } }) as unknown as SourceDetail
+  ({ scope: SCOPE, candidates, busy: false, progress: { decided: 0, total: 0 } }) as unknown as ReviewDetail
 
 // При загрузке: 1 и 2 в Ready, 3 уже разобрана.
 const LOADED = [card(1, 'ready'), card(2, 'ready'), card(3, 'reviewed')]
@@ -21,7 +21,7 @@ const LOADED = [card(1, 'ready'), card(2, 'ready'), card(3, 'reviewed')]
 const AFTER_PRESS = [card(2, 'ready'), card(1, 'reviewed'), card(3, 'reviewed')]
 
 function Probe({ onRender }: { onRender: (review: Review) => void }) {
-  onRender(useReview(SOURCE_ID))
+  onRender(useReview(SCOPE))
   return null
 }
 
@@ -40,8 +40,9 @@ describe('useReview layout', () => {
     autoPlayAudioPref.write(false)
     backend = LOADED
     vi.spyOn(api, 'getReportReasons').mockResolvedValue([])
-    vi.spyOn(api, 'getSource').mockImplementation(async () => detail(backend))
-    vi.spyOn(api, 'getGenerationStatus').mockResolvedValue({ in_progress: true } as GenerationOverview)
+    vi.spyOn(api, 'getReview').mockImplementation(async () => detail(backend))
+    vi.spyOn(api, 'getReviewDocuments').mockResolvedValue([])
+    vi.spyOn(api, 'getReviewGeneration').mockResolvedValue({ in_progress: true } as GenerationOverview)
     vi.spyOn(api, 'decidePhrase').mockImplementation(async id => {
       backend = AFTER_PRESS
       return AFTER_PRESS.find(c => c.phrase_id === id)!
@@ -66,15 +67,34 @@ describe('useReview layout', () => {
     expect(latest.candidates[0].is_done).toBe(true)
     expect(latest.currentId).toBe(2)
 
-    const reads = vi.mocked(api.getSource).mock.calls.length
+    const reads = vi.mocked(api.getReview).mock.calls.length
     await act(async () => { await vi.advanceTimersByTimeAsync(POLL_MS) })
     await flush()
-    expect(vi.mocked(api.getSource).mock.calls.length).toBeGreaterThan(reads)
+    expect(vi.mocked(api.getReview).mock.calls.length).toBeGreaterThan(reads)
     expect(layout(latest)).toEqual(['1:ready', '2:ready', '3:reviewed'])
 
     await act(async () => latest.setSortOrder('key_words'))
     await flush()
     expect(layout(latest)).toEqual(['2:ready', '1:reviewed', '3:reviewed'])
+  })
+
+  it('loads the review, documents and generation of its scope', async () => {
+    await act(async () => root.render(<Probe onRender={review => { latest = review }} />))
+    await flush()
+    expect(api.getReview).toHaveBeenCalledWith(SCOPE, 'relevance')
+    expect(api.getReviewDocuments).toHaveBeenCalledWith(SCOPE)
+    expect(api.getReviewGeneration).toHaveBeenCalledWith(SCOPE)
+  })
+
+  it('polls while a source of the set is busy', async () => {
+    vi.mocked(api.getReviewGeneration).mockResolvedValue({ in_progress: false, kinds: [] })
+    vi.mocked(api.getReview).mockImplementation(async () => ({ ...detail(backend), busy: true }))
+    await act(async () => root.render(<Probe onRender={review => { latest = review }} />))
+    await flush()
+    const reads = vi.mocked(api.getReview).mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(POLL_MS) })
+    await flush()
+    expect(vi.mocked(api.getReview).mock.calls.length).toBeGreaterThan(reads)
   })
 
   it('toasts the reason of a refused press and of a refused cloze save, not the raw response', async () => {

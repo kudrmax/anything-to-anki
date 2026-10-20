@@ -11,6 +11,8 @@ export interface SelectionPoint {
 }
 
 export interface SelectedText {
+  /** Источник, в тексте которого выделили: новая карточка добавляется в него. */
+  sourceId: number
   /** Выделенный текст — чтобы показать его и выбрать в нём слова. */
   text: string
   selection: DocumentSelection
@@ -115,6 +117,7 @@ export function SourceText({ document, candidates, focusId, onWordClick, onTextS
     const rect = range.getBoundingClientRect()
     onTextSelected(
       {
+        sourceId: document.source_id,
         text,
         selection: {
           start_block: start.block, start_line: start.line, start_char: start.char,

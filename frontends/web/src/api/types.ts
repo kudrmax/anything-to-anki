@@ -16,6 +16,8 @@ export type ProcessingStage = 'analyzing_text' | 'collecting_phrases'
 export type CandidateSortOrder = 'relevance' | 'chronological' | 'key_words'
 
 export type Scope = 'all' | 'unsorted' | number
+/** Набор источников на ревью и экспорте: область или один источник (`source-<id>`). */
+export type SetScope = Scope | `source-${number}`
 export type SourceStage = 'in_progress' | 'preparing' | 'ready' | 'reviewed'
 
 /** Решённые карточки среди Ready: одни и те же числа у источника, его ревью и коллекции. */
@@ -336,30 +338,32 @@ export interface StoredCandidate {
   cloze: CandidateCloze | null
   /** Скрытые слова cloze можно поменять: cloze ещё не в Anki. */
   can_edit_cloze: boolean
+  /** Источник карточки: от него её медиа, видео и занятость. */
+  source: CardSource
 }
 
-export interface SourceDetail {
+export interface CardSource {
   id: number
-  title: string
-  status: SourceStatus
-  kind: SourceKind | null
-  role: SourceRole
   has_video: boolean
   can_polish_phrases: boolean
-  /** Есть ли у источника свой текст, который показывает ревью. */
-  has_source_text: boolean
-  source_url: string | null
-  video_downloaded: boolean
-  error_message: string | null
-  processing_stage: ProcessingStage | null
+  /** Операция, которая держит источник карточки; карточка ждёт её. */
   busy_with: SourceOperationKind | null
+}
+
+/** Ревью набора источников: один источник, коллекция или все. Статус, прогресс и занятость — по набору. */
+export interface ReviewDetail {
+  /** Токен набора, как его принимает параметр scope. */
+  scope: string
+  title: string
+  status: SourceStatus
+  progress: Progress
   /** Слов на изучение (не карточек). */
   learn_count: number
-  created_at: string
   candidates: StoredCandidate[]
   /** How many candidates to show before "Show more"; null — show all. */
   initially_shown_candidates: number | null
-  progress: Progress
+  /** Какой-то источник набора занят операцией: его карточки ждут её. */
+  busy: boolean
 }
 
 export interface AnkiStatus {
@@ -639,6 +643,8 @@ export interface Highlight {
 }
 
 export interface SourceDocument {
+  source_id: number
+  title: string
   blocks: DocumentBlock[]
   /** Target'ы, которые не пересекаются, в порядке чтения. */
   highlights: Highlight[]

@@ -5,7 +5,7 @@ import { statsStore, useStats } from '@/hooks/useStats'
 import { backTo } from '@/lib/backLink'
 import { usePhone } from '@/lib/device'
 import { OVERLAY } from '@/lib/hotkeys'
-import { scopeQuery, useScope } from '@/lib/scope'
+import { reviewPath, scopeQuery, sourceScope, useScope } from '@/lib/scope'
 import { clickSelect, EMPTY_SELECTION, pruned, selectAll, type Selection } from '@/lib/selection'
 import { findNode } from '@/lib/treeDrop'
 import { typingIn } from '@/lib/typing'
@@ -135,7 +135,7 @@ export function SourcesScreen() {
   const longPress = (id: number) => setSelection(clickSelect(visibleSelection, order, id, { toggle: true, range: false }))
   const dragIds = (id: number) => (visibleSelection.ids.has(id) ? selectedIds : [id])
 
-  const review = (id: number) => navigate(`/sources/${id}/review`, { state: backTo(`/${scopeQuery(scope)}`) })
+  const review = (id: number) => navigate(reviewPath(sourceScope(id)), { state: backTo(`/${scopeQuery(scope)}`) })
   const exportSource = (id: number) => navigate(`/sources/${id}/export`)
   const exportScope = () => navigate(`${EXPORT_PATH}${scopeQuery(scope)}`)
 

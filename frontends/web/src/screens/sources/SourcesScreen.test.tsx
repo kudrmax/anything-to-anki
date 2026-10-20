@@ -245,7 +245,7 @@ describe('SourcesScreen', () => {
   it('opens Review remembering the scope to come back to', async () => {
     await render('/?scope=11')
     act(() => row('Finale').click())
-    expect(seen.location).toBe('/sources/3/review')
+    expect(seen.location).toBe('/review?scope=source-3')
     expect(seen.state).toEqual({ back: '/?scope=11' })
   })
 

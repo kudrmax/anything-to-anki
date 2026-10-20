@@ -1,6 +1,6 @@
 import { useParams, useSearchParams } from 'react-router-dom'
 import type { ExportGroup, ExportSection, Scope } from '@/api/types'
-import { parseScope, scopeQuery } from '@/lib/scope'
+import { parseScope, reviewPath, scopeQuery, sourceScope } from '@/lib/scope'
 import { useAudioPlayer, type AudioPlayer } from '@/lib/useAudioPlayer'
 import { Page, PageHeader } from '@/shell'
 import { Banner, Button, Empty, Spinner, Stat, StatGrid, StatusDot, Text } from '@/ui'
@@ -28,7 +28,7 @@ function ExportView({ sourceId, scope }: { sourceId: number | undefined; scope: 
   const exporter = useExport(sourceId, scope)
   const player = useAudioPlayer()
   const back = sourceId !== undefined
-    ? `/sources/${sourceId}/review`
+    ? reviewPath(sourceScope(sourceId))
     : scope === 'all' ? undefined : `/${scopeQuery(scope)}`
   const title = scope !== 'all' && exporter.title ? exporter.title : 'Export'
 

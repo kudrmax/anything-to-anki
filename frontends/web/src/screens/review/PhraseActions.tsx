@@ -81,7 +81,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   const [pickingImage, setPickingImage] = useState(false)
   const id = candidate.phrase_id
   const isRated = candidate.is_done
-  const isVideo = review.source?.has_video ?? false
+  const isVideo = candidate.source.has_video
   const isEditing = review.editing?.candidateId === id
   const hasMeaning = Boolean(candidate.meaning?.meaning)
   const polishing = candidate.polish_status === 'queued' || candidate.polish_status === 'running'
@@ -200,7 +200,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
 
   const regenerateItems: MenuItem[] = [
     meaningEntry,
-    ...(review.source?.can_polish_phrases || polished ? [polishEntry] : []),
+    ...(candidate.source.can_polish_phrases || polished ? [polishEntry] : []),
     actionItem('Speech', Speech, busy.tts, () => void review.generateTTS(id), 'Phrase read aloud'),
     ...(isVideo ? [actionItem('Screenshot and clip', Clapperboard, busy.media, () => void review.regenerateMedia(id), 'From the video')] : []),
   ]

@@ -66,7 +66,8 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
   // Телефон: справка свёрнута в строку Details, «Use as phrase» — только у примера, по которому тапнули.
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [openExample, setOpenExample] = useState<number | null>(null)
-  const { sourceId, player } = review
+  const { player } = review
+  const sourceId = candidate.source.id
   const meaning = candidate.meaning
   const media = review.mediaFor(candidate)
   const phraseEditor = usePhraseEditor(candidate, review)
