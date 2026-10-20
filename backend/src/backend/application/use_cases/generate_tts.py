@@ -67,17 +67,17 @@ class GenerateTTSUseCase:
         speech = self._media_files.draft(card.word.source_id, card.phrase_id, TTS_FILE)
         try:
             self._tts_generator.generate_audio(text, Path(speech.path), voice, speed)
-            if not self._job_phrases.holds(card):
-                return
-            self._media_files.keep(speech)
+            with self._unit_of_work.write():
+                if not self._job_phrases.holds(card):
+                    return
+                self._media_files.keep(speech)
+                self._tts_repo.upsert_for_phrase(card.phrase_id, CandidateTTS(
+                    candidate_id=card.word_id,
+                    audio_path=speech.final_path,
+                    generated_at=datetime.now(tz=UTC),
+                ))
         finally:
             self._media_files.discard(speech)
-        with self._unit_of_work.write():
-            self._tts_repo.upsert_for_phrase(card.phrase_id, CandidateTTS(
-                candidate_id=card.word_id,
-                audio_path=speech.final_path,
-                generated_at=datetime.now(tz=UTC),
-            ))
 
         logger.info(
             "generate_tts: done (phrase=%d, voice=%s, speed=%.1f)",

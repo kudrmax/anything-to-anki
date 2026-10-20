@@ -84,20 +84,20 @@ class MediaExtractionUseCase:
                 resolved_video_path, start_ms, end_ms, audio.path,
                 audio_track_index=source.audio_track_index,
             )
-            if not self._job_phrases.holds(card):
-                return
-            self._media_files.keep(screenshot)
-            self._media_files.keep(audio)
+            with self._unit_of_work.write():
+                if not self._job_phrases.holds(card):
+                    return
+                self._media_files.keep(screenshot)
+                self._media_files.keep(audio)
+                self._media_repo.upsert_for_phrase(card.phrase_id, CandidateMedia(
+                    candidate_id=card.word_id,
+                    screenshot_path=screenshot.final_path,
+                    audio_path=audio.final_path,
+                    start_ms=start_ms,
+                    end_ms=end_ms,
+                    generated_at=datetime.now(tz=UTC),
+                ))
         finally:
             self._media_files.discard(screenshot)
             self._media_files.discard(audio)
-        with self._unit_of_work.write():
-            self._media_repo.upsert_for_phrase(card.phrase_id, CandidateMedia(
-                candidate_id=card.word_id,
-                screenshot_path=screenshot.final_path,
-                audio_path=audio.final_path,
-                start_ms=start_ms,
-                end_ms=end_ms,
-                generated_at=datetime.now(tz=UTC),
-            ))
         logger.info("MediaExtraction phrase %d: DONE", card.phrase_id)
