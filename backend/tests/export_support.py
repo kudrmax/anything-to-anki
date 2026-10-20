@@ -151,6 +151,7 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
                 word_states=self, vocabulary=vocabulary, decision_repo=MagicMock(),
                 anki_sync=self, lock=free_lock(),
             ),
+            word_states=self,
             unit_of_work=MagicMock(),
         )
 

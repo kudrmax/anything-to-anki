@@ -13,7 +13,7 @@ from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.services.cloze_builder import ClozeBuilder
-from backend.domain.value_objects.card_choice import Press
+from backend.domain.value_objects.card_choice import CardChoice, Press
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
@@ -115,6 +115,7 @@ class Bench:
             scope_resolver=sources_scope_resolver(source_id),
             vocabulary=self.decisions.vocabulary,
             effects=self.decisions.effects(),
+            word_states=self.decisions.word_states,
             unit_of_work=MagicMock(),
         ).execute(SourceScope.source(source_id), group)
 
@@ -153,6 +154,23 @@ def test_export_makes_the_word_learning_and_starts_its_timer_now(bench: Bench) -
     lemma = bench.session.execute(text("SELECT lemma, pos FROM anki_synced_cards")).one()
     assert tuple(lemma) == (LEMMA, "VERB")
     assert bench.queue().for_sources([SOURCE]).pending == []
+
+
+def test_a_decision_made_while_the_notes_go_to_anki_is_kept(bench: Bench) -> None:
+    bench.press(CARD, Press.LEARN)
+
+    def known_meanwhile(**_: object) -> list[int]:
+        bench.press(CARD, Press.KNOWN)
+        return [NOTE]
+
+    bench.connector.add_notes.side_effect = known_meanwhile
+
+    bench.export()
+
+    assert bench.rows() == []
+    assert bench.status() != "learning"
+    [word] = bench.decisions.word_states.of_words([WORD]).values()
+    assert word.card(CARD).choice is CardChoice.KNOWN
 
 
 def test_re_export_after_a_removal_binds_the_same_note_with_a_new_timer(bench: Bench) -> None:

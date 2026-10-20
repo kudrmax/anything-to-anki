@@ -32,7 +32,9 @@ if TYPE_CHECKING:
     from backend.domain.ports.anki_connector import AnkiConnector
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.unit_of_work import UnitOfWork
+    from backend.domain.ports.word_state_repository import WordStateRepository
     from backend.domain.services.cloze_builder import ClozeBuilder
+    from backend.domain.value_objects.card_choice import CardState, WordState
     from backend.domain.value_objects.export_group import ExportGroup
     from backend.domain.value_objects.source_scope import SourceScope
 
@@ -85,8 +87,10 @@ class SyncToAnkiUseCase:
         scope_resolver: SourceScopeResolver,
         vocabulary: UserVocabulary,
         effects: DecisionEffects,
+        word_states: WordStateRepository,
         unit_of_work: UnitOfWork,
     ) -> None:
+        self._word_states = word_states
         self._unit_of_work = unit_of_work
         self._export_queue = export_queue
         self._connector = anki_connector
@@ -224,19 +228,38 @@ class SyncToAnkiUseCase:
         return existing[0] if existing else None
 
     def _bind(self, bound: list[tuple[ExportCard, int]]) -> None:
-        """Each card is bound to its note: the word is Learning, Known 30 days from now."""
+        """Each card is bound to its note: the word is Learning, Known 30 days from now.
+
+        The words are read again inside the write: a card the user decided anew while the
+        notes went to Anki keeps that decision and stays unbound; a later export finds its
+        note in Anki (`_find_existing`)."""
         if not bound:
             return
-        with self._unit_of_work.write(), self._effects.batch():
-            for card, note_id in bound:
-                outcome = on_bind(
-                    card.state, card.phrase_id, self._vocabulary.of(card.word.lemma),
-                    self._vocabulary.scope.now,
-                )
-                self._effects.apply(card.state, outcome, card.word, note_id=note_id)
+        with self._unit_of_work.write():
+            words = self._word_states.of_words({card.word_id for card, _ in bound})
+            with self._effects.batch():
+                for card, note_id in bound:
+                    word = words.get(card.word_id)
+                    if word is None or _card_of(word, card) != card.state.card(card.phrase_id):
+                        logger.info(
+                            "sync_to_anki: card changed during the export, left unbound"
+                            " (phrase_id=%d, lemma=%s, note_id=%d)",
+                            card.phrase_id, card.word.lemma, note_id,
+                        )
+                        continue
+                    outcome = on_bind(
+                        word, card.phrase_id, self._vocabulary.of(card.word.lemma),
+                        self._vocabulary.scope.now,
+                    )
+                    self._effects.apply(word, outcome, card.word, note_id=note_id)
+                    words[card.word_id] = outcome.word
 
     def _setting(self, key: str, default: str) -> str:
         return self._settings_repo.get(key, default) or default
+
+
+def _card_of(word: WordState, card: ExportCard) -> CardState | None:
+    return next((c for c in word.cards if c.card_id == card.phrase_id), None)
 
 
 def _refuse_incomplete(check: NoteTypeCheck) -> None:

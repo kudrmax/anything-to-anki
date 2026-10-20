@@ -56,9 +56,10 @@ class ProcessSourceUseCase:
     def start(self, source_id: int) -> None:
         """Validate the source and take it. Call before launching the background task."""
         with self._unit_of_work.write():
-            self._take(source_id)
+            self.take(source_id)
 
-    def _take(self, source_id: int) -> None:
+    def take(self, source_id: int) -> None:
+        """`start` for a use case that holds the write transaction itself."""
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)

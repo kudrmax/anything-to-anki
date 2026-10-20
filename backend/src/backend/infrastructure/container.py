@@ -659,6 +659,7 @@ class Container:
             generation_probe=self._generation_probe(session),
             process_source=self.process_source_use_case(session),
             lock=SqlaSourceOperationLock(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def _candidate_factory(self) -> CandidateFactory:
@@ -952,6 +953,7 @@ class Container:
             scope_resolver=self._scope_resolver(session),
             vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
+            word_states=SqlaWordStateRepository(session),
             unit_of_work=self._unit_of_work(session),
         )
 

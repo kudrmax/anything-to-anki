@@ -57,7 +57,9 @@ class TestProcessSources:
         self.process = MagicMock()
         self.lock = MagicMock()
         self.lock.operations.return_value = {}
-        self.use_case = ProcessSourcesUseCase(resolver, probe, self.process, self.lock)
+        self.use_case = ProcessSourcesUseCase(
+            resolver, probe, self.process, self.lock, MagicMock(),
+        )
 
     def test_the_users_sort_does_not_change_the_processing_order(self) -> None:
         assert [s.id for s in self.resolver.sources(SourceScope.all())] == [4, 3, 2, 1]
@@ -72,7 +74,7 @@ class TestProcessSources:
         assert self.use_case.pending_in(SourceScope.all()) == [2, 4]
 
     def test_start_skips_sources_that_cannot_start(self) -> None:
-        self.process.start.side_effect = [SourceAlreadyProcessedError(1), None]
+        self.process.take.side_effect = [SourceAlreadyProcessedError(1), None]
         result = self.use_case.start([1, 2])
         assert result.started == [2]
         assert result.skipped == [1]
