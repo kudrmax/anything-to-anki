@@ -243,12 +243,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
     </PageHeader>
   )
 
-  const banner = (
-    <>
-      {review.vpnBlocked && <Banner tone="warn" onDismiss={review.dismissVpn}>AI unavailable — turn on VPN</Banner>}
-      {editing && <Banner tone="warn" onDismiss={cancelEditing}>Select the new boundary for “{editing.lemma}” in the source text</Banner>}
-    </>
-  )
+  const banner = editing && <Banner tone="warn" onDismiss={cancelEditing}>Select the new boundary for “{editing.lemma}” in the source text</Banner>
 
   const sourceText = (onWordClick: (id: number) => void) => hasSourceText && (
     <SourceTexts
@@ -266,7 +261,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
   )
 
   return (
-    <Page fit wide immersive header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={(review.vpnBlocked || editing) ? banner : undefined}>
+    <Page fit wide immersive header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={banner || undefined}>
       <div ref={listRef} className={phraseListShown ? css.body : `${css.body} ${css.focus}`}>
         {candidates.length === 0 && <Empty>No candidates found.</Empty>}
         {view === 'text' && hasSourceText && <div className={css.textPanel}>{sourceText(showCard)}</div>}

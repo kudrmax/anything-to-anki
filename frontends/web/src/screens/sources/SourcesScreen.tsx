@@ -10,7 +10,7 @@ import { clickSelect, EMPTY_SELECTION, pruned, selectAll, type Selection } from 
 import { findNode } from '@/lib/treeDrop'
 import { typingIn } from '@/lib/typing'
 import { Page } from '@/shell'
-import { Banner, Button, Empty, Field, Stat, StatGrid, Toast, ToastStack, UndoToast, useToast, useUndo } from '@/ui'
+import { Button, Empty, Field, Stat, StatGrid, Toast, ToastStack, UndoToast, useToast, useUndo } from '@/ui'
 import { AddSourceForm } from './AddSourceForm'
 import { CollectionTree } from './CollectionTree'
 import { MoveToModal } from './MoveToModal'
@@ -214,8 +214,6 @@ export function SourcesScreen() {
     </>
   )
 
-  const banner = board.vpnBlocked && <Banner tone="warn">AI unavailable — turn on VPN</Banner>
-
   const groups = board.board?.groups.filter(g => g.sources.length > 0) ?? []
   const empty = (() => {
     if (!board.board || !tree || groups.length > 0) return null
@@ -255,7 +253,6 @@ export function SourcesScreen() {
           {side}
         </ScopePicker>
       }
-      banner={banner}
     >
       <div className={css.layout}>
         {!isPhone && <aside className={css.side} aria-label="Collections">{side}</aside>}

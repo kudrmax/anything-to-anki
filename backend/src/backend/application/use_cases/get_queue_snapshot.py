@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.dto.queue_dtos import (
-    AIOutageDTO,
     FailedByJobTypeDTO,
     FailedGroupDTO,
     FailedSourceDTO,
@@ -16,7 +15,6 @@ from backend.domain.value_objects.job_type import JobType
 
 if TYPE_CHECKING:
     from backend.domain.entities.job import Job
-    from backend.domain.ports.ai_outage_repository import AIOutageRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_repository import SourceRepository
@@ -40,12 +38,10 @@ class GetQueueSnapshotUseCase:
         job_repo: JobRepository,
         source_repo: SourceRepository,
         candidate_repo: CandidateRepository,
-        ai_outage_repo: AIOutageRepository,
     ) -> None:
         self._job_repo = job_repo
         self._source_repo = source_repo
         self._candidate_repo = candidate_repo
-        self._ai_outage_repo = ai_outage_repo
 
     def execute(self, source_id: int | None = None, queued_limit: int = 50) -> QueueSnapshotDTO:
         summary = self._job_repo.get_queue_summary(source_id=source_id)
@@ -104,16 +100,12 @@ class GetQueueSnapshotUseCase:
                     groups=groups,
                 ))
 
-        total_queued = sum(c.queued for c in counts)
-        total_running = sum(c.running for c in counts)
-        outage = self._ai_outage_repo.get() if total_queued + total_running else None
         return QueueSnapshotDTO(
             counts=counts,
-            total_queued=total_queued,
-            total_running=total_running,
+            total_queued=sum(c.queued for c in counts),
+            total_running=sum(c.running for c in counts),
             total_failed=sum(c.failed for c in counts),
             running=[job_dto(j, None) for j in running],
             queued=[job_dto(j, i) for i, j in enumerate(queued, 1)],
             failed=failed,
-            ai_outage=AIOutageDTO(reason=outage.reason, since=outage.since) if outage else None,
         )

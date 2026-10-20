@@ -14,7 +14,7 @@ class AIOutageRepository(ABC):
     def get(self) -> AIOutage | None: ...
 
     @abstractmethod
-    def report(self, reason: str) -> None:
+    def report(self, reason: str, vpn_required: bool) -> None:
         """The AI is unavailable for this reason; an ongoing outage keeps its start."""
 
     @abstractmethod

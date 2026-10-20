@@ -13,5 +13,8 @@ class JobType(Enum):
     POLISH = "polish"
 
 
+# The jobs that call the AI: they wait in the queue while the AI is unavailable.
+AI_JOB_TYPES = frozenset({JobType.POLISH, JobType.MEANING, JobType.TOPIC_TARGETS})
+
 # The jobs that make something for one phrase; the others work on a word or a source.
 PHRASE_JOB_TYPES = frozenset({JobType.POLISH, JobType.MEANING, JobType.MEDIA, JobType.TTS})

@@ -144,7 +144,7 @@ class TestQueueSnapshot:
     def test_empty_queue(self, client: TestClient) -> None:
         assert client.get("/api/queue").json() == {
             "counts": [], "total_queued": 0, "total_running": 0, "total_failed": 0,
-            "running": [], "queued": [], "failed": [], "ai_outage": None,
+            "running": [], "queued": [], "failed": [],
         }
 
     def test_counts_jobs_by_type_in_pipeline_order(
@@ -222,25 +222,6 @@ class TestQueueSnapshot:
             ]},
         ]
 
-    def test_names_why_the_queue_waits_for_the_ai(
-        self, client: TestClient, db_session: Session,
-    ) -> None:
-        _seed(db_session)
-        SqlaAIOutageRepository(db_session).report("Not logged in · Please run /login")
-        db_session.commit()
-
-        outage = client.get("/api/queue").json()["ai_outage"]
-
-        assert outage["reason"] == "Not logged in · Please run /login"
-
-    def test_an_outage_with_nothing_in_line_is_not_shown(
-        self, client: TestClient, db_session: Session,
-    ) -> None:
-        SqlaAIOutageRepository(db_session).report("Not logged in · Please run /login")
-        db_session.commit()
-
-        assert client.get("/api/queue").json()["ai_outage"] is None
-
     def test_filtered_by_source(self, client: TestClient, db_session: Session) -> None:
         _seed(db_session)
 
@@ -249,6 +230,43 @@ class TestQueueSnapshot:
         assert [j["job_id"] for j in queue["queued"]] == [3]
         assert queue["running"] == []
         assert queue["total_failed"] == 2
+
+
+# ── AI outage in the stats every screen reads ─────────────────────────────
+
+
+@pytest.mark.integration
+class TestAIOutageInStats:
+    def test_no_outage_while_the_ai_answers(self, client: TestClient) -> None:
+        assert client.get("/stats").json()["ai_outage"] is None
+
+    def test_a_blocked_country_asks_for_a_vpn(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        SqlaAIOutageRepository(db_session).report(
+            "Blocked country: RU. Turn on VPN.", vpn_required=True,
+        )
+        db_session.commit()
+
+        outage = client.get("/stats").json()["ai_outage"]
+
+        assert (outage["reason"], outage["vpn_required"], outage["queue_waits"]) == (
+            "Blocked country: RU. Turn on VPN.", True, False,
+        )
+
+    def test_says_the_queue_waits_only_for_ai_work_in_line(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        _insert_source(db_session, 1, "Alpha")
+        _insert_candidate(db_session, 1, 1)
+        _insert_job(db_session, 1, 1, 1, job_type="tts")
+        SqlaAIOutageRepository(db_session).report("Not logged in", vpn_required=False)
+        db_session.commit()
+        assert client.get("/stats").json()["ai_outage"]["queue_waits"] is False
+
+        _insert_job(db_session, 2, 1, 1, job_type="polish")
+        db_session.commit()
+        assert client.get("/stats").json()["ai_outage"]["queue_waits"] is True
 
 
 # ── actions ─────────────────────────────────────────────────────────────────

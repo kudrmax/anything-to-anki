@@ -535,6 +535,8 @@ export interface Stats {
   queue_active_count: number
   candidate_count: number
   known_word_count: number
+  /** The AI answers no request; every screen shows why. */
+  ai_outage: AIOutage | null
 }
 
 export type NoteTypeKind = 'recognition' | 'cloze'
@@ -843,13 +845,15 @@ export interface QueueSnapshot {
   running: QueueJob[]
   queued: QueueJob[]
   failed: FailedByJobType[]
-  /** Why the queue waits: the AI is unavailable while work is in line. */
-  ai_outage: AIOutage | null
 }
 
 export interface AIOutage {
   reason: string
   since: string
+  /** A VPN brings the AI back: the host is in a blocked country. */
+  vpn_required: boolean
+  /** AI work stands in the queue until the AI is back. */
+  queue_waits: boolean
 }
 
 /** Which jobs a queue action applies to; every field left out matches everything. */

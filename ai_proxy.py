@@ -9,6 +9,7 @@ Requires: pip install claude-agent-sdk fastapi uvicorn
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import logging
 import os
@@ -147,11 +148,15 @@ SERVICE_ERRORS: frozenset[str] = frozenset(
 class AIUnavailableError(RuntimeError):
     """The AI can answer no request now: no login, a blocked country, a spent limit."""
 
+    def __init__(self, message: str, *, vpn_required: bool = False) -> None:
+        super().__init__(message)
+        self.vpn_required = vpn_required
+
 
 def _ensure_country_allowed(country: str | None) -> None:
     if country is not None and country in BLOCKED_COUNTRIES:
         logger.error("Blocked country detected: %s. Turn on VPN.", country)
-        raise AIUnavailableError(f"Blocked country: {country}. Turn on VPN.")
+        raise AIUnavailableError(f"Blocked country: {country}. Turn on VPN.", vpn_required=True)
 
 
 class UsageInfo(BaseModel):
@@ -276,10 +281,22 @@ async def _call_ai(
         return await _generate_structured(req.system_prompt, req.user_prompt, req.model, schema)
     except AIUnavailableError as e:
         logger.error("%s: AI unavailable: %s", endpoint, e)
-        raise HTTPException(status_code=503, detail=str(e)) from e
+        raise _unavailable_response(e) from e
     except Exception as e:
         logger.exception("%s: AI call failed", endpoint)
         raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
+
+
+class UnavailableDetail(BaseModel):
+    """What a 503 says: why the AI answers nothing, and whether a VPN fixes it."""
+
+    message: str
+    vpn_required: bool
+
+
+def _unavailable_response(error: AIUnavailableError) -> HTTPException:
+    detail = UnavailableDetail(message=str(error), vpn_required=error.vpn_required)
+    return HTTPException(status_code=503, detail=detail.model_dump())
 
 
 class GenerateResponse(BaseModel):
@@ -420,10 +437,24 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/status")
+async def status() -> dict[str, bool]:
+    """The checks every AI call starts with, without calling the model."""
+    try:
+        _ensure_country_allowed(await _get_country())
+        if not await asyncio.to_thread(cli_logged_in):
+            raise AIUnavailableError(NOT_LOGGED_IN_MESSAGE)
+    except AIUnavailableError as e:
+        logger.error("status: AI unavailable: %s", e)
+        raise _unavailable_response(e) from e
+    return {"available": True}
+
+
 # A process started from a Claude Code session inherits that session's variables. They
 # point the CLI at the session's own login, and the CLI answers "Not logged in".
 _INHERITED_ENV_PREFIXES = ("CLAUDE", "ANTHROPIC_")
 _AUTH_STATUS_TIMEOUT = 30
+NOT_LOGGED_IN_MESSAGE = "claude CLI is not logged in: run `claude` and /login in a terminal"
 
 
 def drop_inherited_claude_env(environ: MutableMapping[str, str]) -> list[str]:
@@ -456,6 +487,6 @@ if __name__ == "__main__":
     if dropped_env:
         logger.info("Dropped inherited env: %s", ", ".join(dropped_env))
     if not cli_logged_in():
-        logger.error("claude CLI is not logged in: run `claude` and /login in a terminal")
+        logger.error(NOT_LOGGED_IN_MESSAGE)
         sys.exit(1)
     uvicorn.run(app, host="0.0.0.0", port=args.port)

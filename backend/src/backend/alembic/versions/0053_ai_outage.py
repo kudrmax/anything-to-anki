@@ -1,10 +1,10 @@
-"""The current outage of the AI, so the queue can say why AI work waits.
+"""The current outage of the AI, so every screen can say why AI answers nothing.
 
 Revision ID: 0053
 Revises: 0052
 
-At most one row: the worker writes it when the AI answers no request and removes it
-once the AI answers again.
+At most one row: any AI call that finds the AI unavailable writes it, any call the AI
+answers removes it. `vpn_required` marks a blocked country.
 """
 import sqlalchemy as sa
 from alembic import op
@@ -21,6 +21,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer, primary_key=True, autoincrement=False),
         sa.Column("reason", sa.Text, nullable=False),
         sa.Column("since", sa.DateTime(), nullable=False),
+        sa.Column("vpn_required", sa.Boolean, nullable=False),
     )
 
 

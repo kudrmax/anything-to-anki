@@ -49,6 +49,7 @@ class _Container:
         self.topic = MagicMock()
         self.cleanup = MagicMock()
         self.tts = MagicMock()
+        self.check_ai_available = MagicMock()
         self.meaning.execute_batch.return_value = []
         self.polish.execute_batch.return_value = []
 
@@ -398,19 +399,13 @@ class TestCancel:
 NOT_LOGGED_IN = "Not logged in · Please run /login"
 
 
-def _outage_reason(container: _Container) -> str | None:
-    with container.session_scope() as session:
-        outage = SqlaAIOutageRepository(session).get()
-    return outage.reason if outage is not None else None
-
-
 @pytest.mark.integration
 class TestAIOutage:
     @pytest.fixture(autouse=True)
     def _no_retry_delay(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(job_worker, "AI_RETRY_DELAY", 0)
 
-    async def test_the_run_goes_back_in_line_and_the_queue_says_why(
+    async def test_the_run_goes_back_in_line_and_the_queue_waits(
         self, container: _Container,
     ) -> None:
         _enqueue(container, (JobType.POLISH, 1), (JobType.POLISH, 2), (JobType.MEDIA, 3))
@@ -429,7 +424,7 @@ class TestAIOutage:
             (JobType.POLISH, 2, JobStatus.QUEUED, None),
             (JobType.MEDIA, 3, JobStatus.QUEUED, None),
         ]
-        assert _outage_reason(container) == NOT_LOGGED_IN
+        container.media.execute_one.assert_not_called()
 
     async def test_the_queue_goes_on_once_the_ai_answers(self, container: _Container) -> None:
         _enqueue(container, (JobType.POLISH, 1), (JobType.MEDIA, 2))
@@ -442,16 +437,6 @@ class TestAIOutage:
         assert _jobs(container) == []
         assert container.polish.execute_batch.call_count == 2
         container.media.execute_one.assert_called_once()
-        assert _outage_reason(container) is None
-
-    async def test_a_failure_of_one_run_is_not_an_outage(self, container: _Container) -> None:
-        _enqueue(container, (JobType.MEANING, 1))
-        container.meaning.execute_batch.side_effect = RuntimeError("boom")
-
-        await _drain(JobWorker(container))  # type: ignore[arg-type]
-
-        assert _jobs(container) == [(JobType.MEANING, 1, JobStatus.FAILED, "RuntimeError: boom")]
-        assert _outage_reason(container) is None
 
     async def test_shutdown_ends_the_wait_for_the_ai(
         self, container: _Container, monkeypatch: pytest.MonkeyPatch,
@@ -462,11 +447,30 @@ class TestAIOutage:
         worker = JobWorker(container)  # type: ignore[arg-type]
 
         waiting = asyncio.create_task(worker._process_one_job())
-        while _outage_reason(container) is None:
+        while not container.topic.execute.called:
             await asyncio.sleep(0.01)
         worker._request_shutdown()
 
         assert await asyncio.wait_for(waiting, timeout=5)
+
+    async def test_an_idle_worker_checks_whether_an_outage_is_over(
+        self, container: _Container, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(job_worker, "AI_RETRY_DELAY", 3600)
+        with container.session_scope() as session:
+            SqlaAIOutageRepository(session).report(NOT_LOGGED_IN, vpn_required=False)
+        container.check_ai_available.side_effect = AIUnavailableError(NOT_LOGGED_IN)
+        worker = JobWorker(container)  # type: ignore[arg-type]
+
+        await worker._check_ai_during_outage()
+        await worker._check_ai_during_outage()
+
+        container.check_ai_available.assert_called_once()
+
+    async def test_no_check_without_an_outage(self, container: _Container) -> None:
+        await JobWorker(container)._check_ai_during_outage()  # type: ignore[arg-type]
+
+        container.check_ai_available.assert_not_called()
 
 
 @pytest.mark.integration
@@ -479,14 +483,6 @@ class TestRestartAndTTS:
         JobWorker(container)._reconcile_on_startup()  # type: ignore[arg-type]
 
         assert _jobs(container) == [(JobType.MEDIA, 1, JobStatus.QUEUED, None)]
-
-    def test_startup_forgets_an_old_ai_outage(self, container: _Container) -> None:
-        with container.session_scope() as session:
-            SqlaAIOutageRepository(session).report(NOT_LOGGED_IN)
-
-        JobWorker(container)._reconcile_on_startup()  # type: ignore[arg-type]
-
-        assert _outage_reason(container) is None
 
     async def test_tts_subprocess_gets_the_claimed_job(self, container: _Container) -> None:
         jobs = _enqueue(container, (JobType.TTS, 1))

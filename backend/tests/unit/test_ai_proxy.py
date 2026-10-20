@@ -84,7 +84,7 @@ def test_an_expired_login_makes_the_ai_unavailable(monkeypatch: pytest.MonkeyPat
     response = TestClient(ai_proxy.app).post("/polish-phrases-batch", json=_REQUEST)
 
     assert response.status_code == 503
-    assert response.json()["detail"] == AUTH_FAILURE
+    assert response.json()["detail"] == {"message": AUTH_FAILURE, "vpn_required": False}
 
 
 def test_a_blocked_country_makes_the_ai_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -93,7 +93,42 @@ def test_a_blocked_country_makes_the_ai_unavailable(monkeypatch: pytest.MonkeyPa
     response = TestClient(ai_proxy.app).post("/generate-meanings-batch", json=_REQUEST)
 
     assert response.status_code == 503
-    assert "Blocked country: RU" in response.json()["detail"]
+    assert response.json()["detail"] == {
+        "message": "Blocked country: RU. Turn on VPN.", "vpn_required": True,
+    }
+
+
+def _logged_in(value: bool) -> object:
+    return lambda: value
+
+
+def test_status_runs_the_checks_of_every_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ai_proxy, "_get_country", _no_country)
+    monkeypatch.setattr(ai_proxy, "cli_logged_in", _logged_in(True))
+
+    assert TestClient(ai_proxy.app).get("/status").status_code == 200
+
+
+def test_status_asks_for_a_vpn_in_a_blocked_country(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ai_proxy, "_get_country", _blocked_country)
+    monkeypatch.setattr(ai_proxy, "cli_logged_in", _logged_in(True))
+
+    response = TestClient(ai_proxy.app).get("/status")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["vpn_required"] is True
+
+
+def test_status_reports_a_missing_login(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ai_proxy, "_get_country", _no_country)
+    monkeypatch.setattr(ai_proxy, "cli_logged_in", _logged_in(False))
+
+    response = TestClient(ai_proxy.app).get("/status")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == {
+        "message": ai_proxy.NOT_LOGGED_IN_MESSAGE, "vpn_required": False,
+    }
 
 
 def test_a_failed_call_is_not_an_unavailable_ai(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -23,16 +23,20 @@ class SqlaAIOutageRepository(AIOutageRepository):
 
     def get(self) -> AIOutage | None:
         model = self._session.get(AIOutageModel, OUTAGE_ROW_ID)
-        return AIOutage(reason=model.reason, since=model.since) if model is not None else None
+        if model is None:
+            return None
+        return AIOutage(reason=model.reason, since=model.since, vpn_required=model.vpn_required)
 
-    def report(self, reason: str) -> None:
+    def report(self, reason: str, vpn_required: bool) -> None:
         model = self._session.get(AIOutageModel, OUTAGE_ROW_ID)
         if model is None:
             self._session.execute(insert(AIOutageModel).values(
                 id=OUTAGE_ROW_ID, reason=reason, since=datetime.now(tz=UTC),
+                vpn_required=vpn_required,
             ))
         else:
             model.reason = reason
+            model.vpn_required = vpn_required
         self._session.flush()
 
     def clear(self) -> None:

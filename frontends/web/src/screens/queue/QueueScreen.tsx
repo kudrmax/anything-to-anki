@@ -4,7 +4,7 @@ import { api } from '@/api/client'
 import type { FailedGroup, QueueActionResult, QueueJob, QueueSelection, SourceSummary } from '@/api/types'
 import { useQueuePolling } from '@/hooks/useQueuePolling'
 import { Page, PageHeader } from '@/shell'
-import { Banner, Button, Empty, Icon, IconButton, Menu, Spinner, Stat, StatGrid, Text, Toast, useToast } from '@/ui'
+import { Button, Empty, Icon, IconButton, Menu, Spinner, Stat, StatGrid, Text, Toast, useToast } from '@/ui'
 import css from './queue.module.css'
 
 const JOB_LABEL: Record<string, string> = {
@@ -172,15 +172,8 @@ export function QueueScreen() {
     { id: 'failed', label: 'Failed', count: totalFailed, rows: failedRows },
   ]
 
-  const banner = queue?.ai_outage && (
-    <Banner tone="warn">
-      AI is unavailable — the queue waits and resumes on its own
-      <Text size="s" tone="soft" block>{queue.ai_outage.reason}</Text>
-    </Banner>
-  )
-
   return (
-    <Page wide header={header} aside={aside || undefined} banner={banner || undefined}>
+    <Page wide header={header} aside={aside || undefined}>
       {loading && !queue && <Empty><Spinner /></Empty>}
       {isEmpty && <Empty>{sourceId ? 'This source has no queue activity.' : 'The queue is empty.'}</Empty>}
       {groups.filter(group => group.count > 0).map(group => (

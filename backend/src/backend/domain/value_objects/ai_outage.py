@@ -9,7 +9,10 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class AIOutage:
-    """The AI answers no request: AI work waits in the queue until it is back."""
+    """The AI answers no request: AI work waits in the queue until it is back.
+
+    ``vpn_required`` — the host is in a blocked country, and a VPN brings the AI back."""
 
     reason: str
     since: datetime
+    vpn_required: bool
