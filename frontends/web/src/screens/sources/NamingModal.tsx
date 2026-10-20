@@ -28,6 +28,12 @@ function flatten(nodes: CollectionNode[], path: string[] = []): Existing[] {
   return nodes.flatMap(node => [{ id: node.id, name: node.name, path }, ...flatten(node.children, [...path, node.name])])
 }
 
+/** Коллекция с набранным именем: сперва верхнего уровня, иначе единственная вложенная с таким именем. */
+function sameNamed(existing: Existing[], typed: string): Existing | undefined {
+  const named = existing.filter(e => e.name.toLowerCase() === typed.toLowerCase())
+  return named.find(e => e.path.length === 0) ?? (named.length === 1 ? named[0] : undefined)
+}
+
 /** Окно названий: коллекция и правило для всех источников одного добавления, строку можно переписать руками. */
 export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModalProps) {
   const existing = flatten(tree?.collections ?? [])
@@ -63,7 +69,7 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
   const listRef = useRef<HTMLDivElement>(null)
   const query = search.trim().toLowerCase()
   const matches = existing.filter(e => e.name.toLowerCase().includes(query))
-  const canCreate = query !== '' && !existing.some(e => e.path.length === 0 && e.name.toLowerCase() === query)
+  const canCreate = query !== '' && !sameNamed(existing, search.trim())
 
   const pick = (choice: CollectionChoice | null) => {
     setCollection(choice)
@@ -76,7 +82,7 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
     setSearch(value)
     setPicking(true)
     const typed = value.trim()
-    const same = existing.find(e => e.path.length === 0 && e.name.toLowerCase() === typed.toLowerCase())
+    const same = sameNamed(existing, typed)
     setCollection(!typed ? null : same ? { existing_id: same.id, new_name: null } : { existing_id: null, new_name: typed })
   }
 
@@ -125,7 +131,8 @@ export function NamingModal({ required, tree, onCancel, onConfirm }: NamingModal
           onChange={e => type(e.target.value)}
         />
         {picking && (
-          <div ref={listRef} className={css.options} role="listbox" aria-label="Collection">
+          // Нажатие на вариант не уводит фокус из поля: иначе WebKit закрывает список раньше клика.
+          <div ref={listRef} className={css.options} role="listbox" aria-label="Collection" onMouseDown={e => e.preventDefault()}>
             <button type="button" role="option" aria-selected={collection === null} className={css.option} onClick={() => pick(null)}>{NO_COLLECTION}</button>
             {matches.map(e => (
               <button key={e.id} type="button" role="option" aria-selected={collection?.existing_id === e.id} className={css.option} onClick={() => pick({ existing_id: e.id, new_name: null })}>
