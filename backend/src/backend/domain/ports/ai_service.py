@@ -14,12 +14,9 @@ class AIService(ABC):
     """Port for AI-powered text generation."""
 
     @abstractmethod
-    def generate_meaning(self, system_prompt: str, user_prompt: str) -> GenerationResult:
-        """Call the AI with the given prompts and return the generated text and token usage."""
-
-    @abstractmethod
     def generate_follow_up(self, system_prompt: str, user_prompt: str) -> GenerationResult:
-        """Answer a follow-up request about an existing meaning, shaped like generate_meaning."""
+        """Answer a follow-up request about an existing meaning: the meaning's fields again,
+        and the tokens used."""
 
     @abstractmethod
     def generate_meanings_batch(

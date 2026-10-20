@@ -40,6 +40,7 @@ class GetStatsUseCase:
             queue_active_count=queue_active_count,
             candidate_count=candidate_count,
             known_word_count=known_word_count,
+            ai_unavailable=self._job_repo.waiting_reason(),
         )
 
     def _count_active_jobs(self) -> int:

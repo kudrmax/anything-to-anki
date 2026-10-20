@@ -1,7 +1,7 @@
 .page { max-width: calc(var(--col) + var(--col-gap) + var(--aside)); display: grid; grid-template-columns: var(--page-cols); gap: 0 var(--col-gap); transition: grid-template-columns var(--t-slow), column-gap var(--t-slow); justify-content: start; align-items: start; }
 .solo { grid-template-columns: var(--page-cols-solo); }
 .full { grid-column: 1 / -1; }
-.banner { margin-bottom: var(--s3); }
+.banner { display: grid; gap: var(--s2); margin-bottom: var(--s3); }
 .content { order: var(--page-content-order); min-width: 0; padding: var(--sheet-pad); }
 .aside { position: var(--aside-position); padding-bottom: var(--aside-pb); top: var(--page-top); min-width: 0; overflow: hidden; padding-top: calc(var(--py) + var(--sheet-pad)); transition: opacity var(--t-slow), transform var(--t-slow); }
 .asideInner { width: var(--aside-inner-w); display: flex; flex-direction: column; gap: var(--s7); }

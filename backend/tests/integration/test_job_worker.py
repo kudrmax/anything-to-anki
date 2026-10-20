@@ -9,10 +9,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from backend.domain.entities.job import Job
-from backend.domain.exceptions import PermanentAIError
+from backend.domain.exceptions import AIUnavailableError, PermanentAIError
 from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import PHRASE_JOB_TYPES, JobType
+from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import JobModel
@@ -46,6 +47,7 @@ class _Container:
         self.pronunciation = MagicMock()
         self.video = MagicMock()
         self.topic = MagicMock()
+        self.follow_up = MagicMock()
         self.cleanup = MagicMock()
         self.tts = MagicMock()
         self.meaning.execute_batch.return_value = []
@@ -65,6 +67,9 @@ class _Container:
 
     def meaning_generation_use_case(self, session: Session) -> MagicMock:
         return self._bound(self.meaning, session)
+
+    def meaning_follow_up_use_case(self, session: Session) -> MagicMock:
+        return self._bound(self.follow_up, session)
 
     def phrase_polish_use_case(self, session: Session) -> MagicMock:
         return self._bound(self.polish, session)
@@ -392,6 +397,82 @@ class TestCancel:
 
         assert seen == [{phrase_id_of(1)}]
         assert _jobs(container) == []
+
+
+NOT_LOGGED_IN = "Not logged in · Please run /login"
+
+
+@pytest.mark.integration
+class TestMeaningFollowUp:
+    async def test_the_worker_asks_the_question_the_job_was_queued_with(
+        self, container: _Container,
+    ) -> None:
+        follow_up = MeaningFollowUp("free_question", "Is it formal?")
+        with container.session_scope() as session:
+            SqlaJobRepository(session).enqueue([Job.queued(
+                JobType.MEANING_FOLLOW_UP, SOURCE_ID, 1,
+                phrase_id=phrase_id_of(1), phrase_revision=0, follow_up=follow_up,
+            )])
+
+        await _drain(JobWorker(container))  # type: ignore[arg-type]
+
+        container.follow_up.execute_follow_up.assert_called_once_with(phrase_id_of(1), follow_up)
+        assert _jobs(container) == []
+
+
+@pytest.mark.integration
+class TestAIOutage:
+    @pytest.fixture(autouse=True)
+    def _no_retry_delay(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(job_worker, "AI_RETRY_DELAY", 0)
+
+    async def test_the_run_goes_back_in_line_and_the_queue_waits(
+        self, container: _Container,
+    ) -> None:
+        _enqueue(container, (JobType.POLISH, 1), (JobType.POLISH, 2), (JobType.MEDIA, 3))
+
+        def write_then_raise(phrases: list[PhraseRef], wanted: CandidateFilter) -> list[int]:
+            _write_title(container.polish)
+            raise AIUnavailableError(NOT_LOGGED_IN)
+
+        container.polish.execute_batch.side_effect = write_then_raise
+
+        await JobWorker(container)._process_one_job()  # type: ignore[arg-type]
+
+        assert _title(container) == "original"
+        assert _jobs(container) == [
+            (JobType.POLISH, 1, JobStatus.QUEUED, NOT_LOGGED_IN),
+            (JobType.POLISH, 2, JobStatus.QUEUED, NOT_LOGGED_IN),
+            (JobType.MEDIA, 3, JobStatus.QUEUED, None),
+        ]
+        container.media.execute_one.assert_not_called()
+
+    async def test_the_queue_goes_on_once_the_ai_answers(self, container: _Container) -> None:
+        _enqueue(container, (JobType.POLISH, 1), (JobType.MEDIA, 2))
+        container.polish.execute_batch.side_effect = [AIUnavailableError(NOT_LOGGED_IN), []]
+        worker = JobWorker(container)  # type: ignore[arg-type]
+
+        await worker._process_one_job()
+        await _drain(worker)
+
+        assert _jobs(container) == []
+        assert container.polish.execute_batch.call_count == 2
+        container.media.execute_one.assert_called_once()
+
+    async def test_shutdown_ends_the_wait_for_the_ai(
+        self, container: _Container, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(job_worker, "AI_RETRY_DELAY", 3600)
+        _enqueue(container, (JobType.TOPIC_TARGETS, None))
+        container.topic.execute.side_effect = AIUnavailableError(NOT_LOGGED_IN)
+        worker = JobWorker(container)  # type: ignore[arg-type]
+
+        waiting = asyncio.create_task(worker._process_one_job())
+        while not container.topic.execute.called:
+            await asyncio.sleep(0.01)
+        worker._request_shutdown()
+
+        assert await asyncio.wait_for(waiting, timeout=5)
 
 
 @pytest.mark.integration

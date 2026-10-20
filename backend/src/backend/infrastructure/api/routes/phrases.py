@@ -1,12 +1,10 @@
 """Actions on a card: a phrase of a word."""
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO  # noqa: TC001
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
     DecidePhraseRequest,
     EditPhraseRequest,
@@ -27,7 +25,6 @@ from backend.application.dto.follow_up_dtos import FollowUpRequest  # noqa: TC00
 from backend.application.dto.source_dtos import CardDTO  # noqa: TC001
 from backend.domain.exceptions import (
     ActionRefusedError,
-    AIServiceError,
     CandidateNotPolishedError,
     ClozeNotAllowedError,
     ClozePhraseChangedError,
@@ -42,6 +39,7 @@ from backend.domain.exceptions import (
     UnknownReportReasonError,
 )
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
+from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 
 if TYPE_CHECKING:
@@ -270,28 +268,24 @@ def regenerate_phrase_media(
     return {"status": "regenerated"}
 
 
-@router.post("/{phrase_id}/generate-meaning")
-async def generate_meaning(
+@router.post("/{phrase_id}/generate-meaning", status_code=202)
+def generate_meaning(
     phrase_id: int,
     follow_up: FollowUpRequest | None = None,
     session: Session = Depends(get_db_session),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
-) -> GenerateMeaningResponseDTO:
+) -> dict[str, str]:
+    """Queue the phrase's meaning, or a follow-up about it; the worker calls the AI."""
     try:
-        use_case = container.generate_meaning_use_case(session)
-        if follow_up is not None:
-            result = await asyncio.to_thread(
-                use_case.execute_follow_up, phrase_id, follow_up.action, follow_up.text,
-            )
-        else:
-            result = await asyncio.to_thread(use_case.execute, phrase_id)
+        container.enqueue_phrase_meaning_use_case(session).execute(
+            phrase_id,
+            MeaningFollowUp(follow_up.action, follow_up.text) if follow_up is not None else None,
+        )
         session.commit()
-        return result
     except PhraseNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except REFUSED_GENERATION as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
-    except AIServiceError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"status": "queued"}

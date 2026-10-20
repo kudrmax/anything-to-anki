@@ -172,6 +172,24 @@ class SqlaJobRepository(JobRepository):
         )
         self._session.flush()
 
+    def requeue(self, job_ids: list[int], reason: str) -> None:
+        if not job_ids:
+            return
+        self._session.execute(
+            update(JobModel)
+            .where(JobModel.id.in_(job_ids), JobModel.status == JobStatus.RUNNING.value)
+            .values(status=JobStatus.QUEUED.value, started_at=None, error=reason)
+        )
+        self._session.flush()
+
+    def waiting_reason(self) -> str | None:
+        return self._session.scalar(
+            select(JobModel.error)
+            .where(JobModel.status == JobStatus.QUEUED.value, JobModel.error.is_not(None))
+            .order_by(*_QUEUE_ORDER)
+            .limit(1)
+        )
+
     def requeue_running(self) -> int:
         return self._affected(
             update(JobModel)

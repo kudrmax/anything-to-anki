@@ -373,7 +373,10 @@ def card_to_dto(
     view = card.view
     phrase_id, word_id = card.phrase_id, card.word_id
     polished = occ.polished_phrase
-    meaning_job = jobs.of_phrase(phrase_id, JobType.MEANING)
+    meaning_job = (
+        jobs.of_phrase(phrase_id, JobType.MEANING)
+        or jobs.of_phrase(phrase_id, JobType.MEANING_FOLLOW_UP)
+    )
     return CardDTO(
         phrase_id=phrase_id,
         word_id=word_id,

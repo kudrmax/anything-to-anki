@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import { api } from '@/api/client'
 import type { ButtonCommand, CardButton, DecisionButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, ReviewDetail, SaveClozeRequest, SetScope, SourceDocument, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
-import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { messageOf } from '@/lib/apiError'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
 import { mediaUrl } from '@/lib/text/meaning'
@@ -30,9 +29,6 @@ export interface Editing {
   originalFragment: string
 }
 
-const hasCandidateVpnErrors = (candidates: StoredCandidate[]): boolean =>
-  candidates.some(c => c.meaning?.status === 'failed' && isVpnErrorText(c.meaning.error))
-
 export const audioUrlForCandidate = candidateAudioUrl
 
 export function useReview(scope: SetScope, requestedId: number | null = null) {
@@ -46,7 +42,6 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   const [generatingTTSIds, setGeneratingTTSIds] = useState<Set<number>>(new Set())
   const [applyingImageIds, setApplyingImageIds] = useState<Set<number>>(new Set())
   const [generation, setGeneration] = useState<GenerationOverview | null>(null)
-  const [vpnBlocked, setVpnBlocked] = useState(false)
   const [sortOrder, setSortOrderState] = useState<SortOrder>(() => sortOrderPref.read())
   const [editing, setEditing] = useState<Editing | null>(null)
   const [toast, showToast] = useToast()
@@ -68,7 +63,6 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   const applyReview = useCallback((review: ReviewDetail) => {
     setDetail(review)
     setCandidates(prev => keepLayout(prev, review.candidates))
-    if (hasCandidateVpnErrors(review.candidates)) setVpnBlocked(true)
   }, [])
 
   const loadDocuments = useCallback(async () => {
@@ -152,10 +146,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
       candidatesRef.current,
       refreshed?.candidates ?? candidatesRef.current.map(c => (saved && c.phrase_id === candidateId ? saved : c)),
     )
-    if (refreshed) {
-      setDetail(refreshed)
-      if (hasCandidateVpnErrors(refreshed.candidates)) setVpnBlocked(true)
-    }
+    if (refreshed) setDetail(refreshed)
     setCandidates(fresh)
 
     const focusId = focusAfterPress(fresh, candidateId, marked?.is_done ?? false, sortOrder === 'chronological' ? null : markedSection)
@@ -229,15 +220,14 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   const generate = useCallback((candidateId: number, action?: FollowUpAction, text?: string) =>
     withBusy(setGeneratingIds, candidateId, async () => {
       try {
-        const res = await api.generateMeaning(candidateId, action, text)
-        // Карточку с новым значением и тем, что она теперь предлагает, отдаёт backend.
+        await api.generateMeaning(candidateId, action, text)
+        // Задача в очереди: карточка показывает её статус, опрос подхватывает результат.
         await loadCandidates()
-        showToast(`Tokens used: ${res.tokens_used}`)
+        await loadGeneration()
       } catch (e) {
-        if (isVpnError(e)) setVpnBlocked(true)
-        else showToast(e instanceof Error ? e.message : action ? 'Follow-up failed' : 'Generation failed')
+        showToast(e instanceof Error ? e.message : action ? 'Follow-up failed' : 'Generation failed')
       }
-    }), [showToast, loadCandidates])
+    }), [showToast, loadCandidates, loadGeneration])
 
   const replaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
     try {
@@ -252,20 +242,19 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     }
   }, [loadGeneration, showToast])
 
-  const runBatch = async (call: () => Promise<unknown>, fallback: string, options: { vpnAware?: boolean; skipCandidates?: boolean } = {}) => {
+  const runBatch = async (call: () => Promise<unknown>, fallback: string, options: { skipCandidates?: boolean } = {}) => {
     try {
       await call()
       if (!options.skipCandidates) await loadCandidates()
       await loadGeneration()
     } catch (e) {
-      if (options.vpnAware && isVpnError(e)) setVpnBlocked(true)
-      else showToast(e instanceof Error ? e.message : fallback)
+      showToast(e instanceof Error ? e.message : fallback)
     }
   }
 
   const generationActions = {
     run: (kind: GenerationKind, cards: GenerationScope) =>
-      runBatch(() => api.runReviewGeneration(scope, kind, cards, sortOrder), 'Failed to start generation', { vpnAware: true }),
+      runBatch(() => api.runReviewGeneration(scope, kind, cards, sortOrder), 'Failed to start generation'),
     cancel: (kind: GenerationKind) =>
       runBatch(() => api.cancelReviewGeneration(scope, kind), 'Failed to cancel'),
     downloadVideo: () =>
@@ -425,7 +414,6 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     press, generate, replaceWithExample,
     clozeEditingId, clozeEditing: clozeEditingId !== null, startCloze, cancelCloze, saveCloze, generateTTS, regenerateMedia, findImages, applyImage, pasteImage, polishAgain, setPolishReverted, editPhrase,
     busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds, image: applyingImageIds },
-    vpnBlocked, dismissVpn: () => setVpnBlocked(false),
     editing, startEditing, cancelEditing, setBoundary, addWord,
     mediaFor, player, toast,
     reportReasons, report,

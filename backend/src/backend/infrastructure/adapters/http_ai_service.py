@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 import httpx
 
 from backend.domain.entities.ai_usage_record import AIUsageRecord
-from backend.domain.exceptions import AIServiceError
+from backend.domain.exceptions import AIServiceError, AIUnavailableError
 from backend.domain.ports.ai_service import AIService
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
@@ -34,24 +34,21 @@ BATCH_TIMEOUT_SECONDS = 540.0
 TOPIC_TIMEOUT_SECONDS = 540.0
 POLISH_TIMEOUT_SECONDS = 540.0
 MS_PER_SECOND = 1000
+# What the proxy answers when the AI can serve no request (no login, blocked country).
+AI_UNAVAILABLE_STATUS = 503
+PROXY_DOWN_REASON = "Cannot connect to AI proxy. Make sure ai_proxy.py is running on the host."
 
 
 class HttpAIService(AIService):
     """AIService implementation that delegates to a remote AI proxy over HTTP.
 
-    Every call, successful or not, is handed to the usage recorder.
+    Every call the AI answered, successfully or not, is handed to the usage recorder.
     """
 
     def __init__(self, url: str, model: str, usage_recorder: AIUsageRecorder) -> None:
         self._url = url.rstrip("/")
         self._model = model
         self._usage_recorder = usage_recorder
-
-    def generate_meaning(self, system_prompt: str, user_prompt: str) -> GenerationResult:
-        return self._post(
-            "generate-meaning", AIFeature.MEANING_SINGLE, system_prompt, user_prompt,
-            SINGLE_TIMEOUT_SECONDS, self._parse_meaning,
-        )
 
     def generate_follow_up(self, system_prompt: str, user_prompt: str) -> GenerationResult:
         return self._post(
@@ -157,6 +154,8 @@ class HttpAIService(AIService):
         model = self._model
         item_count = 0
         succeeded = False
+        # A call the AI never got to answer is no usage: the worker retries it while it waits.
+        reached = True
         try:
             response = httpx.post(
                 endpoint,
@@ -180,11 +179,12 @@ class HttpAIService(AIService):
             )
             return result
         except httpx.ConnectError as e:
-            logger.exception("http_ai_service: connect failed (endpoint=%s)", endpoint)
-            raise AIServiceError(
-                "Cannot connect to AI proxy. Make sure ai_proxy.py is running on the host."
-            ) from e
+            reached = False
+            raise self._unavailable(endpoint, PROXY_DOWN_REASON) from e
         except httpx.HTTPStatusError as e:
+            if e.response.status_code == AI_UNAVAILABLE_STATUS:
+                reached = False
+                raise self._unavailable(endpoint, self._proxy_detail(e.response)) from e
             detail = e.response.text
             logger.exception(
                 "http_ai_service: http error (endpoint=%s, status=%d, detail=%s)",
@@ -195,7 +195,22 @@ class HttpAIService(AIService):
             logger.exception("http_ai_service: unexpected error (endpoint=%s)", endpoint)
             raise AIServiceError(str(e)) from e
         finally:
-            self._record(feature, model, usage, item_count, started, succeeded)
+            if reached:
+                self._record(feature, model, usage, item_count, started, succeeded)
+
+    @staticmethod
+    def _unavailable(endpoint: str, reason: str) -> AIUnavailableError:
+        logger.warning("http_ai_service: AI unavailable (endpoint=%s): %s", endpoint, reason)
+        return AIUnavailableError(reason)
+
+    @staticmethod
+    def _proxy_detail(response: httpx.Response) -> str:
+        """Why the proxy says the AI is unavailable, without FastAPI's JSON wrapping."""
+        try:
+            detail = response.json().get("detail")
+        except ValueError:
+            detail = None
+        return detail if isinstance(detail, str) else response.text
 
     def _record(
         self,

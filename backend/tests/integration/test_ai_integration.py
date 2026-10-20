@@ -45,12 +45,15 @@ from typing import TYPE_CHECKING
 
 import httpx
 import pytest
+from backend.domain.ports.ai_usage_recorder import AIUsageRecorder
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
 from backend.domain.value_objects.generation_result import GenerationResult
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+    from backend.domain.entities.ai_usage_record import AIUsageRecord
 
 # ai_proxy.py lives at repo root
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -60,6 +63,15 @@ _AI_PROXY_SCRIPT = _REPO_ROOT / "ai_proxy.py"
 # Priority: .venv-ai-proxy (dedicated) → .venv (dev, if sdk installed there)
 _AI_VENV = _REPO_ROOT / ".venv-ai-proxy"
 _DEV_VENV = _REPO_ROOT / ".venv"
+
+
+class _NoUsageRecorder(AIUsageRecorder):
+    def record(self, record: AIUsageRecord) -> None:
+        pass
+
+
+def _service(url: str, model: str) -> HttpAIService:
+    return HttpAIService(url=url, model=model, usage_recorder=_NoUsageRecorder())
 
 
 def _find_python() -> str:
@@ -181,7 +193,7 @@ def local_client() -> httpx.Client:
 @pytest.fixture()
 def ai_service(ai_proxy_url: str) -> HttpAIService:
     """HttpAIService pointed at the test ai_proxy instance."""
-    return HttpAIService(url=ai_proxy_url, model="claude-haiku-4-5-20251001")
+    return _service(ai_proxy_url, "claude-haiku-4-5-20251001")
 
 
 # --- Health / connectivity -------------------------------------------------
@@ -220,7 +232,7 @@ def test_single_meaning_full_roundtrip(ai_service: HttpAIService) -> None:
         'Context: "I tend to procrastinate on important tasks."'
     )
 
-    result = ai_service.generate_meaning(system_prompt, user_prompt)
+    result = ai_service.generate_follow_up(system_prompt, user_prompt)
 
     # Type check — if JSON contract drifted, this would fail at parsing
     assert isinstance(result, GenerationResult)
@@ -293,9 +305,9 @@ def test_ai_proxy_returns_502_on_bad_model(ai_proxy_url: str) -> None:
     AIServiceError."""
     from backend.domain.exceptions import AIServiceError
 
-    svc = HttpAIService(url=ai_proxy_url, model="nonexistent-model-xyz-999")
+    svc = _service(ai_proxy_url, "nonexistent-model-xyz-999")
     with pytest.raises(AIServiceError) as exc_info:
-        svc.generate_meaning("system", "user prompt")
+        svc.generate_follow_up("system", "user prompt")
 
     # The error should contain something useful, not just "500"
     assert len(str(exc_info.value)) > 20

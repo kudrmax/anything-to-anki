@@ -535,6 +535,8 @@ export interface Stats {
   queue_active_count: number
   candidate_count: number
   known_word_count: number
+  /** Why the AI answers nothing while the queue waits for it, as the AI proxy said it. */
+  ai_unavailable: string | null
 }
 
 export type NoteTypeKind = 'recognition' | 'cloze'
@@ -546,16 +548,6 @@ export interface NoteTypeCheck {
   missing_fields: string[]
   /** Что сделает note type готовым: создать его или добавить недостающие поля; null — готов. */
   fix: 'create' | 'add_fields' | null
-}
-
-export interface GenerateMeaningResult {
-  candidate_id: number
-  meaning: string
-  translation: string
-  synonyms: string
-  examples: string
-  ipa: string | null
-  tokens_used: number
 }
 
 export type GenerationKind = 'polish' | 'meaning' | 'media' | 'pronunciation' | 'tts'

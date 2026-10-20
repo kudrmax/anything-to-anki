@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.exceptions import PhraseChangedError
 
@@ -13,6 +12,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.ai_service import AIService
     from backend.domain.ports.candidate_meaning_repository import CandidateMeaningRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
     from backend.domain.value_objects.prompts_config import PromptsConfig
 
 
@@ -55,8 +55,17 @@ _EXAMPLES_ACTIONS: frozenset[str] = frozenset({
 })
 
 
-class GenerateMeaningUseCase:
-    """Generates an AI-powered meaning for one phrase of a word and stores it there."""
+def check_follow_up(follow_up: MeaningFollowUp) -> None:
+    """Raise ValueError for a follow-up no AI call can answer."""
+    if follow_up.action not in _FOLLOW_UP_ACTIONS:
+        raise ValueError(f"Unknown follow-up action: {follow_up.action}")
+    if follow_up.action == "free_question" and not follow_up.text:
+        raise ValueError("free_question action requires text")
+
+
+class MeaningFollowUpUseCase:
+    """Answers a follow-up about the meaning of one phrase and stores the result there.
+    Runs in the worker: the request only queues it."""
 
     def __init__(
         self,
@@ -72,41 +81,10 @@ class GenerateMeaningUseCase:
         self._ai_service = ai_service
         self._prompts_config = prompts_config
 
-    def execute(self, phrase_id: int) -> GenerateMeaningResponseDTO:
-        card = self._cards.card(phrase_id)
-        result = self._ai_service.generate_meaning(
-            self._prompts_config.generate_meaning_system, self._user_prompt(card),
-        )
-        self._store(card, CandidateMeaning(
-            candidate_id=card.word_id,
-            meaning=result.meaning,
-            translation=result.translation,
-            synonyms=result.synonyms,
-            examples=result.examples,
-            ipa=result.ipa,
-            generated_at=datetime.now(tz=UTC),
-        ))
-        return GenerateMeaningResponseDTO(
-            candidate_id=card.word_id,
-            meaning=result.meaning,
-            translation=result.translation,
-            synonyms=result.synonyms,
-            examples=result.examples,
-            ipa=result.ipa,
-            tokens_used=result.tokens_used,
-        )
-
-    def execute_follow_up(
-        self,
-        phrase_id: int,
-        action: str,
-        text: str | None,
-    ) -> GenerateMeaningResponseDTO:
+    def execute_follow_up(self, phrase_id: int, follow_up: MeaningFollowUp) -> None:
         """Run a follow-up action on an existing meaning."""
-        if action not in _FOLLOW_UP_ACTIONS:
-            raise ValueError(f"Unknown follow-up action: {action}")
-        if action == "free_question" and not text:
-            raise ValueError("free_question action requires text")
+        check_follow_up(follow_up)
+        action, text = follow_up.action, follow_up.text
 
         card = self._cards.card(phrase_id)
         existing = self._meaning_repo.get_by_phrase_id(phrase_id)
@@ -168,15 +146,6 @@ class GenerateMeaningUseCase:
             ipa=new_ipa,
             generated_at=datetime.now(tz=UTC),
         ))
-        return GenerateMeaningResponseDTO(
-            candidate_id=card.word_id,
-            meaning=new_meaning,
-            translation=new_translation or "",
-            synonyms=new_synonyms or "",
-            examples=new_examples,
-            ipa=new_ipa,
-            tokens_used=result.tokens_used,
-        )
 
     def _user_prompt(self, card: GenerationCard) -> str:
         return self._prompts_config.generate_meaning_user_template.format(
