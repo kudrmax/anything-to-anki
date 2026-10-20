@@ -232,7 +232,9 @@ def test_ready_generation_takes_the_cards_that_are_ready_now_and_earned_ready(
     client: TestClient, factory: sessionmaker[Session],
 ) -> None:
     def missing(kind: str) -> int:
-        kinds = client.get(f"/sources/{SOURCE}/generation").json()["kinds"]
+        kinds = client.get(
+            "/review/generation", params={"scope": f"source-{SOURCE}"},
+        ).json()["kinds"]
         return int(next(k for k in kinds if k["kind"] == kind)["ready_missing"])
 
     assert missing("meaning") == 1, "drift is Ready; ember earned Extra"

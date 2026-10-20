@@ -5,7 +5,11 @@ from typing import TYPE_CHECKING
 
 from backend.application.utils.generation_targets import CardJobs, ReadyCards, target_for
 from backend.application.utils.source_free import ensure_source_free
-from backend.domain.exceptions import GenerationBlockedError, SourceNotFoundError
+from backend.domain.exceptions import (
+    GenerationBlockedError,
+    GenerationNotSupportedError,
+    SourceOperationBusyError,
+)
 from backend.domain.services.generation_scope import in_scope
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.generation_scope import GenerationScope
@@ -21,26 +25,34 @@ if TYPE_CHECKING:
         GenerationCards,
         GenerationTarget,
     )
+    from backend.application.utils.source_scope_resolver import SourceScopeResolver
+    from backend.domain.entities.source import Source
+    from backend.domain.exceptions import DomainError
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
-    from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.value_objects.generation_kind import GenerationKind
+    from backend.domain.value_objects.source_scope import SourceScope
 
 logger = logging.getLogger(__name__)
 
+# Why a source of a set sits a run out: busy, no use for the kind, or held back.
+_SKIPPED = (SourceOperationBusyError, GenerationNotSupportedError, GenerationBlockedError)
+
 class RunGenerationUseCase:
-    """Queues one kind of generation for the source's cards that fall into the scope."""
+    """Queues one kind of generation for the cards of a set of sources that fall into the
+    chosen cards. A source that can't run it now is skipped; the set fails only when none
+    of its sources could."""
 
     def __init__(
         self,
-        source_repo: SourceRepository,
+        scope_resolver: SourceScopeResolver,
         cards: GenerationCards,
         job_repo: JobRepository,
         candidate_sorter: CandidateSorter,
         targets: list[GenerationTarget],
         lock: SourceOperationLock,
     ) -> None:
-        self._source_repo = source_repo
+        self._scope_resolver = scope_resolver
         self._cards = cards
         self._job_repo = job_repo
         self._candidate_sorter = candidate_sorter
@@ -49,15 +61,41 @@ class RunGenerationUseCase:
 
     def execute(
         self,
-        source_id: int,
+        scope: SourceScope,
         kind: GenerationKind,
-        scope: GenerationScope,
+        cards: GenerationScope,
         sort_order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     ) -> int:
         """Returns how many cards were queued."""
-        source = self._source_repo.get_by_id(source_id)
-        if source is None:
-            raise SourceNotFoundError(source_id)
+        sources = self._scope_resolver.reviewable_sources(scope)
+        chosen: list[tuple[GenerationTarget, GenerationCard]] = []
+        skipped: list[DomainError] = []
+        for source in sources:
+            try:
+                chosen.extend(self._chosen(source, kind, cards))
+            except _SKIPPED as e:
+                skipped.append(e)
+        if skipped and len(skipped) == len(sources):
+            raise skipped[0]
+
+        target_of = {card.phrase_id: target for target, card in chosen}
+        ordered = self._in_order(
+            [card for _, card in chosen], sort_order, [s.id for s in sources if s.id is not None],
+        )
+        queued = len(self._job_repo.enqueue([target_of[c.phrase_id].job(c) for c in ordered]))
+        logger.info(
+            "run_generation: queued (scope=%s, kind=%s, cards=%s, total=%d, skipped=%d,"
+            " sort_order=%s)",
+            scope.token, kind.value, cards.value, queued, len(skipped), sort_order.value,
+        )
+        return queued
+
+    def _chosen(
+        self, source: Source, kind: GenerationKind, scope: GenerationScope,
+    ) -> list[tuple[GenerationTarget, GenerationCard]]:
+        """The source's cards to queue, by today's rules of one source."""
+        assert source.id is not None
+        source_id = source.id
         ensure_source_free(self._lock, source_id)
         target = target_for(self._targets, kind, source)
         video_downloading = self._job_repo.has_active_jobs_for_source(
@@ -80,14 +118,7 @@ class RunGenerationUseCase:
             for card in chosen:
                 target.discard(card)
             chosen = self._as_now(source_id, chosen)
-
-        ordered = self._in_order(chosen, sort_order, [source_id])
-        queued = len(self._job_repo.enqueue([target.job(c) for c in ordered]))
-        logger.info(
-            "run_generation: queued (source_id=%d, kind=%s, scope=%s, total=%d, sort_order=%s)",
-            source_id, kind.value, scope.value, queued, sort_order.value,
-        )
-        return queued
+        return [(target, card) for card in chosen]
 
     def _as_now(self, source_id: int, cards: list[GenerationCard]) -> list[GenerationCard]:
         """The cards as their discards left them: a job carries the revision of the text it

@@ -1246,7 +1246,7 @@ class Container:
             GetGenerationStatusUseCase,
         )
         return GetGenerationStatusUseCase(
-            source_repo=SqlaSourceRepository(session),
+            scope_resolver=self._scope_resolver(session),
             cards=self._generation_cards(session),
             job_repo=SqlaJobRepository(session),
             candidate_sorter=self._candidate_sorter(session),
@@ -1256,7 +1256,7 @@ class Container:
     def run_generation_use_case(self, session: Session) -> RunGenerationUseCase:
         from backend.application.use_cases.run_generation import RunGenerationUseCase
         return RunGenerationUseCase(
-            source_repo=SqlaSourceRepository(session),
+            scope_resolver=self._scope_resolver(session),
             cards=self._generation_cards(session),
             job_repo=SqlaJobRepository(session),
             candidate_sorter=self._candidate_sorter(session),
@@ -1266,7 +1266,9 @@ class Container:
 
     def cancel_generation_use_case(self, session: Session) -> CancelGenerationUseCase:
         from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
-        return CancelGenerationUseCase(job_repo=SqlaJobRepository(session))
+        return CancelGenerationUseCase(
+            job_repo=SqlaJobRepository(session), scope_resolver=self._scope_resolver(session),
+        )
 
     def get_queue_snapshot_use_case(self, session: Session) -> GetQueueSnapshotUseCase:
         from backend.application.use_cases.get_queue_snapshot import GetQueueSnapshotUseCase

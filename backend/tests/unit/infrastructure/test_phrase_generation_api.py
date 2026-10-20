@@ -126,7 +126,9 @@ def test_generation_of_a_busy_source_is_refused(client: TestClient) -> None:
     use_case = _get_mock_container().run_generation_use_case.return_value
     use_case.execute.side_effect = BUSY
 
-    response = client.post("/sources/1/generation/meaning?scope=missing")
+    response = client.post(
+        "/review/generation/meaning", params={"scope": "source-1", "cards": "missing"},
+    )
 
     assert response.status_code == 409
 
