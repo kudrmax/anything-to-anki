@@ -29,6 +29,7 @@ from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.phrase_support import make_occurrence
+from tests.source_order_support import added_order
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import Occurrence
@@ -58,7 +59,7 @@ def _resolver(sources: list[Source], collection: int | None = None) -> SourceSco
     collection_repo.list_all.return_value = (
         [Collection(id=collection, name="Show")] if collection is not None else []
     )
-    return SourceScopeResolver(source_repo, collection_repo)
+    return SourceScopeResolver(source_repo, collection_repo, added_order())
 
 
 def _jobs(downloading: frozenset[int] = frozenset()) -> MagicMock:

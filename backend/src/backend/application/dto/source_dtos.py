@@ -111,12 +111,14 @@ class SourceDTO(BaseModel):
 
 
 class SourceGroupDTO(BaseModel):
-    stage: str
+    """A run of the board; `stage` is None when the user does not group sources."""
+
+    stage: str | None
     sources: list[SourceDTO]
 
 
 class SourceBoardDTO(BaseModel):
-    """Sources of one scope, grouped by what to do with them next."""
+    """Sources of one scope in the user's order, split into its groups."""
 
     title: str
     groups: list[SourceGroupDTO]

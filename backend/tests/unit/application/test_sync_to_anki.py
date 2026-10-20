@@ -23,6 +23,7 @@ from backend.domain.value_objects.word_status import WordStatus
 
 from tests.export_support import ExportCards, export_card, in_anki, with_phrase, with_word
 from tests.phrase_support import phrase
+from tests.source_order_support import added_order
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.scope_fakes import sources_scope_resolver
 from tests.unit.application.source_fakes import InMemorySourceRepository
@@ -621,6 +622,7 @@ class TestSyncCollectionScope:
             SourceScopeResolver(
                 InMemorySourceRepository(sources),
                 InMemoryCollectionRepository([Collection(id=5, name="IELTS")]),
+                added_order(),
             ),
         )
 

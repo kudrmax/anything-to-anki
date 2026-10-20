@@ -57,6 +57,7 @@ from backend.domain.value_objects.word_status import WordStatus
 from tests.card_support import PhraseWordStates
 from tests.decision_support import NOW as REQUEST_MOMENT
 from tests.phrase_support import phrase
+from tests.source_order_support import added_order
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.source_fakes import InMemorySourceRepository
 from tests.vocabulary_support import user_vocabulary
@@ -216,7 +217,7 @@ class _Setup:
             ),
             _vocabulary_holding(elsewhere or {}),
         )
-        resolver = SourceScopeResolver(self.source_repo, MagicMock())
+        resolver = SourceScopeResolver(self.source_repo, MagicMock(), added_order())
         self.run = RunGenerationUseCase(
             scope_resolver=resolver, cards=generation_cards,
             job_repo=self.job_repo, candidate_sorter=sorter, targets=targets, lock=self.lock,
@@ -561,6 +562,7 @@ class TestGetGenerationStatus:
             scope_resolver=SourceScopeResolver(
                 InMemorySourceRepository(sources),
                 InMemoryCollectionRepository([Collection(id=1, name="Friends")]),
+                added_order(),
             ),
             cards=cards, job_repo=job_repo, candidate_sorter=MagicMock(), targets=[MediaTarget()],
         )
@@ -599,7 +601,7 @@ def test_cancel_drops_queued_and_running_jobs_of_the_kind() -> None:
     source_repo = MagicMock()
     source_repo.get_by_id.return_value = _source()
     cancelled = CancelGenerationUseCase(
-        job_repo, SourceScopeResolver(source_repo, MagicMock()),
+        job_repo, SourceScopeResolver(source_repo, MagicMock(), added_order()),
     ).execute(SCOPE, GenerationKind.TTS)
 
     assert cancelled == 3
