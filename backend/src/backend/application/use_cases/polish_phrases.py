@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.document import Document
+    from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.phrase_ref import PhraseRef
     from backend.domain.value_objects.prompts_config import PromptsConfig
 
@@ -104,17 +105,22 @@ class PhrasePolishUseCase:
         by_index = {r.phrase_index: r.phrase for r in results}
         wanted = still_wanted([c.phrase_id for c in polishable])
 
+        read_answers = {
+            i: self._read_answer(c, by_index[i])
+            for i, c in enumerate(polishable, 1)
+            if i in by_index and c.phrase_id in wanted
+        }
+
         changed = 0
         unanswered: list[int] = []
         with self._unit_of_work.write():
             for i, c in enumerate(polishable, 1):
                 if c.phrase_id not in wanted or not self._job_phrases.holds(c):
                     continue
-                answer = by_index.get(i)
-                if answer is None:
+                if i not in read_answers:
                     unanswered.append(c.phrase_id)
                     continue
-                if self._polish(c, answer) != c.phrase.phrase.text:
+                if self._store(c, read_answers[i]) != c.phrase.phrase.text:
                     self._enrichment_reset.reset_phrase(c.phrase_id)
                     changed += 1
 
@@ -144,21 +150,28 @@ class PhrasePolishUseCase:
             context=" ".join(context.split()),
         )
 
-    def _polish(self, card: GenerationCard, answer: str) -> str:
-        """Stores AI's phrase and returns the text the card shows now. An answer that lost
-        the target is discarded: the source phrase stays, marked as polished."""
+    def _read_answer(self, card: GenerationCard, answer: str) -> Phrase | None:
+        """AI's answer read as the card's phrase; None when it lost the target."""
         text = " ".join(_BOLD_MARKERS.sub(r"\1", answer).split()).strip(_WRAPPING_QUOTES)
         try:
-            return self._rewrite_phrase.of_phrase(card.phrase, card.word, text).text
+            return self._rewrite_phrase.read(card.word, text)
         except TargetNotInPhraseError:
             logger.warning(
                 "PhrasePolish: answer lost the target, keeping the source phrase "
                 "(phrase=%s, lemma=%r, answer=%r)",
                 card.phrase_id, card.word.lemma, answer,
             )
-            source = card.phrase.source_phrase
-            self._occurrence_repo.write_text(
-                card.phrase_id, source, card.phrase.phrase_position,
-                earned_section=self._stamper.earned(source, card.word), polished=source,
-            )
-            return source.text
+            return None
+
+    def _store(self, card: GenerationCard, answer: Phrase | None) -> str:
+        """Stores AI's phrase and returns the text the card shows now. An answer that lost
+        the target is discarded: the source phrase stays, marked as polished."""
+        if answer is not None:
+            self._rewrite_phrase.store(card.phrase, card.word, answer)
+            return answer.text
+        source = card.phrase.source_phrase
+        self._occurrence_repo.write_text(
+            card.phrase_id, source, card.phrase.phrase_position,
+            earned_section=self._stamper.earned(source, card.word), polished=source,
+        )
+        return source.text

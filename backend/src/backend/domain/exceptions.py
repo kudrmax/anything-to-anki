@@ -202,11 +202,14 @@ class UnsupportedUrlError(Exception):
 
 class CancelledByUserError(Exception):
     """Raised when finished work belongs to jobs no longer running: the user
-    cancelled them, or they already failed by timeout. Its result is dropped."""
+    cancelled them, or they already failed by timeout. Its result is dropped, except what
+    it wrote while they still ran: `wrote` tells whether there is any."""
 
-    def __init__(self, job_ids: list[int]) -> None:
+    def __init__(self, job_ids: list[int], wrote: bool = False) -> None:
         self.job_ids = job_ids
-        super().__init__(f"Jobs {job_ids} are no longer running, result dropped")
+        self.wrote = wrote
+        outcome = "what was written before that stays" if wrote else "result dropped"
+        super().__init__(f"Jobs {job_ids} are no longer running, {outcome}")
 
 
 class CollectionNotFoundError(DomainError):

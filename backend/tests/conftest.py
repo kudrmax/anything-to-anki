@@ -27,3 +27,21 @@ def _no_real_anki() -> Generator[None, None, None]:
     """Keeps tests away from the Anki running on this machine: it holds the user's real cards."""
     with patch(_ANKI_CONNECT_POST, side_effect=_refuse_real_anki):
         yield
+
+
+class _RefusingRebuildLauncher:
+    """Stands in for the app's background rebuild in every test: the pass would run on the
+    app database whatever session factory the test gave the API."""
+
+    def rebuild_all(self) -> None:
+        raise AssertionError(
+            "A test started the background rebuild of all sources; it runs on the app"
+            " database, not the test's. Replace Container._rebuild_launcher in the test."
+        )
+
+
+@pytest.fixture(autouse=True)
+def _no_rebuild_on_the_app_database(monkeypatch: pytest.MonkeyPatch) -> None:
+    from backend.infrastructure.container import Container
+
+    monkeypatch.setattr(Container, "_rebuild_launcher", lambda _self: _RefusingRebuildLauncher())

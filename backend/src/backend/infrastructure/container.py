@@ -917,11 +917,12 @@ class Container:
             settings_repo=SqlaSettingsRepository(session),
             threshold_resolver=self._threshold_resolver(session),
             unit_of_work=self._unit_of_work(session),
-            rebuild_launcher=self._rebuild_launcher(session),
+            rebuild_launcher=self._rebuild_launcher(),
         )
 
-    def _rebuild_launcher(self, session: Session) -> BackgroundSourcesRebuildLauncher:
-        """Works in sessions of its own."""
+    def _rebuild_launcher(self) -> BackgroundSourcesRebuildLauncher:
+        """Works in sessions of its own, from the container's session factory: an API
+        override of `get_session_factory` does not reach it."""
         work = self.session_work()
         return BackgroundSourcesRebuildLauncher(
             scope_operations=lambda: work.open(self.scope_operation_use_case),

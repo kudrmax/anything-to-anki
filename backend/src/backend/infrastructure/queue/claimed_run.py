@@ -20,6 +20,10 @@ class ClaimedRun:
     while some of the jobs are still RUNNING under this claim, and otherwise roll back
     with CancelledByUserError. A batch that lost only some of its jobs filters its writes
     with ``still_wanted``.
+
+    Each write commits on its own, and a later failure in the run does not undo an
+    earlier one: a use case run here puts its write phase last, after everything
+    that can fail.
     """
 
     def __init__(self, queue: SqlaJobQueue, jobs: list[Job]) -> None:

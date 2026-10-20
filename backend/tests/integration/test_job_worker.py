@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
@@ -63,7 +64,8 @@ class _Container:
         return SqlaJobQueue(self._work)
 
     @contextmanager
-    def session_scope(self) -> Iterator[Session]:
+    def fixture_session(self) -> Iterator[Session]:
+        """The test's own setup and read-back, beside the worker's sessions."""
         session = self._factory()
         try:
             yield session
@@ -136,7 +138,7 @@ def container(factory: sessionmaker[Session]) -> _Container:
 
 def _enqueue(container: _Container, *jobs: tuple[JobType, int | None]) -> list[Job]:
     """A phrase job works on the word's own phrase, `phrase_id_of` the word."""
-    with container.session_scope() as session:
+    with container.fixture_session() as session:
         return SqlaJobRepository(session).enqueue([
             Job.queued(
                 job_type, SOURCE_ID, candidate_id,
@@ -152,13 +154,13 @@ def _ids(phrases: list[PhraseRef]) -> list[int]:
 
 
 def _jobs(container: _Container) -> list[tuple[JobType, int | None, JobStatus, str | None]]:
-    with container.session_scope() as session:
+    with container.fixture_session() as session:
         jobs = SqlaJobRepository(session).get_jobs_by_status(list(JobStatus))
     return [(j.job_type, j.candidate_id, j.status, j.error) for j in jobs]
 
 
 def _title(container: _Container) -> str:
-    with container.session_scope() as session:
+    with container.fixture_session() as session:
         return str(session.execute(
             text("SELECT title FROM sources WHERE id = :id"), {"id": SOURCE_ID},
         ).scalar_one())
@@ -177,7 +179,7 @@ def _update_title(use_case: MagicMock) -> None:
 
 
 def _cancel(container: _Container, selection: JobSelection) -> None:
-    with container.session_scope() as session:
+    with container.fixture_session() as session:
         SqlaJobRepository(session).cancel(selection)
 
 
@@ -215,7 +217,7 @@ class TestOrder:
         self, container: _Container,
     ) -> None:
         other_source = SOURCE_ID + 1
-        with container.session_scope() as session:
+        with container.fixture_session() as session:
             session.execute(text(
                 "INSERT INTO sources (id, title, status, created_at)"
                 " VALUES (:id, 'other', 'done', '2026-01-01 00:00:00')"
@@ -265,7 +267,7 @@ class TestPhraseGone:
     async def test_the_worker_hands_the_jobs_phrases_to_the_use_case(
         self, container: _Container,
     ) -> None:
-        with container.session_scope() as session:
+        with container.fixture_session() as session:
             SqlaJobRepository(session).enqueue([
                 Job.queued(
                     JobType.TTS, SOURCE_ID, 1, phrase_id=phrase_id_of(1), phrase_revision=4,
@@ -292,7 +294,7 @@ class TestLifecycle:
         self, container: _Container,
     ) -> None:
         _enqueue(container, (JobType.MEDIA, 1))
-        with container.session_scope() as session:
+        with container.fixture_session() as session:
             # e.g. a failure left by an earlier attempt made outside the queue
             stale = Job.queued(
                 JobType.MEDIA, SOURCE_ID, 1, phrase_id=phrase_id_of(1), phrase_revision=0,
@@ -325,7 +327,7 @@ class TestLifecycle:
         (PermanentAIError("model unavailable"), "model unavailable"),
         (RuntimeError("boom"), "RuntimeError: boom"),
     ])
-    async def test_error_fails_the_whole_run_and_rolls_back(
+    async def test_error_fails_the_whole_run_and_rolls_back_the_open_write(
         self, container: _Container, error: Exception, message: str,
     ) -> None:
         _enqueue(container, (JobType.POLISH, 1), (JobType.POLISH, 2))
@@ -343,6 +345,24 @@ class TestLifecycle:
         assert _jobs(container) == [
             (JobType.POLISH, 1, JobStatus.FAILED, message),
             (JobType.POLISH, 2, JobStatus.FAILED, message),
+        ]
+
+    async def test_write_committed_before_a_failure_survives_it(
+        self, container: _Container,
+    ) -> None:
+        _enqueue(container, (JobType.POLISH, 1))
+
+        def write_then_raise(phrases: list[PhraseRef], wanted: CandidateFilter) -> list[int]:
+            _write_title(container.polish)
+            raise RuntimeError("boom")
+
+        container.polish.execute_batch.side_effect = write_then_raise
+
+        await _drain(JobWorker(container))  # type: ignore[arg-type]
+
+        assert _title(container) == WRITTEN_TITLE
+        assert _jobs(container) == [
+            (JobType.POLISH, 1, JobStatus.FAILED, "RuntimeError: boom"),
         ]
 
     async def test_timeout_fails_jobs_and_drops_late_result(
@@ -395,6 +415,25 @@ class TestCancel:
         assert _title(container) == "original"
         assert _jobs(container) == []
 
+    async def test_cancel_after_the_write_keeps_it_and_says_so(
+        self, container: _Container, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        _enqueue(container, (JobType.TOPIC_TARGETS, None))
+
+        def write_then_get_cancelled(source_id: int) -> None:
+            _write_title(container.topic)
+            _cancel(container, JobSelection(job_type=JobType.TOPIC_TARGETS))
+
+        container.topic.execute.side_effect = write_then_get_cancelled
+
+        with caplog.at_level(logging.INFO, logger=job_worker.__name__):
+            await _drain(JobWorker(container))  # type: ignore[arg-type]
+
+        assert _title(container) == WRITTEN_TITLE
+        assert _jobs(container) == []
+        assert "what was written before that stays" in caplog.text
+        assert "result dropped" not in caplog.text
+
     async def test_batch_writes_only_for_jobs_still_wanted(
         self, container: _Container,
     ) -> None:
@@ -420,7 +459,7 @@ class TestCancel:
 class TestRestartAndTTS:
     def test_startup_puts_interrupted_jobs_back_in_line(self, container: _Container) -> None:
         _enqueue(container, (JobType.MEDIA, 1))
-        with container.session_scope() as session:
+        with container.fixture_session() as session:
             SqlaJobRepository(session).claim_next_run({})
 
         JobWorker(container)._reconcile_on_startup()  # type: ignore[arg-type]
@@ -470,7 +509,7 @@ class TestRestartAndTTS:
 
 
 def _claim_head(container: _Container) -> Job:
-    with container.session_scope() as session:
+    with container.fixture_session() as session:
         return SqlaJobRepository(session).claim_next_run({})[0]
 
 

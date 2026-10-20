@@ -5,14 +5,32 @@ from collections.abc import Generator  # noqa: TC003
 import pytest
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
+from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.database import Base
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 
+class _RecordedRebuilds:
+    """The background rebuild, recorded instead of run: it would run on the app database."""
+
+    def __init__(self) -> None:
+        self.requests = 0
+
+    def rebuild_all(self) -> None:
+        self.requests += 1
+
+
 @pytest.fixture()
-def client() -> Generator[TestClient, None, None]:
+def rebuilds(monkeypatch: pytest.MonkeyPatch) -> _RecordedRebuilds:
+    recorded = _RecordedRebuilds()
+    monkeypatch.setattr(Container, "_rebuild_launcher", lambda _self: recorded)
+    return recorded
+
+
+@pytest.fixture()
+def client(rebuilds: _RecordedRebuilds) -> Generator[TestClient, None, None]:
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -87,12 +105,13 @@ class TestSettingsAPI:
         assert data["anki_field_image"] == "Picture"
         assert data["anki_field_audio"] == "Sound"
 
-    def test_update_cefr_level(self, client: TestClient) -> None:
+    def test_update_cefr_level(self, client: TestClient, rebuilds: _RecordedRebuilds) -> None:
         response = client.patch("/api/settings", json={"cefr_level": "C1"})
         assert response.status_code == 200
         assert response.json()["cefr_level"] == "C1"
         response = client.get("/api/settings")
         assert response.json()["cefr_level"] == "C1"
+        assert rebuilds.requests == 1
 
     def test_update_deck_name(self, client: TestClient) -> None:
         response = client.patch("/api/settings", json={"anki_deck_name": "MyDeck"})

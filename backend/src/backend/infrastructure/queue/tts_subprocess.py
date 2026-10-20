@@ -45,8 +45,8 @@ def _process(container: Container, queue: SqlaJobQueue, job: Job) -> None:
         with run.use_case(container.generate_tts_use_case) as tts:
             for phrase in run.phrases:
                 tts.execute_one(phrase)
-    except CancelledByUserError:
-        logger.info("TTS job %d cancelled, result dropped", job.id)
+    except CancelledByUserError as cancelled:
+        logger.info("TTS job %d cancelled: %s", job.id, cancelled)
         return
     except Exception as exc:
         logger.exception("TTS job %d failed", job.id)

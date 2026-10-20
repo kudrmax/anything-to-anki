@@ -12,6 +12,7 @@ from backend.infrastructure.api.background_rebuild_launcher import (
     BackgroundSourcesRebuildLauncher,
     RebuildPasses,
 )
+from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from sqlalchemy import StaticPool, create_engine, text
@@ -139,6 +140,12 @@ def test_the_patch_does_not_wait_for_the_rebuild(
         release.wait(timeout=10)
 
     monkeypatch.setattr(BackgroundSourcesRebuildLauncher, "_rebuild_pass", blocked)
+    monkeypatch.setattr(
+        Container, "_rebuild_launcher",
+        lambda _self: BackgroundSourcesRebuildLauncher(
+            scope_operations=MagicMock(), passes=RebuildPasses(),
+        ),
+    )
 
     def override_session():  # type: ignore[no-untyped-def]  # noqa: ANN202
         with factory() as session:

@@ -61,16 +61,20 @@ class SqlaJobQueue:
         The user may cancel the jobs, or the worker fail them by timeout, while the work
         is still going. Each write of the work commits only if some of them are still
         claimed; otherwise it rolls back with CancelledByUserError. A block that ends
-        after they are all gone raises it too, even when it wrote nothing."""
+        after they are all gone raises it too, saying whether a write of it committed
+        before that."""
+        passed_checks = 0
 
         def require_claimed(session: Session) -> None:
+            nonlocal passed_checks
             _require_claimed(SqlaJobRepository(session).still_claimed(jobs), jobs)
+            passed_checks += 1
 
         with self._work.open(build, commit_check=require_claimed) as built:
             yield built
-        _require_claimed(self.still_claimed(jobs), jobs)
+        _require_claimed(self.still_claimed(jobs), jobs, wrote=passed_checks > 0)
 
 
-def _require_claimed(claimed: set[int], jobs: list[Job]) -> None:
+def _require_claimed(claimed: set[int], jobs: list[Job], wrote: bool = False) -> None:
     if not claimed:
-        raise CancelledByUserError([j.id for j in jobs if j.id is not None])
+        raise CancelledByUserError([j.id for j in jobs if j.id is not None], wrote=wrote)

@@ -102,8 +102,8 @@ class JobWorker:
             unanswered = await asyncio.wait_for(
                 asyncio.to_thread(self._execute, run), timeout=JOB_TIMEOUT,
             )
-        except CancelledByUserError:
-            logger.info("Run from job %d cancelled, result dropped", head.id)
+        except CancelledByUserError as cancelled:
+            logger.info("Run from job %d cancelled: %s", head.id, cancelled)
         except TimeoutError:
             logger.warning("Run from job %d timed out", head.id)
             self._fail(jobs, TIMEOUT_ERROR)
