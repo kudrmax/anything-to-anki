@@ -17,7 +17,7 @@ from backend.domain.services.source_actions import (
 )
 from backend.domain.services.source_operations import available_operations, operation_hint
 from backend.domain.services.source_review_status import derive_review_status
-from backend.domain.services.source_stage import shown_status, stage_of
+from backend.domain.services.source_stage import is_pending, shown_status, stage_of
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_stage import STAGE_ORDER
@@ -133,6 +133,11 @@ class GetSourcesUseCase:
             can_start_operation=busy_with is None,
             busy_with=busy_with,
             operation_hint=operation_hint(busy_with),
+            can_process=is_pending(
+                source.status,
+                awaiting_generation=generation.awaiting,
+                busy=busy_with is not None,
+            ),
             can_review=can_review(SourceScope.source(source.id), status),
             can_export=can_export(status, learn_count),
             can_delete=can_delete(source, busy_with),

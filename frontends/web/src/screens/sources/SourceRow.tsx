@@ -115,6 +115,7 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
   }[generation] : (
     <ReviewAction
       status={source.status}
+      canProcess={source.can_process}
       canReview={source.can_review}
       primary={primary}
       onProcess={() => onProcess(source.id)}

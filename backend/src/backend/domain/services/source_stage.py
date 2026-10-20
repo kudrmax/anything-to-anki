@@ -3,13 +3,14 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
+from backend.domain.services.source_review_status import REVIEWABLE
 from backend.domain.value_objects.review_status import ReviewStatus
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_stage import SourceStage
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterable, Mapping
 
 _STAGE_BY_STATUS: dict[ReviewStatus, SourceStage] = {
     ReviewStatus.PARTIALLY_REVIEWED: SourceStage.IN_PROGRESS,
@@ -42,3 +43,14 @@ def is_pending(
 def shown_status(status: ReviewStatus, busy_with: SourceOperationKind | None) -> str:
     """The status a source shows: 'processing' while it is processed, else its outcome."""
     return PROCESSING if busy_with is SourceOperationKind.PROCESS else status.value
+
+
+def set_operation(
+    status: ReviewStatus, operations: Iterable[SourceOperationKind | None],
+) -> SourceOperationKind | None:
+    """The operation a set reads as busy with, for `shown_status`: it is processed while
+    one of its sources is and none is ready for review yet; other operations hold a single
+    source, not the set."""
+    if REVIEWABLE[status] or SourceOperationKind.PROCESS not in operations:
+        return None
+    return SourceOperationKind.PROCESS

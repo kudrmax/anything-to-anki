@@ -18,8 +18,8 @@ describe('ReviewAction', () => {
 
   afterEach(() => act(() => root.unmount()))
 
-  const render = (status: SourceStatus, canReview: boolean, handlers = { onProcess: noop, onReview: noop }) =>
-    act(() => root.render(<ReviewAction status={status} canReview={canReview} primary={false} {...handlers} />))
+  const render = (status: SourceStatus, canReview: boolean, handlers = { onProcess: noop, onReview: noop }, canProcess = true) =>
+    act(() => root.render(<ReviewAction status={status} canProcess={canProcess} canReview={canReview} primary={false} {...handlers} />))
 
   it.each<[SourceStatus, boolean, string]>([
     ['new', true, 'Process'], ['error', false, 'Retry'], ['done', true, 'Review'],
@@ -31,6 +31,11 @@ describe('ReviewAction', () => {
 
   it('hides review on a scope that is not for review', () => {
     render('done', false)
+    expect(host.textContent).toBe('')
+  })
+
+  it.each<SourceStatus>(['new', 'error'])('offers nothing on a %s set with nothing to process', status => {
+    render(status, false, { onProcess: noop, onReview: noop }, false)
     expect(host.textContent).toBe('')
   })
 

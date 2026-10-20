@@ -99,6 +99,8 @@ class SourceDTO(BaseModel):
     busy_with: SourceOperationKind | None = None
     # Why the offered operation can't start while the source is busy.
     operation_hint: str | None = None
+    # Processing can start right now: not started or failed, free, and no topic waiting for AI.
+    can_process: bool = False
     can_review: bool = False
     can_export: bool = False
     can_delete: bool = False

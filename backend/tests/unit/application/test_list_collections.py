@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,6 +15,9 @@ from backend.domain.value_objects.source_status import SourceStatus
 
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.source_fakes import InMemorySourceRepository
+
+if TYPE_CHECKING:
+    from backend.application.dto.collection_dtos import CollectionTreeDTO
 
 
 def _progress(by_source: dict[int, DecisionProgress] | None = None) -> MagicMock:
@@ -245,3 +249,66 @@ def test_a_reviewed_set_counts_its_words_to_learn() -> None:
     ).execute().collections[0].counts
     assert (reviewed.status, reviewed.review_fraction) == ("reviewed", 1.0)
     assert reviewed.progress_caption == "2 to learn"
+
+
+def _held(operations: dict[int, HeldOperation]) -> MagicMock:
+    lock = MagicMock()
+    lock.operations.return_value = operations
+    return lock
+
+
+def _tree_of(
+    sources: list[Source], lock: MagicMock, *, awaiting: bool = False,
+) -> CollectionTreeDTO:
+    probe = MagicMock()
+    probe.of.return_value = TopicGeneration(awaiting=awaiting)
+    return ListCollectionsUseCase(
+        InMemoryCollectionRepository([Collection(id=1, name="Friends")]),
+        InMemorySourceRepository(sources),
+        _progress(),
+        probe,
+        lock,
+        _card_query(),
+    ).execute()
+
+
+@pytest.mark.unit
+def test_a_set_whose_new_sources_are_all_processed_shows_processing() -> None:
+    tree = _tree_of(
+        [
+            Source(id=10, status=SourceStatus.NEW, collection_id=1),
+            Source(id=11, status=SourceStatus.ERROR, collection_id=1),
+        ],
+        _held({10: HeldOperation(SourceOperationKind.PROCESS)}),
+    )
+    friends = tree.collections[0].counts
+    assert (friends.status, friends.pending, friends.can_process) == ("processing", 1, True)
+    assert friends.progress_caption == "Processing…"
+
+
+@pytest.mark.unit
+def test_a_set_with_nothing_to_start_cannot_be_processed() -> None:
+    held = _tree_of(
+        [Source(id=10, status=SourceStatus.NEW, collection_id=1)],
+        _held({10: HeldOperation(SourceOperationKind.PROCESS)}),
+    ).collections[0].counts
+    assert (held.status, held.can_process) == ("processing", False)
+    empty = _tree_of([], _held({})).collections[0].counts
+    assert (empty.status, empty.can_process) == ("new", False)
+    awaiting = _tree_of(
+        [Source(id=10, status=SourceStatus.NEW, collection_id=1)], _held({}), awaiting=True,
+    ).collections[0].counts
+    assert (awaiting.status, awaiting.can_process) == ("new", False)
+
+
+@pytest.mark.unit
+def test_a_processed_set_keeps_its_review_status_while_another_source_is_processed() -> None:
+    tree = _tree_of(
+        [
+            Source(id=10, status=SourceStatus.DONE, collection_id=1),
+            Source(id=11, status=SourceStatus.NEW, collection_id=1),
+        ],
+        _held({11: HeldOperation(SourceOperationKind.PROCESS)}),
+    )
+    friends = tree.collections[0].counts
+    assert (friends.status, friends.can_process) == ("reviewed", False)

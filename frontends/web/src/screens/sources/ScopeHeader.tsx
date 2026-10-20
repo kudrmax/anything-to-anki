@@ -11,7 +11,8 @@ interface ScopeHeaderProps {
   title: string
   /** Предки открытой коллекции от корня к родителю: путь в одну строку, каждый кликабелен. */
   ancestors: CollectionNode[]
-  counts: ScopeCounts
+  /** null, пока дерево не загружено: действия от выдуманных счётчиков не показываются. */
+  counts: ScopeCounts | null
   /** Открытая коллекция; у All и Unsorted меню нет, но место под него держится. */
   node: CollectionNode | null
   processing: boolean
@@ -58,17 +59,27 @@ export function ScopeHeader({ title, ancestors, counts, node, processing, onOpen
           <span className={css.scopeName} title={title}>{title}</span>
         </h1>
         <span className={css.scopeProgress}>
-          {counts.total > 0
+          {counts && (counts.total > 0
             ? <>
                 <Progress inline value={counts.review_fraction} />
                 {`${counts.reviewed} of ${counts.total} reviewed · ${counts.progress_caption}`}
               </>
-            : 'No sources yet'}
+            : 'No sources yet')}
         </span>
       </div>
       <div className={css.scopeActions}>
-        {counts.pending > 0 && !offersProcess(counts.status) && <Button busy={processing} onClick={onProcessAll}>Process all ({counts.pending})</Button>}
-        <ReviewAction status={counts.status} canReview={counts.can_review} primary={false} onProcess={onProcessAll} onReview={onReview} />
+        {counts?.can_process && !offersProcess(counts.status) && <Button busy={processing} onClick={onProcessAll}>Process all ({counts.pending})</Button>}
+        {counts && (
+          <ReviewAction
+            status={counts.status}
+            canProcess={counts.can_process}
+            canReview={counts.can_review}
+            primary={false}
+            busy={processing}
+            onProcess={onProcessAll}
+            onReview={onReview}
+          />
+        )}
         <Button onClick={onExport}>Export</Button>
         {node
           ? <Menu

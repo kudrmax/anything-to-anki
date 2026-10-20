@@ -6,7 +6,7 @@ import type { CollectionTree } from '@/api/types'
 import type { UndoOffer } from '@/ui'
 import { useCollections } from './useCollections'
 
-const counts = { total: 0, reviewed: 0, pending: 0, progress: { decided: 0, total: 0 }, status: 'new' as const, can_review: false, review_fraction: 0, progress_caption: '' }
+const counts = { total: 0, reviewed: 0, pending: 0, progress: { decided: 0, total: 0 }, status: 'new' as const, can_process: false, can_review: false, review_fraction: 0, progress_caption: '' }
 const emptyTree: CollectionTree = { all: counts, unsorted: counts, max_depth: 5, collections: [] }
 
 const onUndo = vi.fn<(offer: UndoOffer) => void>()

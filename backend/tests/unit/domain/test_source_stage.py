@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import pytest
-from backend.domain.services.source_stage import is_pending, shown_status, stage_of
+from backend.domain.services.source_stage import (
+    is_pending,
+    set_operation,
+    shown_status,
+    stage_of,
+)
 from backend.domain.value_objects.review_status import ReviewStatus
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_stage import SourceStage
@@ -47,3 +52,18 @@ def test_a_source_shows_processing_only_while_it_is_processed(
     busy_with: SourceOperationKind | None, shown: str,
 ) -> None:
     assert shown_status(ReviewStatus.NEW, busy_with) == shown
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(("status", "operations", "busy_with"), [
+    (ReviewStatus.NEW, [None, SourceOperationKind.PROCESS], SourceOperationKind.PROCESS),
+    (ReviewStatus.ERROR, [SourceOperationKind.PROCESS], SourceOperationKind.PROCESS),
+    (ReviewStatus.DONE, [SourceOperationKind.PROCESS], None),
+    (ReviewStatus.NEW, [SourceOperationKind.REBUILD], None),
+    (ReviewStatus.NEW, [], None),
+])
+def test_a_set_is_processed_while_a_source_is_and_none_is_ready(
+    status: ReviewStatus, operations: list[SourceOperationKind | None],
+    busy_with: SourceOperationKind | None,
+) -> None:
+    assert set_operation(status, operations) is busy_with

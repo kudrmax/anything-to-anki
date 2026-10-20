@@ -6,7 +6,7 @@ import { ScopeHeader } from './ScopeHeader'
 
 const counts: ScopeCounts = {
   total: 2, reviewed: 1, pending: 0, progress: { decided: 3, total: 12 },
-  status: 'partially_reviewed', can_review: true, review_fraction: 0.25, progress_caption: '3 of 12 phrases',
+  status: 'partially_reviewed', can_process: false, can_review: true, review_fraction: 0.25, progress_caption: '3 of 12 phrases',
 }
 const node = (id: number, name: string, depth: number): CollectionNode => ({
   id, name, parent_id: depth === 1 ? null : id - 1, counts, depth, accepts_collections: true, move_targets: [null], children: [],
@@ -34,9 +34,9 @@ describe('ScopeHeader', () => {
     host.remove()
   })
 
-  const render = (ancestors: CollectionNode[], current: CollectionNode, shown: ScopeCounts = counts) => act(() => root.render(
+  const render = (ancestors: CollectionNode[], current: CollectionNode, shown: ScopeCounts | null = counts, processing = false) => act(() => root.render(
     <ScopeHeader
-      title={current.name} ancestors={ancestors} counts={shown} node={current} processing={false}
+      title={current.name} ancestors={ancestors} counts={shown} node={current} processing={processing}
       onOpenAncestor={onOpenAncestor} onProcessAll={noop} onReview={onReview} onExport={noop}
       onRename={noop} onNewSubcollection={noop} onMoveTo={noop} onDelete={noop}
     />,
@@ -83,13 +83,33 @@ describe('ScopeHeader', () => {
   })
 
   it('shows one Process button on a new collection', () => {
-    render([], a, { ...counts, status: 'new', can_review: false, pending: 2 })
+    render([], a, { ...counts, status: 'new', can_review: false, pending: 2, can_process: true })
     expect(buttons()).toContain('Process')
     expect(buttons()).not.toContain('Process all (2)')
   })
 
+  it('shows the Process button busy while processing starts', () => {
+    render([], a, { ...counts, status: 'new', can_review: false, pending: 2, can_process: true }, true)
+    const process = [...host.querySelectorAll('button')].find(el => el.textContent?.includes('Process'))!
+    expect(process.disabled).toBe(true)
+  })
+
+  it.each<[string, ScopeCounts]>([
+    ['an empty collection', { ...counts, total: 0, status: 'new', can_review: false }],
+    ['a collection being processed', { ...counts, status: 'processing', can_review: false }],
+  ])('offers no processing on %s', (_, shown) => {
+    render([], a, shown)
+    expect(buttons().filter(label => label?.startsWith('Process') || label === 'Retry')).toEqual([])
+  })
+
+  it('shows no counts-made actions before the counts load', () => {
+    render([], a, null)
+    expect(buttons()).toEqual(['Export', ''])
+    expect(host.textContent).not.toContain('No sources yet')
+  })
+
   it('offers Process all next to the review of a processed collection', () => {
-    render([], a, { ...counts, pending: 2 })
+    render([], a, { ...counts, pending: 2, can_process: true })
     expect(buttons()).toEqual(expect.arrayContaining(['Continue', 'Process all (2)']))
   })
 

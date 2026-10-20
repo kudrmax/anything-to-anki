@@ -247,3 +247,23 @@ class TestGetSourcesUseCase:
         self.card_query.learn_counts.return_value = {4: 1}
         captions = [dto.progress_caption for dto in self.use_case.list_all()]
         assert captions == ["Nothing to learn", "2 phrases", "1 of 2 decided", "1 to learn"]
+
+    def test_a_source_can_be_processed_only_when_processing_can_start_now(self) -> None:
+        self.source_repo.list_all.return_value = [
+            _text(1, SourceStatus.NEW), _text(2, SourceStatus.ERROR),
+            _text(3, SourceStatus.NEW), _text(4),
+        ]
+        self.lock.operations.return_value = {3: HeldOperation(SourceOperationKind.PROCESS)}
+        assert [dto.can_process for dto in self.use_case.list_all()] == [
+            True, True, False, False,
+        ]
+
+    def test_a_topic_waiting_for_its_targets_cannot_be_processed(self) -> None:
+        self.source_repo.list_all.return_value = [
+            Source(
+                id=5, status=SourceStatus.NEW, role=SourceRole.TOPIC, topic_query="salary talk",
+            ),
+        ]
+        self.job_repo.get_jobs_by_status.return_value = []
+        [dto] = self.use_case.list_all()
+        assert (dto.awaiting_generation, dto.can_process) == (True, False)

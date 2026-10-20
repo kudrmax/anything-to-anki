@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { CollectionNode, Scope, ScopeCounts, SourceStage, SourceSummary } from '@/api/types'
+import type { CollectionNode, Scope, SourceStage, SourceSummary } from '@/api/types'
 import { statsStore, useStats } from '@/hooks/useStats'
 import { backTo } from '@/lib/backLink'
 import { usePhone } from '@/lib/device'
@@ -31,10 +31,6 @@ const STAGE_LABEL: Record<SourceStage, string> = {
   reviewed: 'Reviewed',
 }
 const SCOPE_TITLE = { all: 'All sources', unsorted: 'Unsorted' } as const
-const NO_COUNTS: ScopeCounts = {
-  total: 0, reviewed: 0, pending: 0, progress: { decided: 0, total: 0 },
-  status: 'new', can_review: false, review_fraction: 0, progress_caption: '',
-}
 const UNSORTED = 'Unsorted'
 const EXPORT_PATH = '/export'
 // Backend ставит коллекцию в конец, если позиция больше числа соседей.
@@ -123,7 +119,7 @@ export function SourcesScreen() {
 
   const node = typeof scope === 'number' && tree ? findNode(tree.collections, scope) : null
   const ancestors = tree && node ? ancestorsOf(tree.collections, node) : []
-  const counts = node?.counts ?? (tree ? (scope === 'unsorted' ? tree.unsorted : tree.all) : NO_COUNTS)
+  const counts = !tree ? null : typeof scope === 'number' ? node?.counts ?? null : scope === 'unsorted' ? tree.unsorted : tree.all
   const title = node?.name ?? board.board?.title ?? (typeof scope === 'number' ? '' : SCOPE_TITLE[scope])
   const nameOf = (collectionId: number | null) =>
     collectionId === null ? UNSORTED : (tree && findNode(tree.collections, collectionId)?.name) ?? ''

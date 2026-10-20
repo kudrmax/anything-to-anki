@@ -31,8 +31,9 @@ export interface ScopeCounts {
   reviewed: number
   pending: number
   progress: Progress
-  /** Область как один набор на ревью: статус, можно ли открыть ревью, доля и подпись — как у источника. */
+  /** Область как один набор на ревью: статус, есть ли что обработать, можно ли открыть ревью, доля и подпись — как у источника. */
   status: SourceStatus
+  can_process: boolean
   can_review: boolean
   review_fraction: number
   progress_caption: string
@@ -120,6 +121,7 @@ export interface SourceSummary {
   /** Почему операция сейчас недоступна. */
   operation_hint: string | null
   /** Что источник позволяет сейчас; решает backend. */
+  can_process: boolean
   can_review: boolean
   can_export: boolean
   can_delete: boolean

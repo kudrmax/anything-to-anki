@@ -15,7 +15,7 @@ from backend.domain.services.source_review_status import (
     derive_review_status,
     stored_status_of_set,
 )
-from backend.domain.services.source_stage import is_pending
+from backend.domain.services.source_stage import is_pending, set_operation, shown_status
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.source_scope import SourceScope
 
@@ -83,12 +83,17 @@ class ListCollectionsUseCase:
             status = derive_review_status(
                 stored_status_of_set(s.status for s in selected), decisions,
             )
+            operation = set_operation(
+                status, (busy[i].kind for i in selected_ids if i in busy),
+            )
+            pending_count = sum(1 for i in selected_ids if i in pending)
             return ScopeCountsDTO(
                 total=len(selected),
                 reviewed=sum(1 for i in selected_ids if i in reviewed),
-                pending=sum(1 for i in selected_ids if i in pending),
+                pending=pending_count,
                 progress=ProgressDTO.of(decisions),
-                status=status.value,
+                status=shown_status(status, operation),
+                can_process=pending_count > 0,
                 can_review=can_review(scope, status),
                 review_fraction=review_fraction(status, decisions),
                 progress_caption=progress_caption(
@@ -96,7 +101,7 @@ class ListCollectionsUseCase:
                     sum(len(cards.get(i, [])) for i in selected_ids),
                     decisions,
                     sum(learn_counts.get(i, 0) for i in selected_ids),
-                    None,
+                    operation,
                 ),
             )
 
