@@ -1,4 +1,4 @@
-.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths fix-sections app test-macos _check_env _check_setup _up _up-worktree _down _down-worktree
+.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths fix-sections bench-db bench-review app test-macos _check_env _check_setup _up _up-worktree _down _down-worktree
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # -include не падает если файла нет; если .env создаётся правилом ниже,
@@ -433,6 +433,15 @@ fix-sections: _check_setup dict-update  ## Проставить секции ф�
 	    done; \
 	done
 	.venv/bin/python scripts/fix_sections.py
+
+##@ Бенчмарк (только копии БД)
+bench-db: _check_setup _check_dictionaries_dir  ## Собрать БД с книгой Worm: EPUB=… OUT=… [CHAPTERS=N, 0 = все]
+	@test -n "$(EPUB)" -a -n "$(OUT)" || { echo "usage: make bench-db EPUB=book.epub OUT=new.db [CHAPTERS=N]"; exit 1; }
+	.venv/bin/python -m scripts.bench.build_worm_db --epub "$(EPUB)" --out "$(OUT)" --chapters $(or $(CHAPTERS),0)
+
+bench-review: _check_setup  ## Замерить обзор на копии БД: DB=… OUT=… [PRESSES=200]
+	@test -n "$(DB)" -a -n "$(OUT)" || { echo "usage: make bench-review DB=bench.db OUT=result.json [PRESSES=N]"; exit 1; }
+	.venv/bin/python -m scripts.bench.bench_review --db "$(DB)" --out "$(OUT)" --presses $(or $(PRESSES),200)
 
 ##@ Прочее
 help:  ## Показать доступные команды
