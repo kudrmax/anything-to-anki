@@ -640,6 +640,16 @@ class DocumentParseModel(Base):
     )
 
 
+class AIOutageModel(Base):
+    """The current outage of the AI: one row while it lasts, none otherwise."""
+
+    __tablename__ = "ai_outage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    since: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+
+
 class SourceOperationModel(Base):
     """The long operation a source is busy with; at most one per source."""
 

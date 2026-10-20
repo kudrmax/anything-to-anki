@@ -6,6 +6,7 @@ import pytest
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.sqla_ai_outage_repository import SqlaAIOutageRepository
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
@@ -143,7 +144,7 @@ class TestQueueSnapshot:
     def test_empty_queue(self, client: TestClient) -> None:
         assert client.get("/api/queue").json() == {
             "counts": [], "total_queued": 0, "total_running": 0, "total_failed": 0,
-            "running": [], "queued": [], "failed": [],
+            "running": [], "queued": [], "failed": [], "ai_outage": None,
         }
 
     def test_counts_jobs_by_type_in_pipeline_order(
@@ -220,6 +221,25 @@ class TestQueueSnapshot:
                 ]},
             ]},
         ]
+
+    def test_names_why_the_queue_waits_for_the_ai(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        _seed(db_session)
+        SqlaAIOutageRepository(db_session).report("Not logged in · Please run /login")
+        db_session.commit()
+
+        outage = client.get("/api/queue").json()["ai_outage"]
+
+        assert outage["reason"] == "Not logged in · Please run /login"
+
+    def test_an_outage_with_nothing_in_line_is_not_shown(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        SqlaAIOutageRepository(db_session).report("Not logged in · Please run /login")
+        db_session.commit()
+
+        assert client.get("/api/queue").json()["ai_outage"] is None
 
     def test_filtered_by_source(self, client: TestClient, db_session: Session) -> None:
         _seed(db_session)

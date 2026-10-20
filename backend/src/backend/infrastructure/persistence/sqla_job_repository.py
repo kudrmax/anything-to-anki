@@ -172,6 +172,16 @@ class SqlaJobRepository(JobRepository):
         )
         self._session.flush()
 
+    def requeue(self, job_ids: list[int]) -> None:
+        if not job_ids:
+            return
+        self._session.execute(
+            update(JobModel)
+            .where(JobModel.id.in_(job_ids), JobModel.status == JobStatus.RUNNING.value)
+            .values(status=JobStatus.QUEUED.value, started_at=None)
+        )
+        self._session.flush()
+
     def requeue_running(self) -> int:
         return self._affected(
             update(JobModel)

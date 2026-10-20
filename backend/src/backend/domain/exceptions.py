@@ -143,6 +143,12 @@ class AIServiceError(DomainError):
         self.detail = detail
 
 
+class AIUnavailableError(AIServiceError):
+    """Raised when the AI can answer no request now (no login, proxy down, blocked country).
+
+    Nothing is wrong with the request itself: the same one succeeds once the AI is back."""
+
+
 class GenerationAlreadyRunningError(DomainError):
     """Raised when trying to start generation while one is already running."""
 

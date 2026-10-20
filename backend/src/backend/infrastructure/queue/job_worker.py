@@ -2,12 +2,15 @@
 
 Polls the jobs table, claims the head of the queue and owns the whole job
 lifecycle: success → complete, error or timeout → fail, cancel → drop result.
+When the AI is unavailable as a whole, its run goes back in line and the queue
+waits for the AI instead of failing every card.
 
 Run with: python -m backend.infrastructure.queue
 """
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import fcntl
 import logging
 import os
@@ -15,8 +18,9 @@ import signal
 import sys
 from typing import IO, TYPE_CHECKING
 
-from backend.domain.exceptions import CancelledByUserError, PermanentError
+from backend.domain.exceptions import AIUnavailableError, CancelledByUserError, PermanentError
 from backend.domain.value_objects.job_type import JobType
+from backend.infrastructure.persistence.sqla_ai_outage_repository import SqlaAIOutageRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.queue.claimed_run import ClaimedRun
 
@@ -37,6 +41,10 @@ RUN_LIMITS: Mapping[JobType, int] = {
 }
 # A set of sources queues its cards interleaved; an AI batch takes phrases of any source.
 MIXED_SOURCE_TYPES: frozenset[JobType] = frozenset({JobType.MEANING, JobType.POLISH})
+AI_JOB_TYPES: frozenset[JobType] = frozenset(
+    {JobType.MEANING, JobType.POLISH, JobType.TOPIC_TARGETS},
+)
+AI_RETRY_DELAY: float = 30.0  # seconds between tries while the AI is unavailable
 TIMEOUT_ERROR = "timeout"
 NO_AI_RESULT_ERROR = "AI returned no result for this card"
 TTS_CRASH_ERROR = "TTS worker exited with code {code}"
@@ -50,6 +58,7 @@ class JobWorker:
         self._container = container
         self._shutdown = False
         self._tts_process: asyncio.subprocess.Process | None = None
+        self._shutdown_requested = asyncio.Event()
 
     async def run(self) -> None:
         """Main loop: reconcile on startup, then poll and process jobs."""
@@ -70,6 +79,7 @@ class JobWorker:
     def _request_shutdown(self) -> None:
         logger.info("Shutdown signal received")
         self._shutdown = True
+        self._shutdown_requested.set()
         if self._tts_process is not None and self._tts_process.returncode is None:
             self._tts_process.terminate()
 
@@ -78,6 +88,8 @@ class JobWorker:
         Every handler is idempotent, so the work is simply redone."""
         with self._container.session_scope() as session:
             count = SqlaJobRepository(session).requeue_running()
+            # Whether the AI is back is learnt from the next AI run.
+            SqlaAIOutageRepository(session).clear()
         if count:
             logger.warning("Startup reconciliation: requeued %d interrupted jobs", count)
 
@@ -107,6 +119,11 @@ class JobWorker:
             )
         except CancelledByUserError:
             logger.info("Run from job %d cancelled, result dropped", head.id)
+        except AIUnavailableError as exc:
+            logger.warning("Run from job %d waits for the AI: %s", head.id, exc.detail)
+            self._wait_for_ai(jobs, exc.detail)
+            await self._pause(AI_RETRY_DELAY)
+            return True
         except TimeoutError:
             logger.warning("Run from job %d timed out", head.id)
             self._fail(jobs, TIMEOUT_ERROR)
@@ -120,7 +137,14 @@ class JobWorker:
             failed = [j for j in jobs if j.phrase_id in unanswered]
             self._fail(failed, NO_AI_RESULT_ERROR)
             self._complete([j for j in jobs if j not in failed])
+        if head.job_type in AI_JOB_TYPES:
+            self._ai_answered()
         return True
+
+    async def _pause(self, seconds: float) -> None:
+        """Sleep, but wake at once on shutdown."""
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(self._shutdown_requested.wait(), timeout=seconds)
 
     # ------------------------------------------------------------------
     # Work — runs in a thread
@@ -197,6 +221,16 @@ class JobWorker:
             return
         with self._container.session_scope() as session:
             SqlaJobRepository(session).fail(job_ids, error)
+
+    def _wait_for_ai(self, jobs: list[Job], reason: str) -> None:
+        job_ids = [j.id for j in jobs if j.id is not None]
+        with self._container.session_scope() as session:
+            SqlaJobRepository(session).requeue(job_ids)
+            SqlaAIOutageRepository(session).report(reason)
+
+    def _ai_answered(self) -> None:
+        with self._container.session_scope() as session:
+            SqlaAIOutageRepository(session).clear()
 
     def _complete(self, jobs: list[Job]) -> None:
         if not jobs:

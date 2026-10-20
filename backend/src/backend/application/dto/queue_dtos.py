@@ -1,6 +1,8 @@
 """DTOs for queue management endpoints."""
 from __future__ import annotations
 
+from datetime import datetime  # noqa: TC003 — pydantic needs it at runtime
+
 from pydantic import BaseModel
 
 
@@ -40,11 +42,17 @@ class FailedByJobTypeDTO(BaseModel):
     groups: list[FailedGroupDTO]
 
 
+class AIOutageDTO(BaseModel):
+    reason: str
+    since: datetime
+
+
 class QueueSnapshotDTO(BaseModel):
     """Everything the queue screen shows, in one read.
 
     ``counts`` lists only job types with any jobs, in pipeline order.
     ``queued`` holds the first jobs in line; ``total_queued`` counts them all.
+    ``ai_outage`` is why the queue waits: the AI is unavailable and work is in line.
     """
 
     counts: list[JobTypeCountsDTO]
@@ -54,6 +62,7 @@ class QueueSnapshotDTO(BaseModel):
     running: list[QueueJobDTO]
     queued: list[QueueJobDTO]
     failed: list[FailedByJobTypeDTO]
+    ai_outage: AIOutageDTO | None = None
 
 
 class QueueActionRequestDTO(BaseModel):

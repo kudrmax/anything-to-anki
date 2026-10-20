@@ -136,6 +136,9 @@ from backend.infrastructure.api.background_rebuild_launcher import (
     BackgroundSourcesRebuildLauncher,
 )
 from backend.infrastructure.config.prompts_loader import PromptsLoader
+from backend.infrastructure.persistence.sqla_ai_outage_repository import (
+    SqlaAIOutageRepository,
+)
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
 )
@@ -1302,6 +1305,7 @@ class Container:
             job_repo=SqlaJobRepository(session),
             source_repo=SqlaSourceRepository(session),
             candidate_repo=SqlaCandidateRepository(session),
+            ai_outage_repo=SqlaAIOutageRepository(session),
         )
 
     def manage_queue_use_case(self, session: Session) -> ManageQueueUseCase:

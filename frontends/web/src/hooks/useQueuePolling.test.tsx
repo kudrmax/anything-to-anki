@@ -6,7 +6,7 @@ import type { QueueSnapshot } from '@/api/types'
 import { useQueuePolling } from './useQueuePolling'
 
 const snapshot = (totalQueued: number): QueueSnapshot => ({
-  counts: [], total_queued: totalQueued, total_running: 0, total_failed: 0, running: [], queued: [], failed: [],
+  counts: [], total_queued: totalQueued, total_running: 0, total_failed: 0, running: [], queued: [], failed: [], ai_outage: null,
 })
 
 interface PendingRead {

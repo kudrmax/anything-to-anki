@@ -5,12 +5,13 @@ on the host over HTTP). All httpx calls are mocked — no real network.
 """
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
-from backend.domain.exceptions import AIServiceError
+from backend.domain.exceptions import AIServiceError, AIUnavailableError
 from backend.domain.ports.ai_usage_recorder import AIUsageRecorder
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.token_usage import TokenUsage
@@ -61,6 +62,7 @@ def _http_status_error(status_code: int, body: str) -> httpx.HTTPStatusError:
     resp = MagicMock()
     resp.status_code = status_code
     resp.text = body
+    resp.json.side_effect = lambda: json.loads(body)
     return httpx.HTTPStatusError("err", request=MagicMock(), response=resp)
 
 
@@ -157,11 +159,11 @@ class TestGenerateMeaning:
             result = svc.generate_meaning("s", "u")
         assert result.tokens_used == 0
 
-    def test_connect_error_raises_proxy_hint(self) -> None:
+    def test_connect_error_means_the_ai_is_unavailable(self) -> None:
         svc = HttpAIService(url="http://x", model="m", usage_recorder=FakeUsageRecorder())
         with patch(
             _MODULE, side_effect=httpx.ConnectError("refused")
-        ), pytest.raises(AIServiceError) as exc:
+        ), pytest.raises(AIUnavailableError) as exc:
             svc.generate_meaning("s", "u")
         msg = str(exc.value)
         assert "Cannot connect to AI proxy" in msg
@@ -248,7 +250,7 @@ class TestGenerateMeaningsBatch:
         with patch(
             _MODULE,
             return_value=_err_raising_response(
-                _http_status_error(503, "overloaded")
+                _http_status_error(500, "overloaded")
             ),
         ), pytest.raises(AIServiceError) as exc:
             svc.generate_meanings_batch("s", "u")
@@ -295,14 +297,23 @@ class TestGenerateTopicTargets:
         ):
             svc.generate_topic_targets("s", "u")
 
-    def test_blocked_country_detail_is_kept(self) -> None:
+    def test_unavailable_ai_keeps_the_reason_the_proxy_gave(self) -> None:
         svc = HttpAIService(url="http://proxy", model="m", usage_recorder=FakeUsageRecorder())
         error = _http_status_error(503, '{"detail":"Blocked country: RU. Turn on VPN."}')
+        with patch(_MODULE, return_value=_err_raising_response(error)), pytest.raises(
+            AIUnavailableError
+        ) as exc:
+            svc.generate_topic_targets("s", "u")
+        assert exc.value.detail == "Blocked country: RU. Turn on VPN."
+
+    def test_a_failure_of_this_call_is_not_an_unavailable_ai(self) -> None:
+        svc = HttpAIService(url="http://proxy", model="m", usage_recorder=FakeUsageRecorder())
+        error = _http_status_error(502, '{"detail":"AI call failed: no structured output"}')
         with patch(_MODULE, return_value=_err_raising_response(error)), pytest.raises(
             AIServiceError
         ) as exc:
             svc.generate_topic_targets("s", "u")
-        assert "Blocked country" in str(exc.value)
+        assert not isinstance(exc.value, AIUnavailableError)
 
 
 # --- usage recording ---------------------------------------------------------
@@ -370,7 +381,8 @@ class TestUsageRecording:
     def test_failed_call_is_recorded_without_tokens(self) -> None:
         recorder = FakeUsageRecorder()
         svc = HttpAIService(url="http://x", model="m", usage_recorder=recorder)
-        with patch(_MODULE, side_effect=httpx.ConnectError("refused")), pytest.raises(
+        error = _http_status_error(502, '{"detail":"AI call failed: boom"}')
+        with patch(_MODULE, return_value=_err_raising_response(error)), pytest.raises(
             AIServiceError
         ):
             svc.generate_meanings_batch("s", "u")
@@ -380,6 +392,20 @@ class TestUsageRecording:
         assert not record.succeeded
         assert record.usage.total == 0
         assert record.item_count == 0
+
+    @pytest.mark.parametrize("failure", [
+        httpx.ConnectError("refused"),
+        _http_status_error(503, '{"detail":"Not logged in · Please run /login"}'),
+    ])
+    def test_a_call_the_ai_never_answered_is_not_recorded(self, failure: Exception) -> None:
+        recorder = FakeUsageRecorder()
+        svc = HttpAIService(url="http://x", model="m", usage_recorder=recorder)
+        with patch(_MODULE, return_value=_err_raising_response(failure)), pytest.raises(
+            AIUnavailableError
+        ):
+            svc.generate_meanings_batch("s", "u")
+
+        assert recorder.records == []
 
     def test_unparsable_answer_keeps_the_tokens_it_cost(self) -> None:
         recorder = FakeUsageRecorder()

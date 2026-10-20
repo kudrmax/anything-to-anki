@@ -843,6 +843,13 @@ export interface QueueSnapshot {
   running: QueueJob[]
   queued: QueueJob[]
   failed: FailedByJobType[]
+  /** Why the queue waits: the AI is unavailable while work is in line. */
+  ai_outage: AIOutage | null
+}
+
+export interface AIOutage {
+  reason: string
+  since: string
 }
 
 /** Which jobs a queue action applies to; every field left out matches everything. */

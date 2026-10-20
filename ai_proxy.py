@@ -138,14 +138,20 @@ async def _get_country() -> str | None:
         return None
 
 
+# The CLI's own errors that no retry of the same request fixes until the user acts.
+SERVICE_ERRORS: frozenset[str] = frozenset(
+    {"authentication_failed", "billing_error", "rate_limit"},
+)
+
+
+class AIUnavailableError(RuntimeError):
+    """The AI can answer no request now: no login, a blocked country, a spent limit."""
+
+
 def _ensure_country_allowed(country: str | None) -> None:
-    """Raise HTTPException(503) if country is in the blocklist."""
     if country is not None and country in BLOCKED_COUNTRIES:
         logger.error("Blocked country detected: %s. Turn on VPN.", country)
-        raise HTTPException(
-            status_code=503,
-            detail=f"Blocked country: {country}. Turn on VPN.",
-        )
+        raise AIUnavailableError(f"Blocked country: {country}. Turn on VPN.")
 
 
 class UsageInfo(BaseModel):
@@ -212,11 +218,13 @@ async def _generate_structured(
     # What the CLI itself reported (e.g. an expired login). The SDK then raises
     # its own generic "returned an error result" exception, which hides it.
     cli_error: str | None = None
+    service_error = False
 
     try:
         async for message in query(prompt=user_prompt, options=options):
             if isinstance(message, AssistantMessage):
                 if message.error:
+                    service_error = service_error or message.error in SERVICE_ERRORS
                     error_context.append(f"AssistantMessage.error={message.error}")
                     logger.error("AI error: %s", message.error)
                 for block in message.content:
@@ -240,6 +248,8 @@ async def _generate_structured(
                 elif message.subtype != "success":
                     logger.warning("ResultMessage subtype=%s (not success)", message.subtype)
     except Exception as e:
+        if service_error:
+            raise AIUnavailableError(cli_error or str(e)) from e
         if cli_error:
             raise RuntimeError(cli_error) from e
         raise
@@ -256,6 +266,20 @@ class GenerateRequest(BaseModel):
     system_prompt: str
     user_prompt: str
     model: str
+
+
+async def _call_ai(
+    endpoint: str, req: GenerateRequest, schema: dict[str, Any],
+) -> tuple[Any, UsageInfo]:
+    """Run one AI call: 503 when the AI is unavailable as a whole, 502 when this call failed."""
+    try:
+        return await _generate_structured(req.system_prompt, req.user_prompt, req.model, schema)
+    except AIUnavailableError as e:
+        logger.error("%s: AI unavailable: %s", endpoint, e)
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except Exception as e:
+        logger.exception("%s: AI call failed", endpoint)
+        raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
 
 
 class GenerateResponse(BaseModel):
@@ -283,13 +307,7 @@ class BatchGenerateResponse(BaseModel):
 
 @app.post("/generate-meaning")
 async def generate_meaning(req: GenerateRequest) -> GenerateResponse:
-    try:
-        data, usage = await _generate_structured(
-            req.system_prompt, req.user_prompt, req.model, _SINGLE_SCHEMA
-        )
-    except Exception as e:
-        logger.exception("generate-meaning: AI call failed")
-        raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
+    data, usage = await _call_ai("generate-meaning", req, _SINGLE_SCHEMA)
     if not isinstance(data, dict):
         logger.error("generate-meaning: unexpected response type %s: %r", type(data), data)
         raise HTTPException(status_code=502, detail="Unexpected AI response format")
@@ -314,13 +332,7 @@ async def generate_meaning(req: GenerateRequest) -> GenerateResponse:
 
 @app.post("/generate-meanings-batch")
 async def generate_meanings_batch(req: GenerateRequest) -> BatchGenerateResponse:
-    try:
-        data, usage = await _generate_structured(
-            req.system_prompt, req.user_prompt, req.model, _BATCH_SCHEMA
-        )
-    except Exception as e:
-        logger.exception("generate-meanings-batch: AI call failed")
-        raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
+    data, usage = await _call_ai("generate-meanings-batch", req, _BATCH_SCHEMA)
     if not isinstance(data, dict) or "results" not in data:
         logger.error("generate-meanings-batch: unexpected response: %r", data)
         raise HTTPException(status_code=502, detail="Unexpected AI response format")
@@ -353,13 +365,7 @@ class TopicTargetsResponse(BaseModel):
 
 @app.post("/generate-topic-targets")
 async def generate_topic_targets(req: GenerateRequest) -> TopicTargetsResponse:
-    try:
-        data, usage = await _generate_structured(
-            req.system_prompt, req.user_prompt, req.model, _TOPIC_SCHEMA
-        )
-    except Exception as e:
-        logger.exception("generate-topic-targets: AI call failed")
-        raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
+    data, usage = await _call_ai("generate-topic-targets", req, _TOPIC_SCHEMA)
     if not isinstance(data, dict) or "targets" not in data:
         logger.error("generate-topic-targets: unexpected response: %r", data)
         raise HTTPException(status_code=502, detail="Unexpected AI response format")
@@ -390,13 +396,7 @@ class PolishPhrasesResponse(BaseModel):
 
 @app.post("/polish-phrases-batch")
 async def polish_phrases_batch(req: GenerateRequest) -> PolishPhrasesResponse:
-    try:
-        data, usage = await _generate_structured(
-            req.system_prompt, req.user_prompt, req.model, _POLISH_SCHEMA
-        )
-    except Exception as e:
-        logger.exception("polish-phrases-batch: AI call failed")
-        raise HTTPException(status_code=502, detail=f"AI call failed: {e}") from e
+    data, usage = await _call_ai("polish-phrases-batch", req, _POLISH_SCHEMA)
     if not isinstance(data, dict) or "results" not in data:
         logger.error("polish-phrases-batch: unexpected response: %r", data)
         raise HTTPException(status_code=502, detail="Unexpected AI response format")
