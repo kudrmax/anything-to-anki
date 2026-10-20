@@ -36,18 +36,29 @@ def get_db_session() -> Generator[Session, None, None]:
         session.close()
 
 
+def _method_name(build: Callable[[Container, Session], object]) -> str:
+    """The name `build` has on Container; anything else (a lambda, an alias) is refused."""
+    name = build.__name__
+    if getattr(Container, name, None) is not build:
+        msg = f"{build!r} is not a method of Container"
+        raise TypeError(msg)
+    return name
+
+
 def _built[UseCaseT](
     container: Container, build: Callable[[Container, Session], UseCaseT], session: Session,
 ) -> UseCaseT:
     """What `build` makes of the session, built by the container at hand (which may stand
     in for the real one) rather than by `build`'s own class."""
-    built: UseCaseT = getattr(container, build.__name__)(session)
+    built: UseCaseT = getattr(container, _method_name(build))(session)
     return built
 
 
 def use_case[UseCaseT](build: Callable[[Container, Session], UseCaseT]) -> Callable[..., UseCaseT]:
     """A route's dependency on what `build` makes of the request's session. The container
-    that serves the request builds it, so a route never holds the session itself."""
+    that serves the request builds it, so a route never holds the session itself.
+    `build` must be a method of Container: checked here, when the route is defined."""
+    _method_name(build)
 
     def provide(
         session: Session = Depends(get_db_session),  # noqa: B008
