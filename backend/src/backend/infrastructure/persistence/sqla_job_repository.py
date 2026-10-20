@@ -107,6 +107,7 @@ class SqlaJobRepository(JobRepository):
         self,
         run_limits: Mapping[JobType, int],
         accepted_types: frozenset[JobType] | None = None,
+        mixed_source_types: frozenset[JobType] = frozenset(),
     ) -> list[Job]:
         fetch_size = max([DEFAULT_RUN_LIMIT, *run_limits.values()])
         stmt = (
@@ -124,8 +125,10 @@ class SqlaJobRepository(JobRepository):
             return []
 
         run_limit = run_limits.get(head_type, DEFAULT_RUN_LIMIT)
+        any_source = head_type in mixed_source_types
         run = list(takewhile(
-            lambda m: m.job_type == head.job_type and m.source_id == head.source_id,
+            lambda m: m.job_type == head.job_type
+            and (any_source or m.source_id == head.source_id),
             queued[:run_limit],
         ))
         now = datetime.now(tz=UTC)

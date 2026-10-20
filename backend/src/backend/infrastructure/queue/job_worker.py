@@ -35,6 +35,8 @@ RUN_LIMITS: Mapping[JobType, int] = {
     JobType.MEANING: AI_BATCH_SIZE,
     JobType.POLISH: AI_BATCH_SIZE,
 }
+# A set of sources queues its cards interleaved; an AI batch takes phrases of any source.
+MIXED_SOURCE_TYPES: frozenset[JobType] = frozenset({JobType.MEANING, JobType.POLISH})
 TIMEOUT_ERROR = "timeout"
 NO_AI_RESULT_ERROR = "AI returned no result for this card"
 TTS_CRASH_ERROR = "TTS worker exited with code {code}"
@@ -82,7 +84,9 @@ class JobWorker:
     async def _process_one_job(self) -> bool:
         """Claim and process the head of the queue. Returns True if a run was processed."""
         with self._container.session_scope() as session:
-            jobs = SqlaJobRepository(session).claim_next_run(RUN_LIMITS)
+            jobs = SqlaJobRepository(session).claim_next_run(
+                RUN_LIMITS, mixed_source_types=MIXED_SOURCE_TYPES,
+            )
         if not jobs:
             return False
 

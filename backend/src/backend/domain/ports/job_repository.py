@@ -36,12 +36,14 @@ class JobRepository(ABC):
         self,
         run_limits: Mapping[JobType, int],
         accepted_types: frozenset[JobType] | None = None,
+        mixed_source_types: frozenset[JobType] = frozenset(),
     ) -> list[Job]:
         """Atomically claim the head of the queue and mark it RUNNING.
 
         The queue is strictly FIFO across all job types. The run is the oldest
         QUEUED job plus the jobs immediately following it that share its type
         and source, capped by ``run_limits`` (DEFAULT_RUN_LIMIT for absent types).
+        A run of a type in ``mixed_source_types`` may span sources.
         A run never skips over an older job, so batching cannot reorder work.
 
         If ``accepted_types`` is given and the head is of another type, nothing

@@ -163,6 +163,28 @@ class TestSqlaJobRepository:
         run = repo.claim_next_run({JobType.MEANING: 10})
         assert [j.candidate_id for j in run] == [1]
 
+    def test_claim_next_run_mixes_sources_for_types_that_allow_it(
+        self, db_session: Session,
+    ) -> None:
+        self._setup_source_and_candidate(db_session)
+        _insert_source(db_session, 2)
+        _insert_candidate(db_session, 2, 2)
+        _insert_candidate(db_session, 3, 1)
+        _insert_candidate(db_session, 4, 2)
+        repo = SqlaJobRepository(db_session)
+
+        _insert(db_session, [
+            _make_job(candidate_id=1, source_id=1, job_type=JobType.POLISH),
+            _make_job(candidate_id=2, source_id=2, job_type=JobType.POLISH),
+            _make_job(candidate_id=3, source_id=1, job_type=JobType.POLISH),
+            _make_job(candidate_id=4, source_id=2, job_type=JobType.MEANING),
+        ])
+
+        run = repo.claim_next_run(
+            {JobType.POLISH: 10}, mixed_source_types=frozenset({JobType.POLISH}),
+        )
+        assert [j.candidate_id for j in run] == [1, 2, 3]
+
     def test_claim_next_run_respects_accepted_types(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
