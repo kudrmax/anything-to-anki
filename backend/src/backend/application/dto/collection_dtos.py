@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, Field
 
 from backend.application.dto.source_dtos import ProgressDTO
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
 
 if TYPE_CHECKING:
     from backend.domain.entities.collection import Collection
@@ -65,6 +66,11 @@ class ScopeCountsDTO(BaseModel):
     can_review: bool
     review_fraction: float
     progress_caption: str
+    # How the set is brought up to date and whether it can be exported, as a source tells.
+    available_operations: list[SourceOperationKind] = []
+    can_start_operation: bool = True
+    operation_hint: str | None = None
+    can_export: bool = False
 
 
 class CollectionNodeDTO(BaseModel):

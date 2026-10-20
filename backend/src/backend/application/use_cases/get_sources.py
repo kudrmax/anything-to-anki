@@ -15,7 +15,7 @@ from backend.domain.services.source_actions import (
     progress_caption,
     review_fraction,
 )
-from backend.domain.services.source_operations import available_operations, operation_hint
+from backend.domain.services.source_operations import operations_offer
 from backend.domain.services.source_review_status import derive_review_status
 from backend.domain.services.source_stage import is_pending, shown_status, stage_of
 from backend.domain.value_objects.decision_progress import DecisionProgress
@@ -107,6 +107,9 @@ class GetSourcesUseCase:
             else []
         )
         busy_with = operation.kind if operation is not None else None
+        offer = operations_offer(
+            [source], {source.id: busy_with} if busy_with is not None else {},
+        )
         status = derive_review_status(source.status, progress)
         return SourceDTO(
             id=source.id,
@@ -129,10 +132,10 @@ class GetSourcesUseCase:
             generation_status=generation.status,
             generation_error=generation.error,
             is_permanent=source.is_permanent,
-            available_operations=list(available_operations(source)),
-            can_start_operation=busy_with is None,
+            available_operations=list(offer.operations),
+            can_start_operation=offer.can_start,
             busy_with=busy_with,
-            operation_hint=operation_hint(busy_with),
+            operation_hint=offer.hint,
             can_process=is_pending(
                 source.status,
                 awaiting_generation=generation.awaiting,

@@ -9,7 +9,13 @@ from backend.application.dto.collection_dtos import (
 )
 from backend.application.dto.source_dtos import ProgressDTO
 from backend.domain.services.collection_tree import CollectionTree
-from backend.domain.services.source_actions import can_review, progress_caption, review_fraction
+from backend.domain.services.source_actions import (
+    can_export,
+    can_review,
+    progress_caption,
+    review_fraction,
+)
+from backend.domain.services.source_operations import operations_offer
 from backend.domain.services.source_review_status import (
     IS_REVIEWED,
     derive_review_status,
@@ -55,6 +61,7 @@ class ListCollectionsUseCase:
         tree = CollectionTree(self._collection_repo.list_all())
         sources = self._source_repo.list_all()
         busy = self._lock.operations()
+        busy_kinds = {source_id: held.kind for source_id, held in busy.items()}
         pending = {
             s.id for s in sources
             if is_pending(
@@ -87,6 +94,8 @@ class ListCollectionsUseCase:
                 status, (busy[i].kind for i in selected_ids if i in busy),
             )
             pending_count = sum(1 for i in selected_ids if i in pending)
+            learn_count = sum(learn_counts.get(i, 0) for i in selected_ids)
+            offer = operations_offer(selected, busy_kinds)
             return ScopeCountsDTO(
                 total=len(selected),
                 reviewed=sum(1 for i in selected_ids if i in reviewed),
@@ -100,9 +109,13 @@ class ListCollectionsUseCase:
                     status,
                     sum(len(cards.get(i, [])) for i in selected_ids),
                     decisions,
-                    sum(learn_counts.get(i, 0) for i in selected_ids),
+                    learn_count,
                     operation,
                 ),
+                available_operations=list(offer.operations),
+                can_start_operation=offer.can_start,
+                operation_hint=offer.hint,
+                can_export=can_export(status, learn_count),
             )
 
         def node(collection: Collection) -> CollectionNodeDTO:
