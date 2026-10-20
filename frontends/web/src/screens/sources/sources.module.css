@@ -38,6 +38,10 @@
 .scopeGap { flex: none; font-weight: var(--fw); color: var(--tx3); cursor: default; }
 .scopeSep { display: grid; place-items: center; flex: none; color: var(--tx3); }
 .scopeName { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* невидимая копия полного пути: по её ширине решается, сворачивать ли середину */
+.scopeTitleLine { position: relative; min-width: 0; }
+.scopeMeasureBox { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; }
+.scopeMeasure { width: max-content; }
 .scopeProgress { display: flex; align-items: center; gap: var(--s3); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); }
 .scopeSlot { width: var(--h); height: var(--h); flex: none; }
 .scopeActions { display: flex; align-items: center; gap: var(--gap); flex: none; }

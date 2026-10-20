@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronRight, Ellipsis } from 'lucide-react'
 import type { CollectionNode, ScopeCounts, SetOperation } from '@/api/types'
 import { Button, Icon, IconButton, Menu, Progress, type MenuItem } from '@/ui'
@@ -31,26 +31,63 @@ interface ScopeHeaderProps {
   viewItems: MenuItem[]
 }
 
-/** Длиннее этого путь сворачивает середину: «первый › … › родитель › текущая». */
-const MAX_SHOWN_ANCESTORS = 2
+type Crumb = { key: string; content: ReactNode }
 
-function Crumbs({ ancestors, onOpen }: { ancestors: CollectionNode[]; onOpen: (id: number) => void }) {
-  const link = (ancestor: CollectionNode) =>
-    <button type="button" className={css.scopeParent} title={ancestor.name} onClick={() => onOpen(ancestor.id)}>{ancestor.name}</button>
-  const hidden = ancestors.slice(1, -1)
-  const crumbs: { key: string; content: ReactNode }[] = ancestors.length > MAX_SHOWN_ANCESTORS
-    ? [
-        { key: String(ancestors[0].id), content: link(ancestors[0]) },
-        { key: 'hidden', content: <span className={css.scopeGap} title={hidden.map(a => a.name).join(' › ')}>…</span> },
-        { key: String(ancestors[ancestors.length - 1].id), content: link(ancestors[ancestors.length - 1]) },
-      ]
-    : ancestors.map(ancestor => ({ key: String(ancestor.id), content: link(ancestor) }))
+function crumbLinks(ancestors: CollectionNode[], onOpen: (id: number) => void): Crumb[] {
+  return ancestors.map(ancestor => ({
+    key: String(ancestor.id),
+    content: <button type="button" className={css.scopeParent} title={ancestor.name} onClick={() => onOpen(ancestor.id)}>{ancestor.name}</button>,
+  }))
+}
+
+/** Середина пути сворачивается в «…»: «первый › … › родитель › текущая». */
+function foldMiddle(crumbs: Crumb[], ancestors: CollectionNode[]): Crumb[] {
+  if (crumbs.length <= 2) return crumbs
+  const hidden = ancestors.slice(1, -1).map(a => a.name).join(' › ')
+  return [crumbs[0], { key: 'hidden', content: <span className={css.scopeGap} title={hidden}>…</span> }, crumbs[crumbs.length - 1]]
+}
+
+function CrumbTrail({ crumbs }: { crumbs: Crumb[] }) {
   return crumbs.map(crumb => (
     <Fragment key={crumb.key}>
       {crumb.content}
       <span className={css.scopeSep}><Icon as={ChevronRight} size="s" /></span>
     </Fragment>
   ))
+}
+
+/** Путь целиком, пока он влезает в строку; середина сворачивается, только когда места не хватает. */
+function ScopeTitle({ title, ancestors, onOpen }: { title: string; ancestors: CollectionNode[]; onOpen: (id: number) => void }) {
+  const lineRef = useRef<HTMLHeadingElement>(null)
+  const fullRef = useRef<HTMLDivElement>(null)
+  const [folded, setFolded] = useState(false)
+  useLayoutEffect(() => {
+    const line = lineRef.current
+    const full = fullRef.current
+    if (!line || !full) return
+    const fit = () => setFolded(full.offsetWidth > line.clientWidth)
+    fit()
+    const observer = new ResizeObserver(fit)
+    observer.observe(line)
+    observer.observe(full)
+    return () => observer.disconnect()
+  }, [])
+  const crumbs = crumbLinks(ancestors, onOpen)
+  const name = <span className={css.scopeName} title={title}>{title}</span>
+  return (
+    <div className={css.scopeTitleLine}>
+      <h1 ref={lineRef} className={css.scopeTitle}>
+        <CrumbTrail crumbs={folded ? foldMiddle(crumbs, ancestors) : crumbs} />
+        {name}
+      </h1>
+      <div className={css.scopeMeasureBox} aria-hidden inert>
+        <div ref={fullRef} className={`${css.scopeTitle} ${css.scopeMeasure}`}>
+          <CrumbTrail crumbs={crumbs} />
+          {name}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 /** Высота и места кнопок не зависят от области и глубины: при переключении ничего не прыгает. */
@@ -62,10 +99,7 @@ export function ScopeHeader({ title, ancestors, counts, node, processing, onOpen
   return (
     <header className={css.scopeHeader}>
       <div className={css.scopeLead}>
-        <h1 className={css.scopeTitle}>
-          <Crumbs ancestors={ancestors} onOpen={onOpenAncestor} />
-          <span className={css.scopeName} title={title}>{title}</span>
-        </h1>
+        <ScopeTitle title={title} ancestors={ancestors} onOpen={onOpenAncestor} />
         <span className={css.scopeProgress}>
           {counts && (counts.total > 0
             ? <>

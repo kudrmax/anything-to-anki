@@ -35,6 +35,7 @@ describe('ScopeHeader', () => {
   afterEach(() => {
     act(() => root.unmount())
     host.remove()
+    vi.restoreAllMocks()
   })
 
   const render = (ancestors: CollectionNode[], current: CollectionNode | null, shown: ScopeCounts | null = counts, processing = false) => act(() => root.render(
@@ -47,7 +48,20 @@ describe('ScopeHeader', () => {
   const title = () => host.querySelector('h1')!
   const links = () => [...title().querySelectorAll('button')].map(el => el.textContent)
 
-  it('folds the middle of a long path: A › … › C › D', () => {
+  const pathWidth = (full: number, line: number) => {
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(full)
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(line)
+  }
+
+  it('shows a long path in full while it fits', () => {
+    pathWidth(400, 400)
+    render([a, b, c], d)
+    expect(title().textContent).toBe('ABCD')
+    expect(links()).toEqual(['A', 'B', 'C'])
+  })
+
+  it('folds the middle of a path that does not fit: A › … › C › D', () => {
+    pathWidth(401, 400)
     render([a, b, c], d)
     expect(title().textContent).toBe('A…CD')
     expect(links()).toEqual(['A', 'C'])
@@ -55,6 +69,12 @@ describe('ScopeHeader', () => {
     const gap = [...title().querySelectorAll('span')].find(el => el.textContent === '…')!
     expect(gap.getAttribute('title')).toBe('B')
     expect(gap.closest('button')).toBeNull()
+  })
+
+  it('keeps a two-step path whole even when it does not fit', () => {
+    pathWidth(401, 400)
+    render([a, b], c)
+    expect(links()).toEqual(['A', 'B'])
   })
 
   it('opens an ancestor on click', () => {

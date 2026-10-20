@@ -13,7 +13,7 @@ const BACKEND_PREFIXES = [
 
 export default defineConfig({
   plugins: [react()],
-  test: { environment: 'jsdom' },
+  test: { environment: 'jsdom', setupFiles: ['./src/testSetup.ts'] },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
