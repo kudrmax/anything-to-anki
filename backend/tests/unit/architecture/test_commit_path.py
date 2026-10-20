@@ -28,10 +28,6 @@ TRANSACTION_CALLABLES = TRANSACTION_METHODS | SESSION_NAMES
 TRANSACTION_ALLOWED = (PERSISTENCE_DIR, API_DEPENDENCIES, *OTHER_DATABASE_WRITERS)
 SESSION_ALLOWED = (PERSISTENCE_DIR, API_DEPENDENCIES, CONTAINER)
 
-# Files that offend today: none since Task 1.5.
-PENDING_TRANSACTIONS: frozenset[str] = frozenset()
-PENDING_SESSION_IMPORTS: frozenset[str] = frozenset()
-
 
 def _is_allowed(relative: str, allowed: tuple[str, ...]) -> bool:
     return any(relative.startswith(prefix) for prefix in allowed)
@@ -92,52 +88,27 @@ def _transaction_lines(tree: ast.AST) -> list[int]:
     )
 
 
-def _scan(kind: str, allowed: tuple[str, ...]) -> dict[str, list[str]]:
+def _offenders(kind: str, allowed: tuple[str, ...]) -> list[str]:
     find_lines = _transaction_lines if kind == "transaction" else _session_import_lines
-    offenders: dict[str, list[str]] = {}
+    offenders: list[str] = []
     for path in sorted(SOURCE_ROOT.rglob("*.py")):
         relative = path.relative_to(REPO_ROOT).as_posix()
         if relative.startswith(ALEMBIC_DIR) or _is_allowed(relative, allowed):
             continue
         text = path.read_text(encoding="utf-8")
         source_lines = text.splitlines()
-        for number in find_lines(ast.parse(text, filename=relative)):
-            offenders.setdefault(relative, []).append(
-                f"{relative}:{number}: {source_lines[number - 1].strip()}"
-            )
+        offenders.extend(
+            f"{relative}:{number}: {source_lines[number - 1].strip()}"
+            for number in find_lines(ast.parse(text, filename=relative))
+        )
     return offenders
-
-
-def _transaction_offenders() -> dict[str, list[str]]:
-    return _scan("transaction", TRANSACTION_ALLOWED)
-
-
-def _session_offenders() -> dict[str, list[str]]:
-    return _scan("session", SESSION_ALLOWED)
-
-
-def _new_offenders(found: dict[str, list[str]], pending: frozenset[str]) -> list[str]:
-    return [
-        entry
-        for file, entries in sorted(found.items())
-        if file not in pending
-        for entry in entries
-    ]
 
 
 @pytest.mark.unit
 def test_no_transaction_outside_persistence() -> None:
-    assert _new_offenders(_transaction_offenders(), PENDING_TRANSACTIONS) == []
+    assert _offenders("transaction", TRANSACTION_ALLOWED) == []
 
 
 @pytest.mark.unit
 def test_no_session_outside_persistence_and_di() -> None:
-    assert _new_offenders(_session_offenders(), PENDING_SESSION_IMPORTS) == []
-
-
-@pytest.mark.unit
-def test_pending_lists_hold_only_offenders() -> None:
-    clean_transactions = PENDING_TRANSACTIONS - _transaction_offenders().keys()
-    clean_sessions = PENDING_SESSION_IMPORTS - _session_offenders().keys()
-    assert sorted(clean_transactions) == []
-    assert sorted(clean_sessions) == []
+    assert _offenders("session", SESSION_ALLOWED) == []

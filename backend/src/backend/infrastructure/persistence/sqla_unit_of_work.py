@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
-from backend.domain.exceptions import NestedWriteError
+from backend.domain.exceptions import NestedWriteError, UncommittedWorkError
 from backend.domain.ports.unit_of_work import UnitOfWork
 
 if TYPE_CHECKING:
@@ -41,6 +41,9 @@ class SqlaUnitOfWork(UnitOfWork):
     def write(self) -> Iterator[None]:
         if self._session.info.get(WRITE_OPEN_KEY, False):
             raise NestedWriteError
+        if self._has_pending_work():
+            raise UncommittedWorkError
+        # Ends the read transaction: BEGIN IMMEDIATE cannot start inside it.
         self._session.commit()
         self._session.connection().exec_driver_sql(BEGIN_IMMEDIATE)
         self._session.info[WRITE_OPEN_KEY] = True
@@ -55,3 +58,7 @@ class SqlaUnitOfWork(UnitOfWork):
             raise
         finally:
             self._session.info[WRITE_OPEN_KEY] = False
+
+    def _has_pending_work(self) -> bool:
+        session = self._session
+        return bool(session.new or session.dirty or session.deleted)
