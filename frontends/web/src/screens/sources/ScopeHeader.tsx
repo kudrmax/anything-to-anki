@@ -1,8 +1,10 @@
 import { Fragment, type ReactNode } from 'react'
 import { ChevronRight, Ellipsis } from 'lucide-react'
 import type { CollectionNode, ScopeCounts } from '@/api/types'
-import { Button, Icon, IconButton, Menu } from '@/ui'
+import { Button, Icon, IconButton, Menu, Progress } from '@/ui'
 import { collectionMenuItems } from './collectionMenu'
+import { offersProcess } from './processOffer'
+import { ReviewAction } from './ReviewAction'
 import css from './sources.module.css'
 
 interface ScopeHeaderProps {
@@ -15,6 +17,8 @@ interface ScopeHeaderProps {
   processing: boolean
   onOpenAncestor: (id: number) => void
   onProcessAll: () => void
+  /** Ревью открытой области как одного набора. */
+  onReview: () => void
   onExport: () => void
   onRename: () => void
   onNewSubcollection: () => void
@@ -45,7 +49,7 @@ function Crumbs({ ancestors, onOpen }: { ancestors: CollectionNode[]; onOpen: (i
 }
 
 /** Высота и места кнопок не зависят от области и глубины: при переключении ничего не прыгает. */
-export function ScopeHeader({ title, ancestors, counts, node, processing, onOpenAncestor, onProcessAll, onExport, onRename, onNewSubcollection, onMoveTo, onDelete }: ScopeHeaderProps) {
+export function ScopeHeader({ title, ancestors, counts, node, processing, onOpenAncestor, onProcessAll, onReview, onExport, onRename, onNewSubcollection, onMoveTo, onDelete }: ScopeHeaderProps) {
   return (
     <header className={css.scopeHeader}>
       <div className={css.scopeLead}>
@@ -54,11 +58,17 @@ export function ScopeHeader({ title, ancestors, counts, node, processing, onOpen
           <span className={css.scopeName} title={title}>{title}</span>
         </h1>
         <span className={css.scopeProgress}>
-          {counts.total > 0 ? `${counts.reviewed} of ${counts.total} reviewed` : 'No sources yet'}
+          {counts.total > 0
+            ? <>
+                <Progress inline value={counts.review_fraction} />
+                {`${counts.reviewed} of ${counts.total} reviewed · ${counts.progress_caption}`}
+              </>
+            : 'No sources yet'}
         </span>
       </div>
       <div className={css.scopeActions}>
-        {counts.pending > 0 && <Button busy={processing} onClick={onProcessAll}>Process all ({counts.pending})</Button>}
+        {counts.pending > 0 && !offersProcess(counts.status) && <Button busy={processing} onClick={onProcessAll}>Process all ({counts.pending})</Button>}
+        <ReviewAction status={counts.status} canReview={counts.can_review} primary={false} onProcess={onProcessAll} onReview={onReview} />
         <Button onClick={onExport}>Export</Button>
         {node
           ? <Menu

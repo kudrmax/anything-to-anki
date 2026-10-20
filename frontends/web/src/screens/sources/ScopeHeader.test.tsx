@@ -1,10 +1,13 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CollectionNode } from '@/api/types'
+import type { CollectionNode, ScopeCounts } from '@/api/types'
 import { ScopeHeader } from './ScopeHeader'
 
-const counts = { total: 2, reviewed: 1, pending: 0, progress: { decided: 0, total: 0 } }
+const counts: ScopeCounts = {
+  total: 2, reviewed: 1, pending: 0, progress: { decided: 3, total: 12 },
+  status: 'partially_reviewed', can_review: true, review_fraction: 0.25, progress_caption: '3 of 12 phrases',
+}
 const node = (id: number, name: string, depth: number): CollectionNode => ({
   id, name, parent_id: depth === 1 ? null : id - 1, counts, depth, accepts_collections: true, move_targets: [null], children: [],
 })
@@ -14,11 +17,13 @@ describe('ScopeHeader', () => {
   let host: HTMLDivElement
   let root: Root
   const onOpenAncestor = vi.fn()
+  const onReview = vi.fn()
   const noop = () => {}
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     onOpenAncestor.mockReset()
+    onReview.mockReset()
     host = document.createElement('div')
     document.body.appendChild(host)
     root = createRoot(host)
@@ -29,10 +34,10 @@ describe('ScopeHeader', () => {
     host.remove()
   })
 
-  const render = (ancestors: CollectionNode[], current: CollectionNode) => act(() => root.render(
+  const render = (ancestors: CollectionNode[], current: CollectionNode, shown: ScopeCounts = counts) => act(() => root.render(
     <ScopeHeader
-      title={current.name} ancestors={ancestors} counts={counts} node={current} processing={false}
-      onOpenAncestor={onOpenAncestor} onProcessAll={noop} onExport={noop}
+      title={current.name} ancestors={ancestors} counts={shown} node={current} processing={false}
+      onOpenAncestor={onOpenAncestor} onProcessAll={noop} onReview={onReview} onExport={noop}
       onRename={noop} onNewSubcollection={noop} onMoveTo={noop} onDelete={noop}
     />,
   ))
@@ -65,5 +70,31 @@ describe('ScopeHeader', () => {
     render([], a)
     expect(title().textContent).toBe('A')
     expect(links()).toEqual([])
+  })
+
+  const buttons = () => [...host.querySelectorAll('button')].map(el => el.textContent)
+
+  it('offers Continue on a collection and opens its review', () => {
+    render([], a)
+    expect(host.textContent).toContain('3 of 12 phrases')
+    expect(host.innerHTML).toContain('--p: 25%')
+    act(() => [...host.querySelectorAll('button')].find(el => el.textContent === 'Continue')!.click())
+    expect(onReview).toHaveBeenCalledOnce()
+  })
+
+  it('shows one Process button on a new collection', () => {
+    render([], a, { ...counts, status: 'new', can_review: false, pending: 2 })
+    expect(buttons()).toContain('Process')
+    expect(buttons()).not.toContain('Process all (2)')
+  })
+
+  it('offers Process all next to the review of a processed collection', () => {
+    render([], a, { ...counts, pending: 2 })
+    expect(buttons()).toEqual(expect.arrayContaining(['Continue', 'Process all (2)']))
+  })
+
+  it('shows no review button where the backend refuses review', () => {
+    render([], a, { ...counts, status: 'done', can_review: false })
+    expect(buttons()).not.toContain('Review')
   })
 })

@@ -31,6 +31,11 @@ export interface ScopeCounts {
   reviewed: number
   pending: number
   progress: Progress
+  /** Область как один набор на ревью: статус, можно ли открыть ревью, доля и подпись — как у источника. */
+  status: SourceStatus
+  can_review: boolean
+  review_fraction: number
+  progress_caption: string
 }
 
 export interface CollectionNode {

@@ -6,7 +6,7 @@ import { api } from '@/api/client'
 import type { CollectionTree, InputDescription, Scope, SourceBoard, SourceSummary, Stats } from '@/api/types'
 import { SourcesScreen } from './SourcesScreen'
 
-const counts = { total: 3, reviewed: 1, pending: 0, progress: { decided: 0, total: 0 } }
+const counts = { total: 3, reviewed: 1, pending: 0, progress: { decided: 0, total: 0 }, status: 'new' as const, can_review: false, review_fraction: 0, progress_caption: '' }
 const tree: CollectionTree = {
   all: counts,
   unsorted: counts,
@@ -162,7 +162,7 @@ describe('SourcesScreen', () => {
     await render('/?scope=11')
     expect(shape()).toEqual(all)
     expect(host.querySelector('h1')?.textContent).toBe('FriendsSeason 1')
-    expect(all).toEqual({ leadLines: 2, actionSlots: 2, search: true })
+    expect(all).toEqual({ leadLines: 2, actionSlots: 3, search: true })
   })
 
   it('opens the parent from the path in the header', async () => {
@@ -247,6 +247,17 @@ describe('SourcesScreen', () => {
     act(() => row('Finale').click())
     expect(seen.location).toBe('/review?scope=source-3')
     expect(seen.state).toEqual({ back: '/?scope=11' })
+  })
+
+  it('opens the review of the open collection from its header', async () => {
+    const reviewable = { ...counts, status: 'partially_reviewed' as const, can_review: true }
+    vi.mocked(api.getCollectionTree).mockResolvedValue({
+      ...tree, collections: [{ ...tree.collections[0], counts: reviewable }],
+    })
+    await render('/?scope=10')
+    act(() => button('Continue', host.querySelector('header')!).click())
+    expect(seen.location).toBe('/review?scope=10')
+    expect(seen.state).toEqual({ back: '/?scope=10' })
   })
 
   it('drops the selection when the scope changes', async () => {

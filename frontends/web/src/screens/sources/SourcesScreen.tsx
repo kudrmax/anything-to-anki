@@ -31,7 +31,10 @@ const STAGE_LABEL: Record<SourceStage, string> = {
   reviewed: 'Reviewed',
 }
 const SCOPE_TITLE = { all: 'All sources', unsorted: 'Unsorted' } as const
-const NO_COUNTS: ScopeCounts = { total: 0, reviewed: 0, pending: 0, progress: { decided: 0, total: 0 } }
+const NO_COUNTS: ScopeCounts = {
+  total: 0, reviewed: 0, pending: 0, progress: { decided: 0, total: 0 },
+  status: 'new', can_review: false, review_fraction: 0, progress_caption: '',
+}
 const UNSORTED = 'Unsorted'
 const EXPORT_PATH = '/export'
 // Backend ставит коллекцию в конец, если позиция больше числа соседей.
@@ -263,6 +266,7 @@ export function SourcesScreen() {
             node={node}
             processing={processingAll}
             onProcessAll={() => void processAll()}
+            onReview={() => navigate(reviewPath(scope), { state: backTo(`/${scopeQuery(scope)}`) })}
             onExport={exportScope}
             onRename={() => node && setNaming({ kind: 'rename', node })}
             onNewSubcollection={() => node && setNaming({ kind: 'create', parent: node })}
