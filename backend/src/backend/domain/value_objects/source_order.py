@@ -19,8 +19,17 @@ class SourceSort(StrEnum):
     LAST_STUDIED = "last_studied"
 
 
+class SourceSortDirection(StrEnum):
+    """Forward: names A to Z, dates newest first. Reverse flips it; sources never studied
+    stay last either way."""
+
+    FORWARD = "forward"
+    REVERSE = "reverse"
+
+
 DEFAULT_SOURCE_GROUPING = SourceGrouping.STAGE
 DEFAULT_SOURCE_SORT = SourceSort.ADDED
+DEFAULT_SOURCE_SORT_DIRECTION = SourceSortDirection.FORWARD
 
 
 @dataclass(frozen=True)
@@ -29,3 +38,4 @@ class SourceOrder:
 
     grouping: SourceGrouping = DEFAULT_SOURCE_GROUPING
     sort: SourceSort = DEFAULT_SOURCE_SORT
+    direction: SourceSortDirection = DEFAULT_SOURCE_SORT_DIRECTION

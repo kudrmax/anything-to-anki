@@ -116,6 +116,18 @@ def test_last_studied_puts_the_never_marked_last(
     assert _board(client) == [("preparing", ["cherry", "banana", "apple", "Apple"])]
 
 
+def test_the_direction_reverses_the_sort_everywhere(
+    client: TestClient, db_session: Session,
+) -> None:
+    collection = _seed(client, db_session)
+    assert client.get("/api/settings").json()["source_sort_direction"] == "forward"
+
+    client.patch("/api/settings", json={"source_sort": "name", "source_sort_direction": "reverse"})
+
+    assert _board(client) == [("preparing", ["cherry", "banana", "apple", "Apple"])]
+    assert _board(client, str(collection)) == [("preparing", ["cherry", "banana", "Apple"])]
+
+
 def test_ungrouped_is_one_group_with_no_stage(client: TestClient, db_session: Session) -> None:
     _seed(client, db_session)
     client.patch("/api/settings", json={"source_grouping": "none"})
@@ -123,7 +135,8 @@ def test_ungrouped_is_one_group_with_no_stage(client: TestClient, db_session: Se
 
 
 @pytest.mark.parametrize(
-    "change", [{"source_grouping": "collection"}, {"source_sort": "size"}],
+    "change",
+    [{"source_grouping": "collection"}, {"source_sort": "size"}, {"source_sort_direction": "up"}],
 )
 def test_an_unknown_option_is_rejected(client: TestClient, change: dict[str, str]) -> None:
     assert client.patch("/api/settings", json=change).status_code == 422

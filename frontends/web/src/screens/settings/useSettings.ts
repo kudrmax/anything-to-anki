@@ -8,7 +8,7 @@ const BOOTSTRAP_POLL_MS = 2000
 export const unknownWordKey = (id: number): string => `unknown:${id}`
 const FLASH_MS = 2000
 /** Saved on their own as soon as they change: a stale form must not overwrite them. */
-const SAVED_ON_CHANGE = new Set<string>(['usage_group_order', 'source_grouping', 'source_sort'])
+const SAVED_ON_CHANGE = new Set<string>(['usage_group_order', 'source_grouping', 'source_sort', 'source_sort_direction'])
 
 export type TemplatePart = 'front' | 'back' | 'cloze_front' | 'cloze_back' | 'css'
 

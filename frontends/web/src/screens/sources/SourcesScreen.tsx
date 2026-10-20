@@ -19,7 +19,7 @@ import { RebuildDialog } from './RebuildDialog'
 import { ScopeHeader } from './ScopeHeader'
 import { ScopePicker } from './ScopePicker'
 import { SelectionBar } from './SelectionBar'
-import { SourceOrderBar } from './SourceOrderBar'
+import { sourceOrderItems } from './sourceOrderMenu'
 import { SourceRow } from './SourceRow'
 import { useCollections } from './useCollections'
 import { useSourceBoard } from './useSourceBoard'
@@ -275,6 +275,13 @@ export function SourcesScreen() {
             onNewSubcollection={() => node && setNaming({ kind: 'create', parent: node })}
             onMoveTo={() => node && setMoveTarget({ kind: 'collection', id: node.id })}
             onDelete={() => node && deleteCollection(node.id)}
+            viewItems={sourceOrder.order
+              ? sourceOrderItems(sourceOrder.order, {
+                onGrouping: grouping => void sourceOrder.setGrouping(grouping),
+                onSort: sort => void sourceOrder.setSort(sort),
+                onDirection: direction => void sourceOrder.setDirection(direction),
+              })
+              : []}
           />
           <Field
             className={css.search}
@@ -285,13 +292,6 @@ export function SourcesScreen() {
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => { if (e.key === 'Escape') setQuery('') }}
           />
-          {sourceOrder.order && tree && tree.all.total > 0 && (
-            <SourceOrderBar
-              order={sourceOrder.order}
-              onGrouping={grouping => void sourceOrder.setGrouping(grouping)}
-              onSort={sort => void sourceOrder.setSort(sort)}
-            />
-          )}
           <div className={board.stale ? `${css.listArea} ${css.stale}` : css.listArea} aria-busy={board.stale}>
           {empty}
           {groups.length > 0 && (

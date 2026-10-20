@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.source_order import SourceGrouping, SourceSort
+from backend.domain.value_objects.source_order import (
+    SourceGrouping,
+    SourceSort,
+    SourceSortDirection,
+)
 from backend.domain.value_objects.source_stage import STAGE_ORDER
 
 if TYPE_CHECKING:
@@ -39,7 +43,7 @@ class SourceGroup:
 def arrange(facts: Iterable[SourceFacts], order: SourceOrder) -> list[SourceGroup]:
     """Groups first, when grouped, then the sort inside each group. Empty groups are left
     out."""
-    ordered = _SORTS[order.sort](list(facts))
+    ordered = _SORTS[order.sort](list(facts), order.direction is SourceSortDirection.REVERSE)
     if order.grouping is SourceGrouping.NONE:
         groups = [SourceGroup(None, tuple(f.source for f in ordered))]
     else:
@@ -55,14 +59,16 @@ def oldest_added_first(sources: Iterable[Source]) -> list[Source]:
     return [f.source for f in reversed(_by_added([SourceFacts(s) for s in sources]))]
 
 
-def _by_added(facts: Sequence[SourceFacts]) -> list[SourceFacts]:
+def _by_added(facts: Sequence[SourceFacts], reverse: bool = False) -> list[SourceFacts]:
     """Newest first; sources added at the same moment by id."""
     by_id = sorted(facts, key=_id)
-    return sorted(by_id, key=lambda f: f.source.created_at, reverse=True)
+    newest_first = sorted(by_id, key=lambda f: f.source.created_at, reverse=True)
+    return newest_first[::-1] if reverse else newest_first
 
 
-def _by_name(facts: Sequence[SourceFacts]) -> list[SourceFacts]:
-    return sorted(facts, key=lambda f: (_name_key(f.source.title or ""), _id(f)))
+def _by_name(facts: Sequence[SourceFacts], reverse: bool) -> list[SourceFacts]:
+    a_to_z = sorted(facts, key=lambda f: (_name_key(f.source.title or ""), _id(f)))
+    return a_to_z[::-1] if reverse else a_to_z
 
 
 def _name_key(title: str) -> tuple[tuple[int, int, str], ...]:
@@ -73,13 +79,13 @@ def _name_key(title: str) -> tuple[tuple[int, int, str], ...]:
     )
 
 
-def _by_last_studied(facts: Sequence[SourceFacts]) -> list[SourceFacts]:
+def _by_last_studied(facts: Sequence[SourceFacts], reverse: bool) -> list[SourceFacts]:
     """The latest marked first; ties and the never marked keep the date-added order, and the
-    never marked come last."""
+    never marked come last in both directions."""
     added = _by_added(facts)
     marked = [f for f in added if f.last_studied is not None]
     marked.sort(key=_last_studied, reverse=True)
-    return marked + [f for f in added if f.last_studied is None]
+    return (marked[::-1] if reverse else marked) + [f for f in added if f.last_studied is None]
 
 
 def _id(facts: SourceFacts) -> int:
@@ -93,7 +99,7 @@ def _last_studied(facts: SourceFacts) -> datetime:
 
 _NUMBERS = re.compile(r"(\d+)")
 
-_SORTS: Mapping[SourceSort, Callable[[Sequence[SourceFacts]], list[SourceFacts]]] = (
+_SORTS: Mapping[SourceSort, Callable[[Sequence[SourceFacts], bool], list[SourceFacts]]] = (
     MappingProxyType({
         SourceSort.ADDED: _by_added,
         SourceSort.NAME: _by_name,
