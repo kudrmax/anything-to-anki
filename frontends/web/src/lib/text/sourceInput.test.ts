@@ -27,4 +27,12 @@ describe('withDroppedPaths', () => {
 
     expect(withDroppedPaths(current, ['/notes/a.txt'])).toEqual({ filePath: '/notes/a.txt', srtPath: '' })
   })
+
+  it('takes several dropped files as a batch, one path per line', () => {
+    expect(withDroppedPaths(EMPTY, ['/a/1.txt', '/a/2.txt', '/a/3.md'])).toEqual({ filePath: '/a/1.txt\n/a/2.txt\n/a/3.md', srtPath: '' })
+  })
+
+  it('takes several videos with subtitles as a batch, not a pair', () => {
+    expect(withDroppedPaths(EMPTY, ['/m/a.mkv', '/m/a.srt', '/m/b.mkv'])).toEqual({ filePath: '/m/a.mkv\n/m/a.srt\n/m/b.mkv', srtPath: '' })
+  })
 })

@@ -695,10 +695,47 @@ export interface Question {
   prompt: string
   options: QuestionOption[]
   default: string
+  /** Какому вводу задан вопрос; подпись есть, когда вводов несколько. */
+  input_index: number
+  input_label: string | null
+}
+
+/** Существующая коллекция, новая по имени; ни то ни другое — без коллекции. */
+export interface CollectionChoice {
+  existing_id: number | null
+  new_name: string | null
+}
+
+export interface NamingItem {
+  label: string
+  own_title: string
+  words: number
+}
+
+export interface NamingVariable {
+  token: string
+  label: string
+}
+
+/** Добавление даёт несколько источников: backend спрашивает коллекцию и названия. */
+export interface NamingRequired {
+  heading: string
+  items: NamingItem[]
+  default_collection: CollectionChoice | null
+  default_rule: string
+  variables: NamingVariable[]
+}
+
+/** Как пользователь назвал источники: коллекция, правило и переписанные руками строки по номеру. */
+export interface Naming {
+  collection: CollectionChoice | null
+  rule: string
+  titles: Record<number, string>
 }
 
 export type AddSourceResult =
   | { questions: Question[] }
+  | NamingRequired
   | { source_ids: number[]; collection_id: number | null }
 
 /** Во что превратится ввод экрана Add. */
@@ -710,6 +747,8 @@ export type InputProblem = 'unsupported_link' | 'file_not_found'
 export interface InputDescription {
   kind: InputKind | null
   format: SourceFormat | null
+  /** Несколько файлов разом. */
+  several?: boolean | null
   label: string | null
   problem: InputProblem | null
   problem_message: string | null

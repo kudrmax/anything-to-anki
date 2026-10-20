@@ -3,10 +3,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import type { InputDescription } from '@/api/types'
+import type { CollectionTree, InputDescription, NamingRequired, Question } from '@/api/types'
 import { AddSourceForm } from './AddSourceForm'
 
 const DROPPED = '/books/novel.epub'
+const BATCH_TEXT = '/a/1.txt\n/a/2.txt'
 const DESCRIBE_DELAY_MS = 300
 
 const NOTHING: InputDescription = { kind: null, format: null, label: null, problem: null, problem_message: null, problem_hint: null }
@@ -15,6 +16,19 @@ const TOPIC: InputDescription = { ...NOTHING, kind: 'topic' }
 const BOOK: InputDescription = { ...NOTHING, kind: 'source', format: 'epub', label: 'Book · epub' }
 const VIDEO_LINK: InputDescription = { ...NOTHING, kind: 'source', format: 'youtube', label: 'Video · YouTube' }
 const TEXT: InputDescription = { ...NOTHING, kind: 'source', format: 'plain', label: 'Text' }
+const BATCH: InputDescription = { ...NOTHING, kind: 'source', label: '2 files', several: true }
+const EMPTY_TREE = { collections: [] } as unknown as CollectionTree
+const ASK_KIND = (index: number, label: string): Question => ({
+  id: 'text.kind', prompt: 'Add as', default: 'text', input_index: index, input_label: label,
+  options: [{ id: 'text', label: 'Text', details: null }, { id: 'song', label: 'Song', details: null }],
+})
+const NAMING: NamingRequired = {
+  heading: 'Add 2 files',
+  items: [{ label: '1.txt', own_title: '1', words: 3 }, { label: '2.txt', own_title: '2', words: 3 }],
+  default_collection: null,
+  default_rule: 'Part {{n}}',
+  variables: [{ token: '{{n}}', label: 'Number' }],
+}
 const BAD_LINK: InputDescription = {
   ...NOTHING, problem: 'unsupported_link', problem_message: "This link can't be read", problem_hint: 'Supported: YouTube.',
 }
@@ -32,6 +46,7 @@ const answers = new Map<string, InputDescription>([
   ['https://www.youtube.com/watch?v=abc', VIDEO_LINK],
   ['https://example.com/article', BAD_LINK],
   ['/no/such/file.epub', NO_FILE],
+  [BATCH_TEXT, BATCH],
 ])
 
 describe('AddSourceForm', () => {
@@ -211,5 +226,47 @@ describe('AddSourceForm', () => {
     await described()
 
     expect(pressedMode()).toBe('Phrase')
+  })
+
+  it('hides the title for several files', async () => {
+    await render()
+    await paste(BATCH_TEXT)
+    await described()
+
+    expect(text()).toContain('2 files')
+    expect(host.querySelector('input[placeholder="Title (optional)"]')).toBeNull()
+  })
+
+  it('asks each file its questions, naming the file, and sends answers per file', async () => {
+    const addSource = vi.spyOn(api, 'addSource')
+      .mockResolvedValueOnce({ questions: [ASK_KIND(0, '1.txt'), ASK_KIND(1, '2.txt')] })
+      .mockResolvedValueOnce({ source_ids: [1, 2], collection_id: null })
+    await render()
+    await paste(BATCH_TEXT)
+    await described()
+    await act(async () => addButton()!.click())
+
+    expect(document.body.textContent).toContain('1.txt')
+    expect(document.body.textContent).toContain('2.txt')
+    await act(async () => [...document.body.querySelectorAll('button')].find(b => b.textContent === 'Confirm')!.click())
+
+    expect(addSource).toHaveBeenLastCalledWith(BATCH_TEXT, '', '', [{ 'text.kind': 'text' }, { 'text.kind': 'text' }], undefined)
+  })
+
+  it('opens the naming window and sends the naming with the answers', async () => {
+    vi.spyOn(api, 'getCollectionTree').mockResolvedValue(EMPTY_TREE)
+    vi.spyOn(api, 'renderNames').mockResolvedValue(['Part 1', 'Part 2'])
+    const addSource = vi.spyOn(api, 'addSource')
+      .mockResolvedValueOnce(NAMING)
+      .mockResolvedValueOnce({ source_ids: [1, 2], collection_id: null })
+    await render()
+    await paste(BATCH_TEXT)
+    await described()
+    await act(async () => addButton()!.click())
+
+    expect(document.body.textContent).toContain('Add 2 files')
+    await act(async () => [...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(b => b.textContent === 'Add')!.click())
+
+    expect(addSource).toHaveBeenLastCalledWith(BATCH_TEXT, '', '', [], { collection: null, rule: 'Part {{n}}', titles: {} })
   })
 })

@@ -43,6 +43,7 @@ import type {
   StoredCandidate,
   SyncResult,
   AddSourceResult,
+  Naming,
   InputDescription,
   DocumentSelection,
   SourceDocument,
@@ -79,7 +80,7 @@ function queueAction(action: 'cancel' | 'retry' | 'dismiss', selection: QueueSel
 }
 
 export const api = {
-  addSource: (text: string, subtitlesPath: string, title: string, answers: Record<string, string>) =>
+  addSource: (text: string, subtitlesPath: string, title: string, answers: Record<string, string>[], naming?: Naming) =>
     req<AddSourceResult>('/sources/add', {
       method: 'POST',
       body: JSON.stringify({
@@ -87,7 +88,15 @@ export const api = {
         answers,
         ...(subtitlesPath ? { subtitles_path: subtitlesPath } : {}),
         ...(title ? { title } : {}),
+        ...(naming ? { naming } : {}),
       }),
+    }),
+
+  renderNames: (rule: string, collectionName: string | null, ownTitles: string[], signal?: AbortSignal) =>
+    req<string[]>('/sources/render-names', {
+      method: 'POST',
+      body: JSON.stringify({ rule, collection_name: collectionName, own_titles: ownTitles }),
+      signal,
     }),
 
   describeInput: (text: string, signal?: AbortSignal) =>

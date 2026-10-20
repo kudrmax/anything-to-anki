@@ -115,11 +115,12 @@ class InputDescriptionDTO(BaseModel):
     """What the Add screen input becomes: its kind, how a source will be read, or why it
     can't be added.
 
-    Empty input has no description: every field is empty.
+    Empty input has no description: every field is empty. `several` — files added at once.
     """
 
     kind: InputKind | None = None
     format: Format | None = None
+    several: bool | None = None
     label: str | None = None
     problem: InputProblem | None = None
     problem_message: str | None = None

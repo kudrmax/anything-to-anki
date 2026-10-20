@@ -108,7 +108,9 @@ class DescribeInputUseCase:
                     problem_message=f"{FILE_NOT_FOUND_MESSAGE}: {PurePath(path).name}",
                     problem_hint=FILE_NOT_FOUND_HINT,
                 )
-        return InputDescriptionDTO(kind=InputKind.SOURCE, label=f"{len(files)} files")
+        return InputDescriptionDTO(
+            kind=InputKind.SOURCE, label=f"{len(files)} files", several=True,
+        )
 
     def _describe_text(self, pasted: PastedText) -> InputDescriptionDTO:
         line = pasted.text.strip()

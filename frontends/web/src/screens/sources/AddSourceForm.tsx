@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { InputDescription, InputKind, Question } from '@/api/types'
+import type { CollectionTree, InputDescription, InputKind, Naming, NamingRequired, Question } from '@/api/types'
 import { Plus } from 'lucide-react'
 import { nativeHost } from '@/lib/nativeHost'
-import { withDroppedPaths } from '@/lib/text/sourceInput'
+import { PATH_SEPARATOR, withDroppedPaths } from '@/lib/text/sourceInput'
 import { phraseWords, pickedIndices, toggled } from '@/lib/text/words'
 import { Button, Field, Icon, Segmented, Spinner, Text, TextArea, WordPicker } from '@/ui'
 import css from './AddSourceForm.module.css'
 import { PathField } from './PathField'
+import { NamingModal } from './NamingModal'
 import { QuestionsModal } from './QuestionsModal'
 import { useFileDrag } from './useFileDrag'
 
@@ -51,7 +52,9 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
   const [picking, setPicking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [questions, setQuestions] = useState<Question[] | null>(null)
-  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [answers, setAnswers] = useState<Record<string, string>[]>([])
+  const [naming, setNaming] = useState<NamingRequired | null>(null)
+  const [tree, setTree] = useState<CollectionTree | null>(null)
   const [host] = useState(() => nativeHost())
 
   const entered = input.trim() !== ''
@@ -77,7 +80,7 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
     setInput('')
     setTitle('')
     setSrtPath('')
-    setAnswers({})
+    setAnswers([])
     setPhraseTarget(new Set())
     setChosen(null)
   }
@@ -113,14 +116,15 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
   }, [input, entered])
 
   const isVideo = described?.format === 'video_file'
+  const several = described?.several === true
 
   const pickFile = async () => {
     if (!host) return
     setPicking(true)
     try {
-      const path = await host.pickFile()
-      if (path) {
-        replace(path)
+      const paths = await host.pickFiles()
+      if (paths.length) {
+        replace(paths.join(PATH_SEPARATOR))
         setSrtPath('')
       }
     } catch (e) {
@@ -143,20 +147,32 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
     }
   }
 
-  const submitSource = (given: Record<string, string>) => run(async () => {
-    const result = await api.addSource(input, isVideo ? srtPath.trim() : '', title.trim(), given)
+  const submitSource = (given: Record<string, string>[], named?: Naming) => run(async () => {
+    const result = await api.addSource(input, isVideo ? srtPath.trim() : '', several ? '' : title.trim(), given, named)
     if ('questions' in result) {
       setAnswers(given)
       setQuestions(result.questions)
+      return
+    }
+    if ('heading' in result) {
+      setAnswers(given)
+      setTree(await api.getCollectionTree())
+      setNaming(result)
       return
     }
     reset()
     await onReload()
   })
 
-  const answer = (given: Record<string, string>) => {
+  const answer = (given: Record<string, string>[]) => {
     setQuestions(null)
-    void submitSource({ ...answers, ...given })
+    const merged = Array.from({ length: Math.max(answers.length, given.length) }, (_, i) => ({ ...answers[i], ...given[i] }))
+    void submitSource(merged)
+  }
+
+  const name = (named: Naming) => {
+    setNaming(null)
+    void submitSource(answers, named)
   }
 
   const addTopic = () => run(async () => {
@@ -179,7 +195,7 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
     setError(null)
     if (mode === 'topic') void addTopic()
     else if (mode === 'phrase') addPhrase()
-    else void submitSource({})
+    else void submitSource([])
   }
 
   const modeDetail = mode === 'source' ? described?.label : mode === 'topic' ? TOPIC_HINT : PHRASE_HINT
@@ -217,7 +233,7 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
               <Segmented value={mode} options={MODES} onChange={setChosen} />
               {describing ? <Spinner /> : modeDetail && <Text tone="muted">{modeDetail}</Text>}
             </div>
-            {mode !== 'phrase' && (
+            {mode !== 'phrase' && !several && (
               <Field value={title} placeholder="Title (optional)" onChange={e => setTitle(e.target.value)} />
             )}
             {mode === 'source' && isVideo && (
@@ -235,6 +251,9 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
       </section>
       {questions && (
         <QuestionsModal questions={questions} onCancel={() => setQuestions(null)} onConfirm={answer} />
+      )}
+      {naming && (
+        <NamingModal required={naming} tree={tree} onCancel={() => setNaming(null)} onConfirm={name} />
       )}
     </>
   )

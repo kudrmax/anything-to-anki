@@ -14,6 +14,8 @@ interface ShellWindow {
 export interface NativeHost {
   /** Opens the Finder picker and resolves to the absolute path, or null when cancelled. */
   pickFile(extensions?: readonly string[]): Promise<string | null>
+  /** Opens the Finder picker for several files; resolves to their absolute paths, empty when cancelled. */
+  pickFiles(): Promise<string[]>
   /** Calls back with absolute paths of files dropped on the page; returns the unsubscribe. */
   onFileDrop(listener: (paths: string[]) => void): () => void
 }
@@ -30,6 +32,10 @@ export function nativeHost(win: Window = window): NativeHost | null {
     async pickFile(extensions) {
       const path = await handler.postMessage({ extensions })
       return typeof path === 'string' ? path : null
+    },
+    async pickFiles() {
+      const paths: unknown = await handler.postMessage({ multiple: true })
+      return Array.isArray(paths) ? paths.filter((path): path is string => typeof path === 'string') : []
     },
     onFileDrop(listener) {
       const handle = (event: Event) => {

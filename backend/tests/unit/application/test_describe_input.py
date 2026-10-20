@@ -171,6 +171,11 @@ def test_several_existing_files_are_a_batch() -> None:
     assert (described.kind, described.format, described.label, described.problem) == (
         InputKind.SOURCE, None, "2 files", None,
     )
+    assert described.several
+
+
+def test_one_file_is_not_several() -> None:
+    assert not describe("/Users/max/notes.md").several
 
 
 def test_a_missing_file_in_a_batch_is_named() -> None:
