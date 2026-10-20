@@ -1,13 +1,16 @@
 """A report's unknown words in a real database (spec §1): a word the user learns stays as
-it is; a Known word goes Unknown through the Known removal; any other word goes Unknown."""
+it is; a Known word loses Known through the Known removal and goes Unknown unless the removal
+left it learned; any other word goes Unknown."""
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
 from backend.application.dto.card_report_dtos import ReportCandidateRequest
 from backend.application.use_cases.report_candidate import ReportCandidateUseCase
+from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_card_report_repository import (
@@ -21,7 +24,7 @@ from backend.infrastructure.persistence.sqla_source_repository import SqlaSource
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import text
 
-from tests.decision_support import Decisions
+from tests.decision_support import NOW, Decisions
 from tests.integration.conftest import insert_source
 from tests.word_support import bind, insert_word, phrase_id_of
 
@@ -35,6 +38,11 @@ REPORTED = 1                    # the word whose card is reported, in source 1
 OTHER_SOURCE = 2
 OTHER_WORD = 50                 # the lemma in source 2
 THE_TARGET = 0                  # the reported phrase is the one word "glare"
+THIRD_SOURCE = 3
+THIRD_WORD = 60                 # the lemma in source 3
+FRESH = (NOW - LEARNING_KNOWN_AFTER + timedelta(days=1)).replace(tzinfo=None).isoformat(sep=" ")
+DUE = (NOW - LEARNING_KNOWN_AFTER).replace(tzinfo=None).isoformat(sep=" ")
+DUE_ORPHAN, FRESH_ORPHAN = 77, 78
 
 
 class Bench:
@@ -45,6 +53,23 @@ class Bench:
 
     def other(self, status: str) -> None:
         insert_word(self.session, OTHER_WORD, source_id=OTHER_SOURCE, lemma=LEMMA, status=status)
+
+    def third(self, status: str) -> None:
+        insert_source(self.session, THIRD_SOURCE)
+        insert_word(self.session, THIRD_WORD, source_id=THIRD_SOURCE, lemma=LEMMA, status=status)
+
+    def orphan(self, note_id: int, since: str) -> None:
+        """An active binding whose card is gone."""
+        self.session.execute(text(
+            "INSERT INTO anki_synced_cards (candidate_id, phrase_id, anki_note_id, lemma, pos,"
+            " note_kind, card_choice, learning_since)"
+            " VALUES (NULL, NULL, :note, :lemma, 'NOUN', 'learn', 'learn', :since)"
+        ), {"note": note_id, "lemma": LEMMA, "since": since})
+
+    def orphan_active(self, note_id: int) -> bool:
+        return self.session.execute(text(
+            "SELECT released_at IS NULL FROM anki_synced_cards WHERE anki_note_id = :note"
+        ), {"note": note_id}).scalar_one() == 1
 
     def list_known(self) -> None:
         self.session.execute(text(
@@ -135,3 +160,37 @@ def test_a_new_word_goes_unknown(bench: Bench) -> None:
 
     assert bench.unknown() == {LEMMA}
     assert bench.status(REPORTED) == "pending"
+
+
+def test_a_word_known_by_its_timer_with_a_learn_left_loses_known_and_is_not_marked(
+    bench: Bench,
+) -> None:
+    """The removal keeps the Learn not exported yet, so the word is still learned."""
+    bench.other("learn")
+    bind(bench.session, OTHER_WORD, phrase_id_of(OTHER_WORD), lemma=LEMMA, since=DUE)
+    bench.third("learn")
+
+    bench.report_unknown()
+
+    assert (bench.status(OTHER_WORD), bench.choice(OTHER_WORD)) == ("pending", "none")
+    assert bench.active_bindings() == 0
+    assert (bench.status(THIRD_WORD), bench.choice(THIRD_WORD)) == ("learn", "learn")
+    assert bench.unknown() == set()
+
+
+def test_a_listed_word_with_a_note_still_learning_loses_known_and_is_not_marked(
+    bench: Bench,
+) -> None:
+    """The due orphan goes with Known; the one whose timer runs keeps the word learning."""
+    bench.list_known()
+    bench.other("known")
+    bench.orphan(DUE_ORPHAN, DUE)
+    bench.orphan(FRESH_ORPHAN, FRESH)
+
+    bench.report_unknown()
+
+    assert bench.known() == 0
+    assert (bench.status(OTHER_WORD), bench.choice(OTHER_WORD)) == ("pending", "none")
+    assert not bench.orphan_active(DUE_ORPHAN)
+    assert bench.orphan_active(FRESH_ORPHAN)
+    assert bench.unknown() == set()

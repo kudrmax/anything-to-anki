@@ -92,11 +92,13 @@ class DecisionEffects:
         self._cascade(lemma, knowledge_before, acting_word)
 
     def mark_unknown(self, lemma: str) -> None:
-        """The user said they don't know the lemma: marked as its rule says, a Known one
-        through the Known removal (§2.7); a learned one stays as it is."""
+        """The user said they don't know the lemma: marked as its rule says. A Known one
+        loses Known first (§2.7), then is marked by the rule on what is left, so a Learn or
+        a note in Anki the removal kept is never beside the mark; a learned one stays."""
         before = self._vocabulary.of(lemma)
         if self._vocabulary.mark_unknown(lemma).removes_known:
             self._cascade(lemma, before, None)
+            self._vocabulary.mark_unknown(lemma)
 
     @contextmanager
     def batch(self) -> Iterator[None]:

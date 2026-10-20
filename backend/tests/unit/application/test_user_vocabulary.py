@@ -36,8 +36,16 @@ class TestUserVocabulary:
         self.unknown.remove_by_lemma.assert_called_once_with("lurk")
         self.known.add.assert_called_once_with("lurk", "VERB")
 
+    def test_marking_a_known_word_unknown_waits_for_its_known_removal(self) -> None:
+        assert self.vocabulary.mark_unknown("feast") is UnknownMark.REMOVE_KNOWN_FIRST
+        self.known.remove_every_pos.assert_not_called()
+        self.unknown.add.assert_not_called()
+
     def test_marking_unknown_takes_every_part_of_speech_out_of_known(self) -> None:
-        assert self.vocabulary.mark_unknown("feast") is UnknownMark.MARK_AND_REMOVE_KNOWN
+        """A word in both lists stays out of Known: the mark clears the stale entry."""
+        self.unknown.lemmas.return_value = {"feast"}
+        self.learning.awaiting_export.return_value = frozenset()
+        assert self.vocabulary.mark_unknown("feast") is UnknownMark.MARK
         self.known.remove_every_pos.assert_called_once_with("feast")
         self.unknown.add.assert_called_once_with("feast")
 

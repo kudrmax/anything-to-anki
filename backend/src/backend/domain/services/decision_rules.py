@@ -669,24 +669,28 @@ def effects(change: StatusChange) -> frozenset[Effect]:
 
 
 class UnknownMark(StrEnum):
+    """MARK: into Unknown. IGNORE: nothing. REMOVE_KNOWN_FIRST: the Known removal (§2.7)
+    first, then the rule again on what it left: a word still learned is not marked."""
+
     MARK = "mark"
-    MARK_AND_REMOVE_KNOWN = "mark_and_remove_known"
     IGNORE = "ignore"
+    REMOVE_KNOWN_FIRST = "remove_known_first"
 
     @property
     def removes_known(self) -> bool:
-        return self is UnknownMark.MARK_AND_REMOVE_KNOWN
+        return self is UnknownMark.REMOVE_KNOWN_FIRST
 
 
 UNKNOWN_MARK_RULES: Mapping[ElsewhereStatus | None, UnknownMark] = MappingProxyType({
     None: UnknownMark.MARK,
     ElsewhereStatus.LEARN: UnknownMark.IGNORE,
     ElsewhereStatus.LEARNING: UnknownMark.IGNORE,
-    ElsewhereStatus.KNOWN: UnknownMark.MARK_AND_REMOVE_KNOWN,
+    ElsewhereStatus.KNOWN: UnknownMark.REMOVE_KNOWN_FIRST,
 })
 """What the lemma stands as → what marking it Unknown does. A Learn or a note in Anki
-already says "I don't know it", so the mark adds nothing and never touches the decision;
-a Known lemma goes Unknown through the Known removal (§2.7)."""
+already says "I don't know it", so the mark adds nothing and never touches the decision.
+A Known lemma loses Known first; the removal leaves it new, or still learned where a Learn
+or a note in Anki did not read Known, and then the mark follows this table again."""
 
 
 def unknown_mark(lemma: LemmaKnowledge) -> UnknownMark:

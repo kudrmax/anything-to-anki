@@ -38,7 +38,7 @@ class UserVocabulary:
         self.__scope = scope
         self.__marks: Mapping[UnknownMark, Callable[[str], None]] = {
             UnknownMark.MARK: self.__put_in_unknown,
-            UnknownMark.MARK_AND_REMOVE_KNOWN: self.__put_in_unknown,
+            UnknownMark.REMOVE_KNOWN_FIRST: self.__leave,
             UnknownMark.IGNORE: self.__leave,
         }
 
@@ -70,8 +70,8 @@ class UserVocabulary:
         self.__scope.invalidate()
 
     def mark_unknown(self, lemma: str) -> UnknownMark:
-        """Marks the lemma Unknown as its rule says; the caller runs the Known removal the
-        mark asks for."""
+        """Marks the lemma Unknown as its rule says. REMOVE_KNOWN_FIRST writes nothing: the
+        caller runs the Known removal and asks again."""
         mark = unknown_mark(self.of(lemma))
         self.__marks[mark](lemma)
         return mark
@@ -86,7 +86,8 @@ class UserVocabulary:
         self.__scope.invalidate()
 
     def __leave(self, lemma: str) -> None:
-        """A word the user learns already says they don't know it."""
+        """A word the user learns already says they don't know it; a Known one waits for
+        its Known removal."""
 
     def known_words(self) -> list[KnownWord]:
         return self.__known.list_all()

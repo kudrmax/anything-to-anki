@@ -415,10 +415,10 @@ class TestUnknownMark:
             pytest.param(False, False, False, (FRESH,), UnknownMark.IGNORE, id="learning"),
             pytest.param(False, False, True, (FRESH,), UnknownMark.IGNORE, id="learn-learning"),
             pytest.param(
-                True, False, False, (), UnknownMark.MARK_AND_REMOVE_KNOWN, id="known-by-list",
+                True, False, False, (), UnknownMark.REMOVE_KNOWN_FIRST, id="known-by-list",
             ),
             pytest.param(
-                False, False, False, (DUE,), UnknownMark.MARK_AND_REMOVE_KNOWN,
+                False, False, False, (DUE,), UnknownMark.REMOVE_KNOWN_FIRST,
                 id="known-by-timer",
             ),
             pytest.param(False, True, False, (), UnknownMark.MARK, id="already-unknown"),
@@ -435,7 +435,25 @@ class TestUnknownMark:
         assert unknown_mark(lemma) is expected
 
     def test_only_a_known_lemma_removes_known(self) -> None:
-        assert {m for m in UnknownMark if m.removes_known} == {UnknownMark.MARK_AND_REMOVE_KNOWN}
+        assert {m for m in UnknownMark if m.removes_known} == {UnknownMark.REMOVE_KNOWN_FIRST}
+
+    @pytest.mark.parametrize(
+        ("learn_anywhere", "active_since", "expected"),
+        [
+            pytest.param(False, (), UnknownMark.MARK, id="nothing-left"),
+            pytest.param(True, (), UnknownMark.IGNORE, id="a-learn-left"),
+            pytest.param(False, (FRESH,), UnknownMark.IGNORE, id="a-note-in-anki-left"),
+        ],
+    )
+    def test_after_the_known_removal_a_word_still_learned_is_not_marked(
+        self, learn_anywhere: bool, active_since: tuple[datetime, ...], expected: UnknownMark,
+    ) -> None:
+        """What the removal can leave: no list, no due timer (§2.7 releases them)."""
+        lemma = LemmaKnowledge.at(
+            NOW, known_marked=False, unknown=False, learn_anywhere=learn_anywhere,
+            active_since=active_since,
+        )
+        assert unknown_mark(lemma) is expected
 
 
 @pytest.mark.unit
