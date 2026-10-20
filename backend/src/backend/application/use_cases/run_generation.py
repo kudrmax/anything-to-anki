@@ -10,9 +10,8 @@ from backend.domain.exceptions import (
     GenerationNotSupportedError,
     SourceOperationBusyError,
 )
-from backend.domain.services.generation_scope import in_scope
+from backend.domain.services.generation_scope import in_scope, replaces_results
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
-from backend.domain.value_objects.generation_scope import GenerationScope
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.review_card import ReviewCard
 
@@ -31,6 +30,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.value_objects.generation_kind import GenerationKind
+    from backend.domain.value_objects.generation_scope import GenerationScope
     from backend.domain.value_objects.source_scope import SourceScope
 
 logger = logging.getLogger(__name__)
@@ -115,7 +115,7 @@ class RunGenerationUseCase:
             if in_scope(scope, target.state(c, target.job_of(jobs, c)), target.is_ready(ready, c))
         ]
 
-        if scope == GenerationScope.ALL:
+        if replaces_results(scope):
             for card in chosen:
                 target.discard(card)
             chosen = self._as_now(source_id, chosen)

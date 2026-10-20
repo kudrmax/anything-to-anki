@@ -90,10 +90,11 @@ class GetGenerationStatusUseCase:
         covered = target.cards(cards)
         state_of = {id(c): target.state(c, target.job_of(jobs, c)) for c in covered}
         states = Counter(state_of.values())
-        ready_missing = sum(
-            1 for c in covered
-            if in_scope(GenerationScope.READY_MISSING, state_of[id(c)], target.is_ready(ready, c))
-        )
+        def taken_by(scope: GenerationScope) -> int:
+            return sum(
+                1 for c in covered if in_scope(scope, state_of[id(c)], target.is_ready(ready, c))
+            )
+
         return GenerationKindStatusDTO(
             kind=target.kind,
             total=states.total(),
@@ -101,7 +102,9 @@ class GetGenerationStatusUseCase:
             running=states[CardGenerationState.RUNNING],
             failed=states[CardGenerationState.FAILED],
             missing=states[CardGenerationState.MISSING],
-            ready_missing=ready_missing,
+            ready_missing=taken_by(GenerationScope.READY_MISSING),
+            ready_all=taken_by(GenerationScope.READY_ALL),
+            all=taken_by(GenerationScope.ALL),
             blocked_by=blocker,
             videos_to_download=int(blocker is GenerationBlocker.VIDEO_NOT_DOWNLOADED),
         )
@@ -118,6 +121,8 @@ def _summed(kinds: list[GenerationKindStatusDTO]) -> GenerationKindStatusDTO:
         failed=sum(k.failed for k in kinds),
         missing=sum(k.missing for k in kinds),
         ready_missing=sum(k.ready_missing for k in kinds),
+        ready_all=sum(k.ready_all for k in kinds),
+        all=sum(k.all for k in kinds),
         blocked_by=set_blocker([k.blocked_by for k in kinds]),
         videos_to_download=sum(k.videos_to_download for k in kinds),
     )

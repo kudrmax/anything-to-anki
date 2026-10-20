@@ -10,6 +10,8 @@ class GenerationScope(StrEnum):
     """Cards nothing was made for yet and nothing is being made for."""
     READY_MISSING = "ready_missing"
     """Missing cards that are in the Ready section right now."""
+    READY_ALL = "ready_all"
+    """Every card in the Ready section right now: what is there gets replaced."""
     FAILED = "failed"
     """Cards whose last attempt failed."""
     ALL = "all"
