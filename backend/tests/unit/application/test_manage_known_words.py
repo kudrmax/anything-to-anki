@@ -41,8 +41,8 @@ class TestManageKnownWordsUseCase:
     def test_a_word_known_by_its_timer_is_listed_marked_without_an_id(self) -> None:
         self.known_word_repo.list_all.return_value = [KnownWord(id=1, lemma="run", pos="VERB")]
         use_case = self._use_case(active_since={
-            "glare": (DUE, FRESH), "drift": (FRESH,), "run": (DUE,), "spark": (DUE,),
-        }, unknown_lemmas={"spark"})
+            "glare": (DUE, FRESH), "drift": (FRESH,), "run": (DUE,),
+        })
 
         result = use_case.list_all()
 

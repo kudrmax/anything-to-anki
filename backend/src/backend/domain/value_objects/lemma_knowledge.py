@@ -47,12 +47,18 @@ class LemmaKnowledge:
         )
 
     @property
+    def listed_known(self) -> bool:
+        """In the Known list, and not in Unknown too."""
+        # Stage 4 migration removes pre-existing conflicts
+        return self.known_marked and not self.unknown
+
+    @property
     def is_known(self) -> bool:
-        return not self.unknown and (self.known_marked or self.any_due)
+        return self.listed_known or self.any_due
 
     @property
     def timer_known(self) -> bool:
-        return self.is_known and not self.known_marked
+        return self.is_known and not self.listed_known
 
     @property
     def is_learning(self) -> bool:
@@ -72,7 +78,4 @@ class LemmaKnowledge:
     @property
     def elsewhere(self) -> ElsewhereStatus | None:
         """What a card of the lemma open in a source shows of the user's other words."""
-        heard = not self.unknown
-        return STANDING[(
-            self.is_known, heard and bool(self.active_since), heard and self.learn_anywhere,
-        )]
+        return STANDING[(self.is_known, bool(self.active_since), self.learn_anywhere)]

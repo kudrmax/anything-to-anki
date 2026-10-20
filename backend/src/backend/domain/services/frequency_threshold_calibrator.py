@@ -2,19 +2,35 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.frequent_word_threshold import FALLBACK_ZIPF
+from backend.domain.value_objects.frequent_word_threshold import (
+    FALLBACK_ZIPF,
+    THRESHOLD_STEPS,
+    step_index,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from backend.domain.entities.word_decision import WordDecision
 
+_ZIPF_STEPS: tuple[float, ...] = tuple(step for step in THRESHOLD_STEPS if step is not None)
 START_ZIPF: float = FALLBACK_ZIPF
-LOWEST_ZIPF: float = 2.5
-HIGHEST_ZIPF: float = 5.5
-BAND_WIDTH: float = 0.5
+LOWEST_ZIPF: float = min(_ZIPF_STEPS)
+HIGHEST_ZIPF: float = max(_ZIPF_STEPS)
+BAND_WIDTH: float = _ZIPF_STEPS[1] - _ZIPF_STEPS[0]
 MIN_DECISIONS_PER_BAND: int = 4
 KNOWN_SHARE: float = 0.5
+
+
+def _check_steps(steps: tuple[float, ...], start: float) -> None:
+    """The calibrator moves band by band from `start`, so it lands only on the steps."""
+    step_index(start)
+    banded = tuple(steps[0] + i * (steps[1] - steps[0]) for i in range(len(steps)))
+    if steps != banded:
+        raise ValueError(f"Threshold steps are not one band apart: {steps}")
+
+
+_check_steps(_ZIPF_STEPS, START_ZIPF)
 
 
 class FrequencyThresholdCalibrator:

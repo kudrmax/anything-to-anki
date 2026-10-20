@@ -118,13 +118,18 @@ def holds_ak(world: World) -> bool:
     return world.known_marked or not known_cards
 
 
-def _valid(world: World) -> bool:
-    known_choice = any(card.choice is K for word in world.words for card in word.cards)
-    return (
-        all(well_formed(word) for word in world.words)
-        and holds_ak(world)
-        and not (world.unknown and (world.known_marked or known_choice))
+def holds_au(world: World) -> bool:
+    """AU: a lemma in Unknown is neither Known nor decided, and none of its notes is in Anki
+    (spec §1: a word is never Unknown and decided Learn at once)."""
+    decided = any(card.is_decision for word in world.words for card in word.cards)
+    bound = any(card.binding is not None for word in world.words for card in word.cards)
+    return not world.unknown or not (
+        world.known_marked or decided or bound or world.orphans
     )
+
+
+def _valid(world: World) -> bool:
+    return all(well_formed(word) for word in world.words) and holds_ak(world) and holds_au(world)
 
 
 @cache

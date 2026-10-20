@@ -9,6 +9,7 @@ from backend.domain.services.frequency_threshold_calibrator import (
 from backend.domain.value_objects.frequent_word_threshold import (
     DEFAULT_FREQUENT_WORD_THRESHOLD,
     FrequentWordThreshold,
+    step_index,
 )
 
 if TYPE_CHECKING:
@@ -29,6 +30,11 @@ class FrequentWordThresholdResolver:
         self._calibrator = FrequencyThresholdCalibrator()
 
     def resolve(self) -> FrequentWordThreshold:
+        threshold = self._resolved()
+        step_index(threshold.zipf)
+        return threshold
+
+    def _resolved(self) -> FrequentWordThreshold:
         threshold = self._configured()
         if not threshold.is_auto:
             return threshold

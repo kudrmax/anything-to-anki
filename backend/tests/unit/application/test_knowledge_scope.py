@@ -104,9 +104,10 @@ def test_known_count_and_the_vocabulary_include_a_lemma_known_by_its_timer(
     assert (knowledge.timer_known, knowledge.known_marked) == (True, False)
 
 
-def test_unknown_wins_over_the_timer(bench: Bench) -> None:
+def test_unknown_wins_over_the_known_list(bench: Bench) -> None:
+    """Stage 4's migration removes such conflicts; till then Unknown wins the list."""
+    bench.known.get_all_pairs.return_value = {("glare", None)}
     bench.unknown.lemmas.return_value = {"glare"}
-    bench.learning.active_since.return_value = {"glare": (DUE,)}
 
     assert not bench.vocabulary.is_known("glare")
     assert bench.vocabulary.known_count() == 0

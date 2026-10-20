@@ -116,6 +116,18 @@ class Bench:
             )
         }
 
+    def unknown(self) -> set[str]:
+        return {
+            str(lemma) for (lemma,) in self.session.execute(
+                text("SELECT lemma FROM unknown_words"),
+            )
+        }
+
+    def list_unknown(self) -> None:
+        self.session.execute(text(
+            "INSERT INTO unknown_words (lemma, created_at) VALUES (:l, '2026-01-01')"
+        ), {"l": LEMMA})
+
     def list_known(self, *pos: str | None) -> None:
         for one in pos:
             self.session.execute(
@@ -245,19 +257,67 @@ def test_a_press_for_the_user_leaves_a_card_decided_elsewhere_as_it_is(
     assert bench.status() == "pending"
 
 
-def test_learn_on_a_word_marked_unknown_but_learning_elsewhere_is_allowed(
-    bench: Bench, db_session: Session,
+# ── a word is never Unknown and decided Learn at once (spec §1) ─────────
+
+
+@pytest.mark.parametrize("button", [LEARN, Press.CLOZE])
+def test_learn_or_cloze_on_an_unknown_word_takes_it_out_of_unknown(
+    bench: Bench, button: Press,
 ) -> None:
-    """Unknown > Known > learning: the user's "I don't know it" wins here too."""
-    insert_source(db_session, OTHER_SOURCE)
-    insert_word(db_session, OTHER_WORD, source_id=OTHER_SOURCE, lemma=LEMMA, status="learn")
-    db_session.execute(text(
-        "INSERT INTO unknown_words (lemma, created_at) VALUES ('glare', '2026-01-01')"
-    ))
+    bench.list_unknown()
+
+    bench.press(FIRST, button)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("learn", CardChoice(button.value))
+    assert bench.unknown() == set()
+
+
+def test_known_on_an_unknown_word_takes_it_out_of_unknown(bench: Bench) -> None:
+    bench.list_unknown()
+
+    bench.press(FIRST, KNOWN)
+
+    assert bench.status() == "known"
+    assert bench.unknown() == set()
+
+
+def test_skip_on_an_unknown_word_leaves_it_unknown(bench: Bench) -> None:
+    bench.list_unknown()
+
+    bench.press(FIRST, SKIP)
+
+    assert bench.unknown() == {LEMMA}
+
+
+def test_undo_of_learn_does_not_bring_unknown_back(bench: Bench) -> None:
+    bench.list_unknown()
+    bench.press(FIRST, LEARN)
 
     bench.press(FIRST, LEARN)
 
+    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.NONE)
+    assert bench.unknown() == set()
+
+
+def test_a_saved_phrase_learn_takes_the_word_out_of_unknown(bench: Bench) -> None:
+    """Saved phrases press Learn for the user."""
+    bench.list_unknown()
+
+    bench.decisions.decide_phrase().press_unless_done(FIRST, LEARN)
+
     assert bench.status() == "learn"
+    assert bench.unknown() == set()
+
+
+def test_a_saved_cloze_takes_the_word_out_of_unknown(bench: Bench) -> None:
+    """Saving a cloze presses Cloze for the user."""
+    bench.list_unknown()
+    bench.session.commit()
+
+    bench.decisions.save_cloze().execute(FIRST, "He glared at me.", [1], ClozeHintKind.NONE, None)
+
+    assert bench.choice(FIRST) is CardChoice.CLOZE
+    assert bench.unknown() == set()
 
 
 def test_cloze_markup_survives_every_decision_change(bench: Bench) -> None:
