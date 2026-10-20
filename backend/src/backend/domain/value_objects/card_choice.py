@@ -240,3 +240,9 @@ def decision_reads_known(word: WordState, lemma: LemmaKnowledge, now: datetime) 
 def _decision(word: WordState) -> CardState:
     """The decision card, or a private placeholder so "no decision" is a key value."""
     return next((card for card in word.cards if card.is_decision), _NO_DECISION_CARD)
+
+
+def studied_at(word: WordState, now: datetime) -> datetime | None:
+    """When the word was last marked, right after a press at `now`: none once the press
+    left no card of it marked."""
+    return now if any(card.choice is not CardChoice.NONE for card in word.cards) else None

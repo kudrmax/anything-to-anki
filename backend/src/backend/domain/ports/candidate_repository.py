@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Collection
+    from datetime import datetime
 
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.value_objects.built_analysis import WordKey
@@ -55,3 +56,11 @@ class CandidateRepository(ABC):
     @abstractmethod
     def get_by_lemma(self, lemma: str) -> list[StoredCandidate]:
         """Return candidates with the given lemma across all sources."""
+
+    @abstractmethod
+    def set_studied_at(self, word_id: int, studied_at: datetime | None) -> None:
+        """When a card of the word was last marked; None once no card of it is."""
+
+    @abstractmethod
+    def last_studied(self, source_ids: Collection[int]) -> dict[int, datetime]:
+        """The latest mark on a card of each source; sources never marked are omitted."""

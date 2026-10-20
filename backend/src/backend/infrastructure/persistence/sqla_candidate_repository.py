@@ -16,6 +16,7 @@ from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
     from collections.abc import Collection
+    from datetime import datetime
 
     from sqlalchemy import ColumnElement
     from sqlalchemy.orm import Session
@@ -111,6 +112,29 @@ class SqlaCandidateRepository(CandidateRepository):
         for model in models:
             self._session.delete(model)
         self._session.flush()
+
+    def set_studied_at(self, word_id: int, studied_at: datetime | None) -> None:
+        model = self._session.get(StoredCandidateModel, word_id)
+        if model is not None:
+            model.studied_at = studied_at
+            self._session.flush()
+
+    def last_studied(self, source_ids: Collection[int]) -> dict[int, datetime]:
+        found: dict[int, datetime] = {}
+        for chunk in chunks(list(source_ids)):
+            stmt = (
+                select(StoredCandidateModel.source_id, func.max(StoredCandidateModel.studied_at))
+                .where(
+                    StoredCandidateModel.source_id.in_(chunk),
+                    StoredCandidateModel.studied_at.is_not(None),
+                )
+                .group_by(StoredCandidateModel.source_id)
+            )
+            found.update({
+                source_id: studied for source_id, studied in self._session.execute(stmt)
+                if studied is not None
+            })
+        return found
 
     # ── private helpers ────────────────────────────────────────────────
 
