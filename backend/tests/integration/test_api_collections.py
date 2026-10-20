@@ -56,7 +56,7 @@ def client(_db_engine: object) -> Generator[TestClient, None, None]:
 
 
 TEXT_ANSWER = {"text.kind": "text"}
-TEXT_REQUEST = {"text": "Hello world", "answers": TEXT_ANSWER}
+TEXT_REQUEST = {"text": "Hello world", "answers": [TEXT_ANSWER]}
 
 
 @pytest.mark.integration

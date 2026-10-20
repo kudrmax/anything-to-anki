@@ -7,6 +7,7 @@ from backend.domain.value_objects.source_input import LocalFile, PastedText, Sou
 URL_SCHEMES = ("http://", "https://")
 PATH_START = "/"
 SUBTITLES_NEED_VIDEO_MESSAGE = "A .srt file can only be attached to a video"
+SUBTITLES_NEED_ONE_VIDEO_MESSAGE = "A .srt file can only be attached to one video"
 
 
 def typed_input(text: str, subtitles_path: str | None = None) -> SourceInput:
@@ -21,10 +22,24 @@ def typed_input(text: str, subtitles_path: str | None = None) -> SourceInput:
     subtitles = subtitles_path.strip() if subtitles_path and subtitles_path.strip() else None
     if single_line and stripped.lower().startswith(URL_SCHEMES):
         source_input: SourceInput = Url(stripped)
-    elif single_line and normalize_typed_path(stripped).startswith(PATH_START):
+    elif single_line and _is_path(stripped):
         return LocalFile(stripped, subtitles_path=subtitles)
     else:
         source_input = PastedText(text)
     if subtitles is not None:
         raise InvalidSourceInputError(SUBTITLES_NEED_VIDEO_MESSAGE)
     return source_input
+
+
+def typed_inputs(text: str, subtitles_path: str | None = None) -> list[SourceInput]:
+    """Several lines that each name a file are several files; anything else is one input."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 2 or not all(_is_path(line) for line in lines):
+        return [typed_input(text, subtitles_path)]
+    if subtitles_path and subtitles_path.strip():
+        raise InvalidSourceInputError(SUBTITLES_NEED_ONE_VIDEO_MESSAGE)
+    return [LocalFile(line) for line in lines]
+
+
+def _is_path(line: str) -> bool:
+    return normalize_typed_path(line).startswith(PATH_START)

@@ -268,6 +268,15 @@ class InvalidAnswerError(DomainError):
     """Raised when an answer names a question that wasn't asked or an option it doesn't have."""
 
 
+class InputFailedError(DomainError):
+    """Raised when one input of several added at once can't be read; nothing is added."""
+
+    def __init__(self, label: str, cause: Exception) -> None:
+        super().__init__(f"{label}: {cause}")
+        self.label = label
+        self.cause = cause
+
+
 class SourceNotTopicError(DomainError):
     """Raised when a topic-only operation is requested for a regular source."""
 

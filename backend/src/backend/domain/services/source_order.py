@@ -1,11 +1,11 @@
 """The one order of sources: the screen's and every set's built from them."""
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
+from backend.domain.services.natural_order import natural_key
 from backend.domain.value_objects.source_order import (
     SourceGrouping,
     SourceSort,
@@ -67,16 +67,8 @@ def _by_added(facts: Sequence[SourceFacts], reverse: bool = False) -> list[Sourc
 
 
 def _by_name(facts: Sequence[SourceFacts], reverse: bool) -> list[SourceFacts]:
-    a_to_z = sorted(facts, key=lambda f: (_name_key(f.source.title or ""), _id(f)))
+    a_to_z = sorted(facts, key=lambda f: (natural_key(f.source.title or ""), _id(f)))
     return a_to_z[::-1] if reverse else a_to_z
-
-
-def _name_key(title: str) -> tuple[tuple[int, int, str], ...]:
-    """Case-insensitive, numbers by value: `ch2` before `ch10`."""
-    return tuple(
-        (0, int(part), "") if part.isdigit() else (1, 0, part)
-        for part in _NUMBERS.split(title.casefold()) if part
-    )
 
 
 def _by_last_studied(facts: Sequence[SourceFacts], reverse: bool) -> list[SourceFacts]:
@@ -96,8 +88,6 @@ def _last_studied(facts: SourceFacts) -> datetime:
     assert facts.last_studied is not None
     return facts.last_studied
 
-
-_NUMBERS = re.compile(r"(\d+)")
 
 _SORTS: Mapping[SourceSort, Callable[[Sequence[SourceFacts], bool], list[SourceFacts]]] = (
     MappingProxyType({

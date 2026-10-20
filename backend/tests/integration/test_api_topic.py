@@ -111,7 +111,7 @@ def test_generation_is_queued_once(client: TestClient) -> None:
 
 def test_generation_is_only_for_topics(client: TestClient) -> None:
     created = client.post(
-        "/sources/add", json={"text": "Some text.", "answers": {"text.kind": "text"}},
+        "/sources/add", json={"text": "Some text.", "answers": [{"text.kind": "text"}]},
     )
     response = client.post(f"/sources/{created.json()['source_ids'][0]}/topic-targets/generate")
     assert response.status_code == 400

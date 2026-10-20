@@ -4,13 +4,13 @@ import json
 from typing import TYPE_CHECKING
 
 from backend.application.constants import (
-    BOOK_CHAPTER_TITLE_SETTING,
     CLOZE_DEFAULT_HINT_SETTING,
     DEFAULT_CLOZE_HINT,
     DEFAULT_IMAGES_PER_SOURCE,
     DEFAULT_USAGE_GROUP_ORDER,
     FREQUENT_WORD_THRESHOLD_SETTING,
     IMAGES_PER_SOURCE_SETTING,
+    NAMING_RULE_SETTING,
     SOURCE_GROUPING_SETTING,
     SOURCE_SORT_DIRECTION_SETTING,
     SOURCE_SORT_SETTING,
@@ -25,11 +25,11 @@ from backend.application.utils.anki_note_settings import (
     ANKI_FIELD_DEFAULTS,
     ANKI_NOTE_TYPE_DEFAULTS,
 )
-from backend.domain.value_objects.chapter_title_template import DEFAULT_CHAPTER_TITLE_TEMPLATE
 from backend.domain.value_objects.frequent_word_threshold import (
     DEFAULT_FREQUENT_WORD_THRESHOLD,
     FREQUENT_WORD_THRESHOLDS,
 )
+from backend.domain.value_objects.naming_rule import DEFAULT_NAMING_RULE
 from backend.domain.value_objects.source_order import (
     DEFAULT_SOURCE_GROUPING,
     DEFAULT_SOURCE_SORT,
@@ -64,7 +64,7 @@ _SETTING_KEYS: dict[str, str] = {
     "tts_speed": "1.0",
     IMAGES_PER_SOURCE_SETTING: str(DEFAULT_IMAGES_PER_SOURCE),
     CLOZE_DEFAULT_HINT_SETTING: DEFAULT_CLOZE_HINT,
-    BOOK_CHAPTER_TITLE_SETTING: DEFAULT_CHAPTER_TITLE_TEMPLATE,
+    NAMING_RULE_SETTING: DEFAULT_NAMING_RULE,
     SOURCE_GROUPING_SETTING: DEFAULT_SOURCE_GROUPING.value,
     SOURCE_SORT_SETTING: DEFAULT_SOURCE_SORT.value,
     SOURCE_SORT_DIRECTION_SETTING: DEFAULT_SOURCE_SORT_DIRECTION.value,

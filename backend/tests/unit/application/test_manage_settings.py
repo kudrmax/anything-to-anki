@@ -175,3 +175,16 @@ class TestManageSettingsUseCase:
     def test_cloze_default_hint_rejects_unknown_kinds(self, value: str) -> None:
         with pytest.raises(ValueError, match="cloze_default_hint must be one of"):
             UpdateSettingsRequest(cloze_default_hint=value)
+
+    def test_naming_rule_defaults_to_collection_and_number(self) -> None:
+        self.settings_repo.get.side_effect = lambda key, default: default
+        assert self.use_case.get_settings().naming_rule == "{{collection}} ch{{n}}"
+
+    def test_update_naming_rule(self) -> None:
+        self.settings_repo.get.return_value = None
+        self.use_case.update_settings(UpdateSettingsRequest(naming_rule=" {{title}} "))
+        self.settings_repo.set.assert_any_call("naming_rule", "{{title}}")
+
+    def test_naming_rule_without_number_or_title_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="must contain"):
+            UpdateSettingsRequest(naming_rule="{{collection}} chapter")

@@ -132,7 +132,7 @@ describe('SourcesScreen', () => {
     act(() => button('Add source', addForm()!).click())
     await settle()
 
-    expect(addSource).toHaveBeenCalledWith('Some text to learn from.', '', '', {})
+    expect(addSource).toHaveBeenCalledWith('Some text to learn from.', '', '', [], undefined)
     expect(vi.mocked(api.getSourceBoard).mock.calls.length).toBeGreaterThan(loads)
     expect(seen.location).toBe('/')
     expect(addForm()!.querySelector('textarea')!.value).toBe('')

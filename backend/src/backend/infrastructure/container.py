@@ -13,6 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from backend.application.source_intake.book_handler import BookHandler
 from backend.application.source_intake.document_normalizer import DocumentNormalizer
 from backend.application.source_intake.single_source_handler import SingleSourceHandler
+from backend.application.source_intake.source_group_writer import SourceGroupWriter
 from backend.application.source_intake.source_writer import SourceWriter
 from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
 from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
@@ -50,6 +51,7 @@ from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
 from backend.application.use_cases.refresh_topic import RefreshTopicUseCase
 from backend.application.use_cases.rename_collection import RenameCollectionUseCase
 from backend.application.use_cases.rename_source import RenameSourceUseCase
+from backend.application.use_cases.render_names import RenderNamesUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
 from backend.application.use_cases.report_candidate import ReportCandidateUseCase
 from backend.application.use_cases.restore_collection import RestoreCollectionUseCase
@@ -200,6 +202,7 @@ from backend.infrastructure.persistence.sqla_word_decision_repository import (
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
+from backend.infrastructure.readers.caching_reader import CachingFormatReader
 from backend.infrastructure.readers.epub_format_reader import EpubFormatReader
 from backend.infrastructure.readers.html_reader import HtmlReader
 from backend.infrastructure.readers.markdown_reader import MarkdownReader
@@ -343,14 +346,19 @@ class Container:
         self._video_path_resolver = VideoPathResolverImpl(data_dir=data_dir)
         youtube_fetcher = self._url_fetchers[0]
         self._format_detector = RegexFormatDetector(youtube_fetcher)
-        self._format_readers: tuple[FormatReader, ...] = (
-            PlainReader(self._file_reader),
-            MarkdownReader(self._file_reader),
-            HtmlReader(self._file_reader),
-            EpubFormatReader(),
-            SrtReader(self._file_reader),
-            VideoFileReader(self._file_reader, self._subtitle_extractor, self._subtitle_extractor),
-            YouTubeReader(youtube_fetcher),
+        self._format_readers: tuple[FormatReader, ...] = tuple(
+            CachingFormatReader(reader)
+            for reader in (
+                PlainReader(self._file_reader),
+                MarkdownReader(self._file_reader),
+                HtmlReader(self._file_reader),
+                EpubFormatReader(),
+                SrtReader(self._file_reader),
+                VideoFileReader(
+                    self._file_reader, self._subtitle_extractor, self._subtitle_extractor,
+                ),
+                YouTubeReader(youtube_fetcher),
+            )
         )
         self._document_normalizer = DocumentNormalizer(self._text_cleaner, self._text_normalizer)
 
@@ -466,18 +474,19 @@ class Container:
             detector=self._format_detector,
             readers=self._format_readers,
             handlers=(
-                SingleSourceHandler(Kind.TEXT, writer),
-                SingleSourceHandler(Kind.SONG, writer),
-                SingleSourceHandler(Kind.SUBTITLES, writer),
-                BookHandler(
-                    writer=writer,
-                    collection_repo=SqlaCollectionRepository(session),
-                    settings_repo=SqlaSettingsRepository(session),
-                ),
+                SingleSourceHandler(Kind.TEXT),
+                SingleSourceHandler(Kind.SONG),
+                SingleSourceHandler(Kind.SUBTITLES),
+                BookHandler(),
             ),
             normalizer=self._document_normalizer,
             file_reader=self._file_reader,
+            group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(session)),
+            settings_repo=SqlaSettingsRepository(session),
         )
+
+    def render_names_use_case(self) -> RenderNamesUseCase:
+        return RenderNamesUseCase()
 
     def describe_input_use_case(self) -> DescribeInputUseCase:
         return DescribeInputUseCase(

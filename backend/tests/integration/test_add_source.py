@@ -3,18 +3,27 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.application.dto.add_source_dtos import QuestionsRequired, SourcesCreated
+from backend.application.dto.add_source_dtos import (
+    CollectionChoiceDTO,
+    NamingRequired,
+    QuestionsRequired,
+    SourcesCreated,
+)
 from backend.application.source_intake.book_handler import BookHandler
 from backend.application.source_intake.document_normalizer import DocumentNormalizer
+from backend.application.source_intake.naming import Naming
 from backend.application.source_intake.single_source_handler import SingleSourceHandler
+from backend.application.source_intake.source_group_writer import SourceGroupWriter
 from backend.application.source_intake.source_writer import SourceWriter
 from backend.application.use_cases.add_source import AddSourceUseCase
 from backend.domain.exceptions import (
+    InputFailedError,
     InvalidAnswerError,
     InvalidSourceInputError,
     NotATextFileError,
     SubtitlesNotAvailableError,
 )
+from backend.domain.value_objects.collection_choice import CollectionChoice
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import (
     Document,
@@ -24,8 +33,9 @@ from backend.domain.value_objects.document import (
     ParagraphMode,
 )
 from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.naming_rule import NamingRule
 from backend.domain.value_objects.question import Answers
-from backend.domain.value_objects.source_input import LocalFile, PastedText, Url
+from backend.domain.value_objects.source_input import LocalFile, PastedText, SourceInput, Url
 from backend.infrastructure.adapters.local_file_reader import LocalFileReader
 from backend.infrastructure.adapters.regex_format_detector import RegexFormatDetector
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
@@ -63,6 +73,8 @@ pytestmark = pytest.mark.integration
 
 TEXT = Answers({"text.kind": "text"})
 SONG = Answers({"text.kind": "song"})
+SPLIT = Answers({"book.split": "split"})
+DEFAULT_RULE = "{{collection}} ch{{n}}"
 
 
 @pytest.fixture()
@@ -87,26 +99,44 @@ def add_source(db_session: Session, tmp_path: Path) -> AddSourceUseCase:
             YouTubeReader(youtube),
         ),
         handlers=(
-            SingleSourceHandler(Kind.TEXT, writer),
-            SingleSourceHandler(Kind.SONG, writer),
-            SingleSourceHandler(Kind.SUBTITLES, writer),
-            BookHandler(
-                writer, SqlaCollectionRepository(db_session), SqlaSettingsRepository(db_session),
-            ),
+            SingleSourceHandler(Kind.TEXT),
+            SingleSourceHandler(Kind.SONG),
+            SingleSourceHandler(Kind.SUBTITLES),
+            BookHandler(),
         ),
         normalizer=DocumentNormalizer(RegexTextCleaner(), SlangNormalizer()),
         file_reader=files,
+        group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(db_session)),
+        settings_repo=SqlaSettingsRepository(db_session),
     )
 
 
-def _created(result: QuestionsRequired | SourcesCreated) -> SourcesCreated:
+type _Result = QuestionsRequired | NamingRequired | SourcesCreated
+
+
+def _add(
+    use_case: AddSourceUseCase,
+    source_input: SourceInput,
+    title: str | None = None,
+    answers: Answers | None = None,
+    naming: Naming | None = None,
+) -> _Result:
+    return use_case.execute([source_input], title, [answers] if answers else [], naming)
+
+
+def _created(result: _Result) -> SourcesCreated:
     assert isinstance(result, SourcesCreated), result
     return result
 
 
-def _asked(result: QuestionsRequired | SourcesCreated) -> list[str]:
+def _asked(result: _Result) -> list[str]:
     assert isinstance(result, QuestionsRequired), result
     return [question.id for question in result.questions]
+
+
+def _naming(result: _Result) -> NamingRequired:
+    assert isinstance(result, NamingRequired), result
+    return result
 
 
 def _book(tmp_path: Path, chapters: int) -> str:
@@ -119,12 +149,12 @@ def _book(tmp_path: Path, chapters: int) -> str:
 
 class TestText:
     def test_asks_text_or_song_first(self, add_source: AddSourceUseCase) -> None:
-        assert _asked(add_source.execute(PastedText("Hello there."))) == ["text.kind"]
+        assert _asked(_add(add_source, PastedText("Hello there."))) == ["text.kind"]
 
     def test_text_becomes_one_source_with_its_document(
         self, add_source: AddSourceUseCase, db_session: Session,
     ) -> None:
-        created = _created(add_source.execute(PastedText("I wanna go.\n\nNow."), answers=TEXT))
+        created = _created(_add(add_source, PastedText("I wanna go.\n\nNow."), answers=TEXT))
 
         (source_id,) = created.source_ids
         source = SqlaSourceRepository(db_session).get_by_id(source_id)
@@ -140,7 +170,7 @@ class TestText:
         self, add_source: AddSourceUseCase, db_session: Session,
     ) -> None:
         text = "[Chorus]\nHello darkness\n♪\nmy old friend"
-        (source_id,) = _created(add_source.execute(PastedText(text), answers=SONG)).source_ids
+        (source_id,) = _created(_add(add_source, PastedText(text), answers=SONG)).source_ids
         source = SqlaSourceRepository(db_session).get_by_id(source_id)
         assert source is not None
         assert source.kind is Kind.SONG
@@ -149,7 +179,7 @@ class TestText:
         ))
 
     def test_own_title_wins(self, add_source: AddSourceUseCase, db_session: Session) -> None:
-        result = add_source.execute(PastedText("Text."), title="  Mine ", answers=TEXT)
+        result = _add(add_source, PastedText("Text."), title="  Mine ", answers=TEXT)
         source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
         assert source is not None
         assert source.title == "Mine"
@@ -159,7 +189,7 @@ class TestText:
     ) -> None:
         path = tmp_path / "notes.md"
         path.write_text("# Notes\n\nText here.")
-        result = add_source.execute(LocalFile(f"'{path}'"), answers=TEXT)
+        result = _add(add_source, LocalFile(f"'{path}'"), answers=TEXT)
         (source_id,) = _created(result).source_ids
         source = SqlaSourceRepository(db_session).get_by_id(source_id)
         assert source is not None
@@ -173,30 +203,30 @@ class TestErrors:
     @pytest.mark.parametrize("text", ["", "  \n "])
     def test_empty_text(self, add_source: AddSourceUseCase, text: str) -> None:
         with pytest.raises(InvalidSourceInputError, match="cannot be empty"):
-            add_source.execute(PastedText(text))
+            _add(add_source, PastedText(text))
 
     def test_text_left_empty_after_cleaning(self, add_source: AddSourceUseCase) -> None:
         with pytest.raises(InvalidSourceInputError, match="cannot be empty"):
-            add_source.execute(PastedText("[Chorus]\n♪"), answers=SONG)
+            _add(add_source, PastedText("[Chorus]\n♪"), answers=SONG)
 
     def test_answer_that_is_not_an_option(self, add_source: AddSourceUseCase) -> None:
         with pytest.raises(InvalidAnswerError):
-            add_source.execute(PastedText("Hi."), answers=Answers({"text.kind": "poem"}))
+            _add(add_source, PastedText("Hi."), answers=Answers({"text.kind": "poem"}))
 
     def test_answer_to_a_question_not_asked(self, add_source: AddSourceUseCase) -> None:
         answers = Answers({"text.kind": "text", "book.split": "split"})
         with pytest.raises(InvalidAnswerError, match="book.split"):
-            add_source.execute(PastedText("Hi."), answers=answers)
+            _add(add_source, PastedText("Hi."), answers=answers)
 
     def test_missing_file(self, add_source: AddSourceUseCase, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
-            add_source.execute(LocalFile(str(tmp_path / "nope.txt")))
+            _add(add_source, LocalFile(str(tmp_path / "nope.txt")))
 
     def test_binary_file(self, add_source: AddSourceUseCase, tmp_path: Path) -> None:
         path = tmp_path / "image.png"
         path.write_bytes(b"\x89PNG\x00\x00binary")
         with pytest.raises(NotATextFileError):
-            add_source.execute(LocalFile(str(path)), answers=TEXT)
+            _add(add_source, LocalFile(str(path)), answers=TEXT)
 
     def test_srt_attached_to_something_else(
         self, add_source: AddSourceUseCase, tmp_path: Path,
@@ -204,14 +234,14 @@ class TestErrors:
         path = tmp_path / "notes.txt"
         path.write_text("Text")
         with pytest.raises(InvalidSourceInputError, match="only be attached to a video"):
-            add_source.execute(LocalFile(str(path), subtitles_path=str(path)))
+            _add(add_source, LocalFile(str(path), subtitles_path=str(path)))
 
 
 class TestBook:
-    def test_asks_to_split_showing_the_chapters(
+    def test_asks_to_split(
         self, add_source: AddSourceUseCase, tmp_path: Path,
     ) -> None:
-        result = add_source.execute(LocalFile(_book(tmp_path, 2)))
+        result = _add(add_source, LocalFile(_book(tmp_path, 2)))
 
         assert isinstance(result, QuestionsRequired)
         (question,) = result.questions
@@ -220,24 +250,31 @@ class TestBook:
         )
         split, whole = question.options
         assert split.label == "2 chapters · 201–301 words each"
-        assert split.details is not None
-        assert split.details.title == "Sources in collection «Flourish»"
-        assert [(item.text, item.note) for item in split.details.items] == [
-            ("Flourish ch1", "201 words"),
-            ("Flourish ch2", "301 words"),
-        ]
+        assert split.details is None
         assert whole.label == "One source · 502 words"
+
+    def test_split_book_asks_how_to_name_its_chapters(
+        self, add_source: AddSourceUseCase, tmp_path: Path,
+    ) -> None:
+        naming = _naming(_add(add_source, LocalFile(_book(tmp_path, 2)), answers=SPLIT))
+
+        assert naming.heading == "Add «Flourish»"
+        assert naming.default_collection == CollectionChoiceDTO(new_name="Flourish")
+        assert naming.default_rule == "{{collection}} ch{{n}}"
+        assert [(i.label, i.own_title, i.words) for i in naming.items] == [
+            ("chapter 1", "Chapter 1", 201), ("chapter 2", "Chapter 2", 301),
+        ]
 
     def test_split_book_goes_to_its_collection_again_and_again(
         self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
     ) -> None:
         path = _book(tmp_path, 2)
-        split = Answers({"book.split": "split"})
-        first = _created(add_source.execute(LocalFile(path), answers=split))
-        again = _created(add_source.execute(LocalFile(path), answers=split))
+        named = Naming(CollectionChoice(new_name="Flourish"), NamingRule(DEFAULT_RULE), {})
+        first = _created(_add(add_source, LocalFile(path), answers=SPLIT, naming=named))
+        again = _naming(_add(add_source, LocalFile(path), answers=SPLIT))
 
         assert first.collection_id is not None
-        assert again.collection_id == first.collection_id
+        assert again.default_collection == CollectionChoiceDTO(existing_id=first.collection_id)
         sources = [SqlaSourceRepository(db_session).get_by_id(i) for i in first.source_ids]
         assert [(s.title, s.kind, s.format) for s in sources if s] == [
             ("Flourish ch1", Kind.BOOK, Format.EPUB),
@@ -245,10 +282,18 @@ class TestBook:
         ]
         assert sources[0] and sources[1] and sources[0].created_at == sources[1].created_at
 
+    def test_title_names_the_book(self, add_source: AddSourceUseCase, tmp_path: Path) -> None:
+        naming = _naming(
+            _add(add_source, LocalFile(_book(tmp_path, 2)), title="Mine", answers=SPLIT),
+        )
+
+        assert naming.heading == "Add «Mine»"
+        assert naming.default_collection == CollectionChoiceDTO(new_name="Mine")
+
     def test_whole_book_is_one_document(
         self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
     ) -> None:
-        result = add_source.execute(
+        result = _add(add_source,
             LocalFile(_book(tmp_path, 2)), title="Mine", answers=Answers({"book.split": "whole"}),
         )
         created = _created(result)
@@ -266,7 +311,7 @@ class TestBook:
     def test_book_of_one_chapter_asks_nothing(
         self, add_source: AddSourceUseCase, tmp_path: Path,
     ) -> None:
-        assert len(_created(add_source.execute(LocalFile(_book(tmp_path, 1)))).source_ids) == 1
+        assert len(_created(_add(add_source, LocalFile(_book(tmp_path, 1)))).source_ids) == 1
 
 
 class TestVideo:
@@ -275,9 +320,9 @@ class TestVideo:
     ) -> None:
         video = LocalFile(str(tmp_path / "Movie.mkv"))
         (tmp_path / "Movie.mkv").write_bytes(b"\x00")
-        assert _asked(add_source.execute(video)) == ["video.audio_track"]
+        assert _asked(_add(add_source, video)) == ["video.audio_track"]
 
-        result = add_source.execute(video, answers=Answers({"video.audio_track": "1"}))
+        result = _add(add_source, video, answers=Answers({"video.audio_track": "1"}))
         source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
         assert source is not None
         assert (source.format, source.kind, source.title) == (
@@ -286,7 +331,7 @@ class TestVideo:
         assert (source.video_path, source.audio_track_index) == (video.path, 1)
 
     def test_youtube_link(self, add_source: AddSourceUseCase, db_session: Session) -> None:
-        result = add_source.execute(Url(YOUTUBE_URL))
+        result = _add(add_source, Url(YOUTUBE_URL))
         source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
         assert source is not None
         assert (source.format, source.kind, source.title, source.source_url) == (
@@ -300,33 +345,26 @@ class TestTitles:
         self, add_source: AddSourceUseCase, db_session: Session,
     ) -> None:
         text = "word " * 40
-        result = add_source.execute(PastedText(text), title="   ", answers=TEXT)
+        result = _add(add_source, PastedText(text), title="   ", answers=TEXT)
         source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
         assert source is not None
         assert source.title == ("word " * 20)[:100]
 
-    def test_chapters_are_named_by_the_template_setting(
+    def test_default_rule_comes_from_the_setting(
         self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
     ) -> None:
-        SqlaSettingsRepository(db_session).set(
-            "book_chapter_title_template", "{{n}}. {{chapter_title}} ({{book_name}})",
-        )
-        result = add_source.execute(
-            LocalFile(_book(tmp_path, 2)), answers=Answers({"book.split": "split"}),
-        )
-        titles = [
-            source.title
-            for source_id in _created(result).source_ids
-            if (source := SqlaSourceRepository(db_session).get_by_id(source_id))
-        ]
-        assert titles == ["1. Chapter 1 (Flourish)", "2. Chapter 2 (Flourish)"]
+        SqlaSettingsRepository(db_session).set("naming_rule", "{{n}}. {{title}}")
+
+        naming = _naming(_add(add_source, LocalFile(_book(tmp_path, 2)), answers=SPLIT))
+
+        assert naming.default_rule == "{{n}}. {{title}}"
 
     def test_html_file_is_text_named_after_the_file(
         self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
     ) -> None:
         path = tmp_path / "Article.html"
         path.write_text("<html><body><h1>News</h1><p>Text.</p></body></html>")
-        result = add_source.execute(LocalFile(str(path)), answers=TEXT)
+        result = _add(add_source, LocalFile(str(path)), answers=TEXT)
         source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
         assert source is not None
         assert (source.title, source.format, source.kind) == ("Article", Format.HTML, Kind.TEXT)
@@ -346,9 +384,150 @@ def test_youtube_without_subtitles_is_reported(db_session: Session, tmp_path: Pa
     use_case = AddSourceUseCase(
         detector=RegexFormatDetector(youtube),
         readers=(YouTubeReader(youtube),),
-        handlers=(SingleSourceHandler(Kind.SUBTITLES, writer),),
+        handlers=(SingleSourceHandler(Kind.SUBTITLES),),
         normalizer=DocumentNormalizer(RegexTextCleaner(), SlangNormalizer()),
         file_reader=LocalFileReader(),
+        group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(db_session)),
+        settings_repo=SqlaSettingsRepository(db_session),
     )
     with pytest.raises(SubtitlesNotAvailableError):
-        use_case.execute(Url(YOUTUBE_URL))
+        _add(use_case, Url(YOUTUBE_URL))
+
+
+def _files(tmp_path: Path, *names: str) -> list[SourceInput]:
+    inputs: list[SourceInput] = []
+    for name in names:
+        path = tmp_path / name
+        path.write_text(f"The story of {path.stem} begins here.")
+        inputs.append(LocalFile(str(path)))
+    return inputs
+
+
+class TestBatch:
+    def test_the_same_question_is_asked_once_for_the_batch(
+        self, add_source: AddSourceUseCase, tmp_path: Path,
+    ) -> None:
+        result = add_source.execute(_files(tmp_path, "a.txt", "b.txt"))
+
+        assert isinstance(result, QuestionsRequired)
+        assert [(q.id, q.input_indexes, q.input_label) for q in result.questions] == [
+            ("text.kind", [0, 1], None),
+        ]
+
+    def test_different_questions_name_their_file(
+        self, add_source: AddSourceUseCase, tmp_path: Path,
+    ) -> None:
+        inputs = [*_files(tmp_path, "a.txt"), LocalFile(_book(tmp_path, 2))]
+
+        result = add_source.execute(inputs)
+
+        assert isinstance(result, QuestionsRequired)
+        assert [(q.id, q.input_indexes, q.input_label) for q in result.questions] == [
+            ("text.kind", [0], "a.txt"), ("book.split", [1], "flourish.epub"),
+        ]
+
+    def test_more_answers_than_inputs_are_rejected(
+        self, add_source: AddSourceUseCase, tmp_path: Path,
+    ) -> None:
+        with pytest.raises(InvalidAnswerError, match="more answers"):
+            add_source.execute(_files(tmp_path, "a.txt", "b.txt"), answers=[TEXT, TEXT, TEXT])
+
+    def test_same_file_names_are_told_apart_by_their_folder(
+        self, add_source: AddSourceUseCase, tmp_path: Path,
+    ) -> None:
+        (tmp_path / "one").mkdir()
+        (tmp_path / "two").mkdir()
+        inputs = _files(tmp_path, "one/notes.md", "two/notes.md")
+
+        naming = _naming(add_source.execute(inputs, answers=[TEXT, TEXT]))
+
+        assert [i.label for i in naming.items] == ["one/notes.md", "two/notes.md"]
+
+    def test_blank_hand_edited_row_takes_the_rule(
+        self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
+    ) -> None:
+        naming = Naming(CollectionChoice(), NamingRule("Part {{n}}"), {0: "  ", 1: " Intro "})
+
+        created = _created(add_source.execute(
+            _files(tmp_path, "a.txt", "b.txt"), answers=[TEXT, TEXT], naming=naming,
+        ))
+
+        sources = [SqlaSourceRepository(db_session).get_by_id(i) for i in created.source_ids]
+        assert [s.title for s in sources if s] == ["Part 1", "Intro"]
+
+    def test_several_sources_ask_how_to_name_them(
+        self, add_source: AddSourceUseCase, tmp_path: Path,
+    ) -> None:
+        inputs = _files(tmp_path, "ch10.txt", "ch2.txt")
+
+        naming = _naming(add_source.execute(inputs, answers=[TEXT, TEXT]))
+
+        assert naming.heading == "Add 2 files"
+        assert [(i.label, i.own_title) for i in naming.items] == [
+            ("ch2.txt", "ch2"), ("ch10.txt", "ch10"),
+        ]
+        assert naming.default_collection is None
+        assert naming.default_rule == DEFAULT_RULE
+        assert [(v.token, v.label) for v in naming.variables] == [
+            ("{{collection}}", "Collection"),
+            ("{{n}}", "Number"),
+            ("{{title}}", "Title from file"),
+        ]
+
+    def test_named_sources_go_to_the_collection_in_order(
+        self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
+    ) -> None:
+        inputs = _files(tmp_path, "ch10.txt", "ch2.txt")
+        naming = Naming(
+            CollectionChoice(new_name="Atomic Habits"), NamingRule(DEFAULT_RULE), {1: "Intro"},
+        )
+
+        created = _created(add_source.execute(inputs, answers=[TEXT, TEXT], naming=naming))
+
+        sources = [SqlaSourceRepository(db_session).get_by_id(i) for i in created.source_ids]
+        assert [s.title for s in sources if s] == ["Atomic Habits ch1", "Intro"]
+        assert created.collection_id is not None
+        assert {s.collection_id for s in sources if s} == {created.collection_id}
+
+    def test_no_collection_leaves_it_out_of_titles(
+        self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
+    ) -> None:
+        naming = Naming(CollectionChoice(), NamingRule(DEFAULT_RULE), {})
+
+        created = _created(add_source.execute(
+            _files(tmp_path, "a.txt", "b.txt"), answers=[TEXT, TEXT], naming=naming,
+        ))
+
+        sources = [SqlaSourceRepository(db_session).get_by_id(i) for i in created.source_ids]
+        assert [(s.title, s.collection_id) for s in sources if s] == [("ch1", None), ("ch2", None)]
+
+    def test_two_books_answer_separately(
+        self, add_source: AddSourceUseCase, tmp_path: Path,
+    ) -> None:
+        first = tmp_path / "one"
+        second = tmp_path / "two"
+        first.mkdir()
+        second.mkdir()
+        inputs: list[SourceInput] = [
+            LocalFile(_book(first, 2)), LocalFile(_book(second, 2)),
+        ]
+        whole = Answers({"book.split": "whole"})
+
+        naming = _naming(add_source.execute(inputs, answers=[SPLIT, whole]))
+
+        assert [i.label for i in naming.items] == ["chapter 1", "chapter 2", "two/flourish.epub"]
+
+    def test_a_bad_file_fails_the_whole_batch_naming_it(
+        self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
+    ) -> None:
+        inputs = _files(tmp_path, "a.txt")
+        binary = tmp_path / "picture.txt"
+        binary.write_bytes(b"\x00\x01\x02\xff")
+        inputs.append(LocalFile(str(binary)))
+
+        with pytest.raises(InputFailedError) as failed:
+            add_source.execute(inputs, answers=[TEXT, TEXT])
+
+        assert failed.value.label == "picture.txt"
+        assert isinstance(failed.value.cause, NotATextFileError)
+        assert SqlaSourceRepository(db_session).list_all() == []

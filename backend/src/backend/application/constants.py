@@ -30,7 +30,7 @@ CLOZE_DEFAULT_HINT_SETTING: str = "cloze_default_hint"
 DEFAULT_CLOZE_HINT: str = "none"
 
 # How a source made from one chapter of a book is titled.
-BOOK_CHAPTER_TITLE_SETTING: str = "book_chapter_title_template"
+NAMING_RULE_SETTING: str = "naming_rule"
 
 # How the sources list is grouped and sorted: one choice for every set of sources.
 SOURCE_GROUPING_SETTING: str = "source_grouping"

@@ -1,8 +1,10 @@
 import AppKit
+import LauncherCore
 import UniformTypeIdentifiers
 import WebKit
 
-/// Answers `window.webkit.messageHandlers.pickFile.postMessage({extensions})` with an absolute path,
+/// Answers `window.webkit.messageHandlers.pickFile.postMessage({extensions, multiple})` with an absolute path
+/// (or several, when `multiple`),
 /// so the page can hand the backend a path instead of uploading the file.
 final class FilePickerBridge: NSObject, WKScriptMessageHandlerWithReply {
     static let name = "pickFile"
@@ -25,18 +27,17 @@ final class FilePickerBridge: NSObject, WKScriptMessageHandlerWithReply {
         replyHandler: @escaping (Any?, String?) -> Void
     ) {
         guard isAppFrame(message.frameInfo) else { return replyHandler(nil, nil) }
-        let body = message.body as? [String: Any]
-        let extensions = body?["extensions"] as? [String] ?? []
+        let request = PickRequest(body: message.body)
 
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        let types = extensions.compactMap { UTType(filenameExtension: $0) }
+        panel.allowsMultipleSelection = request.multiple
+        let types = request.extensions.compactMap { UTType(filenameExtension: $0) }
         if !types.isEmpty { panel.allowedContentTypes = types }
 
         let finish: (NSApplication.ModalResponse) -> Void = { response in
-            replyHandler(response == .OK ? panel.url?.path : nil, nil)
+            replyHandler(request.reply(paths: panel.urls.map(\.path), accepted: response == .OK), nil)
         }
         if let window {
             panel.beginSheetModal(for: window, completionHandler: finish)

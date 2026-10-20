@@ -26,6 +26,19 @@ describe('nativeHost', () => {
     expect(await nativeHost(win)?.pickFile()).toBeNull()
   })
 
+  it('returns the paths of several picked files', async () => {
+    const { win, postMessage } = hostWindow(['/a/1.txt', '/a/2.txt', 7])
+
+    expect(await nativeHost(win)?.pickFiles()).toEqual(['/a/1.txt', '/a/2.txt'])
+    expect(postMessage).toHaveBeenCalledWith({ multiple: true })
+  })
+
+  it('returns no paths when picking several is cancelled', async () => {
+    const { win } = hostWindow(null)
+
+    expect(await nativeHost(win)?.pickFiles()).toEqual([])
+  })
+
   it('passes on paths the macOS app reports for dropped files until unsubscribed', () => {
     const target = new EventTarget()
     const win = Object.assign(target, hostWindow(null).win) as unknown as Window
