@@ -213,7 +213,7 @@ class TestGenerationApi:
         assert body["in_progress"] is True
         assert _meaning_status(client) == {
             "kind": "meaning", "total": 4, "done": 1, "running": 1, "failed": 1, "missing": 1,
-            "ready_missing": 1,
+            "ready_missing": 1, "ready_all": 3, "all": 3,
             "blocked_by": None, "videos_to_download": 0,
         }
 

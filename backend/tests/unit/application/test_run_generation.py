@@ -333,6 +333,19 @@ class TestRunGeneration:
         discarded = [c.args[0] for c in setup.meaning_repo.delete_by_phrase_id.call_args_list]
         assert discarded == [10, 20, 40]
 
+    def test_ready_all_replaces_only_cards_in_ready(self) -> None:
+        setup = _Setup(
+            cards=[_one(1, meaning=True), _one(2, meaning=True), _one(3)],
+            extra_phrases=frozenset({20}),
+        )
+
+        queued = setup.run.execute(SCOPE, GenerationKind.MEANING, GenerationScope.READY_ALL)
+
+        assert queued == 2
+        assert sorted(setup.queued_phrases()) == [10, 30]
+        discarded = [c.args[0] for c in setup.meaning_repo.delete_by_phrase_id.call_args_list]
+        assert discarded == [10, 30]
+
     def test_regenerating_phrases_drops_old_polish(self) -> None:
         shown = replace(_phrase(1), polished_phrase=phrase("The air was bad", "bad"))
         setup = _Setup([(_word(1), [shown])])
@@ -511,6 +524,17 @@ class TestGetGenerationStatus:
         meaning = setup.kind_status(GenerationKind.MEANING)
 
         assert (meaning.missing, meaning.ready_missing) == (2, 1)
+
+    def test_ready_all_and_all_count_every_card_not_running(self) -> None:
+        setup = _Setup(
+            cards=[_one(1), _one(2, meaning=True), _one(3, meaning=True)],
+            extra_phrases=frozenset({20}),
+            jobs=[_job(30, JobStatus.QUEUED)],
+        )
+
+        meaning = setup.kind_status(GenerationKind.MEANING)
+
+        assert (meaning.ready_all, meaning.all) == (1, 2)
 
     def test_done_card_with_a_stale_failure_counts_as_done(self) -> None:
         setup = _Setup([_one(1, meaning=True)], jobs=[_job(10, JobStatus.FAILED)])

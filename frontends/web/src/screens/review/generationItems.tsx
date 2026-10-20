@@ -1,5 +1,5 @@
-import { Download, ListChecks, Plus, RefreshCw, RotateCcw, X } from 'lucide-react'
-import type { GenerationKind, GenerationKindStatus } from '@/api/types'
+import { Download, Plus, RefreshCw, RotateCcw, X } from 'lucide-react'
+import type { GenerationKind, GenerationKindStatus, GenerationScope } from '@/api/types'
 import { Spinner, StatusDot, type MenuItem } from '@/ui'
 import type { Review } from './useReview'
 
@@ -39,42 +39,43 @@ function videoItems(status: GenerationKindStatus, review: Review): MenuItem[] {
 function kindItems(status: GenerationKindStatus, review: Review): MenuItem[] {
   const { run, cancel } = review.generationActions
   const blocked = status.blocked_by !== null
-  const replaceable = status.total - status.running
+  const runItem = (
+    scope: GenerationScope, count: number, item: Omit<MenuItem, 'value' | 'disabled' | 'onSelect'>,
+  ): MenuItem => ({
+    ...item,
+    value: String(count),
+    disabled: blocked || count === 0,
+    onSelect: () => void run(status.kind, scope),
+  })
   return [
     ...videoItems(status, review),
-    {
-      label: 'Generate for ready phrases',
-      hint: 'Missing ones, skipping hidden sections',
-      icon: ListChecks,
-      value: String(status.ready_missing),
-      disabled: blocked || status.ready_missing === 0,
-      onSelect: () => void run(status.kind, 'ready_missing'),
-    },
-    {
-      label: 'Generate missing',
+    runItem('ready_missing', status.ready_missing, {
+      label: 'Ready: generate missing',
+      hint: 'Ready phrases that don’t have it yet',
+      icon: Plus,
+    }),
+    runItem('ready_all', status.ready_all, {
+      label: 'Ready: regenerate all',
+      hint: 'Replace it on every Ready phrase',
+      icon: RefreshCw,
+    }),
+    runItem('missing', status.missing, {
+      label: 'All: generate missing',
       hint: 'Cards that don’t have it yet',
       icon: Plus,
-      value: String(status.missing),
-      disabled: blocked || status.missing === 0,
-      onSelect: () => void run(status.kind, 'missing'),
-    },
-    {
+      separated: true,
+    }),
+    runItem('all', status.all, {
+      label: 'All: regenerate all',
+      hint: 'Replace it on every card',
+      icon: RefreshCw,
+    }),
+    runItem('failed', status.failed, {
       label: 'Retry failed',
       hint: 'Cards whose last try failed',
       icon: RotateCcw,
-      value: String(status.failed),
-      disabled: blocked || status.failed === 0,
-      onSelect: () => void run(status.kind, 'failed'),
-    },
-    {
-      label: 'Regenerate all',
-      hint: 'Replace it on every card',
-      icon: RefreshCw,
-      value: String(replaceable),
-      disabled: blocked || replaceable === 0,
       separated: true,
-      onSelect: () => void run(status.kind, 'all'),
-    },
+    }),
     {
       label: 'Cancel',
       hint: 'Stop queued and running',

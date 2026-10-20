@@ -14,7 +14,8 @@ class GenerationKindStatusDTO(BaseModel):
     """How far one kind of generation got over the source's cards.
 
     `done + running + failed + missing == total`;
-    `ready_missing` is the part of `missing` in the Ready section.
+    `missing`, `ready_missing`, `ready_all`, `all` count the cards each scope would take;
+    `failed` counts the cards of the failed scope.
     """
 
     kind: GenerationKind
@@ -24,6 +25,8 @@ class GenerationKindStatusDTO(BaseModel):
     failed: int
     missing: int
     ready_missing: int
+    ready_all: int
+    all: int
     blocked_by: GenerationBlocker | None = None
     # Sources whose video this kind needs and nobody downloads yet: neither here nor on its way.
     videos_to_download: int = 0
