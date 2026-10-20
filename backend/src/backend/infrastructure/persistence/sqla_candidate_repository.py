@@ -55,10 +55,10 @@ class SqlaCandidateRepository(CandidateRepository):
         found = self._read(StoredCandidateModel.id == candidate_id)
         return found[0] if found else None
 
-    def count_chosen_to_learn(self) -> int:
+    def count_learning_in_anki(self) -> int:
         return self._session.scalar(
             select(func.count(StoredCandidateModel.id))
-            .where(StoredCandidateModel.chosen_to_learn())
+            .where(StoredCandidateModel.learning_in_anki())
         ) or 0
 
     def count_all(self) -> int:

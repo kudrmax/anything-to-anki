@@ -190,9 +190,10 @@ export function SourcesScreen() {
     <>
       {!isPhone && addForm}
       <StatGrid>
-        <Stat value={stats?.learn_count ?? 0} label="to learn" />
+        <Stat value={stats?.export_pending_count ?? 0} label="to learn" />
+        <Stat value={stats?.learning_count ?? 0} label="learning" />
         <Stat value={stats?.known_word_count ?? 0} label="known words" />
-        <Stat value={stats?.candidate_count ?? 0} label="candidates" wide />
+        <Stat value={stats?.candidate_count ?? 0} label="candidates" />
       </StatGrid>
       {tree && (
         <CollectionTree

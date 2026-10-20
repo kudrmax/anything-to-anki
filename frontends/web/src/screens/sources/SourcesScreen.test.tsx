@@ -53,7 +53,7 @@ describe('SourcesScreen', () => {
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    vi.spyOn(api, 'getStats').mockResolvedValue({ learn_count: 0, known_word_count: 0, candidate_count: 0 } as Stats)
+    vi.spyOn(api, 'getStats').mockResolvedValue({ export_pending_count: 0, learning_count: 0, known_word_count: 0, candidate_count: 0 } as Stats)
     vi.spyOn(api, 'getCollectionTree').mockResolvedValue(tree)
     vi.spyOn(api, 'getSettings').mockResolvedValue({ source_grouping: 'stage', source_sort: 'added', source_sort_direction: 'forward' } as Settings)
     vi.spyOn(api, 'getSourceBoard').mockImplementation((scope: Scope) =>

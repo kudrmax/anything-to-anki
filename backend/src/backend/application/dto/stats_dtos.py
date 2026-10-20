@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class StatsDTO(BaseModel):
     """Aggregate statistics for the Inbox."""
 
-    learn_count: int
+    learning_count: int
     export_pending_count: int
     queue_active_count: int
     candidate_count: int

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.domain.services.card_view import chosen_to_learn, in_export_queue
+from backend.domain.services.card_view import chosen_to_learn, in_export_queue, learning_in_anki
 from backend.domain.value_objects.card_choice import CardChoice, CardState, NoteKind, is_skipped
 from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
 from backend.infrastructure.persistence.models import PhraseModel, StoredCandidateModel
@@ -126,7 +126,6 @@ def test_chosen_to_learn_in_sql_is_the_predicate(
 
     assert _word_ids(db_session, StoredCandidateModel.chosen_to_learn()) == expected
     candidates = SqlaCandidateRepository(db_session)
-    assert candidates.count_chosen_to_learn() == len(expected)
     assert {w.id for w in candidates.chosen_to_learn()} == expected
     assert {w.id for w in candidates.chosen_to_learn([OTHER_SOURCE])} == {
         word_id for word_id in expected if words[word_id].source_id == OTHER_SOURCE
@@ -151,6 +150,16 @@ def test_in_export_queue_in_sql_is_the_predicate(
     assert SqlaLearningQuery(db_session).awaiting_export() == {
         words[word_id].lemma for word_id in expected
     }
+
+
+def test_learning_in_anki_in_sql_is_the_predicate(
+    db_session: Session, words: dict[int, WordState],
+) -> None:
+    expected = {word_id for word_id, word in words.items() if learning_in_anki(word)}
+    assert expected
+
+    assert _word_ids(db_session, StoredCandidateModel.learning_in_anki()) == expected
+    assert SqlaCandidateRepository(db_session).count_learning_in_anki() == len(expected)
 
 
 def test_a_learn_listed_known_since_leaves_the_queue_only_by_its_knowledge(
