@@ -2,10 +2,11 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import type { RebuildCounts, SourceOperation } from '@/api/types'
+import type { RebuildCounts, SetScope, SourceOperation } from '@/api/types'
 import { RebuildDialog } from './RebuildDialog'
 
-const SOURCE = 7
+const SOURCE: SetScope = 'source-7'
+const DONE_WELL = { skipped: 0, failed: 0 }
 const NOTHING: RebuildCounts = {
   words_added: 0, words_removed: 0, cards_new_phrase: 0, cards_text_reset: 0, cards_without_generation: 0, nothing_to_update: true,
 }
@@ -33,8 +34,8 @@ describe('RebuildDialog', () => {
     vi.restoreAllMocks()
   })
 
-  const open = (kind: 'rebuild' | 'refresh' = 'rebuild') => act(() => root.render(
-    <RebuildDialog sourceId={SOURCE} title="Pilot" operation={kind} onFinished={onFinished} onClose={() => {}} />,
+  const open = (kind: 'rebuild' | 'refresh' = 'rebuild', scope: SetScope = SOURCE) => act(() => root.render(
+    <RebuildDialog scope={scope} title="Pilot" operation={kind} onFinished={onFinished} onClose={() => {}} />,
   ))
   const dialog = () => document.body.querySelector('[role="dialog"]') as HTMLElement
   const button = (label: string) => [...dialog().querySelectorAll('button')].find(b => b.textContent === label)
@@ -57,7 +58,7 @@ describe('RebuildDialog', () => {
     expect(button('Close')).toBeDefined()
     expect(button('Cancel')).toBeUndefined()
 
-    state.mockResolvedValue(operation('preview', 'done', { preview: { without_open: NOTHING, with_open: CHANGES } }))
+    state.mockResolvedValue(operation('preview', 'done', { preview: { without_open: NOTHING, with_open: CHANGES, ...DONE_WELL } }))
     await poll()
     await poll()
     expect(dialog().textContent).toContain('Nothing to update')
@@ -67,8 +68,8 @@ describe('RebuildDialog', () => {
     expect(dialog().textContent).toContain('2 cards get a different phrase — need ✨ again')
     expect(dialog().textContent).toContain("4 cards' text changed — their generation is reset")
 
-    const rebuild = vi.spyOn(api, 'rebuildSource').mockResolvedValue(operation('rebuild', 'running', { operation_id: 2 }))
-    state.mockResolvedValue(operation('rebuild', 'done', { operation_id: 2, summary: { include_open: true, counts: CHANGES } }))
+    const rebuild = vi.spyOn(api, 'rebuild').mockResolvedValue(operation('rebuild', 'running', { operation_id: 2 }))
+    state.mockResolvedValue(operation('rebuild', 'done', { operation_id: 2, summary: { include_open: true, counts: CHANGES, ...DONE_WELL } }))
     await press('Rebuild')
     expect(rebuild).toHaveBeenCalledWith(SOURCE, true)
     await poll()
@@ -84,9 +85,9 @@ describe('RebuildDialog', () => {
   })
 
   it('refreshes a topic and says what it added', async () => {
-    vi.spyOn(api, 'refreshTopic').mockResolvedValue(operation('refresh', 'running'))
+    vi.spyOn(api, 'refresh').mockResolvedValue(operation('refresh', 'running'))
     vi.spyOn(api, 'getOperation').mockResolvedValue(
-      operation('refresh', 'done', { refresh: { words_added: 1, phrases_added: 4 } }),
+      operation('refresh', 'done', { refresh: { words_added: 1, phrases_added: 4, ...DONE_WELL } }),
     )
     open('refresh')
     await press('Refresh')
@@ -105,30 +106,30 @@ describe('RebuildDialog', () => {
   }
 
   it('offers no Rebuild when there is nothing to update', async () => {
-    await previewed({ without_open: NOTHING, with_open: NOTHING })
+    await previewed({ without_open: NOTHING, with_open: NOTHING, ...DONE_WELL })
     expect(dialog().textContent).toContain('Nothing to update')
     expect(button('Rebuild')).toBeUndefined()
   })
 
   it('hides Also unreviewed cards when the preview has no with_open', async () => {
-    await previewed({ without_open: CHANGES, with_open: null })
+    await previewed({ without_open: CHANGES, with_open: null, ...DONE_WELL })
     expect(dialog().textContent).not.toContain('Also unreviewed cards')
     expect(dialog().querySelector('[role="switch"]')).toBeNull()
-    const rebuild = vi.spyOn(api, 'rebuildSource').mockResolvedValue(operation('rebuild', 'running', { operation_id: 2 }))
+    const rebuild = vi.spyOn(api, 'rebuild').mockResolvedValue(operation('rebuild', 'running', { operation_id: 2 }))
     await press('Rebuild')
     expect(rebuild).toHaveBeenCalledWith(SOURCE, false)
   })
 
   it('offers Rebuild when the preview has changes but no new words', async () => {
     const SECTIONS_ONLY: RebuildCounts = { ...NOTHING, nothing_to_update: false }
-    await previewed({ without_open: SECTIONS_ONLY, with_open: null })
+    await previewed({ without_open: SECTIONS_ONLY, with_open: null, ...DONE_WELL })
     expect(button('Rebuild')).toBeDefined()
     expect(dialog().textContent).not.toContain('Nothing to update')
   })
 
   it('shows the error when the applied rebuild fails', async () => {
-    const state = await previewed({ without_open: CHANGES, with_open: CHANGES })
-    vi.spyOn(api, 'rebuildSource').mockResolvedValue(operation('rebuild', 'running', { operation_id: 2 }))
+    const state = await previewed({ without_open: CHANGES, with_open: CHANGES, ...DONE_WELL })
+    vi.spyOn(api, 'rebuild').mockResolvedValue(operation('rebuild', 'running', { operation_id: 2 }))
     state.mockResolvedValue(operation('rebuild', 'error', { operation_id: 2, error: 'UNIQUE constraint failed' }))
     await press('Rebuild')
     await poll()
@@ -142,9 +143,29 @@ describe('RebuildDialog', () => {
     open()
     await press('Preview')
     await poll()
-    expect(dialog().querySelector('[role="alert"]')?.textContent).toContain('Another operation ran on this source')
+    expect(dialog().querySelector('[role="alert"]')?.textContent).toContain('Another operation ran on these sources')
     const calls = state.mock.calls.length
     await poll()
     expect(state.mock.calls.length).toBe(calls)
+  })
+
+  it('runs on a collection the same way and says which sources it did not reach', async () => {
+    const preview = vi.spyOn(api, 'previewRebuild').mockResolvedValue(operation('preview', 'running'))
+    vi.spyOn(api, 'getOperation').mockResolvedValue(operation('preview', 'done', {
+      preview: { without_open: CHANGES, with_open: null, skipped: 2, failed: 1 },
+    }))
+    open('rebuild', 3)
+    expect(dialog().textContent).toContain('every source here')
+    await press('Preview')
+    await poll()
+    expect(preview).toHaveBeenCalledWith(3)
+    expect(dialog().textContent).toContain('2 sources were busy and skipped')
+    expect(dialog().textContent).toContain('1 source failed')
+  })
+
+  it('says nothing about skipped or failed sources of a single source', async () => {
+    await previewed({ without_open: CHANGES, with_open: null, ...DONE_WELL })
+    expect(dialog().textContent).not.toContain('skipped')
+    expect(dialog().textContent).not.toContain('failed')
   })
 })

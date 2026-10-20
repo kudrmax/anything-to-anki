@@ -75,20 +75,30 @@ class SourceOperationBusyError(DomainError):
 
 
 class RebuildNotSupportedError(DomainError):
-    """Raised when the source offers no rebuild: it has no text of its own (a topic, saved
-    phrases) or was never processed."""
+    """Raised when the source offers no rebuild (it was never processed), or no source of
+    the set does."""
 
-    def __init__(self, source_id: int) -> None:
-        super().__init__(f"Only a processed source with its own text can be rebuilt: {source_id}")
+    def __init__(self, source_id: int | None = None, *, scope: str | None = None) -> None:
+        if source_id is None:
+            super().__init__(f"No source of the set can be rebuilt: {scope}")
+        else:
+            super().__init__(
+                f"Only a processed source with its own text can be rebuilt: {source_id}",
+            )
         self.source_id = source_id
+        self.scope = scope
 
 
 class RefreshNotSupportedError(DomainError):
-    """Raised when refreshing a source that is not a processed topic."""
+    """Raised when refreshing a source that is not a processed topic, or a set without one."""
 
-    def __init__(self, source_id: int) -> None:
-        super().__init__(f"Only a processed topic can be refreshed: {source_id}")
+    def __init__(self, source_id: int | None = None, *, scope: str | None = None) -> None:
+        if source_id is None:
+            super().__init__(f"No topic of the set can be refreshed: {scope}")
+        else:
+            super().__init__(f"Only a processed topic can be refreshed: {source_id}")
         self.source_id = source_id
+        self.scope = scope
 
 
 class AnkiNotAvailableError(DomainError):

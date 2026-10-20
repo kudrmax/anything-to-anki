@@ -17,10 +17,12 @@ from backend.application.dto.analysis_dtos import (
 from backend.application.dto.document_dtos import DocumentPositionDTO
 from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
+from backend.application.use_cases.scope_operation import ScopeOperationUseCase
 from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.source_rebuilder import SourceRebuilder
+from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.services.source_review_status import derive_review_status
@@ -34,6 +36,9 @@ from backend.infrastructure.persistence.sqla_candidate_media_repository import (
 )
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
+from backend.infrastructure.persistence.sqla_collection_repository import (
+    SqlaCollectionRepository,
+)
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
@@ -164,6 +169,20 @@ class Bench:
             lock=self.lock,
             unit_of_work=SqlaUnitOfWork(self.session, self.vocabulary.scope),
             rebuilder=self.rebuilder(),
+        )
+
+    def scope_operation(
+        self, rebuild: RebuildSourceUseCase | None = None,
+    ) -> ScopeOperationUseCase:
+        """Rebuild and its preview over a set of the bench's sources; nothing to refresh."""
+        return ScopeOperationUseCase(
+            scope_resolver=SourceScopeResolver(
+                self.sources, SqlaCollectionRepository(self.session),
+            ),
+            rebuild_source=rebuild or self.rebuild(),
+            refresh_topic=MagicMock(),
+            lock=self.lock,
+            unit_of_work=SqlaUnitOfWork(self.session, self.vocabulary.scope),
         )
 
     def process(self) -> ProcessSourceUseCase:

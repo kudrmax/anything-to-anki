@@ -1,10 +1,11 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
-import { BookOpen, Clapperboard, Ellipsis, FileText, FolderInput, Globe, Music, Pencil, RefreshCw, Sparkles, Trash2, Upload, type LucideIcon } from 'lucide-react'
-import type { GenerationStatus, ProcessingStage, SourceSummary } from '@/api/types'
+import { BookOpen, Clapperboard, Ellipsis, FileText, Globe, Music, Sparkles, type LucideIcon } from 'lucide-react'
+import type { GenerationStatus, ProcessingStage, SetOperation, SourceSummary } from '@/api/types'
 import { formatDate } from '@/lib/text/format'
-import { Button, Field, Icon, IconButton, Menu, Progress, Spinner, Text, type MenuItem } from '@/ui'
+import { Button, Field, Icon, IconButton, Menu, Progress, Spinner, Text } from '@/ui'
 import { SOURCES_MIME } from './CollectionTree'
 import { ReviewAction } from './ReviewAction'
+import { scopeMenuItems } from './scopeMenu'
 import css from './sources.module.css'
 
 interface SourceRowProps {
@@ -23,7 +24,7 @@ interface SourceRowProps {
   onDelete: (id: number) => void
   onRename: (id: number, title: string) => void
   /** Rebuild или Refresh: какую из available_operations выбрали. */
-  onOperation: (id: number, operation: SourceSummary['available_operations'][number]) => void
+  onOperation: (id: number, operation: SetOperation) => void
   /** true — клик ушёл на выбор строки, открывать источник не нужно. */
   onRowClick: (e: MouseEvent, id: number) => boolean
   onMoveTo: (id: number) => void
@@ -63,11 +64,6 @@ const GENERATION_LABEL: Record<GenerationState, string> = {
   failed: 'Generation failed',
 }
 
-const OPERATION_LABEL: Record<SourceSummary['available_operations'][number], string> = {
-  rebuild: 'Rebuild…',
-  refresh: 'Refresh…',
-}
-
 const stop = (e: MouseEvent) => e.stopPropagation()
 const LONG_PRESS_MS = 500
 const TOUCH = 'touch'
@@ -93,19 +89,13 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
     if (e.key === 'Escape') setEditing(false)
   }
 
-  const menuItems: MenuItem[] = [
-    ...(source.can_export ? [{ label: 'Export', icon: Upload, onSelect: () => onExport(source.id) }] : []),
-    { label: 'Rename', icon: Pencil, onSelect: startEditing },
-    { label: 'Move to…', icon: FolderInput, onSelect: () => onMoveTo(source.id) },
-    ...source.available_operations.map(operation => ({
-      label: OPERATION_LABEL[operation],
-      icon: RefreshCw,
-      disabled: !source.can_start_operation,
-      hint: source.operation_hint ?? undefined,
-      onSelect: () => onOperation(source.id, operation),
-    })),
-    ...(source.can_delete ? [{ label: 'Delete', icon: Trash2, danger: true, separated: true, onSelect: () => onDelete(source.id) }] : []),
-  ]
+  const menuItems = scopeMenuItems(source, {
+    onExport: () => onExport(source.id),
+    onOperation: operation => onOperation(source.id, operation),
+    onRename: startEditing,
+    onMoveTo: () => onMoveTo(source.id),
+    onDelete: source.can_delete ? () => onDelete(source.id) : undefined,
+  })
 
   const action = generation ? {
     idle: <Button onClick={() => onGenerate(source.id)}>Generate</Button>,

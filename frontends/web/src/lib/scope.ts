@@ -17,6 +17,9 @@ export function parseScope(raw: string | null): Scope {
 
 export const sourceScope = (id: number): SetScope => `source-${id}`
 
+/** Набор из одного источника, а не коллекция или раздел. */
+export const isSourceScope = (scope: SetScope): boolean => typeof scope === 'string' && SOURCE.test(scope)
+
 /** Набор из ссылки: один источник (`source-7`) не путается с коллекцией (`7`). */
 export function parseSetScope(raw: string | null): SetScope {
   const source = raw === null ? null : SOURCE.exec(raw)

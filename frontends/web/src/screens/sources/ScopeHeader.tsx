@@ -1,10 +1,10 @@
 import { Fragment, type ReactNode } from 'react'
 import { ChevronRight, Ellipsis } from 'lucide-react'
-import type { CollectionNode, ScopeCounts } from '@/api/types'
-import { Button, Icon, IconButton, Menu, Progress } from '@/ui'
-import { collectionMenuItems } from './collectionMenu'
+import type { CollectionNode, ScopeCounts, SetOperation } from '@/api/types'
+import { Button, Icon, IconButton, Menu, Progress, type MenuItem } from '@/ui'
 import { offersProcess } from './processOffer'
 import { ReviewAction } from './ReviewAction'
+import { collectionMenuItems, scopeMenuItems } from './scopeMenu'
 import css from './sources.module.css'
 
 interface ScopeHeaderProps {
@@ -13,7 +13,7 @@ interface ScopeHeaderProps {
   ancestors: CollectionNode[]
   /** null, пока дерево не загружено: действия от выдуманных счётчиков не показываются. */
   counts: ScopeCounts | null
-  /** Открытая коллекция; у All и Unsorted меню нет, но место под него держится. */
+  /** Открытая коллекция; у All и Unsorted в меню только Export и операции. */
   node: CollectionNode | null
   processing: boolean
   onOpenAncestor: (id: number) => void
@@ -21,6 +21,8 @@ interface ScopeHeaderProps {
   /** Ревью открытой области как одного набора. */
   onReview: () => void
   onExport: () => void
+  /** Rebuild или Refresh всей области. */
+  onOperation: (operation: SetOperation) => void
   onRename: () => void
   onNewSubcollection: () => void
   onMoveTo: () => void
@@ -50,7 +52,11 @@ function Crumbs({ ancestors, onOpen }: { ancestors: CollectionNode[]; onOpen: (i
 }
 
 /** Высота и места кнопок не зависят от области и глубины: при переключении ничего не прыгает. */
-export function ScopeHeader({ title, ancestors, counts, node, processing, onOpenAncestor, onProcessAll, onReview, onExport, onRename, onNewSubcollection, onMoveTo, onDelete }: ScopeHeaderProps) {
+export function ScopeHeader({ title, ancestors, counts, node, processing, onOpenAncestor, onProcessAll, onReview, onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onDelete }: ScopeHeaderProps) {
+  const menuItems: MenuItem[] = (() => {
+    if (node) return collectionMenuItems(node, { onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onDelete })
+    return counts ? scopeMenuItems(counts, { onExport, onOperation }) : []
+  })()
   return (
     <header className={css.scopeHeader}>
       <div className={css.scopeLead}>
@@ -80,12 +86,8 @@ export function ScopeHeader({ title, ancestors, counts, node, processing, onOpen
             onReview={onReview}
           />
         )}
-        <Button onClick={onExport}>Export</Button>
-        {node
-          ? <Menu
-              trigger={<IconButton icon={Ellipsis} label="Collection actions" />}
-              items={collectionMenuItems(node, { onRename, onNewSubcollection, onMoveTo, onDelete })}
-            />
+        {menuItems.length > 0
+          ? <Menu trigger={<IconButton icon={Ellipsis} label={node ? 'Collection actions' : 'Actions'} />} items={menuItems} />
           : <span className={css.scopeSlot} aria-hidden />}
       </div>
     </header>

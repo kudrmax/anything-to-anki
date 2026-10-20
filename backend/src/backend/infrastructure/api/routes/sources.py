@@ -26,10 +26,6 @@ from backend.application.dto.collection_dtos import (  # noqa: TC001
     SourceIdsRequest,
     StartedSourcesDTO,
 )
-from backend.application.dto.rebuild_dtos import (  # noqa: TC001
-    RebuildRequest,
-    SourceOperationDTO,
-)
 from backend.application.dto.source_dtos import (  # noqa: TC001
     CardDTO,
     SourceBoardDTO,
@@ -45,8 +41,6 @@ from backend.domain.exceptions import (
     InvalidSourceInputError,
     NotATextFileError,
     PermanentSourceError,
-    RebuildNotSupportedError,
-    RefreshNotSupportedError,
     SourceAlreadyProcessedError,
     SourceHasNoDocumentError,
     SourceIsProcessingError,
@@ -57,29 +51,21 @@ from backend.domain.exceptions import (
     UnsupportedUrlError,
 )
 from backend.domain.value_objects.question import Answers
-from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.infrastructure.api.background import free_source, in_background
 from backend.infrastructure.api.dependencies import (
     get_container,
     get_db_session,
     get_session_factory,
 )
 from backend.infrastructure.api.scope_param import parse_scope
-from backend.infrastructure.api.source_operations import OPERATIONS
-from backend.infrastructure.persistence.sqla_source_operation_lock import (
-    SqlaSourceOperationLock,
-)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Coroutine
-
     from backend.infrastructure.container import Container
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sources", tags=["sources"])
-
-_background_tasks: set[asyncio.Task[None]] = set()
 
 
 @router.post("/add", status_code=201)
@@ -241,7 +227,7 @@ def _launch(
     source_ids: list[int], container: Container, session_factory: sessionmaker[Session],
 ) -> None:
     for source_id in source_ids:
-        _in_background(_process_background(source_id, container, session_factory))
+        in_background(_process_background(source_id, container, session_factory))
 
 
 @router.patch("/{source_id}/title")
@@ -280,7 +266,7 @@ async def process_source(
     ) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
-    _in_background(_process_background(source_id, container, session_factory))
+    in_background(_process_background(source_id, container, session_factory))
     return {"status": "processing"}
 
 
@@ -302,7 +288,7 @@ async def _process_background(
         if bg_session is not None:
             bg_session.rollback()
         if not entered:
-            _free(source_id, session_factory)
+            free_source(source_id, session_factory)
         # Mark source as ERROR in a fresh session
         err_session: Session = session_factory()
         try:
@@ -358,151 +344,3 @@ def add_manual_candidate(
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidPhraseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.post("/{source_id}/rebuild/preview", status_code=202)
-async def preview_rebuild(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
-) -> SourceOperationDTO:
-    """Starts the analysis of a rebuild; its counts come with the operation's state."""
-    operation = _start_rebuild(source_id, SourceOperationKind.PREVIEW, session, container)
-
-    def preview(bg_session: Session) -> Callable[[], None]:
-        use_case = container.rebuild_source_use_case(bg_session)
-        return lambda: OPERATIONS.finished(
-            source_id, operation.operation_id, preview=use_case.run_preview(source_id),
-        )
-
-    _in_background(_operation_background(
-        source_id, operation.operation_id, session_factory, preview,
-    ))
-    return operation
-
-
-@router.post("/{source_id}/rebuild", status_code=202)
-async def rebuild_source(
-    source_id: int,
-    request: RebuildRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
-) -> SourceOperationDTO:
-    operation = _start_rebuild(source_id, SourceOperationKind.REBUILD, session, container)
-
-    def rebuild(bg_session: Session) -> Callable[[], None]:
-        use_case = container.rebuild_source_use_case(bg_session)
-        return lambda: OPERATIONS.finished(
-            source_id, operation.operation_id,
-            summary=use_case.run(source_id, request.include_open),
-        )
-
-    _in_background(_operation_background(
-        source_id, operation.operation_id, session_factory, rebuild,
-    ))
-    return operation
-
-
-@router.post("/{source_id}/refresh", status_code=202)
-async def refresh_topic(
-    source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
-) -> SourceOperationDTO:
-    """Adds to a topic the phrases its targets now have in the other sources."""
-    try:
-        container.refresh_topic_use_case(session).start(source_id)
-    except SourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except SourceOperationBusyError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
-    except RefreshNotSupportedError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    session.commit()
-    operation = OPERATIONS.started(source_id, SourceOperationKind.REFRESH)
-
-    def refresh(bg_session: Session) -> Callable[[], None]:
-        use_case = container.refresh_topic_use_case(bg_session)
-        return lambda: OPERATIONS.finished(
-            source_id, operation.operation_id, refresh=use_case.run(source_id),
-        )
-
-    _in_background(_operation_background(
-        source_id, operation.operation_id, session_factory, refresh,
-    ))
-    return operation
-
-
-@router.get("/{source_id}/operation")
-def get_source_operation(source_id: int) -> SourceOperationDTO:
-    """The last rebuild, preview or refresh started on the source: running, or its result."""
-    operation = OPERATIONS.last(source_id)
-    if operation is None:
-        raise HTTPException(status_code=404, detail=f"No operation on source {source_id}")
-    return operation
-
-
-def _start_rebuild(
-    source_id: int, kind: SourceOperationKind, session: Session, container: Container,
-) -> SourceOperationDTO:
-    try:
-        container.rebuild_source_use_case(session).start(source_id, kind)
-    except SourceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except SourceOperationBusyError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
-    except RebuildNotSupportedError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    session.commit()
-    return OPERATIONS.started(source_id, kind)
-
-
-async def _operation_background(
-    source_id: int,
-    operation_id: int,
-    session_factory: sessionmaker[Session],
-    prepare: Callable[[Session], Callable[[], None]],
-) -> None:
-    """`prepare` builds the run in the background session; the run frees the source
-    itself. If the run is never entered, the source is freed here."""
-    entered = False
-    bg_session: Session | None = None
-    try:
-        bg_session = session_factory()
-        run = prepare(bg_session)
-        entered = True
-        await asyncio.to_thread(run)
-    except Exception as e:
-        logger.exception("Background operation failed (source_id=%d)", source_id)
-        OPERATIONS.failed(source_id, operation_id, str(e))
-        if not entered:
-            _free(source_id, session_factory)
-    finally:
-        if bg_session is not None:
-            bg_session.close()
-
-
-def _free(source_id: int, session_factory: sessionmaker[Session]) -> None:
-    """Release a source whose operation never started running."""
-    try:
-        session: Session = session_factory()
-    except Exception:
-        logger.exception("Failed to free source %d", source_id)
-        return
-    try:
-        SqlaSourceOperationLock(session).release(source_id)
-        session.commit()
-    except Exception:
-        logger.exception("Failed to free source %d", source_id)
-        session.rollback()
-    finally:
-        session.close()
-
-
-def _in_background(work: Coroutine[object, object, None]) -> None:
-    task = asyncio.create_task(work)
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)

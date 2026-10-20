@@ -55,6 +55,7 @@ from backend.application.use_cases.report_candidate import ReportCandidateUseCas
 from backend.application.use_cases.restore_collection import RestoreCollectionUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
+from backend.application.use_cases.scope_operation import ScopeOperationUseCase
 from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
@@ -131,7 +132,6 @@ from backend.infrastructure.adapters.yandex_image_source import YandexImageSourc
 from backend.infrastructure.api.background_rebuild_launcher import (
     BackgroundSourcesRebuildLauncher,
 )
-from backend.infrastructure.api.source_operations import OPERATIONS
 from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
@@ -601,6 +601,15 @@ class Container:
             collector=self._topic_phrase_collector(session),
         )
 
+    def scope_operation_use_case(self, session: Session) -> ScopeOperationUseCase:
+        return ScopeOperationUseCase(
+            scope_resolver=self._scope_resolver(session),
+            rebuild_source=self.rebuild_source_use_case(session),
+            refresh_topic=self.refresh_topic_use_case(session),
+            lock=SqlaSourceOperationLock(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
     def _source_rebuilder(self, session: Session) -> SourceRebuilder:
         settings_repo = SqlaSettingsRepository(session)
         return SourceRebuilder(
@@ -886,8 +895,7 @@ class Container:
         """Works on the database of the session that asks, in sessions of its own."""
         return BackgroundSourcesRebuildLauncher(
             session_factory=sessionmaker(bind=session.get_bind()),
-            rebuild_use_case=self.rebuild_source_use_case,
-            operations=OPERATIONS,
+            scope_operation=self.scope_operation_use_case,
         )
 
     def get_anki_status_use_case(self, session: Session) -> GetAnkiStatusUseCase:
