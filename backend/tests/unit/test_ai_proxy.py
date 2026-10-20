@@ -1,6 +1,7 @@
-"""ai_proxy must report why the Claude CLI failed, not the SDK's generic wrapper."""
+"""ai_proxy must reach the user's Claude login and report why the CLI failed."""
 from __future__ import annotations
 
+import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
@@ -66,3 +67,38 @@ def test_usage_names_the_model_an_alias_resolved_to() -> None:
 
 def test_usage_without_model_usage_names_no_model() -> None:
     assert ai_proxy.UsageInfo.from_sdk({}, None).model is None
+
+
+def test_drops_the_variables_a_claude_session_passed_down() -> None:
+    environ = {
+        "CLAUDECODE": "1",
+        "CLAUDE_CONFIG_DIR": "/Users/me/.claude",
+        "ANTHROPIC_BASE_URL": "http://localhost:1",
+        "PATH": "/usr/bin",
+        "HOME": "/Users/me",
+    }
+
+    dropped = ai_proxy.drop_inherited_claude_env(environ)
+
+    assert dropped == ["ANTHROPIC_BASE_URL", "CLAUDECODE", "CLAUDE_CONFIG_DIR"]
+    assert environ == {"PATH": "/usr/bin", "HOME": "/Users/me"}
+
+
+@pytest.mark.parametrize(
+    ("stdout", "logged_in"),
+    [
+        ('{"loggedIn": true, "authMethod": "claude.ai"}', True),
+        ('{"loggedIn": false, "authMethod": "none"}', False),
+        ("command not found", False),
+    ],
+)
+def test_reads_the_login_from_cli_auth_status(
+    monkeypatch: pytest.MonkeyPatch, stdout: str, logged_in: bool,
+) -> None:
+    def run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        assert args[1:] == ["auth", "status"]
+        return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(ai_proxy.subprocess, "run", run)
+
+    assert ai_proxy.cli_logged_in() is logged_in

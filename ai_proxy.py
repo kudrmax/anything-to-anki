@@ -9,11 +9,14 @@ Requires: pip install claude-agent-sdk fastapi uvicorn
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import uvicorn
@@ -23,6 +26,9 @@ from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ResultMessage
 from claude_agent_sdk.types import TextBlock
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ValidationError
+
+if TYPE_CHECKING:
+    from collections.abc import MutableMapping
 
 # Make backend importable when ai_proxy is launched directly from the repo root.
 _BACKEND_SRC = Path(__file__).parent / "backend" / "src"
@@ -41,8 +47,7 @@ _SYSTEM_CLAUDE: str | None = shutil.which("claude") or "/opt/homebrew/bin/claude
 app = FastAPI(title="AI Proxy", version="0.3.0")
 logger.info("Using claude CLI: %s", _SYSTEM_CLAUDE)
 logger.info("Proxy env: http_proxy=%s https_proxy=%s",
-            __import__("os").environ.get("http_proxy"),
-            __import__("os").environ.get("https_proxy"))
+            os.environ.get("http_proxy"), os.environ.get("https_proxy"))
 
 _SINGLE_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -415,8 +420,42 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+# A process started from a Claude Code session inherits that session's variables. They
+# point the CLI at the session's own login, and the CLI answers "Not logged in".
+_INHERITED_ENV_PREFIXES = ("CLAUDE", "ANTHROPIC_")
+_AUTH_STATUS_TIMEOUT = 30
+
+
+def drop_inherited_claude_env(environ: MutableMapping[str, str]) -> list[str]:
+    """Remove the Claude/Anthropic variables the proxy was started with. Returns their names."""
+    dropped = sorted(k for k in environ if k.startswith(_INHERITED_ENV_PREFIXES))
+    for name in dropped:
+        del environ[name]
+    return dropped
+
+
+def cli_logged_in() -> bool:
+    """Whether the claude CLI, run with the proxy's environment, has a login."""
+    assert _SYSTEM_CLAUDE is not None
+    status = subprocess.run(
+        [_SYSTEM_CLAUDE, "auth", "status"],
+        capture_output=True, text=True, timeout=_AUTH_STATUS_TIMEOUT, check=False,
+    )
+    try:
+        return json.loads(status.stdout).get("loggedIn") is True
+    except json.JSONDecodeError:
+        logger.error("claude auth status: %s %s", status.stdout, status.stderr)
+        return False
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AI Proxy for anything-to-anki")
     parser.add_argument("--port", type=int, default=8766)
     args = parser.parse_args()
+    dropped_env = drop_inherited_claude_env(os.environ)
+    if dropped_env:
+        logger.info("Dropped inherited env: %s", ", ".join(dropped_env))
+    if not cli_logged_in():
+        logger.error("claude CLI is not logged in: run `claude` and /login in a terminal")
+        sys.exit(1)
     uvicorn.run(app, host="0.0.0.0", port=args.port)
