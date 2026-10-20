@@ -77,7 +77,7 @@ describe('RebuildDialog', () => {
     expect(text).toContain('1 card becomes ready: every other word in it is familiar now')
     expect(text).toContain('2 cards are no longer ready: they have other new words again')
     expect(text).toContain('4 cards switch to easier sentences; run ✨ for them again')
-    expect(text).toContain('The numbers are an estimate')
+    expect(text).toContain('The result may differ a little if cards change')
     expect(dialog().querySelector('[role="switch"]')).toBeNull()
 
     const rebuild = vi.spyOn(api, 'rebuild').mockResolvedValue(operation('update', 'running', { operation_id: 2 }))
@@ -140,7 +140,7 @@ describe('RebuildDialog', () => {
   it('says there is nothing to change and offers only Close', async () => {
     await previewed(updatePreview(NOTHING))
     expect(dialog().textContent).toContain('Nothing to change: your cards already match the words you know.')
-    expect(dialog().textContent).not.toContain('The numbers are an estimate')
+    expect(dialog().textContent).not.toContain('The result may differ a little if cards change')
     expect(button('Find words again')).toBeUndefined()
     expect(button('Close')).toBeDefined()
   })
