@@ -20,3 +20,7 @@ Percent grew about evenly in time (12 % at 11 s, 43 % at 54 s, 65 % at 98 s, 84 
 
 - B2 → C1 with another field in the form, cancelled at 54 %: level and the other field unchanged, writes accepted at once.
 - `kill -9` of the API at 75 % (inside the one write) and at 25 % (analysis), then `make up-worktree`: level B2, no lock row, writes accepted, `card-states-check` 0 differences, 81 172 cards.
+
+## Worker during the one write
+
+The first run above crashed the worker: its claim waited inside `BEGIN IMMEDIATE` for the ~37 s write and failed with `database is locked` after the 30 s busy timeout. Since then every gated write looks at the lock before `BEGIN IMMEDIATE`, and the worker's queue writes run off its event loop. Rerun B2 → C1 to the end with the worker up: 95 s, worker alive, no `database is locked` in its log, `card-states-check` 0 differences (61 444 cards).
