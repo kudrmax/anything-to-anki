@@ -44,9 +44,10 @@ class OpenReviewUseCase:
             sources = self._scope_resolver.reviewable_sources(scope)
             source_ids = [s.id for s in sources if s.id is not None]
             step = self._ordering.step()
-            ordered = self._ordering.sorted_cards(source_ids, request.sort, step)
+            pairs = self._ordering.ordered(source_ids, request.sort, step)
+            ordered = [card for card, _ in pairs]
             order = ReviewOrder(
-                self._ordering.held(ordered, step),
+                self._ordering.held(ordered, step, {c.phrase_id: k for c, k in pairs}),
                 sectioned=request.sort != CandidateSortOrder.CHRONOLOGICAL,
             )
             focus = initial_focus(

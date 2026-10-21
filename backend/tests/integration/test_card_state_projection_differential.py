@@ -19,6 +19,7 @@ the reason it cannot change card state: a new write method without a scenario fa
 """
 from __future__ import annotations
 
+import itertools
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
@@ -963,6 +964,11 @@ class _Projection(RuleBasedStateMachine):
             served = set(review.served)
         assert sorted(order) == sorted(live)
         assert len(order) == len(set(order))
+        with store.hold(held.review_id) as review:
+            keys = [review.order.key_at(i) for i in range(len(review.order))]
+        assert all(a < b for a, b in itertools.pairwise(keys)), (
+            "the held review left the key order it places new cards by"
+        )
         assert {p: held.done[p] for p in served} == {p: live[p] for p in served}
         shown, self.shown = self.shown, self._shown_cards()
         stale = [
@@ -995,13 +1001,14 @@ class _Projection(RuleBasedStateMachine):
     def _new_cards_land_where_todays_order_has_them(
         self, session: Session, source_ids: list[int], sort: CandidateSortOrder,
     ) -> None:
-        """Cards placed into a held order one by one, from the rows of a few words, stand
-        where today's order of the whole set has them: some cards of today's order and every
-        card of its last word are taken out and placed back."""
+        """Cards placed into a held order from the rows of their own words stand where the
+        order opened on the whole set has them: an order opened now, with its keys, has some
+        of its cards and every card of its last word taken out and placed back."""
         ordering = self.container._review_ordering(session)  # noqa: SLF001
         step = ordering.step()
+        pairs = ordering.ordered(source_ids, sort, step)
         today = ReviewOrder(
-            ordering.held(ordering.sorted_cards(source_ids, sort, step), step),
+            ordering.held([c for c, _ in pairs], step, {c.phrase_id: k for c, k in pairs}),
             sectioned=sort != CandidateSortOrder.CHRONOLOGICAL,
         )
         if not len(today):

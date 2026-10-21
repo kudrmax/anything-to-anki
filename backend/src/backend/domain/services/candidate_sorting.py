@@ -123,10 +123,24 @@ def sort_cards[C: SortableCard](
     source_order: Sequence[int],
 ) -> list[C]:
     """The cards in the review order `order`, each standing as `standing` says."""
+    return [card for card, _ in sort_with_keys(
+        cards, order, standing, usage_order=usage_order, source_order=source_order,
+    )]
+
+
+def sort_with_keys[C: SortableCard](
+    cards: list[C],
+    order: CandidateSortOrder,
+    standing: StandingOf[C],
+    *,
+    usage_order: list[str] | None,
+    source_order: Sequence[int],
+) -> list[tuple[C, OrderKey]]:
+    """The cards as `sort_cards` orders them, each with the key it is sorted by."""
     keys = order_keys(
         cards, order, standing, usage_order=usage_order, source_order=source_order,
     )
-    return sorted(cards, key=lambda c: keys[c.phrase_id])
+    return sorted(((c, keys[c.phrase_id]) for c in cards), key=lambda pair: pair[1])
 
 
 def order_keys[C: SortableCard](

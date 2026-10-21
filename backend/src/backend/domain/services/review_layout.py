@@ -16,7 +16,7 @@ from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.review_order import CardRow, ReviewLayout, SectionRow
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Mapping, Sequence
+    from collections.abc import Collection, Mapping, Sequence
 
     from backend.domain.services.candidate_sorting import OrderKey
     from backend.domain.value_objects.review_order import CardRun, HeldCard, ReviewOrder
@@ -121,63 +121,34 @@ def place_new(
     return order.spliced(following=following)
 
 
-def place_by_key(
-    order: ReviewOrder,
-    new: Sequence[tuple[HeldCard, OrderKey]],
-    held_keys_at: Callable[[Collection[int]], Mapping[int, OrderKey]],
-    regrouped: Mapping[int, OrderKey],
-) -> ReviewOrder:
-    """The new cards placed as `place_new` places them in the order sorted afresh, without
-    sorting the whole set again: each right after the nearest held card before it in the
-    fresh order, the held card whose fresh key is the greatest below its own.
-
-    A card's key reads the cards of its word only, so the new cards change the keys of the
-    held cards of their own words alone: `regrouped` gives those (held phrase id → fresh
-    key). Every other held card keeps the key it was held by, and the held order stands in
-    that key order, as an order opened on its cards does. So the held cards outside
-    `regrouped` below a new card's key are the ones before the last held card below it,
-    found by binary search over the keys the cards were held by (`held_keys_at`: index →
-    key; a card with none, gone since, counts as below). The nearest of those competes
-    with the regrouped cards below the key. The searches go level by level, so
-    `held_keys_at` is asked once per level for every card being placed."""
+def place_by_key(order: ReviewOrder, new: Sequence[HeldCard]) -> ReviewOrder:
+    """The new cards placed by their keys against the keys the held cards were held by: each
+    right after the last held card below it, as an order opened on the held cards and the
+    new ones would stand. A held card keeps the key of the opening however it changed since,
+    so the held cards stay in key order and a binary search finds the place; placing keeps
+    that order. Cards placed after the same held card keep their key order."""
     if not new:
         return order
-    placing = sorted(new, key=lambda placed: placed[1])
-    low = [0] * len(placing)
-    high = [len(order)] * len(placing)
-    while True:
-        middles = {
-            n: (low[n] + high[n]) // 2 for n in range(len(placing)) if low[n] < high[n]
-        }
-        if not middles:
-            break
-        keys = held_keys_at(set(middles.values()))
-        for n, middle in middles.items():
-            key = keys.get(middle)
-            if key is None or key < placing[n][1]:
-                low[n] = middle + 1
-            else:
-                high[n] = middle
-    nearest = [_last_kept_before(order, at, regrouped) for at in low]
-    kept_keys = held_keys_at({at for at in nearest if at is not None})
     following: dict[int | None, list[HeldCard]] = {}
-    for (card, key), at in zip(placing, nearest, strict=True):
-        below = [(k, p) for p, k in regrouped.items() if k < key]
-        if at is not None and (kept := kept_keys.get(at)) is not None:
-            below.append((kept, order.phrase_id_at(at)))
-        anchor = max(below)[1] if below else None
+    for card in sorted(new, key=_key_of):
+        key = _key_of(card)
+        low, high = 0, len(order)
+        while low < high:
+            middle = (low + high) // 2
+            if order.key_at(middle) < key:
+                low = middle + 1
+            else:
+                high = middle
+        anchor = order.phrase_id_at(low - 1) if low > 0 else None
         following.setdefault(anchor, []).append(card)
     return order.spliced(following=following)
 
 
-def _last_kept_before(
-    order: ReviewOrder, at: int, regrouped: Mapping[int, OrderKey],
-) -> int | None:
-    """The index of the last held card before `at` that the new cards did not regroup."""
-    index = at - 1
-    while index >= 0 and order.phrase_id_at(index) in regrouped:
-        index -= 1
-    return index if index >= 0 else None
+def _key_of(card: HeldCard) -> OrderKey:
+    if card.key is None:
+        msg = "a card placed by key needs its key"
+        raise ValueError(msg)
+    return card.key
 
 
 def replace_card(order: ReviewOrder, old_id: int, new: HeldCard) -> ReviewOrder:
