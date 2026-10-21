@@ -64,14 +64,16 @@ class BindingChanged:
 
 @dataclass(frozen=True)
 class CardContentChanged:
-    """The generated card content of a phrase (meaning, simplification, media) changed."""
+    """What the card of a phrase shows changed, not its state: its generated content
+    (meaning, simplification, media) or its phrase's text or place in the source."""
 
     phrase_id: int
 
 
 @dataclass(frozen=True)
 class WordContentChanged:
-    """The generated content of a word (translation, synonyms) changed."""
+    """What every card of a word shows changed, not its state: the word's generated
+    content (translation, synonyms) or its data (level, frequency)."""
 
     word_id: int
 
