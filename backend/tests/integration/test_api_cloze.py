@@ -15,7 +15,9 @@ from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
 from tests.review_support import card_in, on_review
+from tests.review_window_support import review_list
 from tests.word_support import PHRASE_ID_OFFSET, CardSeed, bind, store_cards
 
 GIVE_UP = "She finally gave up smoking last year."
@@ -60,6 +62,7 @@ def client() -> Generator[TestClient, None, None]:
     )
     bind(session, SYNCED_WORD_ID, SYNCED_PHRASE_ID, note_id=777, kind="cloze")
     session.commit()
+    rebuild_projection(session)
     session.close()
 
     def override_session() -> Generator[Session, None, None]:
@@ -78,9 +81,7 @@ def client() -> Generator[TestClient, None, None]:
 
 
 def _candidate_in_source(client: TestClient, phrase_id: int) -> dict[str, Any]:
-    response = client.get("/api/review", params={"scope": f"source-{SOURCE_ID}"})
-    assert response.status_code == 200
-    candidates: list[dict[str, Any]] = response.json()["candidates"]
+    candidates = review_list(client, f"source-{SOURCE_ID}")
     return next(c for c in candidates if c["phrase_id"] == phrase_id)
 
 

@@ -13,7 +13,6 @@ from backend.application.dto.review_dtos import (
     ReviewUpdateDTO,  # noqa: TC001 — FastAPI serialises it at runtime
     SectionOpenRequest,  # noqa: TC001 — FastAPI parses it at runtime
 )
-from backend.application.dto.source_dtos import CardDTO, ReviewDTO  # noqa: TC001
 from backend.domain.exceptions import (
     CollectionNotFoundError,
     GenerationBlockedError,
@@ -49,9 +48,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
-    from backend.application.use_cases.get_candidates import GetCandidatesUseCase
     from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
-    from backend.application.use_cases.get_review import GetReviewUseCase
     from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
     from backend.application.use_cases.open_review import OpenReviewUseCase
     from backend.application.use_cases.request_video_download import RequestVideoDownloadUseCase
@@ -78,16 +75,6 @@ def _scope_errors() -> Iterator[None]:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except (SourceNotFoundError, CollectionNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-
-
-@router.get("")
-def get_review(
-    scope: str = "all",
-    sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
-    review: GetReviewUseCase = Depends(use_case(Container.get_review_use_case)),  # noqa: B008
-) -> ReviewDTO:
-    with _scope_errors():
-        return review.execute(review_scope(scope), sort)
 
 
 @contextmanager
@@ -164,18 +151,6 @@ def review_changes(
     """What changed in the open review since the client's revision."""
     with _review_errors():
         return window.changes(ctx)
-
-
-@router.get("/candidates")
-def get_review_candidates(
-    scope: str = "all",
-    sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
-    candidates: GetCandidatesUseCase = Depends(  # noqa: B008
-        use_case(Container.get_candidates_use_case),  # noqa: B008
-    ),
-) -> list[CardDTO]:
-    with _scope_errors():
-        return candidates.execute(review_scope(scope), sort)
 
 
 @router.get("/documents")

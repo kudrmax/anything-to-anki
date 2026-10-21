@@ -44,6 +44,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.phrase_support import phrase
 from tests.projection_support import rebuild_projection
 from tests.review_support import on_review
+from tests.review_window_support import open_review, review_list
 from tests.word_support import insert_word, phrase_id_of
 
 pytestmark = pytest.mark.integration
@@ -137,14 +138,12 @@ def bench(session: Session) -> Bench:
 
 
 def _review(client: TestClient) -> Any:  # noqa: ANN401 — JSON of the API
-    return client.get("/api/review", params={"scope": f"source-{SOURCE}"}).json()
+    """The header of the source's review."""
+    return open_review(client, f"source-{SOURCE}")["header"]
 
 
 def _cards(client: TestClient, sort: str = "relevance") -> list[dict[str, object]]:
-    response = client.get("/api/review", params={"scope": f"source-{SOURCE}", "sort": sort})
-    assert response.status_code == 200
-    cards: list[dict[str, object]] = response.json()["candidates"]
-    return cards
+    return review_list(client, f"source-{SOURCE}", sort)
 
 
 def _commands(card: dict[str, object]) -> dict[str, object]:
@@ -188,9 +187,13 @@ class TestCardsArePhrases:
         words = [c["word_id"] for c in _cards(client, sort)]
         assert words in ([GLARE, GLARE, SPARK, SPARK], [SPARK, SPARK, GLARE, GLARE])
 
-    def test_get_candidates_lists_the_same_cards(self, client: TestClient, bench: Bench) -> None:
-        listed = client.get("/api/review/candidates", params={"scope": f"source-{SOURCE}"}).json()
-        assert [c["phrase_id"] for c in listed] == [c["phrase_id"] for c in _cards(client)]
+    def test_the_opening_sends_the_cards_the_list_starts_with(
+        self, client: TestClient, bench: Bench,
+    ) -> None:
+        opened = open_review(client, f"source-{SOURCE}")
+        listed = [c["phrase_id"] for c in _cards(client)]
+        assert [c["phrase_id"] for c in opened["cards"]] == listed[: len(opened["cards"])]
+        assert opened["cards"]
 
 
 class TestDecisionsOnCards:

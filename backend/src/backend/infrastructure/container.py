@@ -27,10 +27,8 @@ from backend.application.use_cases.fix_sections import FixSectionsUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
-from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
-from backend.application.use_cases.get_review import GetReviewUseCase
 from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
@@ -548,11 +546,6 @@ class Container:
             lock=SqlaSourceOperationLock(session),
         )
 
-    def get_review_use_case(self, session: Session) -> GetReviewUseCase:
-        return GetReviewUseCase(
-            card_views=self._card_views(session), header=self.review_header(session),
-        )
-
     def open_review_use_case(self, session: Session) -> OpenReviewUseCase:
         return OpenReviewUseCase(
             scope_resolver=self._scope_resolver(session),
@@ -806,11 +799,6 @@ class Container:
         )
         return GetAIUsageStatsUseCase(usage_repo=SqlaAIUsageRepository(session))
 
-    def get_candidates_use_case(self, session: Session) -> GetCandidatesUseCase:
-        return GetCandidatesUseCase(
-            card_views=self._card_views(session),
-        )
-
     def report_candidate_use_case(self, session: Session) -> ReportCandidateUseCase:
         return ReportCandidateUseCase(
             candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
@@ -949,7 +937,6 @@ class Container:
             candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             report_repo=SqlaCardReportRepository(session, self._change_recorder(session)),
-            scope_resolver=self._live_scope_resolver(session),
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
         )
 

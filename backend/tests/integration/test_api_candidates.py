@@ -30,6 +30,7 @@ from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
 from tests.projection_support import rebuild_projection
 from tests.review_support import card_in, on_review
+from tests.review_window_support import open_review, review_list
 from tests.word_support import (
     DECISION_STATUSES_SQL,
     PHRASE_ID_OFFSET,
@@ -123,10 +124,9 @@ class TestDecisionAPI:
     def test_marking_the_last_pending_candidate_marks_the_source_reviewed(
         self, client: TestClient,
     ) -> None:
-        assert client.get("/api/review", params={"scope": "source-1"}).json()["status"] == "done"
+        assert open_review(client, "source-1")["header"]["status"] == "done"
         on_review(client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
-        review = client.get("/api/review", params={"scope": "source-1"}).json()
-        assert review["status"] == "reviewed"
+        assert open_review(client, "source-1")["header"]["status"] == "reviewed"
 
     def test_undo_returns_the_candidate_and_the_source_to_review(
         self, client: TestClient,
@@ -137,7 +137,7 @@ class TestDecisionAPI:
         )
         assert response.status_code == 200
         # Nothing decided again: the source reads as not started, as its progress says.
-        assert client.get("/api/review", params={"scope": "source-1"}).json()["status"] == "done"
+        assert open_review(client, "source-1")["header"]["status"] == "done"
 
     def test_undoing_known_removes_the_word_from_known_words(
         self, client: TestClient,
@@ -247,7 +247,7 @@ class TestCardReportsAPI:
 
     def test_reported_candidate_is_marked(self, client: TestClient) -> None:
         def reported() -> bool:
-            candidates = client.get("/api/review/candidates", params={"scope": "source-1"}).json()
+            candidates = review_list(client, "source-1")
             return next(c for c in candidates if c["phrase_id"] == PHRASE_ID)["reported"]
 
         assert reported() is False
@@ -317,9 +317,9 @@ class TestUnknownWordsAPI:
     """Words of a phrase the user doesn't know take the card out of Ready."""
 
     def _card(self, client: TestClient) -> dict[str, object]:
-        source = client.get("/api/review", params={"scope": "source-1"}).json()
-        section = source["candidates"][0]["section"]
-        return {"section": section, "ready": source["progress"]["total"]}
+        section = review_list(client, "source-1")[0]["section"]
+        ready = open_review(client, "source-1")["header"]["progress"]["total"]
+        return {"section": section, "ready": ready}
 
     def test_card_is_ready_at_first(self, client: TestClient) -> None:
         assert self._card(client) == {"section": "ready", "ready": 1}
@@ -346,8 +346,7 @@ class TestUnknownWordsAPI:
 
     def test_source_with_no_ready_cards_left_is_reviewed(self, client: TestClient) -> None:
         on_review(client, "POST", f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
-        review = client.get("/api/review", params={"scope": "source-1"}).json()
-        assert review["status"] == "reviewed"
+        assert open_review(client, "source-1")["header"]["status"] == "reviewed"
 
     def test_new_phrase_is_read_again(self, client: TestClient) -> None:
         on_review(

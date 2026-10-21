@@ -33,7 +33,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.decision_support import NOW, FixedClock
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
 from tests.review_support import card_in, on_review
+from tests.review_window_support import review_list
 from tests.word_marks_support import insert_known
 from tests.word_support import bind, insert_word, phrase_id_of
 
@@ -228,6 +230,7 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
             {"id": SIBLING, "old": sibling.id},
         )
         session.commit()
+        _rebuild_at_now(session)
     yield sessionmaker(bind=engine)
     engine.dispose()
 
@@ -236,11 +239,7 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
 def client(factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
     def override_session() -> Generator[Session, None, None]:
         with factory() as session:
-            session.info[KNOWLEDGE_SCOPE_KEY] = KnowledgeScope(
-                clock=FixedClock(NOW),
-                word_mark_repo=SqlaWordMarkRepository(session, SessionChangeRecorder(session)),
-                learning_query=SqlaLearningQuery(session),
-            )
+            _at_now(session)
             yield session
 
     app.dependency_overrides[get_db_session] = override_session
@@ -254,6 +253,23 @@ def _given(factory: sessionmaker[Session], given: Callable[[Seed], object]) -> N
     with factory() as session:
         given(Seed(session))
         session.commit()
+        _rebuild_at_now(session)
+
+
+def _at_now(session: Session) -> None:
+    """The session reads what the user knows at NOW."""
+    session.info[KNOWLEDGE_SCOPE_KEY] = KnowledgeScope(
+        clock=FixedClock(NOW),
+        word_mark_repo=SqlaWordMarkRepository(session, SessionChangeRecorder(session)),
+        learning_query=SqlaLearningQuery(session),
+    )
+
+
+def _rebuild_at_now(session: Session) -> None:
+    """The review list reads the projection: rows seeded straight into the tables reach it
+    by a rebuild at NOW, as the app's start makes one."""
+    _at_now(session)
+    rebuild_projection(session)
 
 
 def _bindings(factory: sessionmaker[Session]) -> tuple[int, int]:
@@ -274,7 +290,7 @@ def _decide(client: TestClient, phrase_id: int, button: str) -> Response:
 
 
 def _card(client: TestClient, phrase_id: int) -> Json:
-    cards = client.get("/api/review/candidates", params={"scope": f"source-{HERE}"}).json()
+    cards = review_list(client, f"source-{HERE}")
     return next(card for card in cards if card["phrase_id"] == phrase_id)
 
 
@@ -403,9 +419,7 @@ def test_removing_known_frees_the_word_kept_by_a_deleted_sources_known_card(
     assert client.get("/vocabulary/learning").json()["in_anki"] == []
     other = next(
         card
-        for card in client.get(
-            "/api/review/candidates", params={"scope": f"source-{THERE}"},
-        ).json()
+        for card in review_list(client, f"source-{THERE}")
         if card["phrase_id"] == phrase_id_of(OTHER_WORD)
     )
     assert other["shown"]["status"] == "new"

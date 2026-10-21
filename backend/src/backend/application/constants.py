@@ -22,9 +22,6 @@ DEFAULT_IMAGES_PER_SOURCE: int = 12
 MIN_IMAGES_PER_SOURCE: int = 1
 MAX_IMAGES_PER_SOURCE: int = 30
 
-# The best cards come first; the user decides on a short list, the rest waits behind "show more".
-INITIALLY_SHOWN_CANDIDATES: int = 15
-
 # An open review sends this many rows on each side of the card it lands on.
 REVIEW_WINDOW_AROUND: int = 30
 # The most rows one request on an open review gets.

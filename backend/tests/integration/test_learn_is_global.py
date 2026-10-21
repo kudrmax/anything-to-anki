@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.decision_support import Decisions
 from tests.integration.conftest import insert_source
 from tests.review_support import on_review
+from tests.review_window_support import review_list
 from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -83,7 +84,7 @@ def _vocabulary(factory: sessionmaker[Session]) -> Vocabulary:
 
 
 def test_the_cards_in_another_source_are_done_as_learn_elsewhere(client: TestClient) -> None:
-    [card] = client.get("/api/review/candidates", params={"scope": f"source-{THERE}"}).json()
+    [card] = review_list(client, f"source-{THERE}")
 
     assert card["shown"] == {
         "status": "learn", "skipped": False, "where": "other_source", "tone": "learning",

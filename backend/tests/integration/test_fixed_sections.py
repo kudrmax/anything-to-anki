@@ -28,6 +28,7 @@ from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
 from tests.projection_support import rebuild_projection
 from tests.review_support import on_review
+from tests.review_window_support import review_list
 from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -98,8 +99,8 @@ def client(factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
 
 
 def _section(client: TestClient, source_id: int, phrase_id: int) -> str:
-    source = client.get("/api/review", params={"scope": f"source-{source_id}"}).json()
-    card = next(c for c in source["candidates"] if c["phrase_id"] == phrase_id)
+    cards = review_list(client, f"source-{source_id}")
+    card = next(c for c in cards if c["phrase_id"] == phrase_id)
     return str(card["section"])
 
 

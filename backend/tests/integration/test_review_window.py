@@ -244,15 +244,31 @@ def _section_rows(review_id: str) -> dict[str, bool]:
     }
 
 
+@pytest.mark.parametrize("sort", list(CandidateSortOrder))
+def test_the_opening_sends_only_the_window_around_its_card(
+    factory: sessionmaker[Session], sort: CandidateSortOrder,
+) -> None:
+    """However long the list, the opening sends the rows around one card in every order;
+    the rest comes as the list scrolls."""
+    opened = _open(factory, sort, open_sections=list(CandidateSection))
+    assert opened.layout is not None
+    window = 2 * REVIEW_WINDOW_AROUND + 1
+    assert len(opened.layout.rows) <= window < opened.layout.total_rows
+    assert len(opened.cards) <= window
+
+
 # --- the routes -----------------------------------------------------------------------
 
-def test_opening_answers_the_header_the_focus_and_its_window(client: TestClient) -> None:
+def test_opening_answers_the_header_the_focus_and_its_window(
+    client: TestClient, factory: sessionmaker[Session],
+) -> None:
     answer = client.post("/api/review", json={"scope": SCOPE})
     assert answer.status_code == 200
     update = answer.json()
     assert update["header"]["scope"] == SCOPE
-    today = client.get("/api/review", params={"scope": SCOPE}).json()
-    assert update["header"]["progress"] == today["progress"]
+    with factory() as session:
+        header = get_container().review_header(session).of(SourceScope.collection(COLLECTION))
+    assert update["header"]["progress"] == header.progress.model_dump()
     layout = update["layout"]
     assert (layout["version"], layout["replace"]) == (0, True)
     assert layout["rows"][0] == {
