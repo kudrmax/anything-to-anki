@@ -83,6 +83,20 @@ class SourceOperationBusyError(DomainError):
         self.kind = kind
 
 
+class LevelChangeInProgressError(DomainError):
+    """Raised by a write while the level is being changed: nothing else changes meanwhile."""
+
+    def __init__(self) -> None:
+        super().__init__("The level is being changed")
+
+
+class LevelChangeCancelledError(DomainError):
+    """Raised inside a level change the user cancelled: it is rolled back."""
+
+    def __init__(self) -> None:
+        super().__init__("The level change was cancelled")
+
+
 class RebuildNotSupportedError(DomainError):
     """Raised when the source offers no rebuild (it was never processed), or no source of
     the set does."""

@@ -202,6 +202,18 @@ def release_source_operations(session_factory: sessionmaker[Session]) -> None:
         session.close()
 
 
+def release_level_change_lock(session_factory: sessionmaker[Session]) -> None:
+    """No level change survives a restart of the app: its write was rolled back with it."""
+    from backend.infrastructure.persistence.sqla_level_change_lock import SqlaLevelChangeLock
+
+    session = session_factory()
+    try:
+        SqlaLevelChangeLock(session).release()
+        session.commit()
+    finally:
+        session.close()
+
+
 def cleanup_parse_cache(session_factory: sessionmaker[Session]) -> None:
     """Drop the cached parses of documents no source has any more."""
     from sqlalchemy import select
