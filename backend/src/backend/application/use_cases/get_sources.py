@@ -22,7 +22,8 @@ from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_stage import SourceStage
 
 if TYPE_CHECKING:
-    from backend.application.utils.review_progress import ReviewProgress, SourceProgress
+    from backend.application.utils.review_progress import ReviewProgress
+    from backend.application.utils.source_progress import SourceProgress
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.application.utils.topic_generation import TopicGenerationProbe
     from backend.domain.entities.source import Source

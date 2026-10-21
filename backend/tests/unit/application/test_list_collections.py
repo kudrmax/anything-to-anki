@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
-from backend.application.utils.review_progress import SourceProgress
+from backend.application.utils.source_progress import SourceProgress
 from backend.application.utils.topic_generation import TopicGeneration
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source

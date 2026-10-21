@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.utils.generation_targets import generated_parts
-from backend.domain.services.candidate_sections import card_section, new_words, open_section
+from backend.domain.services.candidate_sections import new_words, open_section
 from backend.domain.services.card_state_rules import changes_at
+from backend.domain.services.card_view import section
 from backend.domain.value_objects.by_step import NewCountsByStep, SectionsByStep
 from backend.domain.value_objects.card_choice import DecisionStatus
 from backend.domain.value_objects.card_state_rows import (
@@ -79,6 +80,11 @@ class LiveCardStates:
         return CardStates(tuple(cards), tuple(words), tuple(phrase_words))
 
     def _card_row(self, card: ReviewCard, steps: _Steps) -> CardStateRow:
+        """`card_section` is `section` of `open_section`: each step's open section is
+        computed once."""
+        opened = tuple(
+            open_section(card, knowledge, threshold) for knowledge, threshold in steps.each
+        )
         return CardStateRow(
             phrase_id=card.phrase_id,
             source_id=card.word.source_id,
@@ -86,14 +92,8 @@ class LiveCardStates:
             lemma=card.lemma.lower(),
             is_done=card.is_done,
             wants_generation=card.view.wants_generation,
-            sections=SectionsByStep(tuple(
-                card_section(card, knowledge, threshold)
-                for knowledge, threshold in steps.each
-            )),
-            open_sections=SectionsByStep(tuple(
-                open_section(card, knowledge, threshold)
-                for knowledge, threshold in steps.each
-            )),
+            sections=SectionsByStep(tuple(section(card, shown) for shown in opened)),
+            open_sections=SectionsByStep(opened),
             new_counts=NewCountsByStep(tuple(
                 len(new_words(card.phrase, knowledge)) for knowledge, _ in steps.each
             )),

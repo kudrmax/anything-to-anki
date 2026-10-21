@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.utils.review_progress import SourceProgress
 from backend.application.utils.source_ordering import SourceOrdering
+from backend.application.utils.source_progress import SourceProgress
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.application.utils.topic_generation import TopicGeneration
 from backend.domain.entities.collection import Collection

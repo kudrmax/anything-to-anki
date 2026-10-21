@@ -15,6 +15,8 @@ from fastapi.testclient import TestClient
 if TYPE_CHECKING:
     from collections.abc import Generator
 
+    from httpx import Response
+
 pytestmark = pytest.mark.integration
 
 PHRASE_ID = 1
@@ -39,7 +41,7 @@ class _Container:
         return _FailingMeaning(self._error)
 
 
-def _answer(error: AIServiceError) -> int:
+def _answer(error: AIServiceError) -> Response:
     def no_session() -> Generator[MagicMock, None, None]:
         yield MagicMock()
 
@@ -47,14 +49,20 @@ def _answer(error: AIServiceError) -> int:
     app.dependency_overrides[get_db_session] = no_session
     try:
         client = TestClient(app)
-        return client.post(f"/phrases/{PHRASE_ID}/generate-meaning").status_code
+        return client.post(f"/phrases/{PHRASE_ID}/generate-meaning")
     finally:
         app.dependency_overrides.clear()
 
 
 def test_the_ai_unavailable_from_here_is_503() -> None:
-    assert _answer(AIUnavailableError(f"AI proxy error: {AI_UNAVAILABLE_MARKER}")) == 503
+    """The body still says it in the words the front's `isVpnError` looks for."""
+    answer = _answer(AIUnavailableError(f"AI proxy error: {AI_UNAVAILABLE_MARKER}: RU"))
+    assert answer.status_code == 503
+    assert AI_UNAVAILABLE_MARKER in answer.json()["detail"]
+    assert AI_UNAVAILABLE_MARKER == "Blocked country"
 
 
 def test_another_ai_failure_is_502() -> None:
-    assert _answer(AIServiceError("AI proxy error: boom")) == 502
+    answer = _answer(AIServiceError("AI proxy error: boom"))
+    assert answer.status_code == 502
+    assert AI_UNAVAILABLE_MARKER not in answer.json()["detail"]

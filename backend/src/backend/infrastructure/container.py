@@ -70,6 +70,7 @@ from backend.application.utils.frequent_word_threshold_resolver import (
 from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.live_card_states import LiveCardStates
 from backend.application.utils.live_generation_status import LiveGenerationStatus
+from backend.application.utils.live_source_progress import LiveSourceProgress
 from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_header import ReviewHeader
@@ -851,6 +852,23 @@ class Container:
             ),
         )
 
+    def _live_scope_resolver(self, session: Session) -> SourceScopeResolver:
+        """Sources in the user's order with their progress read from the facts: what the
+        live references take, so they never read the projection they are checked against."""
+        return SourceScopeResolver(
+            source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
+            collection_repo=SqlaCollectionRepository(session),
+            ordering=SourceOrdering(
+                settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
+                review_progress=LiveSourceProgress(
+                    SqlaCardQuery(session), self._candidate_sorter(session),
+                    self._user_vocabulary(session),
+                ),
+                generation_probe=self._generation_probe(session),
+                candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
+            ),
+        )
+
     def _review_progress(self, session: Session) -> ReviewProgress:
         return ReviewProgress(
             card_states=self._card_state_query(session),
@@ -868,7 +886,7 @@ class Container:
             candidate_sorter=self._candidate_sorter(session),
             job_repo=SqlaJobRepository(session),
             report_repo=SqlaCardReportRepository(session),
-            scope_resolver=self._scope_resolver(session),
+            scope_resolver=self._live_scope_resolver(session),
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
         )
 
@@ -1390,7 +1408,7 @@ class Container:
     def live_generation_status(self, session: Session) -> LiveGenerationStatus:
         """The ✨ counts from the loaded cards: the reference of the stored projection's."""
         return LiveGenerationStatus(
-            scope_resolver=self._scope_resolver(session),
+            scope_resolver=self._live_scope_resolver(session),
             cards=self._generation_cards(session),
             job_repo=SqlaJobRepository(session),
             candidate_sorter=self._candidate_sorter(session),

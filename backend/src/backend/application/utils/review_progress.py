@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from backend.application.utils.source_progress import SourceProgress
 from backend.domain.value_objects.section_tally import EMPTY_TALLY
 
 if TYPE_CHECKING:
@@ -12,15 +12,6 @@ if TYPE_CHECKING:
         FrequentWordThresholdResolver,
     )
     from backend.domain.ports.card_state_query import CardStateQuery
-    from backend.domain.value_objects.decision_progress import DecisionProgress
-
-
-@dataclass(frozen=True)
-class SourceProgress:
-    """How far the user got with a source, and how many cards it shows."""
-
-    progress: DecisionProgress
-    cards: int
 
 
 class ReviewProgress:

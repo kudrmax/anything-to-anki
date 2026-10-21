@@ -11,7 +11,7 @@ from backend.domain.ports.settings_repository import SettingsRepository
 from backend.domain.value_objects.source_order import SourceGrouping, SourceSort
 
 if TYPE_CHECKING:
-    from backend.application.utils.review_progress import ReviewProgress
+    from backend.application.utils.source_progress import SourceProgressReader
     from backend.application.utils.topic_generation import TopicGenerationProbe
     from backend.domain.ports.candidate_repository import CandidateRepository
 
@@ -46,7 +46,7 @@ def added_order() -> SourceOrdering:
 
 def source_ordering(
     settings_repo: SettingsRepository,
-    review_progress: ReviewProgress,
+    review_progress: SourceProgressReader,
     generation_probe: TopicGenerationProbe,
     candidate_repo: CandidateRepository,
 ) -> SourceOrdering:
