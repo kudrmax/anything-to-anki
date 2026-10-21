@@ -72,7 +72,7 @@ class World:
         self.rebuilder: SourceRebuilder = self.bench.rebuilder()
 
     def start(self) -> None:
-        self.progress.begin()
+        self.progress.try_start()
         StartLevelChangeUseCase(
             source_lock=self.bench.lock,
             level_change_lock=self.lock,
@@ -235,7 +235,7 @@ def test_source_without_text_has_sections_moved_only(db_session: Session) -> Non
     settings = SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session))
     lock = SqlaLevelChangeLock(db_session)
     progress = LevelChangeProgress()
-    progress.begin()
+    progress.try_start()
     lock.take()
     db_session.commit()
 

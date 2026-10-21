@@ -16,6 +16,7 @@ from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
 from backend.application.use_cases.add_source import AddSourceUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
+from backend.application.use_cases.change_level import ChangeLevelUseCase
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.application.use_cases.create_topic import CreateTopicUseCase
 from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
@@ -54,6 +55,7 @@ from backend.application.use_cases.run_generation_job import MeaningGenerationUs
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
 from backend.application.use_cases.scope_operation import ScopeOperationUseCase
 from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
+from backend.application.use_cases.start_level_change import StartLevelChangeUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.candidate_factory import CandidateFactory
@@ -67,6 +69,7 @@ from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
 from backend.application.utils.knowledge_scope import KnowledgeScope
+from backend.application.utils.level_change_progress import LevelChangeProgress
 from backend.application.utils.live_card_states import LiveCardStates
 from backend.application.utils.live_generation_status import LiveGenerationStatus
 from backend.application.utils.live_source_progress import LiveSourceProgress
@@ -80,6 +83,7 @@ from backend.application.utils.review_text import ReviewText
 from backend.application.utils.review_updates import ReviewUpdates
 from backend.application.utils.rewrite_phrase import RewritePhrase
 from backend.application.utils.section_stamper import SectionStamper
+from backend.application.utils.settings_writer import SettingsWriter
 from backend.application.utils.source_ordering import SourceOrdering
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
@@ -136,8 +140,10 @@ from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
 )
 from backend.infrastructure.adapters.yandex_image_source import YandexImageSource
-from backend.infrastructure.api.background_rebuild_launcher import (
-    BackgroundSourcesRebuildLauncher,
+from backend.infrastructure.api.background_level_change import (
+    BackgroundLevelChangeLauncher,
+    LevelChangeRun,
+    in_thread,
 )
 from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.persistence.database import app_session_factory
@@ -183,6 +189,7 @@ from backend.infrastructure.persistence.sqla_document_repository import SqlaDocu
 from backend.infrastructure.persistence.sqla_job_queue import SqlaJobQueue
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
+from backend.infrastructure.persistence.sqla_level_change_lock import SqlaLevelChangeLock
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -227,8 +234,11 @@ from backend.infrastructure.review.in_memory_review_order_store import InMemoryR
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from sqlalchemy.orm import Session, sessionmaker
 
+    from backend.application.dto.settings_dtos import UpdateSettingsRequest
     from backend.application.use_cases.apply_target_image import ApplyTargetImageUseCase
     from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
     from backend.application.use_cases.cleanup_media import CleanupMediaUseCase
@@ -405,6 +415,7 @@ class Container:
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
         self._clock: Clock = clock or SystemClock()
         self._write_gate: WriteGate = write_gate or RefuseDuringLevelChange()
+        self._level_change_progress = LevelChangeProgress()
         self._session_factory: sessionmaker[Session] | None = session_factory
         # The open reviews live as long as the app: a restart lets them go.
         self._review_order_store: InMemoryReviewOrderStore[OpenReview] = (
@@ -1072,15 +1083,50 @@ class Container:
             settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
             threshold_resolver=self._threshold_resolver(session),
             unit_of_work=self._unit_of_work(session),
-            rebuild_launcher=self._rebuild_launcher(),
+            level_change=self._level_change_launcher(session),
         )
 
-    def _rebuild_launcher(self) -> BackgroundSourcesRebuildLauncher:
-        """Works in sessions of its own, from the container's session factory: an API
+    def level_change_progress(self) -> LevelChangeProgress:
+        """One per process: the level change runs in the process that started it."""
+        return self._level_change_progress
+
+    def _level_change_launcher(self, session: Session) -> BackgroundLevelChangeLauncher:
+        return BackgroundLevelChangeLauncher(
+            start=StartLevelChangeUseCase(
+                source_lock=SqlaSourceOperationLock(session),
+                level_change_lock=SqlaLevelChangeLock(session),
+                unit_of_work=self._unit_of_work(session),
+            ),
+            run=self._level_change_run(),
+            progress=self._level_change_progress,
+            spawn=self._spawn_level_change,
+        )
+
+    def _spawn_level_change(self, run: Callable[[], None]) -> None:
+        in_thread(run)
+
+    def _level_change_run(self) -> LevelChangeRun:
+        """Works in a session of its own, from the container's session factory: an API
         override of `get_session_factory` does not reach it."""
         work = self.session_work()
-        return BackgroundSourcesRebuildLauncher(
-            scope_operations=lambda: work.open(self.scope_operation_use_case),
+
+        def run(request: UpdateSettingsRequest) -> None:
+            with work.open(self.change_level_use_case) as change:
+                change.execute(request)
+
+        return run
+
+    def change_level_use_case(self, session: Session) -> ChangeLevelUseCase:
+        settings_repo = SqlaSettingsRepository(session, self._change_recorder(session))
+        return ChangeLevelUseCase(
+            settings_writer=SettingsWriter(settings_repo),
+            threshold_resolver=self._threshold_resolver(session),
+            scope_resolver=self._scope_resolver(session),
+            rebuilder=self._source_rebuilder(session),
+            lock=SqlaLevelChangeLock(session),
+            media_files=LocalMediaFiles(self._media_root),
+            unit_of_work=self._level_change_unit_of_work(session),
+            progress=self._level_change_progress,
         )
 
     def get_anki_status_use_case(self, session: Session) -> GetAnkiStatusUseCase:

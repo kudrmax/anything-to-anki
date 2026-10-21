@@ -29,19 +29,15 @@ def _no_real_anki() -> Generator[None, None, None]:
         yield
 
 
-class _RefusingRebuildLauncher:
-    """Stands in for the app's background rebuild in every test: the pass would run on the
-    app database whatever session factory the test gave the API."""
-
-    def rebuild_all(self) -> None:
-        raise AssertionError(
-            "A test started the background rebuild of all sources; it runs on the app"
-            " database, not the test's. Replace Container._rebuild_launcher in the test."
-        )
+def _refuse_level_change(_self: object, _run: object) -> None:
+    raise AssertionError(
+        "A test started a level change; it runs on the app database, not the test's."
+        " Replace Container._spawn_level_change and Container._level_change_run in the test."
+    )
 
 
 @pytest.fixture(autouse=True)
-def _no_rebuild_on_the_app_database(monkeypatch: pytest.MonkeyPatch) -> None:
+def _no_level_change_on_the_app_database(monkeypatch: pytest.MonkeyPatch) -> None:
     from backend.infrastructure.container import Container
 
-    monkeypatch.setattr(Container, "_rebuild_launcher", lambda _self: _RefusingRebuildLauncher())
+    monkeypatch.setattr(Container, "_spawn_level_change", _refuse_level_change)

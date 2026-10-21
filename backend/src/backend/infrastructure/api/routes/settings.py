@@ -10,6 +10,7 @@ from backend.application.dto.settings_dtos import (  # noqa: TC001
     SettingsDTO,
     UpdateSettingsRequest,
 )
+from backend.domain.exceptions import SourceOperationBusyError
 from backend.infrastructure.api.dependencies import use_case
 from backend.infrastructure.container import Container
 
@@ -42,8 +43,10 @@ def update_settings(
         use_case(Container.manage_settings_use_case),  # noqa: B008
     ),
 ) -> SettingsDTO:
-    result = settings.update_settings(request)
-    return result
+    try:
+        return settings.update_settings(request)
+    except SourceOperationBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
 
 @router.get("/frequent-word-thresholds")

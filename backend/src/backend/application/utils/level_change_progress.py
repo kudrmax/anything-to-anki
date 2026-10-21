@@ -25,14 +25,18 @@ class LevelChangeProgress:
         self._outcome: LevelChangeOutcome | None = None
         self._error: str | None = None
 
-    def begin(self) -> None:
+    def try_start(self) -> bool:
+        """False if a change already runs: it is left as it is."""
         with self._lock:
+            if self._running:
+                return False
             self._running = True
             self._stage = LevelChangeStage.ANALYSE
             self._done = self._total = 0
             self._cancel_requested = False
             self._outcome = None
             self._error = None
+            return True
 
     def abandon(self) -> None:
         """The change did not start after all: nothing ran, nothing to tell."""

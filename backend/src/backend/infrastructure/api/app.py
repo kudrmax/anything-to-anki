@@ -26,6 +26,7 @@ from backend.infrastructure.api.routes import (
     export,
     generation,
     known_words,
+    level_change,
     operations,
     phrases,
     review,
@@ -142,6 +143,7 @@ app.include_router(known_words.router)
 app.include_router(unknown_words.router)
 app.include_router(vocabulary.router)
 app.include_router(settings.router)
+app.include_router(level_change.router)
 app.include_router(anki.router)
 app.include_router(export.router)
 app.include_router(stats.router)

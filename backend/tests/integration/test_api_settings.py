@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Generator  # noqa: TC003
+from collections.abc import Callable, Generator  # noqa: TC003
+from typing import TYPE_CHECKING
 
 import pytest
 from backend.infrastructure.api.app import app
@@ -11,34 +12,51 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+if TYPE_CHECKING:
+    from backend.application.dto.settings_dtos import UpdateSettingsRequest
 
-class _RecordedRebuilds:
-    """The background rebuild, recorded instead of run: it would run on the app database."""
+
+class _LevelChanges:
+    """The level change, run at once on the test's database instead of the app's."""
 
     def __init__(self) -> None:
-        self.requests = 0
-
-    def rebuild_all(self) -> None:
-        self.requests += 1
+        self.runs = 0
 
 
 @pytest.fixture()
-def rebuilds(monkeypatch: pytest.MonkeyPatch) -> _RecordedRebuilds:
-    recorded = _RecordedRebuilds()
-    monkeypatch.setattr(Container, "_rebuild_launcher", lambda _self: recorded)
-    return recorded
-
-
-@pytest.fixture()
-def client(rebuilds: _RecordedRebuilds) -> Generator[TestClient, None, None]:
+def test_session_factory() -> sessionmaker[Session]:
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    test_session_factory = sessionmaker(bind=engine)
+    return sessionmaker(bind=engine)
 
+
+@pytest.fixture()
+def level_changes(
+    monkeypatch: pytest.MonkeyPatch, test_session_factory: sessionmaker[Session],
+) -> _LevelChanges:
+    recorded = _LevelChanges()
+
+    def run_here(container: Container) -> Callable[[UpdateSettingsRequest], None]:
+        def run(request: UpdateSettingsRequest) -> None:
+            recorded.runs += 1
+            with test_session_factory() as session:
+                container.change_level_use_case(session).execute(request)
+
+        return run
+
+    monkeypatch.setattr(Container, "_spawn_level_change", lambda _self, run: run())
+    monkeypatch.setattr(Container, "_level_change_run", run_here)
+    return recorded
+
+
+@pytest.fixture()
+def client(
+    level_changes: _LevelChanges, test_session_factory: sessionmaker[Session],
+) -> Generator[TestClient, None, None]:
     def override_session() -> Generator[Session, None, None]:
         session = test_session_factory()
         try:
@@ -105,13 +123,13 @@ class TestSettingsAPI:
         assert data["anki_field_image"] == "Picture"
         assert data["anki_field_audio"] == "Sound"
 
-    def test_update_cefr_level(self, client: TestClient, rebuilds: _RecordedRebuilds) -> None:
+    def test_update_cefr_level(self, client: TestClient, level_changes: _LevelChanges) -> None:
         response = client.patch("/api/settings", json={"cefr_level": "C1"})
         assert response.status_code == 200
         assert response.json()["cefr_level"] == "C1"
         response = client.get("/api/settings")
         assert response.json()["cefr_level"] == "C1"
-        assert rebuilds.requests == 1
+        assert level_changes.runs == 1
 
     def test_update_deck_name(self, client: TestClient) -> None:
         response = client.patch("/api/settings", json={"anki_deck_name": "MyDeck"})
