@@ -19,12 +19,14 @@ describe('SourceRow', () => {
   const onLongPress = vi.fn()
   const onOperation = vi.fn()
   const noop = () => {}
+  let dragged: number[] = []
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     onReview.mockReset()
     onLongPress.mockReset()
     onOperation.mockReset()
+    dragged = [source.id]
     host = document.createElement('div')
     root = createRoot(host)
   })
@@ -36,7 +38,7 @@ describe('SourceRow', () => {
       source={shown} selected={false} showPath={showPath} primary={false}
       onProcess={noop} onGenerate={noop} onCancelGeneration={noop} onRetryGeneration={noop}
       onReview={onReview} onExport={noop} onDelete={noop} onRename={noop} onOperation={onOperation}
-      onRowClick={() => takenBySelection} onMoveTo={noop} dragIds={() => [source.id]}
+      onRowClick={() => takenBySelection} onMoveTo={noop} dragIds={() => dragged}
       draggable onLongPress={onLongPress}
     />,
   ))
@@ -157,5 +159,35 @@ describe('SourceRow', () => {
   it('shows the caption the backend wrote', () => {
     render(false, false, { ...source, progress_caption: '2 of 4 decided' })
     expect(host.textContent).toContain('2 of 4 decided')
+  })
+
+  const dragStart = () => {
+    const transfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: 'none' }
+    const event = new Event('dragstart', { bubbles: true })
+    Object.assign(event, { dataTransfer: transfer, clientX: 0, clientY: 0 })
+    act(() => { row().dispatchEvent(event) })
+    return transfer
+  }
+
+  it('drags a group as a stack with its count, not as one row', () => {
+    vi.useFakeTimers()
+    try {
+      dragged = [7, 8, 9]
+      render(false)
+      const transfer = dragStart()
+      expect(transfer.setData).toHaveBeenCalledWith(expect.any(String), '[7,8,9]')
+      const [image] = transfer.setDragImage.mock.calls[0] as [HTMLElement]
+      expect(image.textContent).toContain('Pilot')
+      expect(image.textContent).toContain('3')
+      act(() => { vi.runAllTimers() })
+      expect(image.isConnected).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('drags a single source as its own row', () => {
+    render(false)
+    expect(dragStart().setDragImage).not.toHaveBeenCalled()
   })
 })
