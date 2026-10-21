@@ -28,9 +28,12 @@ class ChangedFacts:
     """`lemmas`: what the user knows of them changed, in every source (lower-case).
     `phrases`: phrases to read anew. `source_words`: source id → lemmas whose words there
     changed. `deleted_sources`: sources whose words went. `content_phrases`,
-    `content_words`: cards whose content changed, not their state."""
+    `content_words`: cards whose content changed, not their state. `knowledge`: the
+    lemmas whose knowledge changed (a decision, a mark, a binding, a timer): every card of
+    one shows it, whether its stored state changes or not."""
 
     lemmas: set[str] = field(default_factory=set)
+    knowledge: set[str] = field(default_factory=set)
     phrases: set[int] = field(default_factory=set)
     source_words: dict[int, set[str]] = field(default_factory=dict)
     deleted_sources: set[int] = field(default_factory=set)
@@ -49,6 +52,7 @@ class ChangedFacts:
         match change:
             case MarkChanged(lemma) | DecisionChanged(lemma) | BindingChanged(lemma):
                 self.lemmas.add(lemma)
+                self.knowledge.add(lemma)
             case PhraseChanged(phrase_id):
                 self.phrases.add(phrase_id)
             case WordsChanged(source_id, lemmas):

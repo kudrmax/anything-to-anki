@@ -64,7 +64,7 @@ from backend.domain.value_objects.card_change import (
     WordContentChanged,
     WordsChanged,
 )
-from backend.domain.value_objects.card_choice import CardChoice, NoteKind
+from backend.domain.value_objects.card_choice import NoteKind
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_type import JobType
@@ -854,26 +854,3 @@ def test_deleting_a_source_without_words_records_nothing(bench: Bench) -> None:
     bench.sources.delete(OTHER_SOURCE)
 
     assert bench.recorder.drain() == ()
-
-
-def test_a_saved_choice_that_changes_records_the_content_of_every_card_of_its_word(
-    bench: Bench,
-) -> None:
-    """Each card of the word shows its pressed button: a Learn turned Cloze reaches the
-    client though nothing it is sorted by changed."""
-    first = bench.word(1, "glare")
-    second = bench.occurrences.add(make_occurrence(candidate_id=1)).id
-    assert second is not None
-    state = bench.word_states.of_word(1)
-    assert state is not None
-    bench.ready()
-    learned = replace(state, cards=tuple(
-        replace(card, choice=CardChoice.LEARN) if card.card_id == first else card
-        for card in state.cards
-    ))
-
-    bench.word_states.save(learned)
-
-    assert set(bench.recorder.drain()) == {
-        DecisionChanged("glare"), CardContentChanged(first), CardContentChanged(second),
-    }

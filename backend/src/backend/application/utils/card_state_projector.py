@@ -89,7 +89,7 @@ class CardStateProjector:
         if lemmas:
             _Increment(
                 self._card_query, self._word_states, self._store, self._calculator(),
-            ).apply(ChangedFacts(lemmas=lemmas))
+            ).apply(ChangedFacts(lemmas=lemmas, knowledge=set(lemmas)))
         self._store.set_ticked_at(now)
 
     def apply(self, changes: tuple[CardChange, ...]) -> None:
@@ -316,21 +316,27 @@ class _Increment:
         before = self._stored_cards(self._cards.keys())
         changed: list[CardStateRow] = []
         sections: list[CardStateRow] = []
+        known: list[int] = []
         for pid, row in self._cards.items():
             kept = before.get(pid)
             if kept is None or kept.removed:
                 changed.append(row)
-            elif kept.row != row:
+            elif kept.row == row:
+                if row.lemma in facts.knowledge:
+                    known.append(pid)
+            else:
                 only_sections = kept.row == replace(
                     row, sections=kept.row.sections, open_sections=kept.row.open_sections,
                     new_counts=kept.row.new_counts,
                 )
                 (sections if only_sections else changed).append(row)
         removed = self._removed - self._cards.keys()
-        touched = facts.content_phrases or facts.content_words
-        if changed or sections or removed or touched:
+        # A card of a lemma whose knowledge changed shows it (its status, its buttons) even
+        # when its stored state stays: it moves to the new revision too.
+        touched = [*facts.content_phrases, *known]
+        if changed or sections or removed or touched or facts.content_words:
             revision = store.next_revision()
-            store.touch_cards(facts.content_phrases, facts.content_words, revision)
+            store.touch_cards(touched, facts.content_words, revision)
             store.write_cards(changed, revision)
             store.write_sections(sections, revision)
             store.remove_cards(removed, revision)

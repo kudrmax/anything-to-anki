@@ -470,6 +470,21 @@ class _Projection(RuleBasedStateMachine):
             ))
         self.held = _HeldReview(opened.review_id, opened.revision)
         self.held.took(opened.cards, {}, ())
+        self.shown = self._shown_cards()
+
+    def _shown_cards(self) -> dict[int, tuple[int, dict[str, object]]]:
+        """Each card the held review holds: its revision and the card the review sends."""
+        with self.container._review_order_store.hold(self.held.review_id) as review:  # noqa: SLF001
+            ids = list(review.order.phrase_ids)
+            sections = review.order.sections_of(ids)
+            source_ids = sorted(review.source_ids)
+        with self.factory() as session:
+            revisions = {
+                c.row.phrase_id: c.revision
+                for c in self.container._card_state_query(session).changed_since(source_ids, 0)  # noqa: SLF001
+            }
+            views = self.container._card_views(session).of_phrases(ids, sections)  # noqa: SLF001
+        return {v.phrase_id: (revisions[v.phrase_id], v.model_dump()) for v in views}
 
     # --- what the steps work on ---------------------------------------------------------
 
@@ -946,6 +961,13 @@ class _Projection(RuleBasedStateMachine):
         assert sorted(order) == sorted(live)
         assert len(order) == len(set(order))
         assert {p: held.done[p] for p in served} == {p: live[p] for p in served}
+        shown, self.shown = self.shown, self._shown_cards()
+        stale = [
+            phrase_id for phrase_id, (revision, view) in self.shown.items()
+            if phrase_id in shown and shown[phrase_id][1] != view
+            and shown[phrase_id][0] == revision
+        ]
+        assert stale == [], "a card the review shows changed and kept its revision"
 
     def _open_reviews_hold_todays_order(
         self,
@@ -1218,6 +1240,7 @@ def test_the_projection_equals_the_review_after_every_step(
     _timer_tour(_Projection())
     _orphan_tour(_Projection())
     _generation_tour(_Projection())
+    _shown_tour(_Projection())
 
     run_state_machine_as_test(_Projection, settings=settings(
         derandomize=True,
@@ -1246,6 +1269,29 @@ def _timer_tour(machine: _Projection) -> None:
         lambda: machine.time_passes(CLOCK_STEPS[-1]),
     ):
         step()
+        machine.projection_equals_the_review()
+
+
+def _shown_tour(machine: _Projection) -> None:
+    """Presses on the two cards of "brood", in sources 1 and 2 of the collection, where a
+    card's stored state stays while what it shows changes: Learn then Cloze on one card,
+    Learn elsewhere turned Known elsewhere on the other."""
+    machine.start()
+    with machine.factory() as session:
+        here, there = session.scalars(text(
+            "SELECT p.id FROM phrases p JOIN candidates c ON c.id = p.candidate_id"
+            " WHERE c.lemma = 'brood' AND c.source_id IN (1, 2) AND p.shown_by IS NOT NULL"
+            " ORDER BY c.source_id"
+        )).all()
+    for phrase_id, button in (
+        (here, Press.LEARN), (here, Press.CLOZE), (here, Press.KNOWN), (here, Press.LEARN),
+        (there, Press.KNOWN), (here, Press.LEARN), (here, Press.CLOZE),
+    ):
+        machine._refusable(  # noqa: SLF001
+            lambda s, p=phrase_id, b=button: machine.container.decide_phrase_use_case(
+                s,
+            ).decide(p, b),
+        )
         machine.projection_equals_the_review()
 
 
