@@ -31,7 +31,7 @@ from sqlalchemy import text
 from tests.decision_support import NOW, Decisions
 from tests.integration.conftest import insert_source
 from tests.word_marks_support import insert_known, known_rows, unknown_lemmas
-from tests.word_support import bind, insert_word, phrase_id_of
+from tests.word_support import bind, decision_status_of, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -112,7 +112,7 @@ class Bench:
         return len(known_rows(self.session))
 
     def status(self, word_id: int) -> str:
-        return str(self.scalar(f"SELECT status FROM candidates WHERE id = {word_id}"))  # noqa: S608
+        return decision_status_of(self.session, word_id)
 
     def choice(self, word_id: int) -> str:
         return str(self.scalar(

@@ -20,7 +20,7 @@ from backend.domain.value_objects.collection_choice import CollectionChoice
 from backend.domain.value_objects.naming_rule import DEFAULT_NAMING_RULE, NamingRule
 from backend.domain.value_objects.question import Answers
 from backend.infrastructure.container import Container
-from backend.infrastructure.persistence.database import create_session_factory
+from backend.infrastructure.persistence.database import create_session_factory, open_query_only
 
 from scripts.fix_sections import fix_sections
 
@@ -56,7 +56,7 @@ def parse_args(argv: list[str] | None = None) -> BuildArgs:
 
 def backup_copy(source: Path, target: Path) -> None:
     """The online backup API, so the copy is consistent even if the source is in use."""
-    origin = sqlite3.connect(f"file:{source}?mode=ro", uri=True)
+    origin = open_query_only(str(source))
     copy = sqlite3.connect(target)
     try:
         origin.backup(copy)

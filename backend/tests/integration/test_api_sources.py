@@ -252,7 +252,6 @@ class TestSourcesAPI:
             zipf_frequency=3.8,
             is_sweet_spot=True,
             occurrences=1,
-            status="pending",
             usage_distribution_json=json.dumps({"informal": 0.8, "neutral": 0.2}),
         )
         db_session.add(candidate)

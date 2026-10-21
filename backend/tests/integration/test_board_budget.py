@@ -12,6 +12,7 @@ from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.models import SourceModel, dump_phrase
 from sqlalchemy import text
 
+from tests.decision_support import project_words
 from tests.phrase_support import phrase
 from tests.word_support import TEST_SECTION
 
@@ -36,13 +37,10 @@ def _seed_book(session: Session) -> None:
     session.execute(
         text(
             "INSERT INTO candidates (id, source_id, lemma, pos, zipf_frequency, is_sweet_spot,"
-            " occurrences, status, is_phrasal_verb)"
-            " VALUES (:id, 1, :lemma, 'NOUN', 3.0, 0, 3, :status, 0)"
+            " occurrences, is_phrasal_verb)"
+            " VALUES (:id, 1, :lemma, 'NOUN', 3.0, 0, 3, 0)"
         ),
-        [
-            {"id": i, "lemma": f"lemma{i}", "status": "learn" if i % 10 == 0 else "pending"}
-            for i in range(1, BOOK_WORDS + 1)
-        ],
+        [{"id": i, "lemma": f"lemma{i}"} for i in range(1, BOOK_WORDS + 1)],
     )
     rows = []
     for phrase_id in range(1, BOOK_PHRASES + 1):
@@ -64,6 +62,7 @@ def _seed_book(session: Session) -> None:
         ),
         rows,
     )
+    project_words(session)
     session.commit()
 
 

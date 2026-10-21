@@ -19,6 +19,8 @@ import os
 import sqlite3
 import sys
 
+from backend.infrastructure.persistence.database import configure_sqlite_connection
+
 PATH_SEPARATOR = "/"
 # "<source_id>/<file name>" — the part of a media path that survives a move.
 TAIL_COMPONENTS = 2
@@ -47,6 +49,7 @@ def relocated_path(stored: str, media_root: str) -> str:
 def relocate(db_path: str, media_root: str, *, apply: bool) -> int:
     """Return the number of outdated paths; rewrite them when ``apply`` is set."""
     conn = sqlite3.connect(db_path)
+    configure_sqlite_connection(conn)
     total = 0
 
     for table, columns in TABLES_COLUMNS:

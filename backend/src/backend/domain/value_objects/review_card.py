@@ -131,3 +131,17 @@ class CardRow:
     @property
     def is_done(self) -> bool:
         return card_is_done(self.word_status, self.skipped, self.elsewhere)
+
+
+@dataclass(frozen=True)
+class CardTargetRow:
+    """A shown card without its phrase: the facts of its word and the section its phrase
+    earned, what tells its section besides the phrase's other words."""
+
+    source_id: int
+    word_id: int
+    phrase_id: int
+    lemma: str
+    pos: str
+    zipf_frequency: float
+    earned_section: CandidateSection

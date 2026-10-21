@@ -51,7 +51,7 @@ class CandidateRepository(ABC):
     @abstractmethod
     def chosen_to_learn(self, source_ids: Collection[int] | None = None) -> list[StoredCandidate]:
         """Words chosen to learn (`card_view.chosen_to_learn`) of these sources, or of all
-        sources, by id."""
+        sources, by id; read from their decision cards, not the projection."""
 
     @abstractmethod
     def get_by_lemma(self, lemma: str) -> list[StoredCandidate]:

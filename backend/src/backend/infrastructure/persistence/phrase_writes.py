@@ -23,7 +23,7 @@ TEXT_RESULT_MODELS = (CandidateMediaModel, CandidateTTSModel)
 SQL_IN_CHUNK = 500
 
 
-def chunks(ids: Sequence[int]) -> Iterator[list[int]]:
+def chunks[T](ids: Sequence[T]) -> Iterator[list[T]]:
     for start in range(0, len(ids), SQL_IN_CHUNK):
         yield list(ids[start:start + SQL_IN_CHUNK])
 

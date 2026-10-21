@@ -23,7 +23,7 @@ from sqlalchemy import text
 
 from tests.decision_support import NOW
 from tests.integration.conftest import insert_source
-from tests.word_support import CREATED_AT, bind, insert_word, phrase_id_of
+from tests.word_support import CREATED_AT, bind, decision_status_of, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -51,9 +51,7 @@ def repo(db_session: Session, source_id: int) -> SqlaWordStateRepository:
 
 
 def _status(session: Session) -> str:
-    return str(session.execute(
-        text("SELECT status FROM candidates WHERE id = :id"), {"id": WORD},
-    ).scalar_one())
+    return decision_status_of(session, WORD)
 
 
 def test_a_word_reads_its_cards_and_their_active_bindings(

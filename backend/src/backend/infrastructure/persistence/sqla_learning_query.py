@@ -5,7 +5,12 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 
 from backend.domain.ports.learning_query import LearningQuery
-from backend.infrastructure.persistence.models import AnkiSyncedCardModel, StoredCandidateModel
+from backend.domain.value_objects.learning_timer import exported_for_due
+from backend.infrastructure.persistence.models import (
+    AnkiSyncedCardModel,
+    PhraseModel,
+    StoredCandidateModel,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -17,7 +22,7 @@ if TYPE_CHECKING:
 class SqlaLearningQuery(LearningQuery):
     """Learn words of every source not exported yet (their decision status is LEARN), and
     the active bindings of `anki_synced_cards`, including those whose card or source is
-    gone."""
+    gone. Read from the facts: the rules read this, the projection is built from them."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -25,7 +30,20 @@ class SqlaLearningQuery(LearningQuery):
     def awaiting_export(self) -> frozenset[str]:
         return frozenset(self._session.scalars(
             select(func.lower(StoredCandidateModel.lemma))
-            .where(StoredCandidateModel.in_export_queue())
+            .join(PhraseModel, PhraseModel.candidate_id == StoredCandidateModel.id)
+            .where(PhraseModel.awaits_export())
+            .distinct()
+        ))
+
+    def timers_due_between(self, after: datetime | None, until: datetime) -> frozenset[str]:
+        since = AnkiSyncedCardModel.learning_since
+        exported_after, exported_by = exported_for_due(after, until)
+        window = [since <= exported_by]
+        if exported_after is not None:
+            window.append(since > exported_after)
+        return frozenset(self._session.scalars(
+            select(func.lower(AnkiSyncedCardModel.lemma))
+            .where(AnkiSyncedCardModel.released_at.is_(None), *window)
             .distinct()
         ))
 

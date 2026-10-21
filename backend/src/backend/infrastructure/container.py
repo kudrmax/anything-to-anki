@@ -59,6 +59,7 @@ from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.candidate_factory import CandidateFactory
 from backend.application.utils.candidate_sorter import CandidateSorter
+from backend.application.utils.card_state_projector import CardStateProjector
 from backend.application.utils.card_views import CardViews
 from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.application.utils.decided_elsewhere import DecidedElsewhere
@@ -68,6 +69,7 @@ from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
 from backend.application.utils.knowledge_scope import KnowledgeScope
+from backend.application.utils.live_card_states import LiveCardStates
 from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_progress import ReviewProgress
@@ -166,6 +168,7 @@ from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_card_report_repository import (
     SqlaCardReportRepository,
 )
+from backend.infrastructure.persistence.sqla_card_state_store import SqlaCardStateStore
 from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
 )
@@ -250,6 +253,7 @@ if TYPE_CHECKING:
     from backend.application.utils.meaning_image_placer import MeaningImagePlacer
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
     from backend.application.utils.requested_cards import RequestedCards
+    from backend.domain.ports.clock import Clock
     from backend.domain.ports.format_reader import FormatReader
     from backend.domain.ports.target_image_source import TargetImageSource
     from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
@@ -266,7 +270,10 @@ CHANGE_RECORDER_KEY = "change_recorder"
 class Container:
     """Dependency injection container. Single point of assembly for all dependencies."""
 
-    def __init__(self, session_factory: sessionmaker[Session] | None = None) -> None:
+    def __init__(
+        self, session_factory: sessionmaker[Session] | None = None, clock: Clock | None = None,
+    ) -> None:
+        """`clock`: where every request and job reads `now`; the system's unless given."""
 
         from backend.infrastructure.adapters.ffmpeg_media_extractor import FfmpegMediaExtractor
         from backend.infrastructure.adapters.ffmpeg_subtitle_extractor import (
@@ -372,7 +379,7 @@ class Container:
         self._lazy_media_reconciler: LazyMediaReconciler | None = None  # lazy init on first call
         templates_dir = project_root / "anki-templates"
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
-        self._clock = SystemClock()
+        self._clock: Clock = clock or SystemClock()
         self._session_factory: sessionmaker[Session] | None = session_factory
 
     def _get_session_factory(self) -> sessionmaker[Session]:
@@ -857,6 +864,43 @@ class Container:
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
         )
 
+    def _review_cards(self, session: Session) -> ReviewCards:
+        return ReviewCards(
+            SqlaCandidateRepository(session, self._change_recorder(session)),
+            SqlaOccurrenceRepository(session, self._change_recorder(session)),
+            SqlaWordStateRepository(session, self._change_recorder(session)),
+            self._user_vocabulary(session),
+        )
+
+    def card_state_projector(self, session: Session) -> CardStateProjector:
+        return CardStateProjector(
+            source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
+            card_query=SqlaCardQuery(session),
+            word_states=SqlaWordStateRepository(session, self._change_recorder(session)),
+            knowledge=self._user_knowledge(session),
+            vocabulary=self._user_vocabulary(session),
+            learning=SqlaLearningQuery(session),
+            store=SqlaCardStateStore(session),
+            recorder=self._change_recorder(session),
+        )
+
+    def rebuild_card_states(self) -> None:
+        """The whole projection computed anew in one write transaction of its own."""
+        self.session_work().write(lambda session: self.card_state_projector(session).rebuild())
+
+    def tick_card_states(self) -> None:
+        """What time changed in the projection, written in one write transaction."""
+        self.session_work().write(lambda session: self.card_state_projector(session).tick())
+
+    def live_card_states(self, session: Session) -> LiveCardStates:
+        return LiveCardStates(
+            source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
+            review_cards=self._review_cards(session),
+            candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
+            knowledge=self._user_knowledge(session),
+            vocabulary=self._user_vocabulary(session),
+        )
+
     def _user_vocabulary(self, session: Session) -> UserVocabulary:
         return UserVocabulary(
             word_mark_repo=SqlaWordMarkRepository(session, self._change_recorder(session)),
@@ -864,7 +908,11 @@ class Container:
         )
 
     def _unit_of_work(self, session: Session) -> SqlaUnitOfWork:
-        return SqlaUnitOfWork(session, self.knowledge_scope(session))
+        """Every write commits with its changes projected onto the card state."""
+        return SqlaUnitOfWork(
+            session, self.knowledge_scope(session),
+            before_commit=self.card_state_projector(session).apply,
+        )
 
     def _change_recorder(self, session: Session) -> SessionChangeRecorder:
         """One per database session, shared by every owner of facts built for it."""

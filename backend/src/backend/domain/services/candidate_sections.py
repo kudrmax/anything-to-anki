@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 from backend.domain.services.card_view import section, shown_section
+from backend.domain.value_objects.by_step import NewCountsByStep, SectionsByStep
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.frequent_word_threshold import THRESHOLD_STEPS, is_frequent
 from backend.domain.value_objects.phrase_newness import NO_NEWNESS, PhraseNewness
@@ -49,7 +50,9 @@ class CardFacts(WordFacts, Protocol):
         ...
 
 
-class ShownCardFacts(CardFacts, Protocol):
+class SectionFacts(WordFacts, Protocol):
+    """What tells a card's section besides the words of its phrase."""
+
     @property
     def is_done(self) -> bool: ...
 
@@ -57,6 +60,10 @@ class ShownCardFacts(CardFacts, Protocol):
     def earned_section(self) -> CandidateSection:
         """The section the card's phrase earned when it was added or its text last changed."""
         ...
+
+
+class ShownCardFacts(CardFacts, SectionFacts, Protocol):
+    """A shown card: its phrase and what tells its section."""
 
 
 def phrase_newness(phrase: Phrase, knowledge_base: KnowledgeBase | None) -> PhraseNewness:
@@ -114,16 +121,27 @@ def sections_by_step(
     """`card_section` at every threshold of THRESHOLD_STEPS, in its order, the phrase read
     once."""
     newness = phrase_newness(card.phrase, knowledge_base)
-    return tuple(
+    return sections_at_steps(card, new_counts_at_steps(newness)).sections
+
+
+def sections_at_steps(card: SectionFacts, new_counts: NewCountsByStep) -> SectionsByStep:
+    """`card_section` at every threshold step, given how many other words of the card's
+    phrase are new at each."""
+    return SectionsByStep(tuple(
         section(
             card,
             shown_section(
-                _earned_section(card, newness, target_step=step, words_step=step),
+                _earned_by_count(card, new_counts.at(step), target_step=step),
                 card.earned_section,
             ),
         )
         for step in THRESHOLD_STEPS
-    )
+    ))
+
+
+def new_counts_at_steps(newness: PhraseNewness) -> NewCountsByStep:
+    """How many words besides the target are new at every threshold step."""
+    return NewCountsByStep(newness.counts(THRESHOLD_STEPS))
 
 
 def _earned_section(
@@ -135,9 +153,16 @@ def _earned_section(
 ) -> CandidateSection:
     """`target_step` tells whether the target is probably known, `words_step` — which other
     words of the phrase are new."""
+    return _earned_by_count(card, newness.count(words_step), target_step=target_step)
+
+
+def _earned_by_count(
+    card: WordFacts, new_count: int, *, target_step: float | None,
+) -> CandidateSection:
+    """`new_count`: how many other words of the phrase are new."""
     if is_junk(card) or is_frequent(card.zipf_frequency, target_step):
         return CandidateSection.PROBABLY_KNOWN
-    if newness.count(words_step):
+    if new_count:
         return CandidateSection.EXTRA
     return CandidateSection.READY
 

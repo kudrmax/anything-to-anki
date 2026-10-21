@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +25,7 @@ from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.dict_cache.cefr_source import DictCacheCEFRSource
 from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 from backend.infrastructure.adapters.wordfreq_frequency_provider import WordfreqFrequencyProvider
+from backend.infrastructure.persistence.database import open_query_only
 from dotenv import load_dotenv
 
 if TYPE_CHECKING:
@@ -104,7 +104,7 @@ def _print_bar(label: str, count: int, max_count: int, width: int = 40) -> None:
 # --- load data ---
 
 def load_known_words() -> list[tuple[str, str]]:
-    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+    conn = open_query_only(str(DB_PATH))
     rows = conn.execute(
         "SELECT lemma, pos FROM known_pos JOIN word_marks USING (lemma)"
         " WHERE mark = 'known'"

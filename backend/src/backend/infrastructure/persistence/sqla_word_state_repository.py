@@ -13,7 +13,6 @@ from backend.domain.value_objects.card_choice import (
     CardState,
     NoteKind,
     WordState,
-    decision_status,
 )
 from backend.infrastructure.persistence.models import (
     AnkiSyncedCardModel,
@@ -68,6 +67,12 @@ class SqlaWordStateRepository(WordStateRepository):
     def of_lemma(self, lemma: str) -> list[WordState]:
         return list(self._read(func.lower(StoredCandidateModel.lemma) == lemma.lower()).values())
 
+    def of_lemmas(self, lemmas: Collection[str]) -> dict[int, WordState]:
+        found: dict[int, WordState] = {}
+        for chunk in chunks(sorted({lemma.lower() for lemma in lemmas})):
+            found.update(self._read(func.lower(StoredCandidateModel.lemma).in_(chunk)))
+        return found
+
     def save(self, word: WordState) -> None:
         # A card that stops being the decision is written first: the decision card is unique.
         for card in sorted(word.cards, key=lambda c: c.is_decision):
@@ -77,12 +82,6 @@ class SqlaWordStateRepository(WordStateRepository):
                 .values(choice=card.choice.value)
                 .execution_options(synchronize_session=False)
             )
-        self._session.execute(
-            update(StoredCandidateModel)
-            .where(StoredCandidateModel.id == word.word_id)
-            .values(status=decision_status(word).value)
-            .execution_options(synchronize_session=False)
-        )
         self._session.flush()
         self._recorder.record(DecisionChanged(word.lemma))
         self._after_save()

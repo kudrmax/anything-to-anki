@@ -5,7 +5,7 @@ import os
 from functools import cache
 from typing import TYPE_CHECKING
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import NullPool, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     import sqlite3
 
     from alembic.config import Config
+    from sqlalchemy import Engine, Pool
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,14 @@ class Base(DeclarativeBase):
 SQLITE_FILE_URL_PREFIX = "sqlite:///"
 SQLITE_IN_MEMORY_PATH = ":memory:"
 SQLITE_BUSY_TIMEOUT_MS = 30_000
+MS_PER_SECOND = 1000
+# Readers never wait for a writer and a writer never waits for readers; a commit is
+# durable at the next checkpoint, which is enough for a local tool.
+SQLITE_JOURNAL_MODE = "WAL"
+SQLITE_SYNCHRONOUS = "NORMAL"
+# Negative: in KiB. A whole book's projection is written in one transaction, and the
+# default 2 MB cache spills it to disk many times over.
+SQLITE_CACHE_SIZE_KIB = -200_000
 
 
 def default_db_url() -> str:
@@ -87,7 +96,7 @@ def _has_pending_migrations(cfg: Config, db_url: str) -> bool:
     db_path = _sqlite_file(db_url)
     if db_path is None or not os.path.exists(db_path):
         return False
-    engine = create_engine(db_url)
+    engine = create_app_engine(db_url, poolclass=NullPool, foreign_keys=False)
     try:
         with engine.connect() as conn:
             current = set(MigrationContext.configure(conn).get_current_heads())
@@ -108,21 +117,68 @@ def _enable_sqlite_foreign_keys(
     cursor.close()
 
 
-def _wait_for_locks(dbapi_conn: sqlite3.Connection, _connection_record: object) -> None:
-    """A writer waits for another one to finish instead of failing at once."""
+def configure_sqlite_connection(dbapi_conn: sqlite3.Connection) -> None:
+    """What every connection of the app, the worker, the migrations and the scripts runs
+    with: waiting for another writer instead of failing at once, the WAL journal and a
+    cache big enough for a whole book's projection."""
     cursor = dbapi_conn.cursor()
-    cursor.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
-    cursor.close()
+    try:
+        for pragma in (
+            f"busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}",
+            f"journal_mode = {SQLITE_JOURNAL_MODE}",
+            f"synchronous = {SQLITE_SYNCHRONOUS}",
+            f"cache_size = {SQLITE_CACHE_SIZE_KIB}",
+        ):
+            cursor.execute(f"PRAGMA {pragma}")
+    finally:
+        cursor.close()
+
+
+def open_query_only(db_path: str) -> sqlite3.Connection:
+    """A connection to the file that can only read, the file left as it is, in whatever
+    journal mode. Not `mode=ro`: SQLite cannot open a WAL database read-only while no other
+    connection holds its WAL files."""
+    import sqlite3
+
+    connection = sqlite3.connect(
+        db_path, check_same_thread=False, timeout=SQLITE_BUSY_TIMEOUT_MS / MS_PER_SECOND,
+    )
+    # Never the journal mode or synchronous: setting them writes the file's header, and
+    # waits for whoever holds the database.
+    for pragma in (
+        f"busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}",
+        f"cache_size = {SQLITE_CACHE_SIZE_KIB}",
+        "query_only = ON",
+    ):
+        connection.execute(f"PRAGMA {pragma}")
+    return connection
+
+
+def _configure_on_connect(dbapi_conn: sqlite3.Connection, _connection_record: object) -> None:
+    configure_sqlite_connection(dbapi_conn)
+
+
+def create_app_engine(
+    db_url: str, *, poolclass: type[Pool] | None = None, foreign_keys: bool = True,
+) -> Engine:
+    """The one engine factory: every connection it opens is configured by
+    `configure_sqlite_connection`. `poolclass`: SQLAlchemy's default unless given.
+    `foreign_keys`: off only for the migrations, which rebuild tables under their keys."""
+    _ensure_sqlite_directory(db_url)
+    engine = (
+        create_engine(db_url, connect_args={"check_same_thread": False})
+        if poolclass is None
+        else create_engine(db_url, connect_args={"check_same_thread": False}, poolclass=poolclass)
+    )
+    if foreign_keys:
+        event.listen(engine, "connect", _enable_sqlite_foreign_keys)
+    event.listen(engine, "connect", _configure_on_connect)
+    return engine
 
 
 def create_session_factory(db_url: str | None = None) -> sessionmaker[Session]:
     """Create a SQLAlchemy session factory."""
-    resolved_url = db_url or default_db_url()
-    _ensure_sqlite_directory(resolved_url)
-    engine = create_engine(resolved_url, connect_args={"check_same_thread": False})
-    event.listen(engine, "connect", _enable_sqlite_foreign_keys)
-    event.listen(engine, "connect", _wait_for_locks)
-    return sessionmaker(bind=engine)
+    return sessionmaker(bind=create_app_engine(db_url or default_db_url()))
 
 
 @cache

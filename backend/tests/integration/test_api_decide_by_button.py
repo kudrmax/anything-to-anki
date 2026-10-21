@@ -48,7 +48,6 @@ SIBLING = 5000
 LEMMA = "glare"
 FRESH = (NOW - timedelta(days=1)).replace(tzinfo=None).isoformat(sep=" ")
 DUE = (NOW - LEARNING_KNOWN_AFTER).replace(tzinfo=None).isoformat(sep=" ")
-DECISION_STATUS = {"learn": "learn", "cloze": "learn", "known": "known"}
 
 
 class Seed:
@@ -61,11 +60,6 @@ class Seed:
         self.session.execute(
             text("UPDATE phrases SET choice = :c WHERE id = :id"), {"c": choice, "id": phrase_id},
         )
-        if choice in DECISION_STATUS:
-            self.session.execute(
-                text("UPDATE candidates SET status = :s WHERE id = :id"),
-                {"s": DECISION_STATUS[choice], "id": WORD},
-            )
         return self
 
     def in_anki(self, choice: str, *, since: str = FRESH, kind: str = "learn") -> Seed:

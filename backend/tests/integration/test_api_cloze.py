@@ -57,9 +57,6 @@ def client() -> Generator[TestClient, None, None]:
     session.execute(
         text("UPDATE phrases SET choice = 'cloze' WHERE id = :id"), {"id": SYNCED_PHRASE_ID},
     )
-    session.execute(
-        text("UPDATE candidates SET status = 'learn' WHERE id = :id"), {"id": SYNCED_WORD_ID},
-    )
     bind(session, SYNCED_WORD_ID, SYNCED_PHRASE_ID, note_id=777, kind="cloze")
     session.commit()
     session.close()

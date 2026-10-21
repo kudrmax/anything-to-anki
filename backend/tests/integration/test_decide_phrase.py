@@ -38,7 +38,7 @@ from tests.decision_support import NOW, Decisions
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
 from tests.word_marks_support import insert_known, insert_unknown, known_rows, unknown_lemmas
-from tests.word_support import bind, insert_word, phrase_id_of
+from tests.word_support import bind, decision_status_of, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -83,9 +83,7 @@ class Bench:
         self.decisions = self.decisions.request(NOW + timedelta(days=days))
 
     def status(self, word_id: int = WORD) -> str:
-        return str(self.session.execute(
-            text("SELECT status FROM candidates WHERE id = :id"), {"id": word_id},
-        ).scalar_one())
+        return decision_status_of(self.session, word_id)
 
     def choice(self, phrase_id: int) -> CardChoice:
         return CardChoice(self.session.execute(
@@ -127,10 +125,6 @@ class Bench:
         self.session.execute(
             text("UPDATE phrases SET choice = :c WHERE id = :id"),
             {"c": choice.value, "id": phrase_id},
-        )
-        self.session.execute(
-            text("UPDATE candidates SET status = :s WHERE id = :id"),
-            {"s": "known" if choice is CardChoice.KNOWN else "learn", "id": WORD},
         )
         bind(self.session, WORD, phrase_id, lemma=LEMMA, since=since)
 

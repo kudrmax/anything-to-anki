@@ -22,6 +22,7 @@ from backend.domain.value_objects.unsectioned_phrase import UnsectionedPhrase
 from backend.domain.value_objects.word_row import WordRow
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
+    WORD_DECISION_STATUS,
     AnkiSyncedCardModel,
     CandidateClozeModel,
     CandidateMeaningModel,
@@ -310,20 +311,21 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         self._recorder.record(PhraseChanged(occurrence_id))
 
     def word_rows(self, source_id: int) -> list[WordRow]:
-        words = self._session.scalars(
-            select(StoredCandidateModel)
+        """Each word with its decision status, read from its cards in the same query."""
+        words = self._session.execute(
+            select(StoredCandidateModel, WORD_DECISION_STATUS)
             .where(StoredCandidateModel.source_id == source_id)
             .order_by(StoredCandidateModel.id)
-        ).unique()
+        ).unique().all()
         return [
             WordRow(
                 id=word.id,
                 lemma=word.lemma,
                 is_phrasal_verb=word.is_phrasal_verb,
-                status=WordStatus(word.status),
+                status=WordStatus(status),
                 data=word.word_data(),
             )
-            for word in words
+            for word, status in words
         ]
 
     def apply_plan(self, plan: RebuildPlan) -> AppliedPlan:

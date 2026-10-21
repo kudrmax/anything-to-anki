@@ -50,6 +50,33 @@ class FixedClock(Clock):
         return self.moment
 
 
+def project(session: Session, now: datetime = NOW) -> None:
+    """The projection made from the facts as they are on the session, as the app keeps it:
+    what the screens and the export queue read."""
+    from backend.infrastructure.container import KNOWLEDGE_SCOPE_KEY, Container
+
+    session.info.pop(KNOWLEDGE_SCOPE_KEY, None)
+    Container(clock=FixedClock(now)).card_state_projector(session).rebuild()
+    session.info.pop(KNOWLEDGE_SCOPE_KEY, None)
+
+
+def project_words(session: Session) -> None:
+    """Only the words of the projection, made from the facts as they are on the session: what
+    the export queue reads, for a database whose cards the projection need not read."""
+    from backend.application.utils.card_state_calculator import CardStateCalculator
+    from backend.infrastructure.persistence.sqla_card_state_store import SqlaCardStateStore
+    from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
+
+    recorder = SessionChangeRecorder(session)
+    words = SqlaWordStateRepository(session, recorder)
+    SqlaCardStateStore(session).write_words([
+        CardStateCalculator.word(word)
+        for source in SqlaSourceRepository(session, recorder).list_all()
+        if source.id is not None
+        for word in words.of_source(source.id).values()
+    ])
+
+
 class Decisions:
     """One request over the session: one knowledge scope, its vocabulary and effects.
 

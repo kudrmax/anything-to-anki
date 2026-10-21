@@ -256,11 +256,7 @@ class Bench:
         self.session.commit()
 
     def decide_learn(self, lemma: str, phrase_id: int) -> None:
-        word_ids = {w.lemma: w.id for w in self.occurrences.word_rows(SOURCE)}
-        self.session.execute(
-            text("UPDATE candidates SET status = 'learn' WHERE id = :id"),
-            {"id": word_ids[lemma]},
-        )
+        del lemma
         self.set_choice(phrase_id, "learn")
         self.session.commit()
 

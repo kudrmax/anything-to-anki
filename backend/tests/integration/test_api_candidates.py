@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
 from tests.word_support import (
+    DECISION_STATUSES_SQL,
     PHRASE_ID_OFFSET,
     CardSeed,
     bind,
@@ -248,9 +249,10 @@ class TestCardReportsAPI:
         assert response.status_code == 201
         session = next(app.dependency_overrides[get_db_session]())
         rows = session.execute(text(
-            "SELECT c.status, p.choice, a.released_at IS NOT NULL FROM candidates c"
-            " JOIN phrases p ON p.candidate_id = c.id"
-            " JOIN anki_synced_cards a ON a.phrase_id = p.id WHERE c.id = :id"
+            "SELECT s.status, p.choice, a.released_at IS NOT NULL"
+            f" FROM ({DECISION_STATUSES_SQL}) s"  # noqa: S608
+            " JOIN phrases p ON p.candidate_id = s.word_id"
+            " JOIN anki_synced_cards a ON a.phrase_id = p.id WHERE s.word_id = :id"
         ), {"id": OTHER_WORD}).all()
         assert [tuple(row) for row in rows] == [("pending", "none", 1)]
         assert all(w["lemma"] != "pursuit" for w in client.get("/known-words").json())

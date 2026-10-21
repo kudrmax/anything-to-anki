@@ -5,13 +5,15 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 
 from backend.domain.ports.card_query import CardQuery
-from backend.domain.value_objects.review_card import CardRow
+from backend.domain.value_objects.review_card import CardRow, CardTargetRow
 from backend.domain.value_objects.shown_place import ShownPlace
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
+    WORD_DECISION_STATUS,
     CEFRBreakdownModel,
     PhraseModel,
     StoredCandidateModel,
+    WordStateModel,
     cefr_level_of,
     earned_section_of,
     load_phrase,
@@ -20,6 +22,9 @@ from backend.infrastructure.persistence.models import (
 from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
+    from sqlalchemy import ColumnElement
     from sqlalchemy.orm import Session
 
     from backend.domain.value_objects.phrase import Phrase
@@ -34,58 +39,110 @@ class SqlaCardQuery(CardQuery):
     def shown_cards(self, source_ids: list[int]) -> dict[int, list[CardRow]]:
         found: dict[int, list[CardRow]] = {}
         for chunk in chunks(source_ids):
-            rows = self._session.execute(
-                select(
-                    StoredCandidateModel.source_id,
-                    StoredCandidateModel.id,
-                    StoredCandidateModel.lemma,
-                    StoredCandidateModel.pos,
-                    StoredCandidateModel.zipf_frequency,
-                    StoredCandidateModel.status,
-                    PhraseModel.id,
-                    PhraseModel.is_skipped(),
-                    PhraseModel.source_phrase,
-                    PhraseModel.polished_phrase,
-                    PhraseModel.polish_reverted,
-                    PhraseModel.earned_section,
-                )
-                .join(PhraseModel, PhraseModel.candidate_id == StoredCandidateModel.id)
-                .where(
-                    StoredCandidateModel.source_id.in_(chunk),
-                    PhraseModel.shown_by.is_not(None),
-                )
-                .order_by(PhraseModel.id)
-            ).all()
+            for card in self._cards(StoredCandidateModel.source_id.in_(chunk)):
+                found.setdefault(card.source_id, []).append(card)
+        return found
+
+    def shown_cards_of_phrases(self, phrase_ids: Collection[int]) -> list[CardRow]:
+        return [
+            card for chunk in chunks(sorted(phrase_ids))
+            for card in self._cards(PhraseModel.id.in_(chunk))
+        ]
+
+    def shown_cards_of_words(self, word_ids: Collection[int]) -> list[CardRow]:
+        return [
+            card for chunk in chunks(sorted(word_ids))
+            for card in self._cards(StoredCandidateModel.id.in_(chunk))
+        ]
+
+    def card_targets(self, phrase_ids: Collection[int]) -> list[CardTargetRow]:
+        return [
+            card for chunk in chunks(sorted(phrase_ids))
+            for card in self._targets(PhraseModel.id.in_(chunk))
+        ]
+
+    def card_targets_of_words(self, word_ids: Collection[int]) -> list[CardTargetRow]:
+        return [
+            card for chunk in chunks(sorted(word_ids))
+            for card in self._targets(StoredCandidateModel.id.in_(chunk))
+        ]
+
+    def _cards(self, where: ColumnElement[bool]) -> list[CardRow]:
+        rows = self._session.execute(
+            select(
+                StoredCandidateModel.source_id,
+                StoredCandidateModel.id,
+                StoredCandidateModel.lemma,
+                StoredCandidateModel.pos,
+                StoredCandidateModel.zipf_frequency,
+                WORD_DECISION_STATUS,
+                PhraseModel.id,
+                PhraseModel.is_skipped(),
+                PhraseModel.source_phrase,
+                PhraseModel.polished_phrase,
+                PhraseModel.polish_reverted,
+                PhraseModel.earned_section,
+            )
+            .join(PhraseModel, PhraseModel.candidate_id == StoredCandidateModel.id)
+            .where(where, PhraseModel.shown_by.is_not(None))
+            .order_by(PhraseModel.id)
+        ).all()
+        return [
+            CardRow(
+                source_id=source_id,
+                word_id=word_id,
+                phrase_id=phrase_id,
+                lemma=lemma,
+                pos=pos,
+                zipf_frequency=zipf,
+                word_status=WordStatus(status),
+                skipped=bool(skipped),
+                phrase=_required(
+                    polished if polished is not None and not reverted else source_phrase,
+                ),
+                earned_section=earned_section_of(earned, phrase_id),
+            )
             for (
                 source_id, word_id, lemma, pos, zipf, status, phrase_id, skipped,
                 source_phrase, polished, reverted, earned,
-            ) in rows:
-                found.setdefault(source_id, []).append(CardRow(
-                    source_id=source_id,
-                    word_id=word_id,
-                    phrase_id=phrase_id,
-                    lemma=lemma,
-                    pos=pos,
-                    zipf_frequency=zipf,
-                    word_status=WordStatus(status),
-                    skipped=bool(skipped),
-                    phrase=_required(
-                        polished if polished is not None and not reverted else source_phrase,
-                    ),
-                    earned_section=earned_section_of(earned, phrase_id),
-                ))
-        return found
+            ) in rows
+        ]
+
+    def _targets(self, where: ColumnElement[bool]) -> list[CardTargetRow]:
+        rows = self._session.execute(
+            select(
+                StoredCandidateModel.source_id,
+                StoredCandidateModel.id,
+                StoredCandidateModel.lemma,
+                StoredCandidateModel.pos,
+                StoredCandidateModel.zipf_frequency,
+                PhraseModel.id,
+                PhraseModel.earned_section,
+            )
+            .join(PhraseModel, PhraseModel.candidate_id == StoredCandidateModel.id)
+            .where(where, PhraseModel.shown_by.is_not(None))
+            .order_by(PhraseModel.id)
+        ).all()
+        return [
+            CardTargetRow(
+                source_id=source_id,
+                word_id=word_id,
+                phrase_id=phrase_id,
+                lemma=lemma,
+                pos=pos,
+                zipf_frequency=zipf,
+                earned_section=earned_section_of(earned, phrase_id),
+            )
+            for source_id, word_id, lemma, pos, zipf, phrase_id, earned in rows
+        ]
 
     def learn_counts(self, source_ids: list[int]) -> dict[int, int]:
         counts: dict[int, int] = {}
         for chunk in chunks(source_ids):
             rows = self._session.execute(
-                select(StoredCandidateModel.source_id, func.count(StoredCandidateModel.id))
-                .where(
-                    StoredCandidateModel.source_id.in_(chunk),
-                    StoredCandidateModel.chosen_to_learn(),
-                )
-                .group_by(StoredCandidateModel.source_id)
+                select(WordStateModel.source_id, func.count(WordStateModel.word_id))
+                .where(WordStateModel.source_id.in_(chunk), WordStateModel.chosen_to_learn())
+                .group_by(WordStateModel.source_id)
             ).all()
             counts.update({source_id: count for source_id, count in rows})
         return counts

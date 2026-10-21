@@ -30,9 +30,13 @@ class WordStateRepository(ABC):
         """Every word of the lemma in every source, compared in lowercase."""
 
     @abstractmethod
+    def of_lemmas(self, lemmas: Collection[str]) -> dict[int, WordState]:
+        """Every word of these lemmas in every source, by id, compared in lowercase."""
+
+    @abstractmethod
     def save(self, word: WordState) -> None:
-        """Writes the choice of every card, onto its active binding too, and the word's
-        decision status; binding and release are the Anki sync repository's."""
+        """Writes the choice of every card, onto its active binding too; binding and release
+        are the Anki sync repository's."""
 
     @abstractmethod
     def batch(self) -> AbstractContextManager[None]:

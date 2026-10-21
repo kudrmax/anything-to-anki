@@ -37,6 +37,9 @@ if TYPE_CHECKING:
 
 SOURCE_ID = 1
 WRITTEN_TITLE = "written by the job"
+SHORT_TICK_S = 0.01
+LONG_WAIT_S = 5.0
+TICKS_DURING_A_JOB = 2
 
 
 class _Container:
@@ -56,6 +59,10 @@ class _Container:
         self.tts = MagicMock()
         self.meaning.execute_batch.return_value = []
         self.polish.execute_batch.return_value = []
+        self.ticks = threading.Semaphore(0)
+
+    def tick_card_states(self) -> None:
+        self.ticks.release()
 
     def session_work(self) -> SessionWork:
         return self._work
@@ -582,3 +589,85 @@ class TestTTSSubprocess:
 
         assert _title(container) == "original"
         assert _jobs(container) == []
+
+
+@pytest.mark.integration
+class TestCardStateTick:
+    async def test_time_ticks_while_a_job_runs_for_long(self, container: _Container) -> None:
+        """The tick is its own task: a run that takes minutes does not hold it back."""
+        _enqueue(container, (JobType.MEANING, 1))
+        ticked_during_the_job = threading.Event()
+
+        def long_run(phrases: list[PhraseRef], wanted: CandidateFilter) -> list[int]:
+            del phrases, wanted
+            for _ in range(TICKS_DURING_A_JOB):
+                assert container.ticks.acquire(timeout=LONG_WAIT_S)
+            ticked_during_the_job.set()
+            return []
+
+        container.meaning.execute_batch.side_effect = long_run
+        worker = JobWorker(container)  # type: ignore[arg-type]
+        with patch.object(job_worker, "CARD_STATE_TICK_INTERVAL", SHORT_TICK_S):
+            running = asyncio.create_task(worker.run())
+            while not ticked_during_the_job.is_set():
+                await asyncio.sleep(SHORT_TICK_S)
+            worker._request_shutdown()
+            await asyncio.wait_for(running, timeout=LONG_WAIT_S)
+
+        assert _jobs(container) == []
+
+    async def test_a_failed_tick_is_logged_and_the_next_one_runs(
+        self, container: _Container, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        calls: list[int] = []
+
+        def failing_once() -> None:
+            calls.append(len(calls))
+            if len(calls) == 1:
+                raise RuntimeError("tick broke")
+
+        container.tick_card_states = failing_once  # type: ignore[method-assign]
+        worker = JobWorker(container)  # type: ignore[arg-type]
+        with patch.object(job_worker, "CARD_STATE_TICK_INTERVAL", SHORT_TICK_S):
+            running = asyncio.create_task(worker.run())
+            while len(calls) < TICKS_DURING_A_JOB:
+                await asyncio.sleep(SHORT_TICK_S)
+            worker._request_shutdown()
+            await asyncio.wait_for(running, timeout=LONG_WAIT_S)
+
+        assert "Card state time tick failed" in caplog.text
+
+    async def test_failed_ticks_in_a_row_become_errors_and_a_success_resets_them(
+        self, container: _Container, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        outcomes = [False, False, False, False, True, False]
+        calls: list[int] = []
+
+        def tick() -> None:
+            calls.append(len(calls))
+            if len(calls) <= len(outcomes) and not outcomes[len(calls) - 1]:
+                raise RuntimeError("tick broke")
+
+        container.tick_card_states = tick  # type: ignore[method-assign]
+        worker = JobWorker(container)  # type: ignore[arg-type]
+        with (
+            caplog.at_level(logging.WARNING, logger=job_worker.__name__),
+            patch.object(job_worker, "CARD_STATE_TICK_INTERVAL", SHORT_TICK_S),
+        ):
+            running = asyncio.create_task(worker.run())
+            while len(calls) < len(outcomes):
+                await asyncio.sleep(SHORT_TICK_S)
+            worker._request_shutdown()
+            await asyncio.wait_for(running, timeout=LONG_WAIT_S)
+
+        ticks = [
+            (record.levelno, record.getMessage()) for record in caplog.records
+            if record.getMessage().startswith("Card state time tick failed")
+        ]
+        assert ticks[:5] == [
+            (logging.WARNING, "Card state time tick failed (1 in a row)"),
+            (logging.WARNING, "Card state time tick failed (2 in a row)"),
+            (logging.ERROR, "Card state time tick failed (3 in a row)"),
+            (logging.ERROR, "Card state time tick failed (4 in a row)"),
+            (logging.WARNING, "Card state time tick failed (1 in a row)"),
+        ]
