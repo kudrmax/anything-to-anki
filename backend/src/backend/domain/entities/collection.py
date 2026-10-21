@@ -13,4 +13,6 @@ class Collection:
     parent_id: int | None = None
     position: int = 0
     deleted_at: datetime | None = None
+    # When it was added to favorites; None while it is not there.
+    favorited_at: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))

@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
-import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, FolderPlus, Inbox, Layers, Plus, type LucideIcon } from 'lucide-react'
+import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, FolderPlus, Inbox, Layers, Plus, Star, type LucideIcon } from 'lucide-react'
 import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts, SetOperation } from '@/api/types'
 import { useCollapsed } from '@/hooks/useCollapsed'
-import { collectionDrop, zoneAt, type DropZone } from '@/lib/treeDrop'
+import { collectionDrop, findNode, zoneAt, type DropZone } from '@/lib/treeDrop'
 import { Icon, IconButton, Menu, Progress } from '@/ui'
 import { collectionMenuItems } from './scopeMenu'
 import css from './CollectionTree.module.css'
@@ -26,7 +26,7 @@ function Stats({ counts }: { counts: ScopeCounts }) {
 }
 
 type Editing = { kind: 'create'; parentId: number | null } | { kind: 'rename'; id: number } | null
-type Hover = { id: number | 'unsorted'; zone: DropZone } | null
+type Hover = { id: number | 'unsorted' | `favorite-${number}`; zone: DropZone } | null
 
 interface CollectionTreeProps {
   tree: Tree
@@ -37,6 +37,7 @@ interface CollectionTreeProps {
   onMove: (id: number, parentId: number | null, position: number) => void
   onDelete: (id: number) => void
   onMoveTo: (id: number) => void
+  onFavorite: (id: number, favorite: boolean) => void
   onExport: (id: number) => void
   /** Rebuild или Refresh коллекции целиком. */
   onOperation: (id: number, operation: SetOperation) => void
@@ -143,6 +144,7 @@ export function CollectionTree(props: CollectionTreeProps) {
     onRename: () => startRename(node),
     onNewSubcollection: () => startCreate(node.id),
     onMoveTo: () => props.onMoveTo(node.id),
+    onFavorite: () => props.onFavorite(node.id, !node.favorite),
     onDelete: () => props.onDelete(node.id),
   })
 
@@ -234,10 +236,49 @@ export function CollectionTree(props: CollectionTreeProps) {
     </div>
   )
 
+  /** Ярлык коллекции: открывает её и принимает источники, но не перетаскивается и не вкладывается. */
+  const favorite = (node: CollectionNode) => {
+    const key = `favorite-${node.id}` as const
+    const selected = scope === node.id
+    return (
+      <div key={key} className={css.cell}>
+        <Menu openOn="contextmenu" align="start" items={menuFor(node)} trigger={
+          <div
+            className={[css.row, selected && css.on, hover?.id === key && css.inside].filter(Boolean).join(' ')}
+            role="treeitem"
+            aria-selected={selected}
+            tabIndex={0}
+            onClick={() => onSelect(node.id)}
+            onKeyDown={e => { if (e.key === 'Enter') onSelect(node.id) }}
+            onDragOver={e => { if (carries(e, SOURCES_MIME)) { e.preventDefault(); setHover({ id: key, zone: 'inside' }) } }}
+            onDragLeave={leave}
+            onDrop={e => { e.preventDefault(); const s = sourcesIn(e); if (s) props.onDropSources(s, node.id); setHover(null) }}
+          >
+            <span className={css.icon}><Icon as={Star} size="s" /></span>
+            <span className={css.name} title={node.name}>{node.name}</span>
+            <span className={css.trail} onClick={e => e.stopPropagation()}>
+              <Stats counts={node.counts} />
+              <span className={css.actions}>
+                <Menu align="start" items={menuFor(node)} trigger={
+                  <button type="button" className={css.action} title="More" aria-label={`More for ${node.name}`}><Icon as={Ellipsis} size="s" /></button>
+                } />
+              </span>
+            </span>
+          </div>
+        } />
+      </div>
+    )
+  }
+  const favorites = tree.favorites.flatMap(id => findNode(tree.collections, id) ?? [])
+
   return (
     <nav className={css.tree} role="tree" aria-label="Collections">
       {fixed('all', 'All', Layers, tree.all)}
       {fixed('unsorted', 'Unsorted', Inbox, tree.unsorted)}
+      {favorites.length > 0 && <>
+        <div className={css.heading}><span>Favorites</span></div>
+        {favorites.map(favorite)}
+      </>}
       <div className={css.heading}>
         <span>Collections</span>
         <IconButton icon={Plus} label="New collection" onClick={() => startCreate(null)} />

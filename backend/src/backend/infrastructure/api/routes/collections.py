@@ -26,6 +26,7 @@ from backend.infrastructure.container import Container
 if TYPE_CHECKING:
     from backend.application.use_cases.create_collection import CreateCollectionUseCase
     from backend.application.use_cases.delete_collection import DeleteCollectionUseCase
+    from backend.application.use_cases.favorite_collection import FavoriteCollectionUseCase
     from backend.application.use_cases.list_collections import ListCollectionsUseCase
     from backend.application.use_cases.move_collection import MoveCollectionUseCase
     from backend.application.use_cases.rename_collection import RenameCollectionUseCase
@@ -100,6 +101,30 @@ def move_collection(
             collection_id, request.parent_id, request.position,
         )
         return result
+    except _HANDLED as e:
+        raise _http_error(e) from e
+
+@router.put("/{collection_id}/favorite", status_code=204)
+def add_to_favorites(
+    collection_id: int,
+    favorite: FavoriteCollectionUseCase = Depends(  # noqa: B008
+        use_case(Container.favorite_collection_use_case),  # noqa: B008
+    ),
+) -> None:
+    try:
+        favorite.execute(collection_id, favorite=True)
+    except _HANDLED as e:
+        raise _http_error(e) from e
+
+@router.delete("/{collection_id}/favorite", status_code=204)
+def remove_from_favorites(
+    collection_id: int,
+    favorite: FavoriteCollectionUseCase = Depends(  # noqa: B008
+        use_case(Container.favorite_collection_use_case),  # noqa: B008
+    ),
+) -> None:
+    try:
+        favorite.execute(collection_id, favorite=False)
     except _HANDLED as e:
         raise _http_error(e) from e
 

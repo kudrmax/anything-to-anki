@@ -2,19 +2,20 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CollectionNode, CollectionTree as Tree, ScopeCounts } from '@/api/types'
-import { COLLECTION_MIME, CollectionTree } from './CollectionTree'
+import { COLLECTION_MIME, CollectionTree, SOURCES_MIME } from './CollectionTree'
 
 const counts: ScopeCounts = {
   total: 1, reviewed: 0, pending: 1, progress: { decided: 0, total: 0 }, status: 'new', can_process: true, can_review: false, review_fraction: 0, progress_caption: '',
   available_operations: ['update'], can_start_operation: true, operation_hint: null, can_export: true,
 }
 const node = (id: number, name: string, accepts: boolean, moveTargets: (number | null)[] = [null]): CollectionNode => ({
-  id, name, parent_id: null, counts, depth: 1, accepts_collections: accepts, move_targets: moveTargets, children: [],
+  id, name, parent_id: null, counts, depth: 1, favorite: false, accepts_collections: accepts, move_targets: moveTargets, children: [],
 })
 const tree: Tree = {
   all: counts,
   unsorted: counts,
   max_depth: 5,
+  favorites: [],
   collections: [node(1, 'Top', true), node(2, 'Nested', false, [null, 1])],
 }
 
@@ -23,7 +24,7 @@ describe('CollectionTree', () => {
   let root: Root
   const handlers = {
     onSelect: vi.fn(), onCreate: vi.fn(), onRename: vi.fn(), onMove: vi.fn(),
-    onDelete: vi.fn(), onMoveTo: vi.fn(), onDropSources: vi.fn(), onExport: vi.fn(), onOperation: vi.fn(),
+    onDelete: vi.fn(), onMoveTo: vi.fn(), onFavorite: vi.fn(), onDropSources: vi.fn(), onExport: vi.fn(), onOperation: vi.fn(),
   }
 
   beforeEach(() => {
@@ -87,6 +88,34 @@ describe('CollectionTree', () => {
     expect(item('Top').className).toMatch(/inside/)
     drag(item('Top'), 'dragleave', data)
     expect(item('Top').className).not.toMatch(/inside/)
+  })
+
+  const remountWithFavorite = () => {
+    const favorite = { ...node(2, 'Nested', false, [null, 1]), favorite: true }
+    act(() => root.unmount())
+    root = createRoot(host)
+    act(() => root.render(<CollectionTree tree={{ ...tree, collections: [node(1, 'Top', true), favorite], favorites: [2] }} scope="all" draggable {...handlers} />))
+  }
+  const items = (name: string) => [...host.querySelectorAll<HTMLElement>('[role="treeitem"]')].filter(el => el.textContent?.includes(name))
+
+  it('lists favorites in their own section only when there are some', () => {
+    expect(host.textContent).not.toContain('Favorites')
+    remountWithFavorite()
+    expect(host.textContent).toContain('Favorites')
+    const [shortcut] = items('Nested')
+    act(() => shortcut.click())
+    expect(handlers.onSelect).toHaveBeenCalledWith(2)
+    expect(items('Nested')).toHaveLength(2)
+  })
+
+  it('takes sources dropped on a favorite into that collection', () => {
+    remountWithFavorite()
+    const data = transfer()
+    data.setData(SOURCES_MIME, JSON.stringify([7]))
+    const [shortcut] = items('Nested')
+    drag(shortcut, 'dragover', data)
+    drag(shortcut, 'drop', data)
+    expect(handlers.onDropSources).toHaveBeenCalledWith([7], 2)
   })
 
   const remountWithChild = (collapsed: boolean) => {
@@ -216,9 +245,12 @@ describe('CollectionTree', () => {
   it('offers a collection the actions of a source, in the same order', () => {
     openMenu('Top')
     const labels = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(el => el.textContent)
-    expect(labels).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Find words again…', 'Delete'])
+    expect(labels).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Add to favorites', 'Find words again…', 'Delete'])
     act(() => menuItem('Find words again…').click())
     expect(handlers.onOperation).toHaveBeenCalledWith(1, 'update')
+    openMenu('Top')
+    act(() => menuItem('Add to favorites').click())
+    expect(handlers.onFavorite).toHaveBeenCalledWith(1, true)
   })
 
   it('shows the decision progress of a collection and only the source count without candidates', () => {

@@ -23,6 +23,7 @@ from backend.application.use_cases.delete_collection import DeleteCollectionUseC
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
 from backend.application.use_cases.describe_input import DescribeInputUseCase
+from backend.application.use_cases.favorite_collection import FavoriteCollectionUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
@@ -630,6 +631,12 @@ class Container:
 
     def rename_collection_use_case(self, session: Session) -> RenameCollectionUseCase:
         return RenameCollectionUseCase(
+            collection_repo=SqlaCollectionRepository(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def favorite_collection_use_case(self, session: Session) -> FavoriteCollectionUseCase:
+        return FavoriteCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
             unit_of_work=self._unit_of_work(session),
         )

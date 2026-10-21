@@ -8,10 +8,10 @@ import { NamingModal } from './NamingModal'
 const RENDER_DELAY_MS = 300
 const counts = { total: 1, reviewed: 0, pending: 1, progress: { decided: 0, total: 0 }, status: 'new' as const, can_process: true, can_review: false, review_fraction: 0, progress_caption: '', available_operations: [], can_start_operation: true, operation_hint: null, can_export: false }
 const node = (id: number, name: string): CollectionNode => ({
-  id, name, parent_id: null, counts, depth: 1, accepts_collections: true, move_targets: [null], children: [],
+  id, name, parent_id: null, counts, depth: 1, favorite: false, accepts_collections: true, move_targets: [null], children: [],
 })
 const friends: CollectionNode = { ...node(3, 'Friends'), children: [{ ...node(31, 'Season 1'), parent_id: 3, depth: 2 }] }
-const tree: CollectionTree = { all: counts, unsorted: counts, max_depth: 4, collections: [node(1, 'Atomic Habits'), node(2, 'Podcasts'), friends] }
+const tree: CollectionTree = { all: counts, unsorted: counts, max_depth: 4, favorites: [], collections: [node(1, 'Atomic Habits'), node(2, 'Podcasts'), friends] }
 const REQUIRED: NamingRequired = {
   heading: 'Add 2 files',
   items: [
