@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 from backend.application.utils.review_answer import window_around
 from backend.domain.services.review_layout import (
     focus_after_removal,
-    place_new,
     remove_cards,
     replace_card,
 )
@@ -144,12 +143,9 @@ class ReviewUpdates:
                     HeldCard(new.phrase_id, new.word_id, new.sections.at(step)),
                 )
         order = remove_cards(order, removed)
-        new_ids = {p for p in live if order.index_of(p) is None}
-        if new_ids:
-            fresh = list(self._ordering.held(
-                self._ordering.sorted_cards(source_ids, review.sort, step), step,
-            ))
-            order = place_new(order, fresh, new_ids)
+        new_words = {p: row.word_id for p, row in live.items() if order.index_of(p) is None}
+        if new_words:
+            order = self._ordering.placed(order, source_ids, review.sort, step, new_words)
         return order
 
 

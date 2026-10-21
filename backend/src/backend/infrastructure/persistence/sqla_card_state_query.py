@@ -162,6 +162,13 @@ class SqlaCardStateQuery(CardStateQuery):
         ]
 
     def order_rows(self, source_ids: Sequence[int]) -> list[OrderedCard]:
+        return self._ordered(source_ids, "cs.source_id")
+
+    def order_rows_of_words(self, word_ids: Collection[int]) -> list[OrderedCard]:
+        return self._ordered(word_ids, "cs.word_id")
+
+    def _ordered(self, ids: Collection[int], column: str) -> list[OrderedCard]:
+        """The cards whose `column` is one of `ids`, as the review order reads them."""
         return [
             OrderedCard(
                 phrase_id=phrase_id,
@@ -183,14 +190,14 @@ class SqlaCardStateQuery(CardStateQuery):
                 phrase_id, word_id, source_id, lemma, pos, zipf, occurrences, phrasal, usage,
                 position, is_done, sections, new_counts, has_breakdown, *votes,
             ) in self._each_chunk(
-                source_ids,
+                ids,
                 "SELECT cs.phrase_id, cs.word_id, cs.source_id, c.lemma, c.pos,"  # noqa: S608 — model names
                 " c.zipf_frequency, c.occurrences, c.is_phrasal_verb, c.usage_distribution,"
                 " p.phrase_position, cs.is_done, cs.sections, cs.new_counts, b.id IS NOT NULL,"
                 f" {_VOTES} FROM {_CARDS} cs JOIN {_WORDS} c ON c.id = cs.word_id"
                 f" JOIN {_PHRASES} p ON p.id = cs.phrase_id"
                 f" LEFT JOIN {_BREAKDOWNS} b ON b.candidate_id = cs.word_id"
-                " WHERE cs.source_id IN ({marks}) AND cs.removed = 0",
+                f" WHERE {column} IN ({{marks}}) AND cs.removed = 0",
             )
         ]
 

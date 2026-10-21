@@ -171,6 +171,18 @@ def test_the_order_rows_are_the_live_cards_with_their_words_facts_and_place(
     assert [row.source_id for row in query.order_rows([ARTICLE, 99])] == [ARTICLE]
 
 
+def test_the_order_rows_of_words_are_those_of_their_live_cards(
+    query: SqlaCardStateQuery,
+) -> None:
+    every = {row.phrase_id: row for row in query.order_rows([BOOK, ARTICLE])}
+    found = query.order_rows_of_words([OPEN_MEANING, ARTICLE_CARD, 999])
+    assert {row.word_id for row in found} == {OPEN_MEANING, ARTICLE_CARD}
+    assert {row.phrase_id: row for row in found} == {
+        p: row for p, row in every.items() if row.word_id in (OPEN_MEANING, ARTICLE_CARD)
+    }
+    assert query.order_rows_of_words([]) == []
+
+
 def test_what_changed_since_a_revision_holds_the_removed_cards_too(
     query: SqlaCardStateQuery, db_session: Session,
 ) -> None:
