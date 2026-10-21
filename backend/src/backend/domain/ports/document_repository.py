@@ -29,5 +29,5 @@ class DocumentRepository(ABC):
 
     @abstractmethod
     def size_hints(self, source_ids: Collection[int]) -> dict[int, int]:
-        """Source id → the length of its stored document, a hint of the size of its text;
-        a source without a document is left out."""
+        """Source id → the length of its document's text (`Document.text`), read without
+        laying the document out; a source without a document is left out."""

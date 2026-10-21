@@ -7,11 +7,12 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from backend.application.utils.review_text import block_dto, highlights
 from backend.application.utils.source_texts import SourceTexts
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.services import text_chunks
-from backend.domain.services.document_layout import ONE_BLOCK_MESSAGE
-from backend.domain.services.text_chunks import LAST_BLOCK
+from backend.domain.services.document_layout import ONE_BLOCK_MESSAGE, DocumentLayout
+from backend.domain.services.text_chunks import LAST_BLOCK, list_numbers
 from backend.domain.value_objects.document import (
     BLOCK_SEPARATOR,
     Document,
@@ -32,6 +33,8 @@ from backend.infrastructure.api.dependencies import (
 )
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
 from backend.infrastructure.persistence.models import CollectionModel, SourceModel
+from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
+from backend.infrastructure.persistence.sqla_card_state_query import SqlaCardStateQuery
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, event, text
@@ -190,23 +193,40 @@ def _on(review: dict[str, Any]) -> dict[str, Any]:
 
 # --- chunks give what the whole document gives -------------------------------------------
 
+# Any: the raw JSON of the API, as the test reads it.
+def _whole_document(
+    factory: sessionmaker[Session], source_id: int, document: Document,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The blocks and marks of the whole document at once: every block, and the marks
+    `marks_shown` keeps over all the shown places of the source."""
+    with factory() as session:
+        places = SqlaCardQuery(session).shown_places(source_id)
+        done = SqlaCardStateQuery(session).done_of_phrases([p.phrase_id for p in places])
+        marks = highlights(DocumentLayout(document), places, done)
+    blocks = [
+        block_dto(block, number)
+        for block, number in zip(document.blocks, list_numbers(document.blocks), strict=True)
+    ]
+    return (
+        [b.model_dump(mode="json") for b in blocks],
+        [m.model_dump(mode="json") for m in marks],
+    )
+
+
 @pytest.mark.parametrize(("source_id", "document"), [
     (PILOT, PILOT_DOCUMENT), (EPISODE, EPISODE_DOCUMENT),
 ])
 def test_the_chunks_of_a_source_add_up_to_its_whole_document(
-    client: TestClient, source_id: int, document: Document,
+    client: TestClient, factory: sessionmaker[Session], source_id: int, document: Document,
 ) -> None:
     review = open_review(client, SCOPE)
+    blocks, marks = _whole_document(factory, source_id, document)
 
     chunks = source_chunks(client, review, source_id)
 
-    blocks = [b for c in chunks for b in c["blocks"]]
-    assert [" ".join(line["text"] for line in b["lines"]) for b in blocks] == [
-        block_text(block) for block in document.blocks
-    ]
-    marks = [h["position"]["block"] for c in chunks for h in c["highlights"]]
-    assert marks == sorted(marks)
-    assert len(marks) == len({h["phrase_id"] for c in chunks for h in c["highlights"]})
+    assert marks != []
+    assert [b for c in chunks for b in c["blocks"]] == blocks
+    assert [h for c in chunks for h in c["highlights"]] == marks
 
 
 def test_the_pilot_has_three_chunks_with_overlapping_marks_kept_as_whole(
@@ -254,6 +274,44 @@ def test_the_last_block_names_the_last_chunk(client: TestClient) -> None:
     assert (answer["text"]["first_block"], answer["text"]["end_block"]) == LAST_CHUNK
     assert answer["layout"] is None
     assert answer["contents_version"] == 0
+
+
+@pytest.mark.parametrize(("at", "chunk"), [
+    (0, FIRST_CHUNK),
+    # The first character of block 3, in the second chunk.
+    (len(BLOCK_SEPARATOR.join(block_text(b) for b in PILOT_DOCUMENT.blocks[:3]))
+     + len(BLOCK_SEPARATOR), SECOND_CHUNK),
+    (len(PILOT_DOCUMENT.text) * 10, LAST_CHUNK),
+])
+def test_a_character_offset_names_the_chunk_that_holds_it(
+    client: TestClient, at: int, chunk: tuple[int, int],
+) -> None:
+    review = open_review(client, SCOPE)
+
+    response = client.get(
+        f"/api/review/{review['review_id']}/text/{PILOT}", params={**_since(review), "at": at},
+    )
+
+    assert response.status_code == 200, response.text
+    text_of = response.json()["text"]
+    assert (text_of["first_block"], text_of["end_block"]) == chunk
+
+
+@pytest.mark.parametrize("params", [{}, {"block": 0, "at": 0}, {"at": -1}])
+def test_a_text_read_names_either_a_block_or_an_offset(
+    client: TestClient, params: dict[str, int],
+) -> None:
+    review = open_review(client, SCOPE)
+
+    response = client.get(
+        f"/api/review/{review['review_id']}/text/{PILOT}", params={**_since(review), **params},
+    )
+
+    assert response.status_code == 422
+
+
+def _since(review: dict[str, Any]) -> dict[str, Any]:
+    return {"since": review["revision"]}
 
 
 def test_a_text_read_that_opens_the_current_cards_section_sends_the_rows_anew(

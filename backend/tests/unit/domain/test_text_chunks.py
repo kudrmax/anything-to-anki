@@ -10,6 +10,7 @@ from backend.domain.services.text_chunks import (
     TEXT_CHUNK_CHARS,
     TextChunk,
     block_bounds,
+    chunk_at,
     chunk_with,
     list_numbers,
     text_chunks,
@@ -135,6 +136,47 @@ def test_an_empty_document_has_no_chunks_not_even_the_last() -> None:
     assert text_chunks(Document(())) == ()
     with pytest.raises(TextBlockNotFoundError):
         chunk_with((), LAST_BLOCK)
+
+
+BOUNDS = block_bounds(DOCUMENT)
+TEXT_LENGTH = len(DOCUMENT.text)
+
+
+@pytest.mark.parametrize(("offset", "chunk"), [
+    (-5, TextChunk(0, 2)),
+    (0, TextChunk(0, 2)),
+    (BOUNDS[1][1] - 1, TextChunk(0, 2)),
+    # The blank line between the chunks belongs to the block before it.
+    (BOUNDS[1][1], TextChunk(0, 2)),
+    (BOUNDS[2][0], TextChunk(2, 3)),
+    (BOUNDS[2][1] - 1, TextChunk(2, 3)),
+    (BOUNDS[3][0], TextChunk(3, 5)),
+    (TEXT_LENGTH - 1, TextChunk(3, 5)),
+    (TEXT_LENGTH + 1_000, TextChunk(3, 5)),
+])
+def test_the_chunk_at_a_character_offset(offset: int, chunk: TextChunk) -> None:
+    assert chunk_at(CHUNKS, BOUNDS, offset) == chunk
+
+
+@seed(7)
+@settings(deadline=None, max_examples=100)
+@given(st.lists(_blocks(), min_size=1, max_size=MAX_BLOCKS), st.data())
+def test_the_chunk_at_an_offset_holds_the_block_of_that_character(
+    blocks: list[Block], data: st.DataObject,
+) -> None:
+    document = Document(tuple(blocks))
+    bounds = block_bounds(document)
+    offset = data.draw(st.integers(0, max(0, len(document.text) - 1)))
+    block = max(i for i, (start, _) in enumerate(bounds) if start <= offset)
+
+    chunk = chunk_at(text_chunks(document), bounds, offset)
+
+    assert chunk.first_block <= block < chunk.end_block
+
+
+def test_an_empty_document_has_no_chunk_at_any_offset() -> None:
+    with pytest.raises(TextBlockNotFoundError):
+        chunk_at((), (), 0)
 
 
 def test_the_limit_is_read_when_the_chunks_are_cut(monkeypatch: pytest.MonkeyPatch) -> None:

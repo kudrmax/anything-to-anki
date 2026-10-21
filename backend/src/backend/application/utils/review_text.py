@@ -18,7 +18,7 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     TextBlockNotFoundError,
 )
-from backend.domain.services.text_chunks import chunk_with
+from backend.domain.services.text_chunks import chunk_at, chunk_with
 from backend.domain.services.text_marks import PlacedMark, marks_shown
 from backend.domain.value_objects.document import Heading, ListItem, Paragraph
 from backend.domain.value_objects.source_scope import SourceScope
@@ -81,15 +81,21 @@ class ReviewText:
             ],
         )
 
-    def chunk(self, review: OpenReview, source_id: int, block: int) -> TextChunkDTO:
-        """The chunk of the source's document that holds the block; LAST_BLOCK names the
-        last one. The review counts it as served. SourceNotFoundError when the source is
+    def chunk(
+        self, review: OpenReview, source_id: int, block: int | None, at: int | None = None,
+    ) -> TextChunkDTO:
+        """The chunk of the source's document that holds the block (LAST_BLOCK names the
+        last one) or, with no block, the character at offset `at` of its text. The review
+        counts it as served. SourceNotFoundError when the source is
         not in the set, SourceHasNoDocumentError when it has no document,
         TextBlockNotFoundError when the document has no such block."""
         if source_id not in review.source_ids:
             raise SourceNotFoundError(source_id)
         text = self._text(source_id)
-        chunk = chunk_with(text.chunks, block)
+        chunk = (
+            chunk_with(text.chunks, block) if block is not None
+            else chunk_at(text.chunks, text.bounds, at or 0)
+        )
         blocks = range(chunk.first_block, chunk.end_block)
         places = self._card_query.shown_places(source_id, blocks)
         review.text.serve(source_id, chunk, places)

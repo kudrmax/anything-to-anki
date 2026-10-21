@@ -95,16 +95,25 @@ def test_a_source_id_given_again_has_another_fingerprint(
     assert repo.fingerprint(source_id) != before
 
 
-def test_size_hints_are_the_stored_lengths_of_the_sources_with_a_document(
+def test_size_hints_are_the_text_lengths_of_the_sources_with_a_document(
     db_session: Session, source_id: int,
 ) -> None:
-    insert_source(db_session, source_id + 1)
+    escaped = Document(blocks=(
+        Paragraph(lines=(Line('He said "no" \\ left'), Line("")), mode=ParagraphMode.LINES),
+    ))
+    for other in (source_id + 1, source_id + 2, source_id + 3):
+        insert_source(db_session, other)
     repo = SqlaDocumentRepository(db_session)
     repo.save(source_id, DOCUMENT)
+    repo.save(source_id + 1, escaped)
+    repo.save(source_id + 2, Document(blocks=()))
 
-    hints = repo.size_hints([source_id, source_id + 1, source_id + 2])
+    hints = repo.size_hints([source_id, source_id + 1, source_id + 2, source_id + 3, 999])
 
-    assert hints == {source_id: len(dump_document(DOCUMENT))}
+    assert hints == {
+        source_id: len(DOCUMENT.text), source_id + 1: len(escaped.text), source_id + 2: 0,
+    }
+    assert len(DOCUMENT.text) < len(dump_document(DOCUMENT))
 
 
 def test_source_without_document(db_session: Session, source_id: int) -> None:

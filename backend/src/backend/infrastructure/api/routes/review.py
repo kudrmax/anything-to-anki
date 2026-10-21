@@ -176,15 +176,19 @@ def review_contents(
 @router.get("/{review_id}/text/{source_id}")
 def review_text(
     source_id: int,
-    block: int = Query(ge=LAST_BLOCK),  # noqa: B008
+    block: int | None = Query(None, ge=LAST_BLOCK),  # noqa: B008
+    at: int | None = Query(None, ge=0),  # noqa: B008
     ctx: ReviewContext = Depends(review_context),  # noqa: B008
     window: ReviewWindowUseCase = Depends(  # noqa: B008
         use_case(Container.review_window_use_case),  # noqa: B008
     ),
 ) -> ReviewUpdateDTO:
-    """The chunk of the source's text that holds the block; -1 names the last chunk."""
+    """The chunk of the source's text that holds the block (-1 names the last chunk) or
+    the character at offset `at` of its text: exactly one of the two."""
+    if (block is None) == (at is None):
+        raise HTTPException(status_code=422, detail="Give either block or at")
     with _review_errors():
-        return window.text(ctx, source_id, block)
+        return window.text(ctx, source_id, block, at)
 
 
 @router.get("/generation")

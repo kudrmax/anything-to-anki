@@ -57,6 +57,18 @@ def chunk_with(chunks: Sequence[TextChunk], block: int) -> TextChunk:
     return chunks[index]
 
 
+def chunk_at(
+    chunks: Sequence[TextChunk], bounds: Sequence[tuple[int, int]], offset: int,
+) -> TextChunk:
+    """The chunk that holds the character at `offset` of the document's text (`bounds` from
+    `block_bounds`). An offset between two blocks belongs to the block before it; one before
+    the start or past the end, to the first or the last block."""
+    if not chunks:
+        raise TextBlockNotFoundError(LAST_BLOCK)
+    block = bisect.bisect_right([start for start, _ in bounds], offset) - 1
+    return chunk_with(chunks, min(max(block, 0), chunks[-1].end_block - 1))
+
+
 def block_bounds(document: Document) -> tuple[tuple[int, int], ...]:
     """Where each block's text starts and ends in the document's text (`Document.text`)."""
     bounds: list[tuple[int, int]] = []

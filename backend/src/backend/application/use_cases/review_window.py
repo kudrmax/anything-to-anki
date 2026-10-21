@@ -81,11 +81,14 @@ class ReviewWindowUseCase:
         with self._store.hold(ctx.review_id) as review, self._unit_of_work.read():
             return self._text.contents(review)
 
-    def text(self, ctx: ReviewContext, source_id: int, block: int) -> ReviewUpdateDTO:
-        """The chunk of the source's text that holds the block (LAST_BLOCK: the last one),
-        with no rows unless the current card changed the visible list."""
+    def text(
+        self, ctx: ReviewContext, source_id: int, block: int | None, at: int | None = None,
+    ) -> ReviewUpdateDTO:
+        """The chunk of the source's text that holds the block (LAST_BLOCK: the last one)
+        or, with no block, the character at offset `at`, with no rows unless the current
+        card changed the visible list."""
         with self._store.hold(ctx.review_id) as review, self._unit_of_work.read():
-            chunk = self._text.chunk(review, source_id, block)
+            chunk = self._text.chunk(review, source_id, block, at)
             replace = _moved(review, ctx.current)
             return self._answer.of(
                 ctx.review_id, review, window=None, replace=replace, text=chunk,
