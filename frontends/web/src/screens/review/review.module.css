@@ -81,7 +81,7 @@
 .queueText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* текст источника */
-.source { position: relative; margin-top: var(--source-leading-trim); mask-image: var(--source-mask); max-height: var(--source-max); overflow: auto; font-size: var(--fs-source); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-line; }
+.source { position: relative; overflow-anchor: none; margin-top: var(--source-leading-trim); mask-image: var(--source-mask); max-height: var(--source-max); overflow: auto; font-size: var(--fs-source); line-height: var(--lh-loose); color: var(--tx3); white-space: pre-line; }
 /* в наборе тексты источников идут подряд, у каждого заголовок */
 .sourceDocument + .sourceDocument { margin-top: var(--s7); }
 .sourceTitle { margin-bottom: var(--s3); font-size: var(--fs-s); font-weight: var(--fw-m); line-height: var(--lh-label); color: var(--tx2); }

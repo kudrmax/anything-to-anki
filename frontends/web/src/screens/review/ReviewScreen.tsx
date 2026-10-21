@@ -129,7 +129,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
     window.getSelection()?.removeAllRanges()
   }
 
-  const hasSourceText = review.documents.length > 0
+  const { hasSourceText } = review
 
   // Правка границ фразы идёт по тексту источника — на телефоне показываем его.
   const view: PhoneView = editing ? 'text' : phoneView
@@ -214,8 +214,10 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
 
   const sourceText = (onWordClick: (id: number) => void) => hasSourceText && (
     <SourceTexts
-      documents={review.documents}
-      done={review.done}
+      text={review.text}
+      done={review.state.done}
+      onLoad={review.loadText}
+      ensureBlock={review.ensureBlock}
       focused={(editing ? review.state.cards.get(editing.candidateId) : current) ?? null}
       editingSourceId={editing?.sourceId ?? null}
       onWordClick={onWordClick}

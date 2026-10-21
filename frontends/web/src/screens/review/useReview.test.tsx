@@ -34,7 +34,8 @@ describe('useReview', () => {
     loaded = [card(1), card(2), card(3, true)]
     vi.spyOn(api, 'getReportReasons').mockResolvedValue([])
     vi.spyOn(api, 'openReview').mockImplementation(async () => opened(loaded))
-    vi.spyOn(api, 'getReviewDocuments').mockResolvedValue([])
+    vi.spyOn(api, 'reviewContents').mockResolvedValue({ version: 0, documents: [] })
+    vi.spyOn(api, 'reviewText').mockResolvedValue(reviewUpdate())
     vi.spyOn(api, 'getReviewGeneration').mockResolvedValue({ in_progress: false } as GenerationOverview)
     // Как отвечает backend на Learn: карточка разобрана, фокус — на следующую.
     vi.spyOn(api, 'decidePhrase').mockImplementation(async (_ctx, id) =>
@@ -69,8 +70,8 @@ describe('useReview', () => {
     await act(async () => { await latest.goTo(2) })
     await act(async () => latest.setSortOrder('key_words'))
     await flush()
-    expect(vi.mocked(api.openReview).mock.lastCall).toEqual([{ scope: SCOPE, sort: 'key_words', requested_id: 2, open_sections: [] }])
-    expect(api.getReviewDocuments).toHaveBeenCalledWith(SCOPE)
+    expect(vi.mocked(api.openReview).mock.lastCall).toEqual([{ scope: SCOPE, sort: 'key_words', requested_id: 2, open_sections: [], text_chunks: [] }])
+    expect(vi.mocked(api.reviewContents).mock.lastCall?.[0].review_id).toBe('r1')
     expect(api.getReviewGeneration).toHaveBeenCalledWith(SCOPE)
   })
 
@@ -85,6 +86,19 @@ describe('useReview', () => {
     await act(async () => { await latest.generate(1) })
     expect(latest.vpnBlocked).toBe(false)
     expect(latest.toast).toContain('Model is down')
+  })
+
+  it('a boundary edit and an added word read no text again: their answers bring the highlights', async () => {
+    vi.spyOn(api, 'setPhraseBoundary').mockResolvedValue(reviewUpdate({ revision: 2 }))
+    vi.spyOn(api, 'addManualCandidate').mockResolvedValue(reviewUpdate({ revision: 3 }))
+    await render()
+    const contentsReads = vi.mocked(api.reviewContents).mock.calls.length
+    act(() => latest.startEditing(1))
+    const selection = { start_block: 0, start_line: 0, start_char: 0, end_block: 0, end_line: 0, end_char: 3 }
+    await act(async () => { expect(await latest.setBoundary(selection)).toBe(true) })
+    await act(async () => { expect(await latest.addWord([0], { sourceId: 1, text: 'He', selection })).toBe(true) })
+    expect(api.reviewText).not.toHaveBeenCalled()
+    expect(api.reviewContents).toHaveBeenCalledTimes(contentsReads)
   })
 
   it('applies the update a meaning brings and toasts the tokens', async () => {

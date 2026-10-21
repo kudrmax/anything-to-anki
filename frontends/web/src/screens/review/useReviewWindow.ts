@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError, ReviewExpiredError } from '@/api/client'
-import type { CandidateSection, GenerationOverview, ReviewContext, ReviewUpdate, SetScope, SourceDocument, StoredCandidate } from '@/api/types'
+import type { CandidateSection, GenerationOverview, ReviewContext, ReviewUpdate, SetScope, StoredCandidate } from '@/api/types'
 import type { SortOrder } from '@/lib/preferences'
 import {
-  applyUpdate, currentRow, doneMarks, forgetDone, initialState, missesReplace, neighbour, reopened, rowIndexOf, withCurrent,
+  applyUpdate, currentRow, initialState, missesReplace, neighbour, reopened, rowIndexOf, withCurrent,
   type ApplyOptions, type ReviewState,
 } from './reviewState'
+import { applyText, chunkHolding, chunkRefs, initialText, withContents, type TextState } from './textState'
 
 export const POLL_INTERVAL_MS = 3000
 /** Сколько строк списка просить за раз: сколько грузить, а не правило. */
@@ -16,6 +17,9 @@ export const ROW_ESTIMATE_PX = 50
 const CURRENT_SYNC_DELAY_MS = 200
 /** Проверок соседа: до загрузки строк, после неё и после повторной, если ответ строк устарел. */
 const STEP_ATTEMPTS = 3
+/** Первый кусок документа и последний (сервер понимает -1 как последний блок). */
+export const FIRST_BLOCK = 0
+export const LAST_BLOCK = -1
 const NOT_FOUND = 404
 const AI_UNAVAILABLE = 503
 
@@ -51,7 +55,14 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
   }, [])
   const [loading, setLoading] = useState(true)
   const [gone, setGone] = useState(false)
-  const [documents, setDocuments] = useState<SourceDocument[]>([])
+  const [text, setText] = useState<TextState>(initialText)
+  const textRef = useRef(text)
+  const commitText = useCallback((change: (t: TextState) => TextState) => {
+    const next = change(textRef.current)
+    if (next === textRef.current) return
+    textRef.current = next
+    setText(next)
+  }, [])
   const [generation, setGeneration] = useState<GenerationOverview | null>(null)
   const [aiBlocked, setAiBlocked] = useState(false)
   /** Разделы, которые раскрыл пользователь: ревью, открытое заново, раскрывает их же. */
@@ -59,26 +70,35 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
 
   /** Окно вокруг текущей: после пропущенного replace у клиента только строки новой раскладки из ответа. */
   const recenter = useRef<() => void>(() => {})
+  /** Оглавление не того ревью или не той версии: его просят заново. */
+  const checkContents = useRef<(update: ReviewUpdate) => void>(() => {})
+  const refreshContents = useRef<() => void>(() => {})
   const apply = useCallback((update: ReviewUpdate, options: ApplyOptions = {}): boolean => {
     const missed = missesReplace(stateRef.current, update)
     const fresh = update.revision >= stateRef.current.revision
+    // Подсветки ложатся из каждого ответа, даже устаревшего: сервер не пришлёт их ещё раз.
+    commitText(t => applyText(t, update))
     const applied = commit(s => applyUpdate(s, update, options))
     if (applied && fresh && update.header.ai_unavailable) setAiBlocked(true)
     if (applied && missed) recenter.current()
+    checkContents.current(update)
     return applied
-  }, [commit])
+  }, [commit, commitText])
 
   const openAt = useCallback((requested: number | null) => api.openReview({
     scope: String(scope),
     sort: sortOrder,
     requested_id: requested,
     open_sections: [...openedSections.current],
+    text_chunks: chunkRefs(textRef.current),
   }), [scope, sortOrder])
 
   const applyOpened = useCallback((update: ReviewUpdate) => {
+    commitText(t => applyText(t, update))
     commit(s => reopened(s, update))
     if (update.header.ai_unavailable) setAiBlocked(true)
-  }, [commit])
+    checkContents.current(update)
+  }, [commit, commitText])
 
   const reopening = useRef<Promise<void> | null>(null)
   const reopen = useCallback((expiredId: string): Promise<void> => {
@@ -118,12 +138,6 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     return update
   }, [send, apply, commit])
 
-  const loadDocuments = useCallback(async () => {
-    const upTo = stateRef.current.revision
-    setDocuments(await api.getReviewDocuments(scope).catch(() => []))
-    commit(s => forgetDone(s, upTo))
-  }, [scope, commit])
-
   const loadGeneration = useCallback(async () => {
     try {
       setGeneration(await api.getReviewGeneration(scope))
@@ -132,10 +146,10 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     }
   }, [scope])
 
-  // Открытие — на карточке ссылки, после смены сортировки — на текущей; тексты и ✨ грузятся рядом и его не ждут.
+  // Открытие — на карточке ссылки, после смены сортировки — на текущей; ✨ грузится рядом и его не ждёт,
+  // текст — после открытия, по оглавлению.
   useEffect(() => {
     let live = true
-    void loadDocuments()
     void loadGeneration()
     openAt(stateRef.current.currentId ?? requestedId)
       .then(update => {
@@ -146,7 +160,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
       .catch(() => { if (live) setGone(true) })
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
-  }, [openAt, applyOpened, loadDocuments, loadGeneration, requestedId])
+  }, [openAt, applyOpened, loadGeneration, requestedId])
 
   const pending = useRef<PendingRows[]>([])
   /** Строки [start, start + count); true — ответ пришёл. Тот же участок дважды не просит. */
@@ -162,6 +176,71 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     pending.current.push(entry)
     return entry.done
   }, [send, apply])
+
+  const pendingText = useRef(new Map<string, Promise<boolean>>())
+  /** Кусок источника, где лежит блок; true — ответ пришёл. Тот же запрос дважды разом не уходит. */
+  const loadText = useCallback((sourceId: number, block: number): Promise<boolean> => {
+    const key = `${sourceId}:${block}`
+    const asked = pendingText.current.get(key)
+    if (asked) return asked
+    const done = send(ctx => api.reviewText(ctx, sourceId, block))
+      .then(update => { apply(update, { window: true }); return true })
+      .catch(e => {
+        // Источник ушёл из набора: оглавление это скажет.
+        if (isNotFound(e)) refreshContents.current()
+        return false
+      })
+      .finally(() => { pendingText.current.delete(key) })
+    pendingText.current.set(key, done)
+    return done
+  }, [send, apply])
+
+  /** Кусок, где лежит блок, — если его ещё нет. */
+  const ensureBlock = useCallback(async (sourceId: number, block: number): Promise<boolean> => {
+    if (chunkHolding(textRef.current, sourceId, block)) return true
+    return loadText(sourceId, block)
+  }, [loadText])
+
+  // Первый текст ревью: кусок у текущей карточки, без неё — начало первого документа.
+  const loadFirstText = useCallback(() => {
+    const contents = textRef.current.contents
+    if (!contents || textRef.current.chunks.size > 0) return
+    const card = stateRef.current.currentId === null ? undefined : stateRef.current.cards.get(stateRef.current.currentId)
+    const position = card?.phrase_position
+    if (card && position && contents.documents.some(d => d.source_id === card.source.id)) {
+      void loadText(card.source.id, position.block)
+    } else if (contents.documents.length > 0) {
+      void loadText(contents.documents[0].source_id, FIRST_BLOCK)
+    }
+  }, [loadText])
+
+  const contentsRequest = useRef<Promise<void> | null>(null)
+  useEffect(() => {
+    const refresh = () => {
+      if (contentsRequest.current) return
+      if (stateRef.current.reviewId === null) return
+      let reviewId = ''
+      contentsRequest.current = send(ctx => { reviewId = ctx.review_id; return api.reviewContents(ctx) })
+        .then(contents => {
+          commitText(t => withContents(t, contents, reviewId))
+          loadFirstText()
+        })
+        .catch(() => {
+          // Без оглавления текст не показывается до следующего ответа другой версии.
+        })
+        .finally(() => { contentsRequest.current = null })
+    }
+    refreshContents.current = refresh
+    checkContents.current = (update: ReviewUpdate) => {
+      if (update.review_id !== stateRef.current.reviewId) return
+      const held = textRef.current
+      // Версия ниже той, что есть, — ответ устарел: оглавление новее него.
+      if (held.contents !== null && held.reviewId === update.review_id && update.contents_version <= held.contents.version) return
+      // Пока оглавление в пути, ответ другой версии проверяется ещё раз после него.
+      if (contentsRequest.current) void contentsRequest.current.then(() => checkContents.current(update))
+      else refresh()
+    }
+  }, [send, commitText, loadFirstText])
 
   useEffect(() => {
     recenter.current = () => {
@@ -228,39 +307,37 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     apply(await send(ctx => api.setReviewSection(ctx, section, open)), { window: true })
   }, [send, apply])
 
-  const poll = useCallback(async (withGeneration: boolean, withDocuments: boolean) => {
+  const poll = useCallback(async (withGeneration: boolean) => {
     try {
       apply(await send(ctx => api.reviewChanges(ctx)))
     } catch (e) {
       if (isNotFound(e)) setGone(true)
       return
     }
-    // Rebuild и Refresh меняют тексты: их перечитываем после изменений.
-    if (withDocuments) await loadDocuments()
     if (withGeneration) await loadGeneration()
-  }, [send, apply, loadDocuments, loadGeneration])
+  }, [send, apply, loadGeneration])
 
   // Пока идёт генерация или источник набора занят операцией, ревью спрашивает, что изменилось.
   const inProgress = generation?.in_progress ?? false
   const busy = state.header?.busy ?? false
   useEffect(() => {
     if (!inProgress && !busy) return
-    const interval = setInterval(() => void poll(inProgress, busy), POLL_INTERVAL_MS)
+    const interval = setInterval(() => void poll(inProgress), POLL_INTERVAL_MS)
     return () => clearInterval(interval)
   }, [inProgress, busy, poll])
 
   const current: StoredCandidate | null = state.currentId === null ? null : state.cards.get(state.currentId) ?? null
   const row = currentRow(state)
   const position = row?.position ?? null
-  const done = useMemo(() => doneMarks(state), [state])
 
   /** Карточка из загруженных: её данные читают действия. */
   const cardOf = useCallback((phraseId: number): StoredCandidate | undefined => stateRef.current.cards.get(phraseId), [])
 
   return {
-    state, loading, gone, documents, generation, loadDocuments, loadGeneration,
+    state, loading, gone, generation, loadGeneration,
     current, position, canPrev: position !== null && position > 1, canNext: position !== null && position < state.totalCards,
-    done, cardOf,
+    cardOf,
+    text, hasSourceText: (text.contents?.documents.length ?? 0) > 0, loadText, ensureBlock,
     aiBlocked, showAiBlocked: () => setAiBlocked(true), dismissAiBlocked: () => setAiBlocked(false),
     loadRows, goTo, step, toggleSection, mutate,
   }

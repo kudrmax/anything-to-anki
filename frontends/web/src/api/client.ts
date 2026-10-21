@@ -17,6 +17,7 @@ import type {
   MovedCollection,
   RenamedCollection,
   OpenReviewRequest,
+  ReviewContents,
   ReviewContext,
   ReviewUpdate,
   Scope,
@@ -50,7 +51,6 @@ import type {
   Naming,
   InputDescription,
   DocumentSelection,
-  SourceDocument,
   UsagePeriod,
   NoteTypeCheck,
   NoteTypeKind,
@@ -162,8 +162,12 @@ export const api = {
   reviewChanges: (ctx: ReviewContext) =>
     req<ReviewUpdate>(reviewPath(ctx, 'changes')),
 
-  getReviewDocuments: (scope: SetScope) =>
-    req<SourceDocument[]>(`/api/review/documents?${new URLSearchParams({ scope: String(scope) })}`),
+  reviewContents: (ctx: ReviewContext) =>
+    req<ReviewContents>(reviewPath(ctx, 'contents')),
+
+  /** Кусок текста источника, где лежит блок; -1 — последний кусок. */
+  reviewText: (ctx: ReviewContext, sourceId: number, block: number) =>
+    req<ReviewUpdate>(reviewPath(ctx, `text/${sourceId}`, { block: String(block) })),
 
   getReviewGeneration: (scope: SetScope) =>
     req<GenerationOverview>(`/api/review/generation?${new URLSearchParams({ scope: String(scope) })}`),
