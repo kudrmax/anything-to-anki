@@ -9,9 +9,11 @@ from backend.domain.value_objects.review_card import CardRow, CardTargetRow
 from backend.domain.value_objects.shown_place import ShownPlace
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
+    WORD_DECISION_STATUS,
     CEFRBreakdownModel,
     PhraseModel,
     StoredCandidateModel,
+    WordStateModel,
     cefr_level_of,
     earned_section_of,
     load_phrase,
@@ -73,7 +75,7 @@ class SqlaCardQuery(CardQuery):
                 StoredCandidateModel.lemma,
                 StoredCandidateModel.pos,
                 StoredCandidateModel.zipf_frequency,
-                StoredCandidateModel.status,
+                WORD_DECISION_STATUS,
                 PhraseModel.id,
                 PhraseModel.is_skipped(),
                 PhraseModel.source_phrase,
@@ -138,12 +140,9 @@ class SqlaCardQuery(CardQuery):
         counts: dict[int, int] = {}
         for chunk in chunks(source_ids):
             rows = self._session.execute(
-                select(StoredCandidateModel.source_id, func.count(StoredCandidateModel.id))
-                .where(
-                    StoredCandidateModel.source_id.in_(chunk),
-                    StoredCandidateModel.chosen_to_learn(),
-                )
-                .group_by(StoredCandidateModel.source_id)
+                select(WordStateModel.source_id, func.count(WordStateModel.word_id))
+                .where(WordStateModel.source_id.in_(chunk), WordStateModel.chosen_to_learn())
+                .group_by(WordStateModel.source_id)
             ).all()
             counts.update({source_id: count for source_id, count in rows})
         return counts

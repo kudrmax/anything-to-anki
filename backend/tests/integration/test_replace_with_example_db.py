@@ -37,7 +37,7 @@ from sqlalchemy import text
 
 from tests.candidate_sorter_support import section_stamper
 from tests.card_support import card_views
-from tests.decision_support import Decisions
+from tests.decision_support import Decisions, project_words
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase, shown_lemmas
 from tests.word_marks_support import insert_known
@@ -113,9 +113,6 @@ class Bench:
         return found
 
     def decide(self, phrase_id: int, choice: str) -> None:
-        status = "known" if choice == "known" else "learn"
-        self.session.execute(text("UPDATE candidates SET status = :s WHERE id = :id"),
-                             {"s": status, "id": WORD})
         self.session.execute(text("UPDATE phrases SET choice = :c WHERE id = :id"),
                              {"c": choice, "id": phrase_id})
         self.session.commit()
@@ -126,9 +123,10 @@ class Bench:
         ).scalar_one())
 
     def status(self) -> str:
-        return str(self.session.execute(
-            text("SELECT status FROM candidates WHERE id = :id"), {"id": WORD},
-        ).scalar_one())
+        words = SqlaCandidateRepository(self.session, SessionChangeRecorder(self.session))
+        word = words.get_by_id(WORD)
+        assert word is not None
+        return word.status.value
 
     def active_bindings(self) -> list[int | None]:
         return list(self.session.scalars(text(
@@ -150,6 +148,7 @@ class Bench:
         self.session.commit()
 
     def export_queue(self) -> ExportQueue:
+        project_words(self.session)
         decisions = self.decisions.request()
         return ExportQueue(
             SqlaCandidateRepository(self.session, SessionChangeRecorder(self.session)),
@@ -269,8 +268,6 @@ def test_m1_the_decision_moves_to_the_example_with_its_kind(bench: Bench, choice
 
 def test_m2_a_skipped_card_keeps_its_skip_and_the_example_is_open(bench: Bench) -> None:
     bench.decide(CARD, "skip")
-    bench.session.execute(text("UPDATE candidates SET status = 'pending'"))
-    bench.session.commit()
 
     example = bench.replace(CARD)
 

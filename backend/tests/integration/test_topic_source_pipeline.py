@@ -282,10 +282,6 @@ def test_refreshing_keeps_decisions_and_results(
     word_ids = {w.lemma: w.id for w in occurrences.word_rows(topic_id)}
     decided = next(o for o in before.values() if o.candidate_id == word_ids["counter-offer"])
     db_session.execute(
-        text("UPDATE candidates SET status = 'learn' WHERE id = :id"),
-        {"id": word_ids["counter-offer"]},
-    )
-    db_session.execute(
         text("UPDATE phrases SET choice = 'learn' WHERE id = :id"), {"id": decided.id},
     )
     db_session.expire_all()

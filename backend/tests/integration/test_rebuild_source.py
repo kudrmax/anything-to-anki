@@ -316,8 +316,7 @@ PROTECTED = {  # the card's choice, bound to a note, edited, shown by, origin
 
 
 def _protect(bench: Bench, phrase_id: int, word_id: int, kind: str) -> None:
-    """Only the card changes: the word's stored status stays as processing left it, since
-    the rebuild reads the decision from the cards."""
+    """Only the card changes: the rebuild reads the decision from the cards."""
     choice, bound, edited, shown_by, origin = PROTECTED[kind]
     bench.session.execute(
         text(
@@ -331,14 +330,6 @@ def _protect(bench: Bench, phrase_id: int, word_id: int, kind: str) -> None:
     )
     if bound:
         bind(bench.session, word_id, phrase_id)
-    bench.session.commit()
-
-
-def _store_status(bench: Bench, word_id: int, status: str) -> None:
-    bench.session.execute(
-        text("UPDATE candidates SET status = :status WHERE id = :id"),
-        {"status": status, "id": word_id},
-    )
     bench.session.commit()
 
 
@@ -363,15 +354,13 @@ def test_an_update_keeps_the_text_of_every_card(bench: Bench) -> None:
     assert (untouched.source_phrase.text, untouched.revision) == (LINES[3], 0)
 
 
-def test_the_cards_choice_decides_the_word_not_its_stored_status(bench: Bench) -> None:
-    """A Learn card keeps a word stored as new; a word stored as known with no card
-    decided goes when the analysis loses it."""
+def test_the_cards_choice_decides_whether_a_lost_word_stays(bench: Bench) -> None:
+    """A word with a Learn card stays when the analysis loses it; a word with no card
+    decided goes."""
     bench.processed(word("glare", at(0)), word("linger", at(3)), word("wander", at(5)))
     decided = bench.phrase_on("linger", 3)
     bench.set_choice(decided.id, "learn")
     bench.session.commit()
-    stale = bench.phrase_on("wander", 5)
-    _store_status(bench, stale.candidate_id, "known")
     bench.analysis = [word("glare", at(0))]
 
     bench.rebuild().execute(SOURCE, UPDATE)

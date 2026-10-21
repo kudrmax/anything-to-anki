@@ -95,6 +95,29 @@ class SqlaCardStateStore(CardStateStore):
             rows,
         )
 
+    def ticked_at(self) -> datetime | None:
+        moment: datetime | None = self._session.execute(
+            select(_META.c.ticked_at).where(_META.c.id == PROJECTION_META_ID)
+        ).scalar_one()
+        return moment
+
+    def set_ticked_at(self, moment: datetime) -> None:
+        self._session.execute(
+            update(_META).where(_META.c.id == PROJECTION_META_ID).values(ticked_at=moment)
+        )
+
+    def lemmas_changing_by(self, moment: datetime) -> set[str]:
+        """By the partial index of `changes_at`."""
+        return set(self._session.scalars(
+            select(_CARDS.c.lemma)
+            .where(
+                _CARDS.c.changes_at.is_not(None),
+                _CARDS.c.changes_at <= moment,
+                _CARDS.c.removed.is_(False),
+            )
+            .distinct()
+        ))
+
     def read_all(self) -> StoredCardStates:
         session = self._session
         return StoredCardStates(

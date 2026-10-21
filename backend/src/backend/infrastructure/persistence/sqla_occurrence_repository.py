@@ -20,7 +20,6 @@ from backend.domain.value_objects.phrase_generation import PhraseGeneration
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.unsectioned_phrase import UnsectionedPhrase
 from backend.domain.value_objects.word_row import WordRow
-from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
     AnkiSyncedCardModel,
     CandidateClozeModel,
@@ -320,7 +319,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 id=word.id,
                 lemma=word.lemma,
                 is_phrasal_verb=word.is_phrasal_verb,
-                status=WordStatus(word.status),
+                status=word.word_status(),
                 data=word.word_data(),
             )
             for word in words

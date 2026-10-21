@@ -23,7 +23,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from tests.decision_support import Decisions
+from tests.decision_support import Decisions, project_words
 
 if TYPE_CHECKING:
     import sqlite3
@@ -178,6 +178,7 @@ def app_export_queue(db_path: Path) -> frozenset[int]:
     engine = create_engine(f"sqlite:///{db_path}")
     try:
         with Session(engine) as session:
+            project_words(session)
             decisions = Decisions(session)
             queue = ExportQueue(
                 SqlaCandidateRepository(session, SessionChangeRecorder(session)),
@@ -196,9 +197,11 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
     """`export_queue`: what the app's ExportQueue exports (`app_export_queue`)."""
     report = Report()
     phrase_of = _phrase_of_card(conn, before)
+    stored_status = _has_stored_status(conn)
     words = {
-        row[0]: (row[1], row[2], row[3]) for row in conn.execute(
-            "SELECT id, lemma, pos, status FROM candidates"
+        row[0]: (row[1], row[2], row[3] if stored_status else _decision_status(conn, row[0]))
+        for row in conn.execute(
+            f"SELECT id, lemma, pos, {'status' if stored_status else 'NULL'} FROM candidates"  # noqa: S608
         )
     }
     choices = dict(conn.execute("SELECT id, choice FROM phrases").fetchall())
@@ -232,7 +235,8 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
         f" WHERE choice IN {DECISION_CHOICES} GROUP BY candidate_id HAVING count(*) > 1)",
     ) == 0
 
-    # candidates.status == decision_status for every word; only the 4 values
+    # candidates.status (until 0057 drops it) == decision_status for every word; only the 4
+    # values
     statuses = {status for _, _, status in words.values()}
     assert statuses <= STATUSES, statuses
     for word_id, (_, _, status) in words.items():
@@ -339,7 +343,7 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
             assert lemma not in before.unknown_words, ("AK", phrase_id)
 
     # no word reads LEARNING; the timer makes nothing Known now or 30 days later
-    assert _count(conn, "SELECT count(*) FROM candidates WHERE status = 'learning'") == 0
+    assert not any(status == "learning" for _, _, status in words.values())
     assert _count(
         conn,
         "SELECT count(*) FROM anki_synced_cards a JOIN phrases p ON p.id = a.phrase_id"
@@ -372,13 +376,23 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
 
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
 
-    for source_id, decided, total in conn.execute(
-        "SELECT c.source_id, sum(p.choice != 'none' OR c.status != 'pending'), count(*)"
+    progress: dict[int, tuple[int, int]] = {}
+    for source_id, word_id, choice in conn.execute(
+        "SELECT c.source_id, c.id, p.choice"
         " FROM phrases p JOIN candidates c ON c.id = p.candidate_id"
-        " WHERE p.shown_by IS NOT NULL GROUP BY c.source_id"
+        " WHERE p.shown_by IS NOT NULL"
     ):
-        report.progress_after[source_id] = (int(decided), int(total))
+        decided, total = progress.get(source_id, (0, 0))
+        progress[source_id] = (
+            decided + (choice != "none" or words[word_id][2] != "pending"), total + 1,
+        )
+    report.progress_after.update(progress)
     return report
+
+
+def _has_stored_status(conn: sqlite3.Connection) -> bool:
+    """`candidates.status`, the stored copy of the decision status, until 0057 drops it."""
+    return "status" in {row[1] for row in conn.execute("PRAGMA table_info(candidates)")}
 
 
 def _expected_choice(card: OldCard, winner: OldCard, known: frozenset[str]) -> str:

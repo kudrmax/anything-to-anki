@@ -50,19 +50,16 @@ def with_levels(shown: Phrase, **words: tuple[float, CEFRLevel]) -> Phrase:
 
 def insert_card_word(
     session: Session, word_id: int, source_id: int, lemma: str, shown: Phrase, *,
-    status: str = "pending", choice: str = "none", pos: str = "VERB", zipf: float = 3.0,
+    choice: str = "none", pos: str = "VERB", zipf: float = 3.0,
     shown_by: str | None = "selection", earned: str = "ready",
 ) -> None:
     session.execute(
         text(
             "INSERT INTO candidates (id, source_id, lemma, pos, zipf_frequency, is_sweet_spot,"
-            " occurrences, status, is_phrasal_verb)"
-            " VALUES (:id, :source, :lemma, :pos, :zipf, 0, 1, :status, 0)"
+            " occurrences, is_phrasal_verb)"
+            " VALUES (:id, :source, :lemma, :pos, :zipf, 0, 1, 0)"
         ),
-        {
-            "id": word_id, "source": source_id, "lemma": lemma, "pos": pos, "zipf": zipf,
-            "status": status,
-        },
+        {"id": word_id, "source": source_id, "lemma": lemma, "pos": pos, "zipf": zipf},
     )
     insert_card_phrase(session, phrase_id_of(word_id), word_id, shown, choice, shown_by, earned)
 
@@ -100,26 +97,26 @@ def seed_world(session: Session) -> None:
         ominous=(3.2, CEFRLevel.C2), lighthouse=(4.2, CEFRLevel.C1),
     ))
     insert_card_word(session, SPARK, ONE, "spark", phrase("A spark flew", "spark"),
-          status="learning", choice="learn", zipf=4.0)
+          choice="learn", zipf=4.0)
     bind(session, SPARK, phrase_id_of(SPARK), note_id=901, since=naive(SPARK_EXPORTED))
     insert_card_word(
         session, SPARK_TWO, TWO, "spark", phrase("The spark died", "spark"), zipf=4.0,
     )
     insert_card_word(session, DWELL, ONE, "dwell", phrase(
         "They dwell in ominous caves", "dwell", new=["ominous", "caves"],
-    ), status="known", choice="known")
+    ), choice="known")
     insert_card_word(
         session, FRET, TWO, "fret", phrase("Do not fret", "fret"), choice="skip",
     )
     insert_card_word(session, BASK, ONE, "bask", phrase("Cats bask", "bask"),
-          status="learning", choice="learn", zipf=2.8)
+          choice="learn", zipf=2.8)
     bind(session, BASK, phrase_id_of(BASK), note_id=902, since=naive(BASK_EXPORTED))
     insert_card_word(
         session, BASK_TWO, TWO, "bask", phrase("We bask in sun", "bask"), zipf=2.8,
     )
     insert_card_word(session, GLEAM, TWO, "gleam", phrase(
         "Stars gleam over the spark and the lighthouse", "gleam", new=["lighthouse"],
-    ), status="learn", choice="cloze", zipf=3.4)
+    ), choice="cloze", zipf=3.4)
     insert_card_word(session, OH, ONE, "oh", phrase("Oh no", "oh"), pos="INTJ", zipf=5.0)
     insert_card_word(session, HOVER, TWO, "hover", with_levels(
         phrase("Drones hover above ominous towers", "hover", new=["ominous", "towers"]),

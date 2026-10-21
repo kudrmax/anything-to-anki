@@ -425,9 +425,6 @@ def test_two_running_timers_of_a_lemma_change_its_cards_at_the_earlier(world: Wo
             text("UPDATE phrases SET choice = 'learn' WHERE id = :p"),
             {"p": phrase_id_of(SPARK_TWO)},
         )
-        session.execute(
-            text("UPDATE candidates SET status = 'learn' WHERE id = :w"), {"w": SPARK_TWO},
-        )
         bind(session, SPARK_TWO, phrase_id_of(SPARK_TWO), note_id=NOTE,
              since=naive(SPARK_TWO_EXPORTED))
         session.commit()
@@ -465,7 +462,8 @@ def test_a_projector_that_records_a_change_fails_the_write(
         store.next_revision.side_effect = lambda: recorder.record(MarkChanged("leak")) or 1
         projector = CardStateProjector(
             source_repo=MagicMock(), card_query=MagicMock(), word_states=MagicMock(),
-            knowledge=MagicMock(), vocabulary=MagicMock(), store=store, recorder=recorder,
+            knowledge=MagicMock(), vocabulary=MagicMock(), learning=MagicMock(), store=store,
+            recorder=recorder,
         )
         with pytest.raises(ProjectorRecordedChangesError):
             projector.apply((CardContentChanged(1),))
@@ -486,3 +484,67 @@ def test_a_write_whose_projection_fails_is_rolled_back(world: World) -> None:
         assert session.execute(
             text("SELECT count(*) FROM word_marks WHERE lemma = 'ominous' AND mark = 'known'"),
         ).scalar_one() == 0
+
+
+# --- several kinds of change in one write ---------------------------------------------------
+
+
+def _hide(session: Session, phrase_id: int, by: ShownBy | None = None) -> None:
+    SqlaOccurrenceRepository(session, _recorder(session)).set_shown([phrase_id], by)
+
+
+def _mark_known(session: Session, lemma: str = "ominous") -> None:
+    SqlaWordMarkRepository(session, _recorder(session)).mark_known(lemma, None)
+
+
+def test_a_hidden_phrase_and_a_mark_in_one_write(world: World) -> None:
+    world.rebuild()
+    glare, dwell = phrase_id_of(GLARE), phrase_id_of(DWELL)
+    world.write(lambda s: (_hide(s, glare), _hide(s, dwell), _mark_known(s)))
+    world.check()
+
+
+def test_a_phrase_hidden_then_marked_then_shown_with_the_mark_taken_off(world: World) -> None:
+    world.rebuild()
+    glare = phrase_id_of(GLARE)
+    world.write(lambda s: _hide(s, glare))
+    world.check()
+    world.write(_mark_known)
+    world.check()
+    world.write(lambda s: (
+        _hide(s, glare, ShownBy.USER),
+        SqlaWordMarkRepository(s, _recorder(s)).remove_known("ominous"),
+    ))
+    world.check()
+
+
+def test_presses_and_a_mark_in_one_write(world: World) -> None:
+    world.rebuild()
+
+    def presses_and_mark(session: Session) -> None:
+        use_case = world.container.decide_phrase_use_case(session)
+        use_case.press(phrase_id_of(HOVER), Press.KNOWN)
+        _mark_known(session)
+        use_case.press(phrase_id_of(GLARE), Press.LEARN)
+
+    world.write(presses_and_mark)
+    world.check()
+
+
+def test_a_deleted_source_and_a_mark_in_one_write(world: World) -> None:
+    world.rebuild()
+    world.write(lambda s: (_mark_known(s), SqlaSourceRepository(s, _recorder(s)).delete(ONE)))
+    world.check()
+
+
+@pytest.mark.parametrize(
+    "lemma", ["glare", "hover", "dwell", "spark", "brood", "oh", "lighthouse"],
+)
+def test_each_lemma_marked_known_then_taken_off_then_unknown(world: World, lemma: str) -> None:
+    world.rebuild()
+    world.write(lambda s: _mark_known(s, lemma))
+    world.check()
+    world.write(lambda s: SqlaWordMarkRepository(s, _recorder(s)).remove_known(lemma))
+    world.check()
+    world.write(lambda s: SqlaWordMarkRepository(s, _recorder(s)).mark_unknown(lemma))
+    world.check()

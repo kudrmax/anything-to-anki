@@ -29,11 +29,11 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 )
 from sqlalchemy import text
 
-from tests.decision_support import NOW, Decisions
+from tests.decision_support import NOW, Decisions, project
 from tests.integration.conftest import insert_source
 from tests.unit.application.scope_fakes import sources_scope_resolver
 from tests.word_marks_support import insert_known
-from tests.word_support import insert_word, phrase_id_of
+from tests.word_support import decision_status_of, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -101,6 +101,7 @@ class Bench:
         self.decisions.decide_phrase().press(phrase_id, button)
 
     def queue(self) -> ExportQueue:
+        project(self.session, self.decisions.clock.moment)
         return ExportQueue(
             SqlaCandidateRepository(self.session, SessionChangeRecorder(self.session)),
             SqlaOccurrenceRepository(self.session, SessionChangeRecorder(self.session)),
@@ -127,9 +128,7 @@ class Bench:
         ).execute(SourceScope.source(source_id), group)
 
     def status(self, word_id: int = WORD) -> str:
-        return str(self.session.execute(
-            text("SELECT status FROM candidates WHERE id = :id"), {"id": word_id},
-        ).scalar_one())
+        return decision_status_of(self.session, word_id)
 
     def rows(self) -> list[tuple[object, ...]]:
         """(phrase, note, kind, learning_since, active) of every binding, in order."""

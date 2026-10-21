@@ -14,3 +14,12 @@ def timer_due(learning_since: datetime, now: datetime) -> bool:
 def known_on(learning_since: datetime) -> datetime:
     """When a word exported at `learning_since` reads Known."""
     return learning_since + LEARNING_KNOWN_AFTER
+
+
+def exported_for_due(after: datetime | None, until: datetime) -> tuple[datetime | None, datetime]:
+    """The exports whose timer comes due after `after` (any time when None) and by `until`:
+    those after the first moment returned and by the second."""
+    return (
+        None if after is None else after - LEARNING_KNOWN_AFTER,
+        until - LEARNING_KNOWN_AFTER,
+    )

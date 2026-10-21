@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.card_query import CardQuery
     from backend.domain.ports.card_state_store import CardStateStore
     from backend.domain.ports.change_recorder import ChangeRecorder
+    from backend.domain.ports.learning_query import LearningQuery
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.word_state_repository import WordStateRepository
     from backend.domain.value_objects.card_change import CardChange
@@ -44,7 +45,11 @@ class ProjectorRecordedChangesError(RuntimeError):
 
 class CardStateProjector:
     """The only writer of the projection. Reads the facts, what the user knows and `now`
-    inside the caller's write transaction, so the rows match the state that commits."""
+    inside the caller's write transaction, so the rows match the state that commits.
+
+    `now` is the session's, frozen when it was first read (spec §4.2): a timer that comes
+    due between then and the commit leaves its row's `changes_at` set, so the time tick
+    picks it up."""
 
     def __init__(
         self,
@@ -53,6 +58,7 @@ class CardStateProjector:
         word_states: WordStateRepository,
         knowledge: UserKnowledgeReader,
         vocabulary: UserVocabulary,
+        learning: LearningQuery,
         store: CardStateStore,
         recorder: ChangeRecorder,
     ) -> None:
@@ -61,13 +67,29 @@ class CardStateProjector:
         self._word_states = word_states
         self._knowledge = knowledge
         self._vocabulary = vocabulary
+        self._learning = learning
         self._store = store
         self._recorder = recorder
 
     def rebuild(self) -> None:
-        """Every row computed anew over the whole database, all at one new revision."""
+        """Every row computed anew over the whole database, all at one new revision, up to
+        date with time as of `now`."""
         states = self._all_states()
         self._store.replace_all(states, self._store.next_revision())
+        self._store.set_ticked_at(self._vocabulary.scope.now)
+
+    def tick(self) -> None:
+        """The lemmas whose Anki timer came due by `now`: those of the cards whose state
+        changes by then, and those of every active binding due since the last tick, which
+        may have no card left. Each gets the work of a changed lemma."""
+        now = self._vocabulary.scope.now
+        lemmas = self._store.lemmas_changing_by(now)
+        lemmas |= self._learning.timers_due_between(self._store.ticked_at(), now)
+        if lemmas:
+            _Increment(
+                self._card_query, self._word_states, self._store, self._calculator(),
+            ).apply(ChangedFacts(lemmas=lemmas))
+        self._store.set_ticked_at(now)
 
     def apply(self, changes: tuple[CardChange, ...]) -> None:
         """The rows the changes of the committing write touch, computed anew; each row whose

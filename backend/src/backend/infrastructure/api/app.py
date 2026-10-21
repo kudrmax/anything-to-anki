@@ -45,6 +45,7 @@ from backend.infrastructure.persistence.database import (
     release_source_operations,
     run_alembic_migrations,
 )
+from backend.infrastructure.startup_heap import freeze_startup_heap
 
 if TYPE_CHECKING:
     from starlette.responses import Response
@@ -65,6 +66,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     media_root = os.environ.get("MEDIA_ROOT", os.path.join(data_dir, "media"))
     reconcile_media_files(session_factory, media_root)
     _rebuild_card_states()
+    freeze_startup_heap()
     yield
 
 

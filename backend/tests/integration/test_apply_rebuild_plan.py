@@ -185,9 +185,6 @@ def test_a_lost_word_goes_with_its_phrases_but_a_decided_one_stays(
         p.id for p in _phrases(db_session).values() if p.candidate_id == words["linger"]
     )
     db_session.execute(
-        text("UPDATE candidates SET status = 'learn' WHERE id = :id"), {"id": words["linger"]},
-    )
-    db_session.execute(
         text("UPDATE phrases SET choice = 'learn' WHERE id = :id"), {"id": linger_phrase},
     )
     db_session.expire_all()

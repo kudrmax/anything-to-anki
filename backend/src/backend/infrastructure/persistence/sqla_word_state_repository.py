@@ -13,7 +13,6 @@ from backend.domain.value_objects.card_choice import (
     CardState,
     NoteKind,
     WordState,
-    decision_status,
 )
 from backend.infrastructure.persistence.models import (
     AnkiSyncedCardModel,
@@ -83,12 +82,6 @@ class SqlaWordStateRepository(WordStateRepository):
                 .values(choice=card.choice.value)
                 .execution_options(synchronize_session=False)
             )
-        self._session.execute(
-            update(StoredCandidateModel)
-            .where(StoredCandidateModel.id == word.word_id)
-            .values(status=decision_status(word).value)
-            .execution_options(synchronize_session=False)
-        )
         self._session.flush()
         self._recorder.record(DecisionChanged(word.lemma))
         self._after_save()

@@ -7,11 +7,11 @@ from sqlalchemy import func, select
 
 from backend.domain.ports.candidate_repository import CandidateRepository
 from backend.domain.value_objects.card_change import SourceDeleted, WordsChanged
-from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
     CandidateMeaningImageModel,
     CandidatePronunciationModel,
     StoredCandidateModel,
+    WordStateModel,
 )
 from backend.infrastructure.persistence.phrase_writes import chunks
 
@@ -37,7 +37,6 @@ class SqlaCandidateRepository(CandidateRepository):
 
     def add_word(self, word: StoredCandidate) -> int:
         model = StoredCandidateModel.from_entity(word)
-        model.status = WordStatus.NEW.value
         self._session.add(model)
         self._session.flush()
         self._recorder.record(WordsChanged(model.source_id, frozenset({model.lemma})))
@@ -61,8 +60,7 @@ class SqlaCandidateRepository(CandidateRepository):
 
     def count_learning_in_anki(self) -> int:
         return self._session.scalar(
-            select(func.count(StoredCandidateModel.id))
-            .where(StoredCandidateModel.learning_in_anki())
+            select(func.count(WordStateModel.word_id)).where(WordStateModel.learning_in_anki())
         ) or 0
 
     def count_all(self) -> int:
@@ -81,14 +79,14 @@ class SqlaCandidateRepository(CandidateRepository):
         return self._read(func.lower(StoredCandidateModel.lemma) == lemma.lower())
 
     def chosen_to_learn(self, source_ids: Collection[int] | None = None) -> list[StoredCandidate]:
+        chosen = StoredCandidateModel.id.in_(
+            select(WordStateModel.word_id).where(WordStateModel.chosen_to_learn()),
+        )
         if source_ids is None:
-            return self._read(StoredCandidateModel.chosen_to_learn())
+            return self._read(chosen)
         return [
             word for chunk in chunks(list(source_ids))
-            for word in self._read(
-                StoredCandidateModel.chosen_to_learn(),
-                StoredCandidateModel.source_id.in_(chunk),
-            )
+            for word in self._read(chosen, StoredCandidateModel.source_id.in_(chunk))
         ]
 
     def get_lemma_map(self, candidate_ids: list[int]) -> dict[int, str]:

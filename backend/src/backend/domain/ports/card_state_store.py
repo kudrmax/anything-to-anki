@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Collection
+    from datetime import datetime
 
     from backend.domain.value_objects.card_state_rows import (
         CardStateRow,
@@ -31,6 +32,18 @@ class CardStateStore(ABC):
     def replace_all(self, states: CardStates, revision: int) -> None:
         """Every row of the projection becomes `states`, each written at `revision`. A card
         stored before and missing from `states` stays as a removed row at `revision`."""
+
+    @abstractmethod
+    def ticked_at(self) -> datetime | None:
+        """When the rows were last brought up to date with time; None before the first."""
+
+    @abstractmethod
+    def set_ticked_at(self, moment: datetime) -> None:
+        """The rows are up to date with time as of `moment`."""
+
+    @abstractmethod
+    def lemmas_changing_by(self, moment: datetime) -> set[str]:
+        """The lemmas of the live cards whose state changes by time at `moment` or before."""
 
     @abstractmethod
     def read_all(self) -> StoredCardStates:

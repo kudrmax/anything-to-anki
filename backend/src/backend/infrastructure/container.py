@@ -879,6 +879,7 @@ class Container:
             word_states=SqlaWordStateRepository(session, self._change_recorder(session)),
             knowledge=self._user_knowledge(session),
             vocabulary=self._user_vocabulary(session),
+            learning=SqlaLearningQuery(session),
             store=SqlaCardStateStore(session),
             recorder=self._change_recorder(session),
         )
@@ -886,6 +887,10 @@ class Container:
     def rebuild_card_states(self) -> None:
         """The whole projection computed anew in one write transaction of its own."""
         self.session_work().write(lambda session: self.card_state_projector(session).rebuild())
+
+    def tick_card_states(self) -> None:
+        """What time changed in the projection, written in one write transaction."""
+        self.session_work().write(lambda session: self.card_state_projector(session).tick())
 
     def live_card_states(self, session: Session) -> LiveCardStates:
         return LiveCardStates(

@@ -14,11 +14,15 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    and_,
+    case,
     event,
+    func,
     or_,
+    select,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, aliased, column_property, mapped_column, relationship
 
 from backend.domain.entities.ai_usage_record import AIUsageRecord
 from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta
@@ -370,9 +374,8 @@ class StoredCandidateModel(Base):
             unique=True,
         ),
         # A lemma's words in every source: what the card state projector reads at every
-        # change of the lemma. The status makes it cover the lemmas waiting for export too,
-        # which the knowledge scope reads by a scan of it.
-        Index("ix_candidates_lower_lemma", text("lower(lemma)"), "status"),
+        # change of the lemma.
+        Index("ix_candidates_lower_lemma", text("lower(lemma)")),
         {"sqlite_autoincrement": True},
     )
 
@@ -385,7 +388,6 @@ class StoredCandidateModel(Base):
     zipf_frequency: Mapped[float] = mapped_column(Float, nullable=False)
     is_sweet_spot: Mapped[bool] = mapped_column(nullable=False)
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
     usage_distribution_json: Mapped[str | None] = mapped_column(
         "usage_distribution", Text, nullable=True
@@ -396,24 +398,16 @@ class StoredCandidateModel(Base):
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
     )
 
-    # The SQL forms of the card view's word predicates, over the stored decision status.
+    if TYPE_CHECKING:
+        # `decision_status(word)` read from the facts, the decision card and its binding:
+        # mapped below, after the tables it reads. None on a word not read from the database.
+        decision_status: str | None
 
-    @classmethod
-    def chosen_to_learn(cls) -> ColumnElement[bool]:
-        """`card_view.chosen_to_learn`: Learn or Learning."""
-        return cls.status.in_([status.value for status in CHOSEN_TO_LEARN])
-
-    @classmethod
-    def learning_in_anki(cls) -> ColumnElement[bool]:
-        """`card_view.learning_in_anki`: Learning."""
-        return cls.status == DecisionStatus.LEARNING.value
-
-    @classmethod
-    def in_export_queue(cls) -> ColumnElement[bool]:
-        """`card_view.in_export_queue` as far as the stored decision says: a Learn not in
-        Anki yet. Whether its lemma was put in Known since (Q15) is knowledge, read in
-        `card_view.in_export_queue` with the request's knowledge scope."""
-        return cls.status == DecisionStatus.LEARN.value
+    def word_status(self) -> WordStatus:
+        """The decision on the word; a word not read from the database has none yet."""
+        if self.decision_status is None:
+            return WordStatus.NEW
+        return WordStatus(self.decision_status)
 
     def to_entity(self) -> StoredCandidate:
         """The word, WITHOUT its pronunciation and picture — the repository attaches those."""
@@ -427,7 +421,7 @@ class StoredCandidateModel(Base):
             zipf_frequency=data.zipf_frequency,
             occurrences=data.occurrence_count,
             is_phrasal_verb=self.is_phrasal_verb,
-            status=WordStatus(self.status),
+            status=self.word_status(),
             cefr_breakdown=data.cefr_breakdown,
             usage_distribution=data.usage_distribution,
         )
@@ -477,7 +471,6 @@ class StoredCandidateModel(Base):
             is_sweet_spot=candidate.is_sweet_spot,
             occurrences=candidate.occurrences,
             is_phrasal_verb=candidate.is_phrasal_verb,
-            status=candidate.status.value,
         )
         if candidate.cefr_breakdown is not None:
             model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)
@@ -555,6 +548,21 @@ class PhraseModel(Base):
     def is_skipped(cls) -> ColumnElement[bool]:
         """`card_choice.is_skipped`."""
         return cls.choice == CardChoice.SKIP.value
+
+    @classmethod
+    def awaits_export(cls) -> ColumnElement[bool]:
+        """The word's decision card, a Learn or a Cloze, with no active binding: what
+        `card_view.in_export_queue` says of the decision, before what the user knows."""
+        return and_(
+            cls.is_decision(),
+            cls.choice != CardChoice.KNOWN.value,
+            ~select(AnkiSyncedCardModel.id)
+            .where(
+                AnkiSyncedCardModel.phrase_id == cls.id,
+                AnkiSyncedCardModel.released_at.is_(None),
+            )
+            .exists(),
+        )
 
     @property
     def shown_text(self) -> str:
@@ -1278,6 +1286,19 @@ class WordStateModel(Base):
         Index("ix_word_states_lemma", "lemma"),
     )
 
+    # The SQL forms of the card view's word predicates over the projected status, for the
+    # screens; the rules read the facts.
+
+    @classmethod
+    def chosen_to_learn(cls) -> ColumnElement[bool]:
+        """`card_view.chosen_to_learn`: Learn or Learning."""
+        return cls.status.in_([status.value for status in CHOSEN_TO_LEARN])
+
+    @classmethod
+    def learning_in_anki(cls) -> ColumnElement[bool]:
+        """`card_view.learning_in_anki`: Learning."""
+        return cls.status == DecisionStatus.LEARNING.value
+
 
 class PhraseWordModel(Base):
     """A word of a shown phrase besides its target, with its newness, derived by the
@@ -1301,16 +1322,52 @@ class PhraseWordModel(Base):
 
 
 class ProjectionMetaModel(Base):
-    """The projection's revision counter: one row."""
+    """The projection's revision counter and its last time tick: one row."""
 
     __tablename__ = "projection_meta"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    # When the rows were last brought up to date with time: the rebuild or the time tick.
+    ticked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     __table_args__ = (
         CheckConstraint(f"id = {PROJECTION_META_ID}", name="ck_projection_meta_one_row"),
     )
+
+
+def _decision_status_of_word() -> ColumnElement[str]:
+    """`decision_status(word)` in SQL: the choice on the word's decision card, Learning
+    while that card has an active binding, pending without a decision card. Its own aliases,
+    so a query that joins phrases or bindings itself does not correlate with them."""
+    card = aliased(PhraseModel)
+    binding = aliased(AnkiSyncedCardModel)
+    bound = (
+        select(binding.id)
+        .where(binding.phrase_id == card.id, binding.released_at.is_(None))
+        .correlate(card)
+        .exists()
+    )
+    decided = (
+        select(
+            case(
+                (card.choice == CardChoice.KNOWN.value, DecisionStatus.KNOWN.value),
+                (bound, DecisionStatus.LEARNING.value),
+                else_=DecisionStatus.LEARN.value,
+            ),
+        )
+        .where(card.candidate_id == StoredCandidateModel.id, card.is_decision())
+        .correlate(StoredCandidateModel)
+        .scalar_subquery()
+    )
+    return func.coalesce(decided, DecisionStatus.NEW.value)
+
+
+# The word's decision status as the facts say it, for the queries that select it.
+WORD_DECISION_STATUS = _decision_status_of_word()
+StoredCandidateModel.__mapper__.add_property(
+    "decision_status", column_property(WORD_DECISION_STATUS),
+)
 
 
 def _seed_projection_meta(target: Table, connection: Connection, **_kw: object) -> None:

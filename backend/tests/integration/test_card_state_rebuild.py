@@ -188,19 +188,18 @@ def test_a_stored_row_that_drifted_is_reported_with_its_columns(
     assert (found[2].stored, found[2].live) == ("missing", "present")
 
 
-def test_a_stored_word_status_that_disagrees_with_the_cards_is_reported(
+def test_a_decision_written_past_the_projection_is_reported(
     seeded: Container, factory: sessionmaker[Session],
 ) -> None:
-    """The live side reads the status the word stores; the rebuild derives it from the
-    word's cards. A stored copy that drifted shows up. (The card itself reads done on both
-    sides: the export queue, a rule input, reads the stored status too.)"""
-    with factory() as session:
-        session.execute(text("UPDATE candidates SET status = 'learn' WHERE id = :w"),
-                        {"w": GLARE})
-        session.commit()
+    """The live side reads the word's decision from its cards; a choice written behind the
+    projector's back shows on the word's projected status and on its card."""
     seeded.rebuild_card_states()
+    with factory() as session:
+        session.execute(text("UPDATE phrases SET choice = 'learn' WHERE id = :p"),
+                        {"p": phrase_id_of(GLARE)})
+        session.commit()
     found = differences(stored_states(seeded, factory), live_states(seeded, factory))
-    assert [(d.table, d.key, d.stored, d.live) for d in found] == [
-        ("word_states", f"word_id={GLARE}", "status=<DecisionStatus.NEW: 'pending'>",
-         "status=<DecisionStatus.LEARN: 'learn'>"),
-    ]
+    assert {(d.table, d.key) for d in found} == {
+        ("card_states", f"phrase_id={phrase_id_of(GLARE)}"),
+        ("word_states", f"word_id={GLARE}"),
+    }

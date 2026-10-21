@@ -7,9 +7,14 @@ from typing import TYPE_CHECKING
 
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import CardChoice
-from backend.infrastructure.persistence.models import dump_phrase
+from backend.infrastructure.persistence.models import (
+    WORD_DECISION_STATUS,
+    StoredCandidateModel,
+    dump_phrase,
+)
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
-from sqlalchemy import text
+from sqlalchemy import select, text
+from sqlalchemy.dialects import sqlite
 
 from tests.decision_support import NOW
 from tests.phrase_support import phrase
@@ -26,10 +31,26 @@ if TYPE_CHECKING:
 CREATED_AT = "2026-01-01 00:00:00"
 # The section the seeded phrases earned.
 TEST_SECTION = "ready"
-# The values of `insert_word`'s `status`: what candidates.status stores, and "skip".
+# The values of `insert_word`'s `status`: the decision on the word, and "skip".
 PENDING, LEARN, KNOWN, SKIP = "pending", "learn", "known", "skip"
 # Phrase ids of seeds start past this, so a phrase id never equals a word id.
 PHRASE_ID_OFFSET = 1000
+
+
+# Every word's decision status as the app reads it from its cards: a query of `(word_id,
+# status)` to join in plain SQL.
+DECISION_STATUSES_SQL = str(
+    select(StoredCandidateModel.id.label("word_id"), WORD_DECISION_STATUS.label("status"))
+    .compile(dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True}),
+)
+
+
+def decision_status_of(db: Session | Connection, word_id: int) -> str:
+    """The word's decision status as the app reads it from its cards."""
+    return str(db.execute(
+        text(f"SELECT status FROM ({DECISION_STATUSES_SQL}) WHERE word_id = :id"),  # noqa: S608
+        {"id": word_id},
+    ).scalar_one())
 
 
 def phrase_id_of(word_id: int) -> int:
@@ -55,17 +76,15 @@ def insert_word(
     "skip": the word is pending and its phrase is skipped.
     """
     lemma = lemma or f"word{word_id}"
-    skipped = status == SKIP
     db.execute(
         text(
             "INSERT INTO candidates (id, source_id, lemma, pos, zipf_frequency, is_sweet_spot,"
-            " occurrences, status, is_phrasal_verb)"
-            " VALUES (:id, :source_id, :lemma, :pos, :zipf, :sweet, 1, :status, 0)"
+            " occurrences, is_phrasal_verb)"
+            " VALUES (:id, :source_id, :lemma, :pos, :zipf, :sweet, 1, 0)"
         ),
         {
             "id": word_id, "source_id": source_id, "lemma": lemma, "pos": pos,
             "zipf": zipf_frequency, "sweet": is_sweet_spot,
-            "status": PENDING if skipped else status,
         },
     )
     db.execute(
@@ -107,8 +126,7 @@ def bind(
 ) -> None:
     """A binding of the phrase to an Anki note, exported a day before the tests' moment
     unless `since` says otherwise; active unless `released_at`. Its card lives, so it holds
-    no card choice; the word's status follows a binding of its Learn decision, as an export
-    makes it."""
+    no card choice."""
     if since is None:
         since = (NOW - timedelta(days=1)).replace(tzinfo=None).isoformat(sep=" ")
     db.execute(
@@ -124,14 +142,6 @@ def bind(
             "kind": kind, "since": since, "released": released_at,
         },
     )
-    if released_at is None:
-        db.execute(
-            text(
-                "UPDATE candidates SET status = 'learning'"
-                " WHERE id = :word AND status = 'learn'"
-            ),
-            {"word": word_id},
-        )
 
 
 
