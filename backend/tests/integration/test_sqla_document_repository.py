@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from backend.domain.exceptions import SourceDocumentExistsError
 from backend.domain.value_objects.document import (
     Document,
     Heading,
@@ -11,8 +12,11 @@ from backend.domain.value_objects.document import (
     Paragraph,
     ParagraphMode,
 )
+from backend.infrastructure.persistence.document_json import dump_document
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from sqlalchemy import text
+
+from tests.integration.conftest import insert_source
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -35,6 +39,7 @@ DOCUMENT = Document(
         ),
     )
 )
+OTHER = Document(blocks=(Heading(level=1, text="Other"),))
 
 
 def test_saved_document_reads_back_unchanged(db_session: Session, source_id: int) -> None:
@@ -45,14 +50,55 @@ def test_saved_document_reads_back_unchanged(db_session: Session, source_id: int
     assert repo.get(source_id) == DOCUMENT
 
 
-def test_saving_again_replaces_the_document(db_session: Session, source_id: int) -> None:
+def test_a_stored_document_is_never_written_again(db_session: Session, source_id: int) -> None:
+    """Written once, with its source: what is laid out from it stays true while the stored
+    document keeps its fingerprint."""
     repo = SqlaDocumentRepository(db_session)
-    replacement = Document(blocks=(Heading(level=1, text="Other"),))
-
     repo.save(source_id, DOCUMENT)
-    repo.save(source_id, replacement)
 
-    assert repo.get(source_id) == replacement
+    with pytest.raises(SourceDocumentExistsError):
+        repo.save(source_id, OTHER)
+
+    assert repo.get(source_id) == DOCUMENT
+
+
+def test_the_fingerprint_names_the_stored_document(db_session: Session) -> None:
+    for source_id in (1, 2, 3):
+        insert_source(db_session, source_id)
+    repo = SqlaDocumentRepository(db_session)
+    repo.save(1, DOCUMENT)
+    repo.save(2, DOCUMENT)
+    repo.save(3, OTHER)
+
+    assert repo.fingerprint(1) == repo.fingerprint(2)
+    assert repo.fingerprint(1) != repo.fingerprint(3)
+    assert repo.fingerprint(4) is None
+
+
+def test_a_source_id_given_again_has_another_fingerprint(
+    db_session: Session, source_id: int,
+) -> None:
+    """SQLite gives the id of the source added last to the next one once it is deleted."""
+    repo = SqlaDocumentRepository(db_session)
+    repo.save(source_id, DOCUMENT)
+    before = repo.fingerprint(source_id)
+    db_session.execute(text("DELETE FROM sources WHERE id = :id"), {"id": source_id})
+    insert_source(db_session, source_id)
+    repo.save(source_id, OTHER)
+
+    assert repo.fingerprint(source_id) != before
+
+
+def test_size_hints_are_the_stored_lengths_of_the_sources_with_a_document(
+    db_session: Session, source_id: int,
+) -> None:
+    insert_source(db_session, source_id + 1)
+    repo = SqlaDocumentRepository(db_session)
+    repo.save(source_id, DOCUMENT)
+
+    hints = repo.size_hints([source_id, source_id + 1, source_id + 2])
+
+    assert hints == {source_id: len(dump_document(DOCUMENT))}
 
 
 def test_source_without_document(db_session: Session, source_id: int) -> None:

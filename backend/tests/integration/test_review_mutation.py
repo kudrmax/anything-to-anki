@@ -18,11 +18,11 @@ from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.review_order import CardRow
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.decision_support import NOW, FixedClock
+from tests.document_support import put_document
 from tests.integration import test_card_state_projection_differential as corpus
 from tests.integration.conftest import insert_source
 from tests.projection_support import rebuild_projection
@@ -112,7 +112,7 @@ class World:
     def source_one(self, *lines: str) -> None:
         """Source 1's text becomes `lines` and the source is rebuilt."""
         with self.factory() as session:
-            SqlaDocumentRepository(session).save(1, Document((Paragraph(
+            put_document(session, 1, Document((Paragraph(
                 lines=tuple(Line(line) for line in lines), mode=ParagraphMode.FLOW,
             ),)))
             session.commit()
