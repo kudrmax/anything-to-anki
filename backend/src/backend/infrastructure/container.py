@@ -29,7 +29,6 @@ from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
-from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
@@ -449,14 +448,6 @@ class Container:
             lock=SqlaSourceOperationLock(session),
             stamper=self._section_stamper(session),
             unit_of_work=self._unit_of_work(session),
-        )
-
-    def get_review_documents_use_case(self, session: Session) -> GetReviewDocumentsUseCase:
-        return GetReviewDocumentsUseCase(
-            scope_resolver=self._scope_resolver(session),
-            document_repo=SqlaDocumentRepository(session),
-            card_query=SqlaCardQuery(session),
-            card_state_query=self._card_state_query(session),
         )
 
     def add_saved_phrase_use_case(self, session: Session) -> AddSavedPhraseUseCase:

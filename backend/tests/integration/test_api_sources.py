@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
 from tests.projection_support import rebuild_projection
-from tests.review_window_support import open_review, review_list
+from tests.review_window_support import open_review, review_list, set_texts
 from tests.unit.infrastructure.epub.epub_builder import EpubBuilder, TocLink, page, prose
 from tests.word_support import TEST_SECTION
 
@@ -143,10 +143,9 @@ class TestSourcesAPI:
 
     def test_source_document_with_marks(self, client: TestClient) -> None:
         source_id = client.post("/sources/add", json=TEXT_REQUEST).json()["source_ids"][0]
-        [document] = client.get(
-            "/api/review/documents", params={"scope": f"source-{source_id}"},
-        ).json()
-        assert document == {
+        [document] = set_texts(client, f"source-{source_id}")
+        assert document["size_hint"] > 0
+        assert {k: v for k, v in document.items() if k != "size_hint"} == {
             "source_id": source_id,
             "title": "Hello world",
             "blocks": [{
@@ -299,9 +298,7 @@ class TestCreateFileSource:
         assert resp.status_code == 201
         source = client.get("/sources").json()[0]
         assert (source["kind"], source["title"]) == ("text", "digest")
-        [document] = client.get(
-            "/api/review/documents", params={"scope": f"source-{source['id']}"},
-        ).json()
+        [document] = set_texts(client, f"source-{source['id']}")
         blocks = document["blocks"]
         assert [(b["type"], b["lines"][0]["text"]) for b in blocks] == [
             ("heading", "Preface"), ("paragraph", "In short: a cautious scientist."),
@@ -344,10 +341,7 @@ class TestSavedPhrasesAPI:
         assert saved_source["learn_count"] == 1
         [card] = review_list(client, f"source-{saved_source['id']}")
         assert card["source"]["can_polish_phrases"] is False
-        documents = client.get(
-            "/api/review/documents", params={"scope": f"source-{saved_source['id']}"},
-        ).json()
-        assert documents == []
+        assert set_texts(client, f"source-{saved_source['id']}") == []
 
     def test_second_phrase_reuses_the_same_source(self, client: TestClient) -> None:
         for text in ("It was a daunting task.", "Keep it concise."):

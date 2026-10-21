@@ -19,7 +19,6 @@ READERS = {
     "infrastructure/persistence/sqla_card_state_query.py",
     "infrastructure/container.py",
     "application/utils/review_progress.py",
-    "application/use_cases/get_review_documents.py",
     "application/use_cases/get_generation_status.py",
     "application/utils/review_answer.py",
     "application/utils/review_ordering.py",

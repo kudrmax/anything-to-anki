@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.application.dto.document_dtos import (
     ReviewContentsDTO,  # noqa: TC001 — FastAPI serialises it at runtime
-    SourceDocumentDTO,  # noqa: TC001
 )
 from backend.application.dto.generation_dtos import GenerationStatusDTO  # noqa: TC001
 from backend.application.dto.review_dtos import (
@@ -55,7 +54,6 @@ if TYPE_CHECKING:
 
     from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
     from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
-    from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
     from backend.application.use_cases.open_review import OpenReviewUseCase
     from backend.application.use_cases.request_video_download import RequestVideoDownloadUseCase
     from backend.application.use_cases.review_mutation import ReviewMutation
@@ -187,18 +185,6 @@ def review_text(
     """The chunk of the source's text that holds the block; -1 names the last chunk."""
     with _review_errors():
         return window.text(ctx, source_id, block)
-
-
-@router.get("/documents")
-def get_review_documents(
-    scope: str = "all",
-    documents: GetReviewDocumentsUseCase = Depends(  # noqa: B008
-        use_case(Container.get_review_documents_use_case),  # noqa: B008
-    ),
-) -> list[SourceDocumentDTO]:
-    """The texts of the set's sources in the set's order, with the targets to mark."""
-    with _scope_errors():
-        return documents.execute(review_scope(scope))
 
 
 @router.get("/generation")

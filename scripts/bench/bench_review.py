@@ -1,6 +1,7 @@
 """Measure the review on a copy of a benchmark database, the way the app serves it: the start
 (migrations and the projection rebuilt), opening a review in each order, windows of its
-list, presses with their update, the most frequent lemma, the ✨ counts and the texts, a
+list, presses with their update, the most frequent lemma, the ✨ counts, the set's contents
+and a chunk of its text, a
 whole-book ✨ run and a chapter re-cut while a review is open.
 
 Run it with `make bench-review`. The input database is never modified: everything happens
@@ -263,17 +264,14 @@ class ReviewBench:
             status, ms = timed(lambda: _serialised(use_case.execute(self.scope)))
         return ms, kb(status)
 
-    def documents(self) -> tuple[float, float]:
-        """The texts of the set: ms and KB."""
+    def text(self, ctx: ReviewContext, source_id: int) -> tuple[float, float, float]:
+        """The contents of the set, then the first chunk of the source's text: ms of each and
+        KB of the chunk."""
         with self._session_factory() as session:
-            use_case = self._container.get_review_documents_use_case(session)
-
-            def read() -> str:
-                texts = use_case.execute(self.scope)
-                return json.dumps([d.model_dump(mode="json") for d in texts])
-
-            body, ms = timed(read)
-        return ms, len(body) / BYTES_PER_KB
+            use_case = self._container.review_window_use_case(session)
+            _, contents_ms = timed(lambda: _serialised(use_case.contents(ctx)))
+            chunk, chunk_ms = timed(lambda: _serialised(use_case.text(ctx, source_id, 0)))
+        return contents_ms, chunk_ms, kb(chunk)
 
     def run_generation(self, kind: GenerationKind) -> tuple[int, float]:
         """A ✨ run of the kind for the set's cards nothing was made for: queued, ms."""
@@ -471,8 +469,10 @@ def run(args: BenchArgs) -> dict[str, object]:
         result["around_last_chapter"] = {"ms": around_ms, "json_kb": kb(around)}
         status_ms, status_kb = bench.generation_status()
         result["generation_status"] = {"ms": status_ms, "json_kb": status_kb}
-        documents_ms, documents_kb = bench.documents()
-        result["documents"] = {"ms": documents_ms, "json_kb": documents_kb}
+        contents_ms, chunk_ms, chunk_kb = bench.text(_context(relevance), source_ids[-1])
+        result["text"] = {
+            "contents_ms": contents_ms, "chunk_ms": chunk_ms, "chunk_json_kb": chunk_kb,
+        }
         result["heaviest_lemma"] = measure_heaviest_lemma(bench, rows, collection_id)
         open_ids = rows.ints(OPEN_CARDS_SQL, collection_id)
         rng.shuffle(open_ids)

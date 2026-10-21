@@ -39,7 +39,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
 from tests.projection_support import rebuild_projection
-from tests.review_window_support import open_review, review_contents, review_text
+from tests.review_window_support import (
+    open_review,
+    review_contents,
+    review_text,
+    source_chunks,
+)
 from tests.word_support import CardSeed, store_cards
 
 if TYPE_CHECKING:
@@ -176,28 +181,6 @@ def client(
     app.dependency_overrides.clear()
 
 
-# Any: the raw JSON of the API, as the test reads it.
-def _documents(client: TestClient) -> dict[int, dict[str, Any]]:
-    response = client.get("/api/review/documents", params={"scope": SCOPE})
-    assert response.status_code == 200, response.text
-    return {document["source_id"]: document for document in response.json()}
-
-
-# Any: the raw JSON of the API, as the test reads it.
-def _chunks(
-    client: TestClient, review: dict[str, Any], source_id: int,
-) -> list[dict[str, Any]]:
-    """Every chunk of the source's text, one after another from the first block."""
-    chunks: list[dict[str, Any]] = []
-    block = 0
-    while not chunks or block < chunks[-1]["block_count"]:
-        chunk = review_text(client, review, source_id, block)["text"]
-        assert chunk["first_block"] == block
-        chunks.append(chunk)
-        block = chunk["end_block"]
-    return chunks
-
-
 def _on(review: dict[str, Any]) -> dict[str, Any]:
     return {
         "review_id": review["review_id"], "since": review["revision"],
@@ -207,18 +190,23 @@ def _on(review: dict[str, Any]) -> dict[str, Any]:
 
 # --- chunks give what the whole document gives -------------------------------------------
 
-@pytest.mark.parametrize("source_id", [PILOT, EPISODE])
+@pytest.mark.parametrize(("source_id", "document"), [
+    (PILOT, PILOT_DOCUMENT), (EPISODE, EPISODE_DOCUMENT),
+])
 def test_the_chunks_of_a_source_add_up_to_its_whole_document(
-    client: TestClient, source_id: int,
+    client: TestClient, source_id: int, document: Document,
 ) -> None:
     review = open_review(client, SCOPE)
-    whole = _documents(client)[source_id]
 
-    chunks = _chunks(client, review, source_id)
+    chunks = source_chunks(client, review, source_id)
 
-    assert [c["blocks"] for c in chunks] != []
-    assert [b for c in chunks for b in c["blocks"]] == whole["blocks"]
-    assert [h for c in chunks for h in c["highlights"]] == whole["highlights"]
+    blocks = [b for c in chunks for b in c["blocks"]]
+    assert [" ".join(line["text"] for line in b["lines"]) for b in blocks] == [
+        block_text(block) for block in document.blocks
+    ]
+    marks = [h["position"]["block"] for c in chunks for h in c["highlights"]]
+    assert marks == sorted(marks)
+    assert len(marks) == len({h["phrase_id"] for c in chunks for h in c["highlights"]})
 
 
 def test_the_pilot_has_three_chunks_with_overlapping_marks_kept_as_whole(
@@ -226,7 +214,7 @@ def test_the_pilot_has_three_chunks_with_overlapping_marks_kept_as_whole(
 ) -> None:
     review = open_review(client, SCOPE)
 
-    chunks = _chunks(client, review, PILOT)
+    chunks = source_chunks(client, review, PILOT)
 
     assert [(c["first_block"], c["end_block"]) for c in chunks] == [
         FIRST_CHUNK, SECOND_CHUNK, LAST_CHUNK,
@@ -246,7 +234,7 @@ def test_a_chunk_places_itself_in_the_documents_text(client: TestClient) -> None
     review = open_review(client, SCOPE)
     whole = PILOT_DOCUMENT.text
 
-    for chunk in _chunks(client, review, PILOT):
+    for chunk in source_chunks(client, review, PILOT):
         blocks = PILOT_DOCUMENT.blocks[chunk["first_block"]:chunk["end_block"]]
         assert whole[chunk["start_offset"]:chunk["end_offset"]] == BLOCK_SEPARATOR.join(
             block_text(b) for b in blocks
@@ -334,7 +322,6 @@ def test_contents_list_the_sources_with_a_document_in_set_order(client: TestClie
     assert [(d["source_id"], d["title"]) for d in contents["documents"]] == [
         (EPISODE, "Episode 2"), (PILOT, "Pilot"),
     ]
-    assert list(_documents(client)) == [d["source_id"] for d in contents["documents"]]
     assert all(d["size_hint"] > 0 for d in contents["documents"])
 
 

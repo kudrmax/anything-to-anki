@@ -64,16 +64,6 @@ class HighlightDTO(BaseModel):
     is_done: bool
 
 
-class SourceDocumentDTO(BaseModel):
-    """The text of one source of a review set, with the targets to mark in it."""
-
-    source_id: int
-    title: str
-    blocks: list[BlockDTO]
-    # Targets that don't overlap, in reading order
-    highlights: list[HighlightDTO]
-
-
 class TextChunkDTO(BaseModel):
     """Blocks `first_block` up to `end_block` of a source's document, with the targets to
     mark in them. The offsets, in the document's text, and the counts only size the
