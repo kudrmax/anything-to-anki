@@ -30,6 +30,9 @@ logger = logging.getLogger(__name__)
 
 POLL_DELAY: float = 0.1  # seconds between polls when queue is empty
 CARD_STATE_TICK_INTERVAL: float = 60.0  # seconds between time ticks of the card state
+# Failed time ticks in a row from which each one is logged as an error: one failure is a
+# busy database, several mean the card state is falling behind time.
+TICK_FAILURES_TO_ERROR = 3
 JOB_TIMEOUT: int = 600  # seconds per run (10 minutes)
 AI_BATCH_SIZE: int = 15
 RUN_LIMITS: Mapping[JobType, int] = {
@@ -79,12 +82,20 @@ class JobWorker:
     async def _tick_card_states(self) -> None:
         """Writes what time changed in the card state, every `CARD_STATE_TICK_INTERVAL`, on
         its own: the job loop can run one job for minutes. A failed tick is logged and the
-        next one tries again."""
+        next one tries again; from `TICK_FAILURES_TO_ERROR` failures in a row each is an
+        error with the count."""
+        failures = 0
         while not self._shutdown:
             try:
                 await asyncio.to_thread(self._container.tick_card_states)
             except Exception:
-                logger.exception("Card state time tick failed")
+                failures += 1
+                level = logging.ERROR if failures >= TICK_FAILURES_TO_ERROR else logging.WARNING
+                logger.log(
+                    level, "Card state time tick failed (%d in a row)", failures, exc_info=True,
+                )
+            else:
+                failures = 0
             await asyncio.sleep(CARD_STATE_TICK_INTERVAL)
 
     def _request_shutdown(self) -> None:

@@ -22,7 +22,7 @@ from backend.infrastructure.persistence.sqla_word_mark_repository import (
 )
 from sqlalchemy import text
 
-from tests.decision_support import NOW, Decisions, project_words
+from tests.decision_support import NOW, Decisions
 from tests.phrase_support import phrase
 from tests.word_support import CREATED_AT, TEST_SECTION, bind, insert_word, phrase_id_of
 
@@ -161,7 +161,6 @@ def test_a_decision_phrase_waits_for_export_though_another_phrase_was_exported(
 
     assert bench.learning.awaiting_export() == frozenset({"linger"})
     decisions = bench.decisions.request()
-    project_words(bench.session)
     queue = ExportQueue(
         SqlaCandidateRepository(bench.session, SessionChangeRecorder(bench.session)),
         SqlaOccurrenceRepository(bench.session, SessionChangeRecorder(bench.session)),

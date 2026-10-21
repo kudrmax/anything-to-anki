@@ -69,7 +69,7 @@ class TestUsageSortingPipeline:
         model = StoredCandidateModel.from_entity(candidate)
         assert model.usage_distribution_json is not None
 
-        restored = model.to_entity()
+        restored = model.to_entity(WordStatus.NEW)
         assert restored.usage_distribution is not None
         assert restored.usage_distribution.groups == {"neutral": 0.6, "informal": 0.4}
 
@@ -88,5 +88,5 @@ class TestUsageSortingPipeline:
         model = StoredCandidateModel.from_entity(candidate)
         assert model.usage_distribution_json is None
 
-        restored = model.to_entity()
+        restored = model.to_entity(WordStatus.NEW)
         assert restored.usage_distribution is None

@@ -135,15 +135,22 @@ def configure_sqlite_connection(dbapi_conn: sqlite3.Connection) -> None:
 
 
 def open_query_only(db_path: str) -> sqlite3.Connection:
-    """A connection to the file that can only read. Not `mode=ro`: SQLite cannot open a WAL
-    database read-only while no other connection holds its WAL files."""
+    """A connection to the file that can only read, the file left as it is, in whatever
+    journal mode. Not `mode=ro`: SQLite cannot open a WAL database read-only while no other
+    connection holds its WAL files."""
     import sqlite3
 
     connection = sqlite3.connect(
         db_path, check_same_thread=False, timeout=SQLITE_BUSY_TIMEOUT_MS / MS_PER_SECOND,
     )
-    configure_sqlite_connection(connection)
-    connection.execute("PRAGMA query_only = ON")
+    # Never the journal mode or synchronous: setting them writes the file's header, and
+    # waits for whoever holds the database.
+    for pragma in (
+        f"busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}",
+        f"cache_size = {SQLITE_CACHE_SIZE_KIB}",
+        "query_only = ON",
+    ):
+        connection.execute(f"PRAGMA {pragma}")
     return connection
 
 

@@ -35,7 +35,7 @@ STEP_THRESHOLD_KEY = "step"
 class LiveCardStates:
     """Every row of the projection from the review's own code path: the review cards with
     the request's knowledge snapshot, `card_section` and the card view per threshold step,
-    and each word's stored decision status."""
+    and each word's decision status read from its cards."""
 
     def __init__(
         self,

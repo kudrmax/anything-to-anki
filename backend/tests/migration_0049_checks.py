@@ -23,7 +23,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from tests.decision_support import Decisions, project_words
+from tests.decision_support import Decisions
 
 if TYPE_CHECKING:
     import sqlite3
@@ -178,7 +178,6 @@ def app_export_queue(db_path: Path) -> frozenset[int]:
     engine = create_engine(f"sqlite:///{db_path}")
     try:
         with Session(engine) as session:
-            project_words(session)
             decisions = Decisions(session)
             queue = ExportQueue(
                 SqlaCandidateRepository(session, SessionChangeRecorder(session)),

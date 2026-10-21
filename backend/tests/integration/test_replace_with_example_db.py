@@ -37,7 +37,7 @@ from sqlalchemy import text
 
 from tests.candidate_sorter_support import section_stamper
 from tests.card_support import card_views
-from tests.decision_support import Decisions, project_words
+from tests.decision_support import Decisions
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase, shown_lemmas
 from tests.word_marks_support import insert_known
@@ -148,7 +148,6 @@ class Bench:
         self.session.commit()
 
     def export_queue(self) -> ExportQueue:
-        project_words(self.session)
         decisions = self.decisions.request()
         return ExportQueue(
             SqlaCandidateRepository(self.session, SessionChangeRecorder(self.session)),

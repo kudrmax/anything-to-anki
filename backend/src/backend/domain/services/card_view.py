@@ -287,19 +287,19 @@ def chosen_to_learn(word: WordState) -> bool:
     return decision_status(word) in CHOSEN_TO_LEARN
 
 
-# A word's decision status as stored in `candidates.status`, which reads it as a WordStatus.
+# A word's decision status as a read of its decision card gives it, as a WordStatus.
 _STORED: Mapping[DecisionStatus, WordStatus] = MappingProxyType(
     {status: WordStatus(status.value) for status in DecisionStatus},
 )
 
 
 def stored_decided(stored: WordStatus) -> bool:
-    """The stored decision status says the word is decided here."""
+    """The word's decision status says it is decided here."""
     return stored is not WordStatus.NEW
 
 
 def stored_chosen_to_learn(stored: WordStatus) -> bool:
-    """`chosen_to_learn` of the word whose stored decision status this is."""
+    """`chosen_to_learn` of the word whose decision status this is."""
     return DecisionStatus(stored.value) in CHOSEN_TO_LEARN
 
 

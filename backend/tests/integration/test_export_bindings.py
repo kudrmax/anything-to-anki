@@ -29,7 +29,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 )
 from sqlalchemy import text
 
-from tests.decision_support import NOW, Decisions, project
+from tests.decision_support import NOW, Decisions, project_words
 from tests.integration.conftest import insert_source
 from tests.unit.application.scope_fakes import sources_scope_resolver
 from tests.word_marks_support import insert_known
@@ -101,7 +101,6 @@ class Bench:
         self.decisions.decide_phrase().press(phrase_id, button)
 
     def queue(self) -> ExportQueue:
-        project(self.session, self.decisions.clock.moment)
         return ExportQueue(
             SqlaCandidateRepository(self.session, SessionChangeRecorder(self.session)),
             SqlaOccurrenceRepository(self.session, SessionChangeRecorder(self.session)),
@@ -268,6 +267,22 @@ def test_the_queue_reads_only_the_words_chosen_to_learn(bench: Bench) -> None:
         batch = bench.queue().for_all()
 
     assert [card.word_id for card in batch.pending] == [WORD]
+
+
+def test_the_export_reads_the_decision_from_the_cards_not_the_projection(
+    bench: Bench,
+) -> None:
+    """The export is a rule: it reads the facts. A projected status gone wrong does not
+    keep a Learn word out of it."""
+    bench.press(CARD, Press.LEARN)
+    project_words(bench.session)
+    bench.session.execute(
+        text("UPDATE word_states SET status = 'pending' WHERE word_id = :w"), {"w": WORD},
+    )
+
+    assert [card.word_id for card in bench.queue().for_sources([SOURCE]).pending] == [WORD]
+    bench.export()
+    assert bench.rows()
 
 
 def test_the_pending_count_is_the_queue_length(bench: Bench) -> None:

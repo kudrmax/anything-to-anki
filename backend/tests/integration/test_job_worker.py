@@ -636,3 +636,38 @@ class TestCardStateTick:
             await asyncio.wait_for(running, timeout=LONG_WAIT_S)
 
         assert "Card state time tick failed" in caplog.text
+
+    async def test_failed_ticks_in_a_row_become_errors_and_a_success_resets_them(
+        self, container: _Container, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        outcomes = [False, False, False, False, True, False]
+        calls: list[int] = []
+
+        def tick() -> None:
+            calls.append(len(calls))
+            if len(calls) <= len(outcomes) and not outcomes[len(calls) - 1]:
+                raise RuntimeError("tick broke")
+
+        container.tick_card_states = tick  # type: ignore[method-assign]
+        worker = JobWorker(container)  # type: ignore[arg-type]
+        with (
+            caplog.at_level(logging.WARNING, logger=job_worker.__name__),
+            patch.object(job_worker, "CARD_STATE_TICK_INTERVAL", SHORT_TICK_S),
+        ):
+            running = asyncio.create_task(worker.run())
+            while len(calls) < len(outcomes):
+                await asyncio.sleep(SHORT_TICK_S)
+            worker._request_shutdown()
+            await asyncio.wait_for(running, timeout=LONG_WAIT_S)
+
+        ticks = [
+            (record.levelno, record.getMessage()) for record in caplog.records
+            if record.getMessage().startswith("Card state time tick failed")
+        ]
+        assert ticks[:5] == [
+            (logging.WARNING, "Card state time tick failed (1 in a row)"),
+            (logging.WARNING, "Card state time tick failed (2 in a row)"),
+            (logging.ERROR, "Card state time tick failed (3 in a row)"),
+            (logging.ERROR, "Card state time tick failed (4 in a row)"),
+            (logging.WARNING, "Card state time tick failed (1 in a row)"),
+        ]

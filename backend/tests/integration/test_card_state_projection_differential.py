@@ -135,6 +135,8 @@ CONTENT_KINDS = (
 )
 FIRST_NOTE = 5000
 TWO_KNOWN_LEMMA = "tide"
+# A plain word of source 3 that source 1 holds too, in a phrase of another card.
+ORPHAN_LEMMA = "old"
 TWO_KNOWN_POS = ("NOUN", "VERB")
 SHARED_FILE = "/media/shared.mp3"
 # A whole card is picked by its rank among the live cards, any number wrapping around.
@@ -711,6 +713,8 @@ def test_the_projection_equals_the_review_after_every_step(
     reached.watch(monkeypatch)
     _Projection.scenario = scenario
     _tour(_Projection())
+    _timer_tour(_Projection())
+    _orphan_tour(_Projection())
 
     run_state_machine_as_test(_Projection, settings=settings(
         derandomize=True,
@@ -727,6 +731,47 @@ def test_the_projection_equals_the_review_after_every_step(
         f" NOT_REACHED with why it cannot change card state: {sorted(missed)}"
     )
     assert not set(NOT_REACHED) - set(WRITE_CASES)
+
+
+def _timer_tour(machine: _Projection) -> None:
+    """A Learn in Anki whose timer comes due: its cards carry the moment, the tick writes
+    what it changes."""
+    for step in (
+        machine.start,
+        lambda: machine.press(0, Press.LEARN),
+        machine.export,
+        lambda: machine.time_passes(CLOCK_STEPS[-1]),
+    ):
+        step()
+        machine.projection_equals_the_review()
+
+
+def _orphan_tour(machine: _Projection) -> None:
+    """A binding no card holds whose timer comes due: "old", added from source 3's text,
+    learned and exported, its source deleted, is still an other word in source 1."""
+    machine.start()
+    machine.add_word_from_text(len(SOURCES) - 1, 0, 0)
+    with machine.factory() as session:
+        phrase_id = session.execute(text(
+            "SELECT p.id FROM phrases p JOIN candidates c ON c.id = p.candidate_id"
+            " WHERE lower(c.lemma) = :lemma AND c.source_id = :source",
+        ), {"lemma": ORPHAN_LEMMA, "source": len(SOURCES)}).scalar_one()
+    machine.container.session_work().write(lambda s: _ready(s, phrase_id))
+    with machine.factory() as session:
+        machine.container.decide_phrase_use_case(session).decide(phrase_id, Press.LEARN)
+    for step in (
+        machine.export,
+        lambda: machine.delete_source(len(SOURCES) - 1),
+        lambda: machine.time_passes(CLOCK_STEPS[-1]),
+    ):
+        step()
+        machine.projection_equals_the_review()
+    with machine.factory() as session:
+        orphans = session.execute(text(
+            "SELECT count(*) FROM anki_synced_cards WHERE lower(lemma) = :lemma"
+            " AND phrase_id IS NULL AND released_at IS NULL",
+        ), {"lemma": ORPHAN_LEMMA}).scalar_one()
+    assert orphans == 1
 
 
 def _tour(machine: _Projection) -> None:

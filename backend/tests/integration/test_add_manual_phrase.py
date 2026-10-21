@@ -31,7 +31,7 @@ from backend.infrastructure.persistence.sqla_word_mark_repository import (
 )
 
 from tests.candidate_sorter_support import section_stamper
-from tests.decision_support import Decisions, project_words
+from tests.decision_support import Decisions
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
 from tests.source_rebuild_support import LINES, SOURCE, Bench, at, word
@@ -296,7 +296,6 @@ def test_learn_on_a_manual_card_closes_the_word_and_exports_one_phrase(bench: Be
     assert learn.command is Command.DECIDE
     with pytest.raises(ActionRefusedError):
         decide.press(first.id, Press.KNOWN)
-    project_words(bench.session)
     queue = ExportQueue(
         bench.candidates, bench.occurrences, decisions.word_states, decisions.vocabulary,
     )

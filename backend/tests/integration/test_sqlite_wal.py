@@ -3,10 +3,12 @@ held up by a write transaction open on another connection, and sees the state be
 (spec §5)."""
 from __future__ import annotations
 
+import sqlite3
 from typing import TYPE_CHECKING
 
 import pytest
 from backend.infrastructure.persistence.database import (
+    SQLITE_BUSY_TIMEOUT_MS,
     SQLITE_CACHE_SIZE_KIB,
     create_app_engine,
     open_query_only,
@@ -70,3 +72,27 @@ def test_a_query_only_connection_reads_a_wal_database_no_one_holds(
             connection.execute("UPDATE notes SET body = 'never'")
     finally:
         connection.close()
+
+
+def test_a_query_only_connection_leaves_a_rollback_journal_database_as_it_is(
+    tmp_path: Path,
+) -> None:
+    """The bench copies and the check script read databases still in the rollback journal:
+    reading them writes nothing, the journal mode included."""
+    path = tmp_path / "rollback.db"
+    setup = sqlite3.connect(path)
+    setup.execute("CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT)")
+    setup.execute("INSERT INTO notes (id, body) VALUES (1, 'kept')")
+    setup.commit()
+    setup.close()
+    before = path.read_bytes()
+
+    connection = open_query_only(str(path))
+    try:
+        assert connection.execute("SELECT body FROM notes").fetchone() == ("kept",)
+        assert connection.execute("PRAGMA journal_mode").fetchone() == ("delete",)
+        assert connection.execute("PRAGMA busy_timeout").fetchone() == (SQLITE_BUSY_TIMEOUT_MS,)
+    finally:
+        connection.close()
+
+    assert path.read_bytes() == before

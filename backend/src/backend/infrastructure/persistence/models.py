@@ -23,7 +23,7 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.orm import Mapped, aliased, column_property, mapped_column, relationship
+from sqlalchemy.orm import Mapped, aliased, mapped_column, relationship
 
 from backend.domain.entities.ai_usage_record import AIUsageRecord
 from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta
@@ -76,7 +76,6 @@ from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.token_usage import TokenUsage
 from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.domain.value_objects.word_mark import WordMark
-from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.utc_datetime import UTCDateTime
 
@@ -84,6 +83,7 @@ if TYPE_CHECKING:
     from sqlalchemy import ColumnElement, Connection, Table
 
     from backend.domain.entities.job import Job
+    from backend.domain.value_objects.word_status import WordStatus
 
 
 def dump_position(position: DocumentPosition | None) -> str | None:
@@ -404,19 +404,10 @@ class StoredCandidateModel(Base):
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
     )
 
-    if TYPE_CHECKING:
-        # `decision_status(word)` read from the facts, the decision card and its binding:
-        # mapped below, after the tables it reads. None on a word not read from the database.
-        decision_status: str | None
-
-    def word_status(self) -> WordStatus:
-        """The decision on the word; a word not read from the database has none yet."""
-        if self.decision_status is None:
-            return WordStatus.NEW
-        return WordStatus(self.decision_status)
-
-    def to_entity(self) -> StoredCandidate:
-        """The word, WITHOUT its pronunciation and picture — the repository attaches those."""
+    def to_entity(self, status: WordStatus) -> StoredCandidate:
+        """The word, WITHOUT its pronunciation and picture — the repository attaches those.
+        `status`: its decision, read with it by `WORD_DECISION_STATUS`, never kept on the
+        model, so a word held by the session never shows a decision made since."""
         data = self.word_data()
         return StoredCandidate(
             id=self.id,
@@ -427,7 +418,7 @@ class StoredCandidateModel(Base):
             zipf_frequency=data.zipf_frequency,
             occurrences=data.occurrence_count,
             is_phrasal_verb=self.is_phrasal_verb,
-            status=self.word_status(),
+            status=status,
             cefr_breakdown=data.cefr_breakdown,
             usage_distribution=data.usage_distribution,
         )
@@ -568,12 +559,18 @@ class PhraseModel(Base):
         return cls.choice == CardChoice.SKIP.value
 
     @classmethod
+    def decides_to_learn(cls) -> ColumnElement[bool]:
+        """The word's decision card is a Learn or a Cloze: `card_view.chosen_to_learn` of
+        its word. The choices are written out, not bound, so SQLite reads them by their
+        partial index."""
+        return cls.choice.in_([literal_column(f"'{kind.value}'") for kind in AWAITING_EXPORT])
+
+    @classmethod
     def awaits_export(cls) -> ColumnElement[bool]:
         """The word's decision card, a Learn or a Cloze, with no active binding: what
-        `card_view.in_export_queue` says of the decision, before what the user knows. The
-        choices are written out, not bound, so SQLite reads them by their partial index."""
+        `card_view.in_export_queue` says of the decision, before what the user knows."""
         return and_(
-            cls.choice.in_([literal_column(f"'{kind.value}'") for kind in AWAITING_EXPORT]),
+            cls.decides_to_learn(),
             ~select(AnkiSyncedCardModel.id)
             .where(
                 AnkiSyncedCardModel.phrase_id == cls.id,
@@ -1383,9 +1380,6 @@ def _decision_status_of_word() -> ColumnElement[str]:
 
 # The word's decision status as the facts say it, for the queries that select it.
 WORD_DECISION_STATUS = _decision_status_of_word()
-StoredCandidateModel.__mapper__.add_property(
-    "decision_status", column_property(WORD_DECISION_STATUS),
-)
 
 
 def _seed_projection_meta(target: Table, connection: Connection, **_kw: object) -> None:

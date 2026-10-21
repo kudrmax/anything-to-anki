@@ -7,9 +7,12 @@ from sqlalchemy import func, select
 
 from backend.domain.ports.candidate_repository import CandidateRepository
 from backend.domain.value_objects.card_change import SourceDeleted, WordsChanged
+from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
+    WORD_DECISION_STATUS,
     CandidateMeaningImageModel,
     CandidatePronunciationModel,
+    PhraseModel,
     StoredCandidateModel,
     WordStateModel,
 )
@@ -79,8 +82,9 @@ class SqlaCandidateRepository(CandidateRepository):
         return self._read(func.lower(StoredCandidateModel.lemma) == lemma.lower())
 
     def chosen_to_learn(self, source_ids: Collection[int] | None = None) -> list[StoredCandidate]:
+        # From the facts: the export reads this, and the projection is built from it.
         chosen = StoredCandidateModel.id.in_(
-            select(WordStateModel.word_id).where(WordStateModel.chosen_to_learn()),
+            select(PhraseModel.candidate_id).where(PhraseModel.decides_to_learn()),
         )
         if source_ids is None:
             return self._read(chosen)
@@ -145,12 +149,20 @@ class SqlaCandidateRepository(CandidateRepository):
     # ── private helpers ────────────────────────────────────────────────
 
     def _read(self, *where: ColumnElement[bool]) -> list[StoredCandidate]:
-        stmt = select(StoredCandidateModel).where(*where).order_by(StoredCandidateModel.id)
-        return self._with_results(list(self._session.scalars(stmt).unique()))
+        """Each word with its decision status, read from its cards in the same query."""
+        stmt = (
+            select(StoredCandidateModel, WORD_DECISION_STATUS)
+            .where(*where)
+            .order_by(StoredCandidateModel.id)
+        )
+        rows = self._session.execute(stmt).unique().all()
+        return self._with_results([(word, WordStatus(status)) for word, status in rows])
 
-    def _with_results(self, words: list[StoredCandidateModel]) -> list[StoredCandidate]:
+    def _with_results(
+        self, words: list[tuple[StoredCandidateModel, WordStatus]],
+    ) -> list[StoredCandidate]:
         """Words with their pronunciation and picture attached."""
-        ids = [w.id for w in words]
+        ids = [w.id for w, _ in words]
         prons = {
             r.candidate_id: r.to_entity()
             for r in self._session.scalars(
@@ -169,8 +181,8 @@ class SqlaCandidateRepository(CandidateRepository):
             )
         }
         read: list[StoredCandidate] = []
-        for word in words:
-            entity = word.to_entity()
+        for word, status in words:
+            entity = word.to_entity(status)
             entity.pronunciation = prons.get(word.id)
             entity.meaning_image = images.get(word.id)
             read.append(entity)
