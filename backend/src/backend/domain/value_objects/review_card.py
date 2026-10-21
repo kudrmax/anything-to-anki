@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.generated_parts import GeneratedParts
     from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
     from backend.domain.value_objects.phrase import Phrase
+    from backend.domain.value_objects.usage_distribution import UsageDistribution
     from backend.domain.value_objects.word_status import WordStatus
 
 
@@ -83,6 +84,34 @@ class ReviewCard:
     @property
     def frequency_band(self) -> FrequencyBand:
         return self.word.frequency_band
+
+    @property
+    def source_id(self) -> int:
+        return self.word.source_id
+
+    @property
+    def cefr_level(self) -> str | None:
+        return self.word.cefr_level
+
+    @property
+    def occurrences(self) -> int:
+        return self.word.occurrences
+
+    @property
+    def is_phrasal_verb(self) -> bool:
+        return self.word.is_phrasal_verb
+
+    @property
+    def usage_distribution(self) -> UsageDistribution | None:
+        return self.word.usage_distribution
+
+    @property
+    def place(self) -> tuple[int, int, int] | None:
+        """(block, start_line, start_char) of the phrase in its document."""
+        position = self.occurrence.phrase_position
+        if position is None:
+            return None
+        return (position.block, position.start_line, position.start_char)
 
     @property
     def phrase(self) -> Phrase:
