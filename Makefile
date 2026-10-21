@@ -436,7 +436,7 @@ fix-sections: _check_setup dict-update  ## Проставить секции ф�
 	done
 	.venv/bin/python scripts/fix_sections.py
 
-card-states-check: _check_setup  ## Сравнить сохранённую проекцию карточек с полным расчётом (только чтение) [DB=…]
+card-states-check: _check_setup  ## Сравнить сохранённую проекцию карточек с полным расчётом (только чтение; истёкший 30-дневный таймер Anki — расхождение до тика времени) [DB=…]
 	.venv/bin/python scripts/card_states_check.py $(if $(DB),--db "$(DB)")
 
 ##@ Бенчмарк (только копии БД)

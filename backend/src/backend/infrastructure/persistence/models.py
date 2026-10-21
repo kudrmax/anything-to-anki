@@ -369,6 +369,10 @@ class StoredCandidateModel(Base):
             "is_phrasal_verb",
             unique=True,
         ),
+        # A lemma's words in every source: what the card state projector reads at every
+        # change of the lemma. The status makes it cover the lemmas waiting for export too,
+        # which the knowledge scope reads by a scan of it.
+        Index("ix_candidates_lower_lemma", text("lower(lemma)"), "status"),
         {"sqlite_autoincrement": True},
     )
 
@@ -1282,6 +1286,7 @@ class PhraseWordModel(Base):
     __tablename__ = "phrase_words"
 
     lemma: Mapped[str] = mapped_column(Text, nullable=False)
+    phrase_lemma: Mapped[str] = mapped_column(Text, nullable=False)
     phrase_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     position: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     zipf: Mapped[float] = mapped_column(Float, nullable=False)

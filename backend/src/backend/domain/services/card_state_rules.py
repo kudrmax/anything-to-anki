@@ -24,6 +24,7 @@ def phrase_word_rows(
     return tuple(
         PhraseWordRow(
             lemma=word.lemma.lower(),
+            phrase_lemma=word.lemma,
             phrase_id=phrase_id,
             position=position,
             zipf=word.zipf,
@@ -39,7 +40,8 @@ def phrase_word_rows(
 def newness_of(rows: Iterable[PhraseWordRow]) -> PhraseNewness:
     """The newness of a phrase's other words, from their rows in any order."""
     return PhraseNewness.of(
-        (row.lemma, row.zipf, row.newness) for row in sorted(rows, key=lambda r: r.position)
+        (row.phrase_lemma, row.zipf, row.newness)
+        for row in sorted(rows, key=lambda r: r.position)
     )
 
 

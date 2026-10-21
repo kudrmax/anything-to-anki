@@ -59,7 +59,8 @@ def test_the_tables_have_their_columns(migrated: Engine) -> None:
     ]
     assert list(columns["word_states"]) == ["word_id", "source_id", "lemma", "status"]
     assert list(columns["phrase_words"]) == [
-        "lemma", "phrase_id", "position", "zipf", "content", "level", "newness",
+        "lemma", "phrase_lemma", "phrase_id", "position", "zipf", "content", "level",
+        "newness",
     ]
     assert list(columns["projection_meta"]) == ["id", "revision"]
 
@@ -89,6 +90,7 @@ def test_the_keys_and_indexes(migrated: Engine) -> None:
     }
     assert indexes["phrase_words"] == {"ix_phrase_words_lemma": ["lemma"]}
     assert all(not inspector.get_foreign_keys(table) for table in PROJECTION_TABLES)
+    assert "(lower(lemma), status)" in _sql(migrated, "index", "ix_candidates_lower_lemma")
 
 
 def test_the_tables_start_empty_and_the_revision_at_zero(migrated: Engine) -> None:
@@ -115,5 +117,9 @@ def test_a_card_row_is_live_unless_said_removed(migrated: Engine) -> None:
 
 def test_downgrade_drops_the_tables(migrated: Engine, tmp_path: Path) -> None:
     command.downgrade(_alembic_config(f"sqlite:///{tmp_path / 'app.db'}"), REVISION_BEFORE)
-    names = set(inspect(create_engine(f"sqlite:///{tmp_path / 'app.db'}")).get_table_names())
-    assert not names & set(PROJECTION_TABLES)
+    inspector = inspect(create_engine(f"sqlite:///{tmp_path / 'app.db'}"))
+    assert not set(inspector.get_table_names()) & set(PROJECTION_TABLES)
+    with migrated.connect() as conn:
+        assert conn.execute(text(
+            "SELECT count(*) FROM sqlite_master WHERE name = 'ix_candidates_lower_lemma'"
+        )).scalar_one() == 0

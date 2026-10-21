@@ -141,7 +141,7 @@ def sections_at_steps(card: SectionFacts, new_counts: NewCountsByStep) -> Sectio
 
 def new_counts_at_steps(newness: PhraseNewness) -> NewCountsByStep:
     """How many words besides the target are new at every threshold step."""
-    return NewCountsByStep(tuple(newness.count(step) for step in THRESHOLD_STEPS))
+    return NewCountsByStep(newness.counts(THRESHOLD_STEPS))
 
 
 def _earned_section(

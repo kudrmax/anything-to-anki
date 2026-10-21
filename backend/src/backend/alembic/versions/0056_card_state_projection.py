@@ -1,6 +1,7 @@
 """The stored projection of card state: card_states, word_states, phrase_words and the
-revision counter in projection_meta (spec §5). The tables start empty: the app fills them
-by a full rebuild at every start, before it takes requests.
+revision counter in projection_meta (spec §5), and the index of words by lower-case lemma
+the projector reads them by. The tables start empty: the app fills them by a full rebuild
+at every start, before it takes requests.
 
 Revision ID: 0056
 Revises: 0055
@@ -61,6 +62,7 @@ def upgrade() -> None:
     op.create_table(
         "phrase_words",
         sa.Column("lemma", sa.Text(), nullable=False),
+        sa.Column("phrase_lemma", sa.Text(), nullable=False),
         sa.Column("phrase_id", sa.Integer(), nullable=False),
         sa.Column("position", sa.Integer(), nullable=False),
         sa.Column("zipf", sa.Float(), nullable=False),
@@ -71,6 +73,10 @@ def upgrade() -> None:
         sqlite_with_rowid=False,
     )
     op.create_index("ix_phrase_words_lemma", "phrase_words", ["lemma"])
+
+    op.create_index(
+        "ix_candidates_lower_lemma", "candidates", [sa.text("lower(lemma)"), "status"],
+    )
 
     op.create_table(
         "projection_meta",
@@ -85,6 +91,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index("ix_candidates_lower_lemma", table_name="candidates")
     op.drop_table("projection_meta")
     op.drop_table("phrase_words")
     op.drop_table("word_states")

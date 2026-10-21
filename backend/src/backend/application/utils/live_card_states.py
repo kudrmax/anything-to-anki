@@ -108,6 +108,7 @@ def _phrase_words(card: ReviewCard, base: KnowledgeBase) -> list[PhraseWordRow]:
     return [
         PhraseWordRow(
             lemma=word.lemma.lower(),
+            phrase_lemma=word.lemma,
             phrase_id=card.phrase_id,
             position=position,
             zipf=word.zipf,

@@ -880,6 +880,7 @@ class Container:
             knowledge=self._user_knowledge(session),
             vocabulary=self._user_vocabulary(session),
             store=SqlaCardStateStore(session),
+            recorder=self._change_recorder(session),
         )
 
     def rebuild_card_states(self) -> None:
@@ -902,7 +903,11 @@ class Container:
         )
 
     def _unit_of_work(self, session: Session) -> SqlaUnitOfWork:
-        return SqlaUnitOfWork(session, self.knowledge_scope(session))
+        """Every write commits with its changes projected onto the card state."""
+        return SqlaUnitOfWork(
+            session, self.knowledge_scope(session),
+            before_commit=self.card_state_projector(session).apply,
+        )
 
     def _change_recorder(self, session: Session) -> SessionChangeRecorder:
         """One per database session, shared by every owner of facts built for it."""

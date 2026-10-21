@@ -43,9 +43,11 @@ class WordStateRow:
 @dataclass(frozen=True)
 class PhraseWordRow:
     """A word of a shown phrase besides its target. `position`: its number among the
-    phrase's words; `lemma` is lower-case."""
+    phrase's words; `lemma` is lower-case, for lookups; `phrase_lemma` is the lemma as the
+    phrase's word holds it, the key its new words are counted by."""
 
     lemma: str
+    phrase_lemma: str
     phrase_id: int
     position: int
     zipf: float
@@ -81,3 +83,13 @@ class StoredCardStates:
     words: tuple[WordStateRow, ...]
     phrase_words: tuple[PhraseWordRow, ...]
     revision: int
+
+
+@dataclass(frozen=True)
+class PhraseWordKind:
+    """What tells the newness of stored other words: every row of the lemma with the same
+    `content` and `level` has the same newness. `lemma` is lower-case."""
+
+    lemma: str
+    content: bool
+    level: CEFRLevel

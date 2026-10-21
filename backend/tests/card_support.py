@@ -222,5 +222,12 @@ class PhraseWordStates(WordStateRepository):
             for w in self._words() if w.lemma.lower() == lemma.lower() and w.id is not None
         ]
 
+    def of_lemmas(self, lemmas: Collection[str]) -> dict[int, WordState]:
+        keys = {lemma.lower() for lemma in lemmas}
+        return {
+            w.id: context(w, *self._phrases(w.id)).word
+            for w in self._words() if w.lemma.lower() in keys and w.id is not None
+        }
+
     def save(self, word: WordState) -> None:
         raise AssertionError("these word states are read only")

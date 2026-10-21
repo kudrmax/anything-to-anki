@@ -4,6 +4,9 @@ review computes them today: `make card-states-check [DB=…]`.
 Reads this copy's database (DATA_DIR) or the one given, opened read-only in one read
 transaction, so a running app does not shift it midway. Prints every differing row and exits
 with 1 if there is one. Never writes and never migrates.
+
+An Anki timer of 30 days that passed since the last rebuild or write shows as a difference
+until the time tick (Task 5.3) writes it: the stored row still reads as it did before.
 """
 from __future__ import annotations
 
@@ -11,6 +14,7 @@ import argparse
 import sqlite3
 import sys
 import time
+from pathlib import Path
 
 from backend.application.utils.card_state_differences import differences
 from backend.infrastructure.container import Container
@@ -29,7 +33,7 @@ MS_PER_SECOND = 1000
 def _read_only_session_factory(path: str) -> sessionmaker[Session]:
     def connect() -> sqlite3.Connection:
         connection = sqlite3.connect(
-            f"file:{path}?mode=ro", uri=True, check_same_thread=False,
+            f"{Path(path).resolve().as_uri()}?mode=ro", uri=True, check_same_thread=False,
             timeout=SQLITE_BUSY_TIMEOUT_MS / MS_PER_SECOND,
         )
         connection.isolation_level = None

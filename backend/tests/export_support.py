@@ -177,6 +177,12 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
     def of_lemma(self, lemma: str) -> list[WordState]:
         return [c.state for c in self._cards if c.word.lemma.lower() == lemma.lower()]
 
+    def of_lemmas(self, lemmas: Collection[str]) -> dict[int, WordState]:
+        keys = {lemma.lower() for lemma in lemmas}
+        return {
+            c.state.word_id: c.state for c in self._cards if c.word.lemma.lower() in keys
+        }
+
     def save(self, word: WordState) -> None:
         self.saved.append(word)
 

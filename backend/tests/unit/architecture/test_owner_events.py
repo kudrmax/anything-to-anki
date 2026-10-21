@@ -133,6 +133,7 @@ READ_ONLY: frozenset[tuple[str, str]] = frozenset({
     ("WordStateRepository", "of_source"),
     ("WordStateRepository", "of_words"),
     ("WordStateRepository", "of_lemma"),
+    ("WordStateRepository", "of_lemmas"),
     # Defers what saves make stale to its end; the saves inside it record.
     ("WordStateRepository", "batch"),
     ("OccurrenceRepository", "by_source"),

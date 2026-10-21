@@ -68,6 +68,12 @@ class SqlaWordStateRepository(WordStateRepository):
     def of_lemma(self, lemma: str) -> list[WordState]:
         return list(self._read(func.lower(StoredCandidateModel.lemma) == lemma.lower()).values())
 
+    def of_lemmas(self, lemmas: Collection[str]) -> dict[int, WordState]:
+        found: dict[int, WordState] = {}
+        for chunk in chunks(sorted({lemma.lower() for lemma in lemmas})):
+            found.update(self._read(func.lower(StoredCandidateModel.lemma).in_(chunk)))
+        return found
+
     def save(self, word: WordState) -> None:
         # A card that stops being the decision is written first: the decision card is unique.
         for card in sorted(word.cards, key=lambda c: c.is_decision):
