@@ -223,7 +223,6 @@
   --fit-h: auto;
   --fit-content-display: block;
   --queue-row-display: flex;
-  --show-more-display: block;
   --phone-flex: none;
   --phone-display: none;
   --desktop-display: grid;
@@ -405,7 +404,6 @@
     --fit-h: 100%;
     --fit-content-display: flex;
     --queue-row-display: none;
-    --show-more-display: none;
     --phone-flex: flex;
     --phone-display: grid;
     --sources-cols: minmax(0, 1fr);

@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from backend.domain.services.card_view import section, shown_section
+from backend.domain.services.card_view import Done, section, shown_section
 from backend.domain.value_objects.by_step import NewCountsByStep, SectionsByStep
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.frequent_word_threshold import THRESHOLD_STEPS, is_frequent
@@ -50,16 +50,20 @@ class CardFacts(WordFacts, Protocol):
         ...
 
 
-class SectionFacts(WordFacts, Protocol):
-    """What tells a card's section besides the words of its phrase."""
-
-    @property
-    def is_done(self) -> bool: ...
+class OpenSectionFacts(WordFacts, Protocol):
+    """What tells the section a card would stand in open, besides the words of its phrase."""
 
     @property
     def earned_section(self) -> CandidateSection:
         """The section the card's phrase earned when it was added or its text last changed."""
         ...
+
+
+class SectionFacts(OpenSectionFacts, Protocol):
+    """What tells a card's section besides the words of its phrase."""
+
+    @property
+    def is_done(self) -> bool: ...
 
 
 class ShownCardFacts(CardFacts, SectionFacts, Protocol):
@@ -127,16 +131,26 @@ def sections_by_step(
 def sections_at_steps(card: SectionFacts, new_counts: NewCountsByStep) -> SectionsByStep:
     """`card_section` at every threshold step, given how many other words of the card's
     phrase are new at each."""
+    return done_sections(card, open_sections_at_steps(card, new_counts))
+
+
+def open_sections_at_steps(
+    card: OpenSectionFacts, new_counts: NewCountsByStep,
+) -> SectionsByStep:
+    """`open_section` at every threshold step, given how many other words of the card's
+    phrase are new at each."""
     return SectionsByStep(tuple(
-        section(
-            card,
-            shown_section(
-                _earned_by_count(card, new_counts.at(step), target_step=step),
-                card.earned_section,
-            ),
+        shown_section(
+            _earned_by_count(card, new_counts.at(step), target_step=step),
+            card.earned_section,
         )
         for step in THRESHOLD_STEPS
     ))
+
+
+def done_sections(card: Done, open_sections: SectionsByStep) -> SectionsByStep:
+    """Where a card with these open sections stands at every step: Reviewed once done."""
+    return SectionsByStep(tuple(section(card, shown) for shown in open_sections.sections))
 
 
 def new_counts_at_steps(newness: PhraseNewness) -> NewCountsByStep:

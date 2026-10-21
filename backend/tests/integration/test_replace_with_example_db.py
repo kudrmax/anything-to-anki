@@ -91,7 +91,7 @@ class Bench:
             stamper=section_stamper(SqlaSettingsRepository(
                 session, SessionChangeRecorder(session),
             )),
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, SessionChangeRecorder(session)),
             lock=free_lock(),
             card_views=card_views(session),
             word_states=self.decisions.word_states,
@@ -213,7 +213,9 @@ def test_the_answer_is_the_example_card_when_the_word_shows_another_phrase(
 def test_the_example_gets_its_meaning_queued(bench: Bench) -> None:
     example = bench.replace(CARD)
 
-    jobs = SqlaJobRepository(bench.session).get_jobs_by_status([JobStatus.QUEUED])
+    jobs = SqlaJobRepository(
+        bench.session, SessionChangeRecorder(bench.session),
+    ).get_jobs_by_status([JobStatus.QUEUED])
     assert [(j.job_type, j.candidate_id, j.phrase_id, j.phrase_revision) for j in jobs] == [
         (JobType.MEANING, WORD, example.id, example.revision),
     ]

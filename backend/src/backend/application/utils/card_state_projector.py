@@ -33,6 +33,7 @@ if TYPE_CHECKING:
         StoredCardStates,
         WordStateRow,
     )
+    from backend.domain.value_objects.generated_parts import GeneratedParts
     from backend.domain.value_objects.review_card import CardRow, CardTargetRow
 
 
@@ -88,7 +89,7 @@ class CardStateProjector:
         if lemmas:
             _Increment(
                 self._card_query, self._word_states, self._store, self._calculator(),
-            ).apply(ChangedFacts(lemmas=lemmas))
+            ).apply(ChangedFacts(lemmas=lemmas, knowledge=set(lemmas)))
         self._store.set_ticked_at(now)
 
     def apply(self, changes: tuple[CardChange, ...]) -> None:
@@ -127,7 +128,9 @@ class CardStateProjector:
             for card in rows:
                 card_words = calculator.phrase_words(card)
                 status = calculator.status(words[card.word_id], card.phrase_id)
-                cards.append(calculator.card(card, status, newness_of(card_words)))
+                cards.append(
+                    calculator.card(card, status, newness_of(card_words), card.generated),
+                )
                 phrase_words.extend(card_words)
         return CardStates(
             cards=tuple(cards),
@@ -164,15 +167,37 @@ class _Increment:
         self._words: dict[int, WordState] = {}
         self._stale_words: set[int] = set()
         self._stored: dict[int, StoredCardState] = {}
+        self._generated: dict[int, GeneratedParts] = {}
 
     def apply(self, facts: ChangedFacts) -> None:
+        self._generated = self._content(facts)
         own_words = self._word_states.of_lemmas(facts.lemmas) if facts.lemmas else {}
         self._words.update(own_words)
         read_anew = self._read_anew(facts, own_words)
         if facts.lemmas:
             holding = self._renew_newness(facts)
             self._partly(own_words, holding - read_anew, read_anew)
+        self._regenerated()
         self._write(facts)
+
+    # --- content --------------------------------------------------------------------------
+
+    def _content(self, facts: ChangedFacts) -> dict[int, GeneratedParts]:
+        """What generation made for the cards whose content changed, read anew."""
+        phrase_ids = set(facts.content_phrases)
+        if facts.content_words:
+            phrase_ids |= {
+                card.row.phrase_id for card in self._store.live_cards_of_words(facts.content_words)
+            }
+        return self._card_query.generated_parts(phrase_ids) if phrase_ids else {}
+
+    def _regenerated(self) -> None:
+        """The cards whose content changed and nothing else computed: their stored row with
+        what generation made for them now."""
+        pending = self._generated.keys() - self._cards.keys() - self._removed
+        for pid, kept in self._stored_cards(pending).items():
+            if not kept.removed:
+                self._cards[pid] = replace(kept.row, generated=self._generated[pid])
 
     def _stored_cards(self, phrase_ids: Collection[int]) -> dict[int, StoredCardState]:
         """The stored cards of these phrases as they were before this write, each read once."""
@@ -219,7 +244,9 @@ class _Increment:
         for card in cards:
             card_words = calculator.phrase_words(card)
             status = calculator.status(self._words[card.word_id], card.phrase_id)
-            self._cards[card.phrase_id] = calculator.card(card, status, newness_of(card_words))
+            self._cards[card.phrase_id] = calculator.card(
+                card, status, newness_of(card_words), card.generated,
+            )
             phrase_words.extend(card_words)
             shown.add(card.phrase_id)
         self._store.replace_phrase_words(shown, phrase_words)
@@ -267,6 +294,7 @@ class _Increment:
                 target,
                 self._status(target, own_words, kept),
                 newness.get(target.phrase_id, NO_NEWNESS),
+                self._generated.get(target.phrase_id, kept.row.generated),
             )
         if whole:
             cards = self._card_query.shown_cards_of_phrases(whole)
@@ -288,20 +316,27 @@ class _Increment:
         before = self._stored_cards(self._cards.keys())
         changed: list[CardStateRow] = []
         sections: list[CardStateRow] = []
+        known: list[int] = []
         for pid, row in self._cards.items():
             kept = before.get(pid)
             if kept is None or kept.removed:
                 changed.append(row)
-            elif kept.row != row:
+            elif kept.row == row:
+                if row.lemma in facts.knowledge:
+                    known.append(pid)
+            else:
                 only_sections = kept.row == replace(
-                    row, sections=kept.row.sections, new_counts=kept.row.new_counts,
+                    row, sections=kept.row.sections, open_sections=kept.row.open_sections,
+                    new_counts=kept.row.new_counts,
                 )
                 (sections if only_sections else changed).append(row)
         removed = self._removed - self._cards.keys()
-        touched = facts.content_phrases or facts.content_words
-        if changed or sections or removed or touched:
+        # A card of a lemma whose knowledge changed shows it (its status, its buttons) even
+        # when its stored state stays: it moves to the new revision too.
+        touched = [*facts.content_phrases, *known]
+        if changed or sections or removed or touched or facts.content_words:
             revision = store.next_revision()
-            store.touch_cards(facts.content_phrases, facts.content_words, revision)
+            store.touch_cards(touched, facts.content_words, revision)
             store.write_cards(changed, revision)
             store.write_sections(sections, revision)
             store.remove_cards(removed, revision)

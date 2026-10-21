@@ -42,6 +42,9 @@ from sqlalchemy import StaticPool, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
+from tests.review_support import on_review
+from tests.review_window_support import open_review, review_list
 from tests.word_support import insert_word, phrase_id_of
 
 pytestmark = pytest.mark.integration
@@ -111,7 +114,7 @@ class Bench:
         )
         self.second_glare = self.add(GLARE, "She glared back.", "glared", ShownBy.USER)
         self.hidden_spark = self.add(SPARK, "A spark flew.", "spark", None)
-        session.commit()
+        rebuild_projection(session)
 
     def add(
         self, word_id: int, text: str, target: str, shown_by: ShownBy | None,
@@ -135,14 +138,12 @@ def bench(session: Session) -> Bench:
 
 
 def _review(client: TestClient) -> Any:  # noqa: ANN401 — JSON of the API
-    return client.get("/api/review", params={"scope": f"source-{SOURCE}"}).json()
+    """The header of the source's review."""
+    return open_review(client, f"source-{SOURCE}")["header"]
 
 
 def _cards(client: TestClient, sort: str = "relevance") -> list[dict[str, object]]:
-    response = client.get("/api/review", params={"scope": f"source-{SOURCE}", "sort": sort})
-    assert response.status_code == 200
-    cards: list[dict[str, object]] = response.json()["candidates"]
-    return cards
+    return review_list(client, f"source-{SOURCE}", sort)
 
 
 def _commands(card: dict[str, object]) -> dict[str, object]:
@@ -182,20 +183,24 @@ class TestCardsArePhrases:
         self, client: TestClient, bench: Bench, session: Session, sort: str,
     ) -> None:
         bench.add(SPARK, "She glared back.", "glared", ShownBy.USER)
-        session.commit()
+        rebuild_projection(session)
         words = [c["word_id"] for c in _cards(client, sort)]
         assert words in ([GLARE, GLARE, SPARK, SPARK], [SPARK, SPARK, GLARE, GLARE])
 
-    def test_get_candidates_lists_the_same_cards(self, client: TestClient, bench: Bench) -> None:
-        listed = client.get("/api/review/candidates", params={"scope": f"source-{SOURCE}"}).json()
-        assert [c["phrase_id"] for c in listed] == [c["phrase_id"] for c in _cards(client)]
+    def test_the_opening_sends_the_cards_the_list_starts_with(
+        self, client: TestClient, bench: Bench,
+    ) -> None:
+        opened = open_review(client, f"source-{SOURCE}")
+        listed = [c["phrase_id"] for c in _cards(client)]
+        assert [c["phrase_id"] for c in opened["cards"]] == listed[: len(opened["cards"])]
+        assert opened["cards"]
 
 
 class TestDecisionsOnCards:
     def test_learn_on_one_card_decides_every_card_of_the_word(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
+        on_review(client, "POST", f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
         source = _review(client)
         assert source["progress"] == {"decided": 2, "total": 3}
         sibling = _card(client, bench.second_glare)
@@ -207,7 +212,7 @@ class TestDecisionsOnCards:
     def test_the_sibling_card_shows_the_decision_with_inactive_buttons(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
+        on_review(client, "POST", f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
         here = _card(client, GLARE_PHRASE)
         sibling = _card(client, bench.second_glare)
         assert here["shown"]["where"] == "here"  # type: ignore[index]
@@ -233,21 +238,23 @@ class TestDecisionsOnCards:
     def test_a_skipped_sibling_of_a_decided_word_is_done_with_every_button_off(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.post(f"/phrases/{bench.second_glare}/decision", json={"button": "skip"})
-        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
+        on_review(
+            client, "POST", f"/phrases/{bench.second_glare}/decision", json={"button": "skip"},
+        )
+        on_review(client, "POST", f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
         sibling = _card(client, bench.second_glare)
         assert _commands(sibling) == {
             "learn": None, "cloze": None, "known": None, "skip": None,
         }
         assert sibling["section"] == "reviewed"
-        response = client.post(
-            f"/phrases/{bench.second_glare}/decision", json={"button": "skip"},
+        response = on_review(
+            client, "POST", f"/phrases/{bench.second_glare}/decision", json={"button": "skip"},
         )
         assert response.status_code == 409
         assert _card(client, bench.second_glare)["choice"] == "skip"
 
     def test_skip_is_one_card_only(self, client: TestClient, bench: Bench) -> None:
-        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "skip"})
+        on_review(client, "POST", f"/phrases/{GLARE_PHRASE}/decision", json={"button": "skip"})
         assert _card(client, GLARE_PHRASE)["choice"] == "skip"
         assert _card(client, GLARE_PHRASE)["shown"] == {
             "status": "new", "skipped": True, "where": "nowhere", "tone": "settled",
@@ -259,7 +266,7 @@ class TestDecisionsOnCards:
         self, client: TestClient, bench: Bench, session: Session,
     ) -> None:
         SqlaWordMarkRepository(session, SessionChangeRecorder(session)).mark_known("spark", None)
-        session.commit()
+        rebuild_projection(session)
         card = _card(client, SPARK_PHRASE)
         assert card["shown"]["where"] == "other_source"  # type: ignore[index]
         assert card["shown"]["status"] == "known"  # type: ignore[index]
@@ -279,13 +286,13 @@ class TestWhatEachCardCarries:
     def test_generation_status_comes_from_the_jobs_of_its_phrase(
         self, client: TestClient, bench: Bench, session: Session,
     ) -> None:
-        SqlaJobRepository(session).enqueue([
+        SqlaJobRepository(session, SessionChangeRecorder(session)).enqueue([
             Job.queued(JobType.POLISH, SOURCE, GLARE, phrase_id=bench.second_glare,
                        phrase_revision=0),
             Job.queued(JobType.MEANING, SOURCE, GLARE, phrase_id=bench.second_glare,
                        phrase_revision=0),
         ])
-        session.commit()
+        rebuild_projection(session)
         assert _card(client, bench.second_glare)["polish_status"] == "queued"
         assert _card(client, bench.second_glare)["meaning"]["status"] == "queued"  # type: ignore[index]
         assert _card(client, GLARE_PHRASE)["polish_status"] is None
@@ -302,7 +309,7 @@ class TestWhatEachCardCarries:
             SPARK, "The spark of genius.", "spark", ShownBy.USER,
             origin=OccurrenceOrigin.COLLECTED, collected_from=PhraseOrigin.from_source("Book"),
         )
-        session.commit()
+        rebuild_projection(session)
         assert _card(client, generated)["origin"] == {"kind": "generated", "source_title": None}
         assert _card(client, real)["origin"] == {"kind": "source", "source_title": "Book"}
         assert _card(client, SPARK_PHRASE)["origin"] is None
@@ -310,8 +317,9 @@ class TestWhatEachCardCarries:
     def test_a_report_marks_only_the_card_it_was_made_on(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        response = client.post(
-            f"/phrases/{bench.second_glare}/report", json={"reasons": ["Phrase too long"]},
+        response = on_review(
+            client, "POST", f"/phrases/{bench.second_glare}/report",
+            json={"reasons": ["Phrase too long"]},
         )
         assert response.status_code == 201
         assert _card(client, bench.second_glare)["reported"] is True
@@ -328,8 +336,8 @@ class TestPhraseLevelRoutes:
     def test_editing_the_text_changes_only_that_card(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        response = client.put(
-            f"/phrases/{bench.second_glare}/phrase", json={"phrase": "She glared."},
+        response = on_review(
+            client, "PUT", f"/phrases/{bench.second_glare}/phrase", json={"phrase": "She glared."},
         )
         assert response.status_code == 200
         assert _card(client, bench.second_glare)["phrase"]["text"] == "She glared."  # type: ignore[index]
@@ -338,9 +346,12 @@ class TestPhraseLevelRoutes:
     def test_reverting_the_polish_switches_only_that_card(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.put(f"/phrases/{bench.second_glare}/phrase", json={"phrase": "She glared."})
-        response = client.put(
-            f"/phrases/{bench.second_glare}/polish/reverted", json={"reverted": True},
+        on_review(
+            client, "PUT", f"/phrases/{bench.second_glare}/phrase", json={"phrase": "She glared."},
+        )
+        response = on_review(
+            client, "PUT", f"/phrases/{bench.second_glare}/polish/reverted",
+            json={"reverted": True},
         )
         assert response.status_code == 200
         assert _card(client, bench.second_glare)["phrase"]["text"] == "She glared back."  # type: ignore[index]
@@ -364,7 +375,7 @@ class TestBoard:
     def test_counts_are_of_cards_and_learn_words(
         self, client: TestClient, bench: Bench,
     ) -> None:
-        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
+        on_review(client, "POST", f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
         [summary] = _board(client)
         assert summary["candidate_count"] == 3
         assert summary["learn_count"] == 1
@@ -375,7 +386,7 @@ class TestBoard:
     def test_done_cards_are_reviewed_and_listed_last(
         self, client: TestClient, bench: Bench, sort: str,
     ) -> None:
-        client.post(f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
+        on_review(client, "POST", f"/phrases/{GLARE_PHRASE}/decision", json={"button": "learn"})
         cards = _cards(client, sort)
         assert [(c["phrase_id"], c["section"]) for c in cards] == [
             (SPARK_PHRASE, "ready"),
@@ -384,7 +395,7 @@ class TestBoard:
         ]
 
     def test_board_and_review_agree_on_progress(self, client: TestClient, bench: Bench) -> None:
-        client.post(f"/phrases/{SPARK_PHRASE}/decision", json={"button": "skip"})
+        on_review(client, "POST", f"/phrases/{SPARK_PHRASE}/decision", json={"button": "skip"})
         [summary] = _board(client)
         assert summary["progress"] == _review(client)["progress"]
 
@@ -397,7 +408,7 @@ class TestBusySource:
         lock = SqlaSourceOperationLock(session)
         lock.acquire(SOURCE, SourceOperationKind.PROCESS)
         lock.set_stage(SOURCE, ProcessingStage.ANALYZING_TEXT)
-        session.commit()
+        rebuild_projection(session)
         [summary] = client.get("/sources").json()
         assert summary["status"] == "processing"
         assert summary["processing_stage"] == "analyzing_text"
@@ -409,7 +420,7 @@ class TestBusySource:
         self, client: TestClient, bench: Bench, session: Session,
     ) -> None:
         SqlaSourceOperationLock(session).acquire(SOURCE, SourceOperationKind.UPDATE)
-        session.commit()
+        rebuild_projection(session)
         [summary] = client.get("/sources").json()
         assert summary["status"] == "done"
         assert summary["busy_with"] == "update"
@@ -443,7 +454,7 @@ class TestCleanupMedia:
                 candidate_id=GLARE, screenshot_path=str(shot), audio_path=None,
                 start_ms=0, end_ms=1000, generated_at=datetime.now(tz=UTC),
             ))
-        session.commit()
+        rebuild_projection(session)
         response = client.post(
             "/api/settings/media-cleanup", json={"source_id": SOURCE, "kind": "images"},
         )

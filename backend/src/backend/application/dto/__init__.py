@@ -11,7 +11,6 @@ from backend.application.dto.known_word_dtos import KnownWordDTO
 from backend.application.dto.settings_dtos import SettingsDTO, UpdateSettingsRequest
 from backend.application.dto.source_dtos import (
     CardDTO,
-    ReviewDTO,
     SourceDTO,
     card_to_dto,
 )
@@ -23,7 +22,6 @@ __all__ = [
     "CardPreviewDTO",
     "KnownWordDTO",
     "DecidePhraseRequest",
-    "ReviewDTO",
     "SettingsDTO",
     "SourceDTO",
     "CardDTO",

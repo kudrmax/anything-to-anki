@@ -111,7 +111,6 @@ class TestSaveCloze:
                 candidate_sorter=candidate_sorter(settings),
                 job_repo=self.job_repo,
                 report_repo=self.report_repo,
-                scope_resolver=MagicMock(),
                 source_repo=source_repo,
             ),
             decide_phrase=self.decide,

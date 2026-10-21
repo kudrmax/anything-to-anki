@@ -152,6 +152,10 @@ class AIServiceError(DomainError):
         self.detail = detail
 
 
+class AIUnavailableError(AIServiceError):
+    """Raised when the AI is not offered where the host is: no request can succeed."""
+
+
 class GenerationAlreadyRunningError(DomainError):
     """Raised when trying to start generation while one is already running."""
 
@@ -416,6 +420,15 @@ class PhraseNotFoundError(DomainError):
         self.phrase_id = phrase_id
 
 
+class ReviewNotFoundError(DomainError):
+    """Raised when an open review is not held: never opened, or let go since (a restart, or
+    newer reviews pushed it out)."""
+
+    def __init__(self, review_id: str) -> None:
+        super().__init__(f"Review {review_id} is not open")
+        self.review_id = review_id
+
+
 class ActionRefusedError(DomainError):
     """Raised when the decision table refuses a button on a card. `reason`: why, for the
     person who pressed it."""
@@ -463,6 +476,13 @@ class NestedWriteError(DomainError):
 
     def __init__(self) -> None:
         super().__init__("A write transaction is already open: write() cannot be nested")
+
+
+class WriteInReadError(DomainError):
+    """Raised when something is written inside a read transaction, which only reads."""
+
+    def __init__(self) -> None:
+        super().__init__("A write was made inside read(): a read transaction only reads")
 
 
 class UncommittedWorkError(DomainError):

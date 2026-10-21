@@ -22,6 +22,8 @@ from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
+from tests.review_window_support import open_review, review_list
 from tests.unit.infrastructure.epub.epub_builder import EpubBuilder, TocLink, page, prose
 from tests.word_support import TEST_SECTION
 
@@ -218,12 +220,10 @@ class TestSourcesAPI:
     def test_get_source(self, client: TestClient) -> None:
         create = client.post("/sources/add", json={"text": "Hello", "answers": [TEXT_ANSWER]})
         source_id = create.json()["source_ids"][0]
-        response = client.get("/api/review", params={"scope": f"source-{source_id}"})
-        assert response.status_code == 200
-        assert response.json()["title"] == "Hello"
+        assert open_review(client, f"source-{source_id}")["header"]["title"] == "Hello"
 
     def test_get_source_not_found(self, client: TestClient) -> None:
-        response = client.get("/api/review", params={"scope": "source-999"})
+        response = client.post("/api/review", json={"scope": "source-999"})
         assert response.status_code == 404
 
     def test_process_returns_202(self, client: TestClient) -> None:
@@ -264,11 +264,9 @@ class TestSourcesAPI:
             earned_section=TEST_SECTION,
         ))
         db_session.commit()
+        rebuild_projection(db_session)
 
-        response = client.get("/api/review", params={"scope": f"source-{source.id}"})
-        assert response.status_code == 200
-        data = response.json()
-        candidates = data["candidates"]
+        candidates = review_list(client, f"source-{source.id}")
         assert len(candidates) == 1
 
         c = candidates[0]
@@ -344,8 +342,7 @@ class TestSavedPhrasesAPI:
         assert saved_source["role"] == "saved_phrases"
         assert saved_source["is_permanent"] is True
         assert saved_source["learn_count"] == 1
-        detail = client.get("/api/review", params={"scope": f"source-{saved_source['id']}"}).json()
-        [card] = detail["candidates"]
+        [card] = review_list(client, f"source-{saved_source['id']}")
         assert card["source"]["can_polish_phrases"] is False
         documents = client.get(
             "/api/review/documents", params={"scope": f"source-{saved_source['id']}"},

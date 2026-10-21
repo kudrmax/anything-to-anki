@@ -371,20 +371,64 @@ export interface CardSource {
   can_polish_phrases: boolean
 }
 
-/** Ревью набора источников: один источник, коллекция или все. Статус, прогресс и занятость — по набору. */
-export interface ReviewDetail {
-  /** Токен набора, как его принимает параметр scope. */
+/** Шапка открытого ревью: по всему набору. */
+export interface ReviewHeader {
   scope: string
   title: string
   status: SourceStatus
   progress: Progress
-  /** Слов на изучение (не карточек). */
   learn_count: number
-  candidates: StoredCandidate[]
-  /** How many candidates to show before "Show more"; null — show all. */
-  initially_shown_candidates: number | null
-  /** Какой-то источник набора занят операцией: его карточки ждут её. */
   busy: boolean
+  /** Значение показанной карточки не сделано: AI недоступен отсюда. */
+  ai_unavailable: boolean
+}
+
+/** Строка видимого списка ревью: карточка или строка сворачиваемого раздела. */
+export interface ReviewRow {
+  index: number
+  kind: 'card' | 'section'
+  phrase_id: number | null
+  position: number | null
+  section: CandidateSection | null
+  count: number | null
+  open: boolean | null
+}
+
+/** Строки видимого списка. replace — список изменился: у клиента остаются только эти строки, остальные он подгрузит заново. */
+export interface ReviewLayout {
+  version: number
+  total_rows: number
+  total_cards: number
+  replace: boolean
+  rows: ReviewRow[]
+}
+
+/** Единственный ответ открытого ревью: что изменилось с `since` до `revision` и куда фокус. */
+export interface ReviewUpdate {
+  review_id: string
+  revision: number
+  header: ReviewHeader
+  layout: ReviewLayout | null
+  cards: StoredCandidate[]
+  removed: number[]
+  /** Разобрана ли каждая изменившаяся карточка набора. */
+  done: Record<number, boolean>
+  focus_id: number | null
+}
+
+/** Что шлёт каждый запрос к открытому ревью: его id, ревизия клиента и показанная карточка. */
+export interface ReviewContext {
+  review_id: string
+  since: number
+  current: number | null
+}
+
+/** Ревью, которое открыть: набор, порядок, карточка, на которой открыть, и раскрытые клиентом разделы. */
+export interface OpenReviewRequest {
+  scope: string
+  sort: CandidateSortOrder
+  requested_id: number | null
+  open_sections: CandidateSection[]
 }
 
 export interface AnkiStatus {
@@ -556,6 +600,8 @@ export interface GenerateMeaningResult {
   examples: string
   ipa: string | null
   tokens_used: number
+  /** Что изменилось в открытом ревью, на котором сделано значение. */
+  update: ReviewUpdate | null
 }
 
 export type GenerationKind = 'polish' | 'meaning' | 'media' | 'pronunciation' | 'tts'
@@ -678,6 +724,8 @@ export interface Highlight {
   position: DocumentPosition
   cefr_level: string | null
   is_phrasal_verb: boolean
+  /** Карточка разобрана: слово решено или фраза пропущена. */
+  is_done: boolean
 }
 
 export interface SourceDocument {

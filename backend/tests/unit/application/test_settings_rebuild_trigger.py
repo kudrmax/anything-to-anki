@@ -42,6 +42,10 @@ class RecordingUnitOfWork(UnitOfWork):
         yield
         self._events.append("committed")
 
+    @contextmanager
+    def read(self) -> Iterator[None]:
+        yield
+
 
 @pytest.fixture
 def events() -> list[str]:

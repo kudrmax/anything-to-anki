@@ -30,6 +30,10 @@ from backend.application.dto.collection_dtos import (  # noqa: TC001
     SourceIdsRequest,
     StartedSourcesDTO,
 )
+from backend.application.dto.review_dtos import (  # noqa: TC001 — FastAPI's at runtime
+    ReviewContext,
+    ReviewUpdateDTO,
+)
 from backend.application.dto.source_dtos import (  # noqa: TC001
     CardDTO,
     SourceBoardDTO,
@@ -67,6 +71,7 @@ from backend.infrastructure.api.dependencies import (
     get_detached_use_cases,
     use_case,
 )
+from backend.infrastructure.api.review_context import review_context, review_expired
 from backend.infrastructure.api.scope_param import parse_scope
 from backend.infrastructure.container import Container
 
@@ -82,6 +87,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.process_source import ProcessSourceUseCase
     from backend.application.use_cases.process_sources import ProcessSourcesUseCase
     from backend.application.use_cases.rename_source import RenameSourceUseCase
+    from backend.application.use_cases.review_mutation import ReviewMutation
 
 logger = logging.getLogger(__name__)
 
@@ -356,10 +362,15 @@ def add_manual_candidate(
     add_manual: AddManualCandidateUseCase = Depends(  # noqa: B008
         use_case(Container.add_manual_candidate_use_case),  # noqa: B008
     ),
-) -> CardDTO:
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    mutation: ReviewMutation = Depends(use_case(Container.review_mutation)),  # noqa: B008
+) -> ReviewUpdateDTO:
+    """A word added from the source's text on the review: its card takes the focus."""
     try:
-        result = add_manual.execute(source_id, request.target_words, request.selection)
-        return result
+        with review_expired():
+            return mutation.add(ctx, lambda: add_manual.execute(
+                source_id, request.target_words, request.selection,
+            ))
     except (SourceNotFoundError, SourceHasNoDocumentError) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except SourceOperationBusyError as e:

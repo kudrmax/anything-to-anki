@@ -96,7 +96,7 @@ class Bench:
             occurrence_repo=SqlaOccurrenceRepository(self.session, recorder),
             source_repo=SqlaSourceRepository(self.session, recorder),
             document_repo=SqlaDocumentRepository(self.session),
-            report_repo=SqlaCardReportRepository(self.session),
+            report_repo=SqlaCardReportRepository(self.session, recorder),
             knowledge=knowledge,
             effects=decisions.effects(),
             unit_of_work=SqlaUnitOfWork(self.session, decisions.scope),

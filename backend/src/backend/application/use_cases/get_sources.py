@@ -18,12 +18,12 @@ from backend.domain.services.source_actions import (
 from backend.domain.services.source_operations import operations_offer
 from backend.domain.services.source_review_status import derive_review_status
 from backend.domain.services.source_stage import is_pending, shown_status, source_stage
-from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_stage import SourceStage
 
 if TYPE_CHECKING:
     from backend.application.utils.review_progress import ReviewProgress
+    from backend.application.utils.source_progress import SourceProgress
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.application.utils.topic_generation import TopicGenerationProbe
     from backend.domain.entities.source import Source
@@ -32,12 +32,11 @@ if TYPE_CHECKING:
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.services.collection_tree import CollectionTree
     from backend.domain.value_objects.held_operation import HeldOperation
-    from backend.domain.value_objects.review_card import CardRow
 
 
 class GetSourcesUseCase:
-    """Retrieves sources for the lists: they read cards light — shown phrases and the
-    facts of their words — for all their sources at once."""
+    """Retrieves sources for the lists: their progress and card counts come from the stored
+    projection, for all their sources at once."""
 
     def __init__(
         self,
@@ -81,14 +80,12 @@ class GetSourcesUseCase:
     def _summaries(self, sources: list[Source]) -> list[SourceDTO]:
         tree = self._scope_resolver.tree()
         ids = [s.id for s in sources if s.id is not None]
-        cards = self._review_progress.cards(ids)
-        progress = self._review_progress.progress_of(cards)
+        progress = self._review_progress.of_sources(ids)
         learn_counts = self._card_query.learn_counts(ids)
         operations = self._lock.operations()
         return [
             self._summary(
-                s, tree, cards.get(s.id, []), progress.get(s.id, DecisionProgress()),
-                learn_counts.get(s.id, 0), operations.get(s.id),
+                s, tree, progress[s.id], learn_counts.get(s.id, 0), operations.get(s.id),
             )
             for s in sources if s.id is not None
         ]
@@ -97,12 +94,12 @@ class GetSourcesUseCase:
         self,
         source: Source,
         tree: CollectionTree,
-        cards: list[CardRow],
-        progress: DecisionProgress,
+        of_source: SourceProgress,
         learn_count: int,
         operation: HeldOperation | None,
     ) -> SourceDTO:
         assert source.id is not None
+        progress = of_source.progress
         generation = self._generation_probe.of(source)
         collection_id = source.collection_id
         collection_path = (
@@ -128,7 +125,7 @@ class GetSourcesUseCase:
             source_url=source.source_url,
             video_downloaded=source.video_path is not None,
             created_at=source.created_at,
-            candidate_count=len(cards),
+            candidate_count=of_source.cards,
             learn_count=learn_count,
             progress=ProgressDTO.of(progress),
             processing_stage=_stage(operation),
@@ -152,7 +149,7 @@ class GetSourcesUseCase:
             can_delete=can_delete(source, busy_with),
             review_fraction=review_fraction(status, progress),
             progress_caption=progress_caption(
-                status, len(cards), progress, learn_count, busy_with,
+                status, of_source.cards, progress, learn_count, busy_with,
             ),
         )
 

@@ -6,13 +6,16 @@ from typing import TYPE_CHECKING
 
 from backend.domain.entities.job import Job
 from backend.domain.services.card_view import card_view, open_elsewhere, wants_ready_generation
-from backend.domain.value_objects.card_generation_state import CardGenerationState
+from backend.domain.services.generation_scope import generation_state
+from backend.domain.value_objects.generated_parts import GeneratedParts
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.review_card import CardContext, ReviewCard
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.application.utils.section_stamper import SectionStamper
     from backend.application.utils.user_vocabulary import UserVocabulary
@@ -25,6 +28,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.word_state_repository import WordStateRepository
     from backend.domain.value_objects.card_choice import WordState
+    from backend.domain.value_objects.card_generation_state import CardGenerationState
 
 
 @dataclass(frozen=True)
@@ -214,13 +218,12 @@ class GenerationTarget(ABC):
         return by_key.get(self.kind.job_type.value)
 
     def state(self, card: GenerationCard, job: Job | None) -> CardGenerationState:
-        if job is not None and job.status in (JobStatus.QUEUED, JobStatus.RUNNING):
-            return CardGenerationState.RUNNING
-        if self.is_done(card):
-            return CardGenerationState.DONE
-        if job is not None:
-            return CardGenerationState.FAILED
-        return CardGenerationState.MISSING
+        """`job`: the card's job of the kind, an active one before a failed one."""
+        return generation_state(
+            active_job=job is not None and job.status in (JobStatus.QUEUED, JobStatus.RUNNING),
+            done=self.is_done(card),
+            failed_job=job is not None,
+        )
 
 
 class PolishTarget(GenerationTarget):
@@ -318,6 +321,33 @@ class TTSTarget(InPlaceGenerationTarget):
     def is_done(self, card: GenerationCard) -> bool:
         tts = card.phrase.tts
         return tts is not None and tts.audio_path is not None
+
+
+def generated_parts(
+    targets: Iterable[GenerationTarget],
+    word: StoredCandidate,
+    phrase: Occurrence,
+    jobs: CardJobs,
+) -> GeneratedParts:
+    """What the targets read as made for the card, the kinds it cannot get even in play,
+    and what the queue holds for it: each kind's job, an active one before a failed one."""
+    card = GenerationCard(word, phrase, in_play=True)
+    listed = list(targets)
+    held = {target.kind: target.job_of(jobs, card) for target in listed}
+    return GeneratedParts(
+        done=frozenset(target.kind for target in listed if target.is_done(card)),
+        uncovered=frozenset(target.kind for target in listed if not target.covers(card)),
+        active_jobs=frozenset(
+            kind for kind, job in held.items() if job is not None and job.status in _ACTIVE
+        ),
+        failed_jobs=frozenset(
+            kind for kind, job in held.items()
+            if job is not None and job.status not in _ACTIVE
+        ),
+    )
+
+
+_ACTIVE = frozenset({JobStatus.QUEUED, JobStatus.RUNNING})
 
 
 def target_for(

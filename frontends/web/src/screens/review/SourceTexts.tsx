@@ -9,9 +9,10 @@ import css from './review.module.css'
 interface SourceTextsProps {
   /** Тексты источников набора в порядке набора. */
   documents: SourceDocument[]
-  candidates: StoredCandidate[]
-  /** Кандидат, чья фраза подсвечена: текущая фраза или фраза в режиме правки. */
-  focusId: number | null
+  /** Разобрана ли карточка — из ответов ревью, поверх отметок самого текста. */
+  done: ReadonlyMap<number, boolean>
+  /** Карточка, чья фраза подсвечена: текущая или та, чью границу правят. */
+  focused: StoredCandidate | null
   /** Источник фразы, чью границу правят: выделение принимает только его текст. */
   editingSourceId: number | null
   onWordClick: (candidateId: number) => void
@@ -20,9 +21,9 @@ interface SourceTextsProps {
 
 /** Тексты всех источников набора подряд, у каждого заголовок; прокручиваются одной колонкой.
  * Когда текстов больше одного, каждый сворачивается до заголовка. */
-export function SourceTexts({ documents, candidates, focusId, editingSourceId, onWordClick, onTextSelected }: SourceTextsProps) {
+export function SourceTexts({ documents, done, focused, editingSourceId, onWordClick, onTextSelected }: SourceTextsProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const focused = candidates.find(c => c.phrase_id === focusId)
+  const focusId = focused?.phrase_id ?? null
   const [folded, setFolded] = useState<ReadonlySet<number>>(new Set())
   const foldable = documents.length > 1
   const toggle = (sourceId: number) => setFolded(prev => {
@@ -64,8 +65,8 @@ export function SourceTexts({ documents, candidates, focusId, editingSourceId, o
             {open && (
               <SourceText
                 document={document}
-                candidates={candidates}
-                focusId={focusId}
+                done={done}
+                focused={focused}
                 onWordClick={onWordClick}
                 onTextSelected={selectable ? onTextSelected : undefined}
               />

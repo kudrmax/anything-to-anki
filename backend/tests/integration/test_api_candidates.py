@@ -28,6 +28,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
+from tests.review_support import card_in, on_review
+from tests.review_window_support import open_review, review_list
 from tests.word_support import (
     DECISION_STATUSES_SQL,
     PHRASE_ID_OFFSET,
@@ -80,6 +83,7 @@ def client() -> Generator[TestClient, None, None]:
         ),
     ])
     session.commit()
+    rebuild_projection(session)
     session.close()
 
     def override_session() -> Generator[Session, None, None]:
@@ -102,12 +106,16 @@ def client() -> Generator[TestClient, None, None]:
 @pytest.mark.integration
 class TestDecisionAPI:
     def test_mark_candidate_learn(self, client: TestClient) -> None:
-        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"},
+        )
         assert response.status_code == 200
-        assert response.json()["choice"] == "learn"
+        assert card_in(response.json(), PHRASE_ID)["choice"] == "learn"
 
     def test_mark_candidate_known(self, client: TestClient) -> None:
-        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "known"})
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "known"},
+        )
         assert response.status_code == 200
         # Verify it was added to known words
         kw_response = client.get("/known-words")
@@ -116,29 +124,30 @@ class TestDecisionAPI:
     def test_marking_the_last_pending_candidate_marks_the_source_reviewed(
         self, client: TestClient,
     ) -> None:
-        assert client.get("/api/review", params={"scope": "source-1"}).json()["status"] == "done"
-        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
-        review = client.get("/api/review", params={"scope": "source-1"}).json()
-        assert review["status"] == "reviewed"
+        assert open_review(client, "source-1")["header"]["status"] == "done"
+        on_review(client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
+        assert open_review(client, "source-1")["header"]["status"] == "reviewed"
 
     def test_undo_returns_the_candidate_and_the_source_to_review(
         self, client: TestClient,
     ) -> None:
-        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
-        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
+        on_review(client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"},
+        )
         assert response.status_code == 200
         # Nothing decided again: the source reads as not started, as its progress says.
-        assert client.get("/api/review", params={"scope": "source-1"}).json()["status"] == "done"
+        assert open_review(client, "source-1")["header"]["status"] == "done"
 
     def test_undoing_known_removes_the_word_from_known_words(
         self, client: TestClient,
     ) -> None:
-        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "known"})
-        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "known"})
+        on_review(client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "known"})
+        on_review(client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "known"})
         assert all(w["lemma"] != "pursuit" for w in client.get("/known-words").json())
 
     def test_mark_candidate_not_found(self, client: TestClient) -> None:
-        response = client.post("/phrases/999/decision", json={"button": "learn"})
+        response = on_review(client, "POST", "/phrases/999/decision", json={"button": "learn"})
         assert response.status_code == 404
 
     def test_a_decision_on_a_sibling_card_is_refused(self, client: TestClient) -> None:
@@ -150,9 +159,11 @@ class TestDecisionAPI:
             earned_section=CandidateSection.READY, shown_by=ShownBy.USER,
         ))
         session.commit()
-        client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
+        on_review(client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
 
-        response = client.post(f"/phrases/{sibling.id}/decision", json={"button": "known"})
+        response = on_review(
+            client, "POST", f"/phrases/{sibling.id}/decision", json={"button": "known"},
+        )
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Learned via another phrase: change it on that card"
@@ -163,25 +174,29 @@ class TestDecisionAPI:
         marks.mark_known("pursuit", "NOUN")
         session.commit()
 
-        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"},
+        )
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Already known"
 
     def test_mark_candidate_invalid_status(self, client: TestClient) -> None:
-        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "invalid"})
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "invalid"},
+        )
         assert response.status_code == 422
 
 
 @pytest.mark.integration
 class TestCardReportsAPI:
     def test_report_keeps_a_snapshot_of_the_card(self, client: TestClient) -> None:
-        response = client.post(
-            f"/phrases/{PHRASE_ID}/report",
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/report",
             json={"reasons": ["Phrase too long"], "comment": " odd split "},
         )
         assert response.status_code == 201
-        report = response.json()
+        [report] = client.get("/api/card-reports").json()
         assert report["reasons"] == ["Phrase too long"]
         assert report["comment"] == "odd split"
         assert report["lemma"] == "pursuit"
@@ -191,42 +206,52 @@ class TestCardReportsAPI:
 
     def test_report_keeps_several_reasons(self, client: TestClient) -> None:
         reasons = ["Phrase too long", "Wrong word form"]
-        response = client.post(f"/phrases/{PHRASE_ID}/report", json={"reasons": reasons})
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/report", json={"reasons": reasons},
+        )
         assert response.status_code == 201
-        assert response.json()["reasons"] == reasons
-        assert response.json()["comment"] == ""
+        [report] = client.get("/api/card-reports").json()
+        assert report["reasons"] == reasons
+        assert report["comment"] == ""
 
     def test_reports_are_listed_newest_first(self, client: TestClient) -> None:
-        client.post(f"/phrases/{PHRASE_ID}/report", json={"comment": "first"})
-        client.post(f"/phrases/{PHRASE_ID}/report", json={"comment": "second"})
+        on_review(client, "POST", f"/phrases/{PHRASE_ID}/report", json={"comment": "first"})
+        on_review(client, "POST", f"/phrases/{PHRASE_ID}/report", json={"comment": "second"})
         comments = [r["comment"] for r in client.get("/api/card-reports").json()]
         assert comments == ["second", "first"]
 
     def test_report_outlives_the_source(self, client: TestClient) -> None:
-        client.post(f"/phrases/{PHRASE_ID}/report", json={"reasons": ["Wrong phrase boundary"]})
+        on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/report",
+            json={"reasons": ["Wrong phrase boundary"]},
+        )
         client.delete("/sources/1")
         assert len(client.get("/api/card-reports").json()) == 1
 
     def test_report_without_reasons_or_comment_is_rejected(self, client: TestClient) -> None:
-        response = client.post(
-            f"/phrases/{PHRASE_ID}/report", json={"reasons": [], "comment": "   "},
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/report", json={"reasons": [], "comment": "   "},
         )
         assert response.status_code == 422
 
     def test_unknown_reason_is_rejected(self, client: TestClient) -> None:
-        response = client.post(f"/phrases/{PHRASE_ID}/report", json={"reasons": ["Made up"]})
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/report", json={"reasons": ["Made up"]},
+        )
         assert response.status_code == 422
 
     def test_unknown_candidate(self, client: TestClient) -> None:
-        assert client.post("/phrases/999/report", json={"comment": "x"}).status_code == 404
+        assert on_review(
+            client, "POST", "/phrases/999/report", json={"comment": "x"},
+        ).status_code == 404
 
     def test_reported_candidate_is_marked(self, client: TestClient) -> None:
         def reported() -> bool:
-            candidates = client.get("/api/review/candidates", params={"scope": "source-1"}).json()
+            candidates = review_list(client, "source-1")
             return next(c for c in candidates if c["phrase_id"] == PHRASE_ID)["reported"]
 
         assert reported() is False
-        client.post(f"/phrases/{PHRASE_ID}/report", json={"comment": "x"})
+        on_review(client, "POST", f"/phrases/{PHRASE_ID}/report", json={"comment": "x"})
         assert reported() is True
 
     def test_marking_a_word_unknown_makes_its_known_cards_new_everywhere(
@@ -241,8 +266,8 @@ class TestCardReportsAPI:
         marks.mark_known("pursuit", "NOUN")
         session.commit()
 
-        response = client.post(
-            f"/phrases/{PHRASE_ID}/report",
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/report",
             json={"reasons": ["More than one unknown word"], "unknown_words": [1]},
         )
 
@@ -266,7 +291,9 @@ class TestCardReportsAPI:
 @pytest.mark.integration
 class TestTargetImageAPI:
     def test_refuses_to_download_a_url_no_source_handed_out(self, client: TestClient) -> None:
-        response = client.put("/words/1/image", json={"url": "https://evil.example/x.jpg"})
+        response = on_review(
+            client, "PUT", "/words/1/image", json={"url": "https://evil.example/x.jpg"},
+        )
 
         assert response.status_code == 400
 
@@ -276,8 +303,8 @@ class TestTargetImageAPI:
         assert response.status_code == 404
 
     def test_pasting_for_an_unknown_candidate(self, client: TestClient) -> None:
-        response = client.put(
-            "/words/999/image/pasted",
+        response = on_review(
+            client, "PUT", "/words/999/image/pasted",
             content=b"picture",
             headers={"Content-Type": "image/png"},
         )
@@ -290,16 +317,16 @@ class TestUnknownWordsAPI:
     """Words of a phrase the user doesn't know take the card out of Ready."""
 
     def _card(self, client: TestClient) -> dict[str, object]:
-        source = client.get("/api/review", params={"scope": "source-1"}).json()
-        section = source["candidates"][0]["section"]
-        return {"section": section, "ready": source["progress"]["total"]}
+        section = review_list(client, "source-1")[0]["section"]
+        ready = open_review(client, "source-1")["header"]["progress"]["total"]
+        return {"section": section, "ready": ready}
 
     def test_card_is_ready_at_first(self, client: TestClient) -> None:
         assert self._card(client) == {"section": "ready", "ready": 1}
 
     def test_word_marked_in_a_report_moves_the_card_to_extra(self, client: TestClient) -> None:
-        response = client.post(
-            f"/phrases/{PHRASE_ID}/report",
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/report",
             json={
                 "reasons": ["More than one unknown word"],
                 "unknown_words": [0],
@@ -312,18 +339,22 @@ class TestUnknownWordsAPI:
     def test_removing_the_unknown_word_returns_the_card_to_ready(
         self, client: TestClient,
     ) -> None:
-        client.post(f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
+        on_review(client, "POST", f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
         word = client.get("/unknown-words").json()[0]
         assert client.delete(f"/unknown-words/{word['id']}").status_code == 200
         assert self._card(client) == {"section": "ready", "ready": 1}
 
     def test_source_with_no_ready_cards_left_is_reviewed(self, client: TestClient) -> None:
-        client.post(f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
-        review = client.get("/api/review", params={"scope": "source-1"}).json()
-        assert review["status"] == "reviewed"
+        on_review(client, "POST", f"/phrases/{PHRASE_ID}/report", json={"unknown_words": [0]})
+        assert open_review(client, "source-1")["header"]["status"] == "reviewed"
 
     def test_new_phrase_is_read_again(self, client: TestClient) -> None:
-        client.put(f"/phrases/{PHRASE_ID}/phrase", json={"phrase": "the ominous pursuit of"})
+        on_review(
+            client, "PUT", f"/phrases/{PHRASE_ID}/phrase",
+            json={"phrase": "the ominous pursuit of"},
+        )
         assert self._card(client) == {"section": "extra", "ready": 0}
-        client.put(f"/phrases/{PHRASE_ID}/phrase", json={"phrase": "the long pursuit of"})
+        on_review(
+            client, "PUT", f"/phrases/{PHRASE_ID}/phrase", json={"phrase": "the long pursuit of"},
+        )
         assert self._card(client) == {"section": "ready", "ready": 1}

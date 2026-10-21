@@ -32,8 +32,8 @@ describe('SourceTexts', () => {
   const render = (editingSourceId: number | null, documents = [doc(2, 'Episode 2'), doc(1, 'Pilot')]) => act(() => root.render(
     <SourceTexts
       documents={documents}
-      candidates={[]}
-      focusId={null}
+      done={new Map()}
+      focused={null}
       editingSourceId={editingSourceId}
       onWordClick={noop}
       onTextSelected={noop}

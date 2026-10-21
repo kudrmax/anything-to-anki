@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from backend.application.dto.review_dtos import ReviewUpdateDTO  # noqa: TC001 — pydantic field
+
 
 class GenerateMeaningResponseDTO(BaseModel):
-    """Result of AI-powered meaning generation for a single candidate."""
+    """Result of AI-powered meaning generation for a single candidate; `update`: what
+    changed in the open review it was made on."""
 
     candidate_id: int
     meaning: str
@@ -13,6 +16,7 @@ class GenerateMeaningResponseDTO(BaseModel):
     examples: str
     ipa: str | None = None
     tokens_used: int
+    update: ReviewUpdateDTO | None = None
 
 
 class GenerateAllMeaningsResultDTO(BaseModel):

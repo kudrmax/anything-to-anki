@@ -21,7 +21,9 @@ from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.stored_candidate import StoredCandidate
+from backend.domain.exceptions import DomainError
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_change import (
     BindingChanged,
     CardContentChanged,
@@ -81,7 +83,7 @@ from tests.unit.application.scope_fakes import sources_scope_resolver
 from tests.word_support import bind, phrase_id_of
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
+    from collections.abc import Callable, Generator, Iterable
     from datetime import datetime
 
     from backend.domain.value_objects.card_change import CardChange
@@ -115,6 +117,8 @@ class World:
         self.container = container
         self.factory = factory
         self.before: StoredCardStates | None = None
+        # The lemmas whose knowledge the last write changed: each of their cards moves.
+        self.knowledge: frozenset[str] = frozenset()
 
     def rebuild(self) -> None:
         self.container.rebuild_card_states()
@@ -122,19 +126,34 @@ class World:
     def stored(self) -> StoredCardStates:
         return stored_states(self.container, self.factory)
 
-    def write(self, change: Callable[[Session], object]) -> None:
+    def write(
+        self, change: Callable[[Session], object], *, knowledge: Iterable[str] = (),
+    ) -> None:
+        """`knowledge`: the lemmas whose knowledge the write changes (a mark, a binding)."""
         self.before = self.stored()
+        self.knowledge = frozenset(lemma.lower() for lemma in knowledge)
         self.container.session_work().write(change)
 
     def decide(self, phrase_id: int, button: Press) -> None:
+        """A press changes what is known of its word's lemma."""
         self.before = self.stored()
         with self.factory() as session:
+            lemma = session.execute(text(
+                "SELECT c.lemma FROM phrases p JOIN candidates c ON c.id = p.candidate_id"
+                " WHERE p.id = :id"
+            ), {"id": phrase_id}).scalar_one()
             self.container.decide_phrase_use_case(session).decide(phrase_id, button)
+        self.knowledge = frozenset({lemma.lower()})
 
     def check(self, *, touched: frozenset[int] = frozenset()) -> StoredCardStates:
-        """Stored equals live; the cards whose row changed and the `touched` ones moved to
-        the new revision, every other card kept its own."""
+        """Stored equals live; the cards whose row changed, the `touched` ones and every card
+        of a lemma whose knowledge the write changed moved to the new revision, every other
+        card kept its own."""
         after = self.stored()
+        touched = touched | {
+            c.row.phrase_id for c in after.cards
+            if not c.removed and c.row.lemma in self.knowledge
+        }
         assert differences(after, live_states(self.container, self.factory)) == []
         before = self.before
         assert before is not None
@@ -189,7 +208,10 @@ def test_a_known_press_moves_only_the_cards_it_changes(world: World) -> None:
 
 def test_a_mark_reaches_every_phrase_holding_its_lemma(world: World) -> None:
     world.rebuild()
-    world.write(lambda s: SqlaWordMarkRepository(s, _recorder(s)).mark_known("ominous", None))
+    world.write(
+        lambda s: SqlaWordMarkRepository(s, _recorder(s)).mark_known("ominous", None),
+        knowledge=["ominous"],
+    )
     after = world.check()
     for phrase_id in (phrase_id_of(GLARE), phrase_id_of(DWELL), phrase_id_of(HOVER)):
         assert _card(after, phrase_id)[2] < world.was(phrase_id)[2]
@@ -200,7 +222,10 @@ def test_a_mark_reaches_every_phrase_holding_its_lemma(world: World) -> None:
 
 def test_a_known_mark_taken_off_makes_its_words_new_again(world: World) -> None:
     world.rebuild()
-    world.write(lambda s: SqlaWordMarkRepository(s, _recorder(s)).remove_known("lighthouse"))
+    world.write(
+        lambda s: SqlaWordMarkRepository(s, _recorder(s)).remove_known("lighthouse"),
+        knowledge=["lighthouse"],
+    )
     after = world.check()
     assert _card(after, phrase_id_of(GLEAM))[2] > world.was(phrase_id_of(GLEAM))[2]
 
@@ -248,6 +273,22 @@ def test_a_word_fact_written_without_a_state_change_moves_no_card(world: World) 
     after = world.check()
     assert world.before is not None
     assert after.revision == world.before.revision
+
+
+def test_a_choice_that_leaves_the_stored_values_moves_the_cards_of_its_word(
+    world: World,
+) -> None:
+    """Learn, then Cloze: the card stays done in the same section, but it shows the other
+    button pressed, so a client that saw the first press is told of it."""
+    world.rebuild()
+    world.decide(phrase_id_of(GLARE), Press.LEARN)
+    world.check()
+    world.decide(phrase_id_of(GLARE), Press.CLOZE)
+    after = world.check()
+    assert world.before is not None
+    assert [c.row for c in after.cards] == [c.row for c in world.before.cards]
+    moved = {c.row.phrase_id for c in after.cards if c.revision == after.revision}
+    assert moved == {c.row.phrase_id for c in after.cards if c.row.word_id == GLARE}
 
 
 def test_a_deleted_source_leaves_tombstones_and_releases_its_learn_elsewhere(
@@ -414,7 +455,10 @@ def test_a_phrase_with_two_spellings_of_a_lemma_counts_as_the_review_counts(
     stored = world.stored()
     assert differences(stored, live_states(world.container, world.factory)) == []
     assert _card(stored, phrase_id_of(CASES))[2] == 2  # noqa: PLR2004 — both spellings
-    world.write(lambda s: SqlaWordMarkRepository(s, _recorder(s)).mark_known("ominous", None))
+    world.write(
+        lambda s: SqlaWordMarkRepository(s, _recorder(s)).mark_known("ominous", None),
+        knowledge=["ominous"],
+    )
     after = world.check()
     assert _card(after, phrase_id_of(CASES))[2] == 0
 
@@ -500,7 +544,9 @@ def _mark_known(session: Session, lemma: str = "ominous") -> None:
 def test_a_hidden_phrase_and_a_mark_in_one_write(world: World) -> None:
     world.rebuild()
     glare, dwell = phrase_id_of(GLARE), phrase_id_of(DWELL)
-    world.write(lambda s: (_hide(s, glare), _hide(s, dwell), _mark_known(s)))
+    world.write(
+        lambda s: (_hide(s, glare), _hide(s, dwell), _mark_known(s)), knowledge=["ominous"],
+    )
     world.check()
 
 
@@ -509,12 +555,12 @@ def test_a_phrase_hidden_then_marked_then_shown_with_the_mark_taken_off(world: W
     glare = phrase_id_of(GLARE)
     world.write(lambda s: _hide(s, glare))
     world.check()
-    world.write(_mark_known)
+    world.write(_mark_known, knowledge=["ominous"])
     world.check()
     world.write(lambda s: (
         _hide(s, glare, ShownBy.USER),
         SqlaWordMarkRepository(s, _recorder(s)).remove_known("ominous"),
-    ))
+    ), knowledge=["ominous"])
     world.check()
 
 
@@ -527,13 +573,16 @@ def test_presses_and_a_mark_in_one_write(world: World) -> None:
         _mark_known(session)
         use_case.press(phrase_id_of(GLARE), Press.LEARN)
 
-    world.write(presses_and_mark)
+    world.write(presses_and_mark, knowledge=["hover", "ominous", "glare"])
     world.check()
 
 
 def test_a_deleted_source_and_a_mark_in_one_write(world: World) -> None:
     world.rebuild()
-    world.write(lambda s: (_mark_known(s), SqlaSourceRepository(s, _recorder(s)).delete(ONE)))
+    world.write(
+        lambda s: (_mark_known(s), SqlaSourceRepository(s, _recorder(s)).delete(ONE)),
+        knowledge=["ominous"],
+    )
     world.check()
 
 
@@ -542,9 +591,62 @@ def test_a_deleted_source_and_a_mark_in_one_write(world: World) -> None:
 )
 def test_each_lemma_marked_known_then_taken_off_then_unknown(world: World, lemma: str) -> None:
     world.rebuild()
-    world.write(lambda s: _mark_known(s, lemma))
+    world.write(lambda s: _mark_known(s, lemma), knowledge=[lemma])
     world.check()
-    world.write(lambda s: SqlaWordMarkRepository(s, _recorder(s)).remove_known(lemma))
+    world.write(
+        lambda s: SqlaWordMarkRepository(s, _recorder(s)).remove_known(lemma), knowledge=[lemma],
+    )
     world.check()
-    world.write(lambda s: SqlaWordMarkRepository(s, _recorder(s)).mark_unknown(lemma))
+    world.write(
+        lambda s: SqlaWordMarkRepository(s, _recorder(s)).mark_unknown(lemma), knowledge=[lemma],
+    )
     world.check()
+
+
+def _views(world: World) -> dict[int, dict[str, object]]:
+    """The card the review would send for every live card."""
+    ids = [c.row.phrase_id for c in world.stored().cards if not c.removed]
+    with world.factory() as session:
+        views = world.container._card_views(session).of_phrases(  # noqa: SLF001
+            ids, dict.fromkeys(ids, CandidateSection.READY),
+        )
+    return {view.phrase_id: view.model_dump() for view in views}
+
+
+def _revisions(world: World) -> dict[int, int]:
+    return {c.row.phrase_id: c.revision for c in world.stored().cards}
+
+
+@pytest.mark.parametrize("presses", [
+    [
+        (GLARE, Press.LEARN), (GLARE, Press.CLOZE), (GLARE, Press.KNOWN), (GLARE, Press.LEARN),
+        (GLARE, Press.SKIP), (GLARE_TWO, Press.LEARN), (GLARE, Press.KNOWN),
+        (GLARE_TWO, Press.KNOWN), (GLARE, Press.LEARN),
+    ],
+    [
+        (GLARE_TWO, Press.KNOWN), (GLARE, Press.LEARN), (GLARE, Press.CLOZE),
+        (GLARE_TWO, Press.SKIP), (GLARE, Press.KNOWN),
+    ],
+], ids=["from-one", "from-two"])
+def test_a_card_whose_view_a_press_changes_moves_in_every_source(
+    world: World, presses: list[tuple[int, Press]],
+) -> None:
+    """The card of the lemma in the other source shows the press (Learn elsewhere turned
+    Known elsewhere, its buttons) though its stored state stays: it moves all the same."""
+    with world.factory() as session:
+        insert_card_word(session, GLARE_TWO, TWO, "glare", phrase("I glare back", "glare"))
+        session.commit()
+    world.rebuild()
+    stale: list[tuple[int, Press, int]] = []
+    for word_id, button in presses:
+        views, revisions = _views(world), _revisions(world)
+        try:
+            world.decide(phrase_id_of(word_id), button)
+        except DomainError:
+            continue
+        after = _revisions(world)
+        stale += [
+            (word_id, button, phrase_id) for phrase_id, view in _views(world).items()
+            if views.get(phrase_id) != view and revisions.get(phrase_id) == after[phrase_id]
+        ]
+    assert stale == []

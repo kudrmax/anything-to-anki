@@ -58,6 +58,8 @@ class HighlightDTO(BaseModel):
     position: DocumentPositionDTO
     cefr_level: str | None
     is_phrasal_verb: bool
+    # The card is done: its word is decided, or its phrase skipped.
+    is_done: bool
 
 
 class SourceDocumentDTO(BaseModel):

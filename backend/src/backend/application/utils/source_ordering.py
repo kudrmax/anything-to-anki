@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from datetime import datetime
 
-    from backend.application.utils.review_progress import ReviewProgress
+    from backend.application.utils.source_progress import SourceProgressReader
     from backend.application.utils.topic_generation import TopicGenerationProbe
     from backend.domain.entities.source import Source
     from backend.domain.ports.candidate_repository import CandidateRepository
@@ -40,7 +40,7 @@ class SourceOrdering:
     def __init__(
         self,
         settings_repo: SettingsRepository,
-        review_progress: ReviewProgress,
+        review_progress: SourceProgressReader,
         generation_probe: TopicGenerationProbe,
         candidate_repo: CandidateRepository,
     ) -> None:
@@ -79,7 +79,7 @@ class SourceOrdering:
         progress = self._review_progress.of_sources([_id(s) for s in sources])
         return {
             _id(s): source_stage(
-                s.status, progress[_id(s)],
+                s.status, progress[_id(s)].progress,
                 awaiting_generation=self._generation_probe.of(s).awaiting,
             )
             for s in sources

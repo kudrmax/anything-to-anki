@@ -17,6 +17,7 @@ from backend.domain.value_objects.job_type import PHRASE_JOB_TYPES, JobType
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.models import JobModel
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.session_work import SessionWork
 from backend.infrastructure.persistence.sqla_job_queue import SqlaJobQueue
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
@@ -146,7 +147,7 @@ def container(factory: sessionmaker[Session]) -> _Container:
 def _enqueue(container: _Container, *jobs: tuple[JobType, int | None]) -> list[Job]:
     """A phrase job works on the word's own phrase, `phrase_id_of` the word."""
     with container.fixture_session() as session:
-        return SqlaJobRepository(session).enqueue([
+        return SqlaJobRepository(session, SessionChangeRecorder(session)).enqueue([
             Job.queued(
                 job_type, SOURCE_ID, candidate_id,
                 phrase_id=phrase_id_of(candidate_id) if job_type in PHRASE_JOB_TYPES else None,
@@ -162,7 +163,9 @@ def _ids(phrases: list[PhraseRef]) -> list[int]:
 
 def _jobs(container: _Container) -> list[tuple[JobType, int | None, JobStatus, str | None]]:
     with container.fixture_session() as session:
-        jobs = SqlaJobRepository(session).get_jobs_by_status(list(JobStatus))
+        jobs = SqlaJobRepository(
+            session, SessionChangeRecorder(session),
+        ).get_jobs_by_status(list(JobStatus))
     return [(j.job_type, j.candidate_id, j.status, j.error) for j in jobs]
 
 
@@ -187,7 +190,7 @@ def _update_title(use_case: MagicMock) -> None:
 
 def _cancel(container: _Container, selection: JobSelection) -> None:
     with container.fixture_session() as session:
-        SqlaJobRepository(session).cancel(selection)
+        SqlaJobRepository(session, SessionChangeRecorder(session)).cancel(selection)
 
 
 async def _drain(worker: JobWorker) -> None:
@@ -231,7 +234,7 @@ class TestOrder:
             ), {"id": other_source})
             for cid in (11, 12):
                 insert_word(session, cid, source_id=other_source)
-            SqlaJobRepository(session).enqueue([
+            SqlaJobRepository(session, SessionChangeRecorder(session)).enqueue([
                 Job.queued(
                     JobType.POLISH, source_id, cid,
                     phrase_id=phrase_id_of(cid), phrase_revision=0,
@@ -275,7 +278,7 @@ class TestPhraseGone:
         self, container: _Container,
     ) -> None:
         with container.fixture_session() as session:
-            SqlaJobRepository(session).enqueue([
+            SqlaJobRepository(session, SessionChangeRecorder(session)).enqueue([
                 Job.queued(
                     JobType.TTS, SOURCE_ID, 1, phrase_id=phrase_id_of(1), phrase_revision=4,
                 ),
@@ -467,7 +470,7 @@ class TestRestartAndTTS:
     def test_startup_puts_interrupted_jobs_back_in_line(self, container: _Container) -> None:
         _enqueue(container, (JobType.MEDIA, 1))
         with container.fixture_session() as session:
-            SqlaJobRepository(session).claim_next_run({})
+            SqlaJobRepository(session, SessionChangeRecorder(session)).claim_next_run({})
 
         JobWorker(container)._reconcile_on_startup()  # type: ignore[arg-type]
 
@@ -517,7 +520,7 @@ class TestRestartAndTTS:
 
 def _claim_head(container: _Container) -> Job:
     with container.fixture_session() as session:
-        return SqlaJobRepository(session).claim_next_run({})[0]
+        return SqlaJobRepository(session, SessionChangeRecorder(session)).claim_next_run({})[0]
 
 
 @pytest.mark.integration

@@ -33,6 +33,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.decision_support import NOW, FixedClock
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
+from tests.review_support import card_in, on_review
+from tests.review_window_support import review_list
 from tests.word_marks_support import insert_known
 from tests.word_support import bind, insert_word, phrase_id_of
 
@@ -227,6 +230,7 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
             {"id": SIBLING, "old": sibling.id},
         )
         session.commit()
+        _rebuild_at_now(session)
     yield sessionmaker(bind=engine)
     engine.dispose()
 
@@ -235,11 +239,7 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
 def client(factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
     def override_session() -> Generator[Session, None, None]:
         with factory() as session:
-            session.info[KNOWLEDGE_SCOPE_KEY] = KnowledgeScope(
-                clock=FixedClock(NOW),
-                word_mark_repo=SqlaWordMarkRepository(session, SessionChangeRecorder(session)),
-                learning_query=SqlaLearningQuery(session),
-            )
+            _at_now(session)
             yield session
 
     app.dependency_overrides[get_db_session] = override_session
@@ -253,6 +253,23 @@ def _given(factory: sessionmaker[Session], given: Callable[[Seed], object]) -> N
     with factory() as session:
         given(Seed(session))
         session.commit()
+        _rebuild_at_now(session)
+
+
+def _at_now(session: Session) -> None:
+    """The session reads what the user knows at NOW."""
+    session.info[KNOWLEDGE_SCOPE_KEY] = KnowledgeScope(
+        clock=FixedClock(NOW),
+        word_mark_repo=SqlaWordMarkRepository(session, SessionChangeRecorder(session)),
+        learning_query=SqlaLearningQuery(session),
+    )
+
+
+def _rebuild_at_now(session: Session) -> None:
+    """The review list reads the projection: rows seeded straight into the tables reach it
+    by a rebuild at NOW, as the app's start makes one."""
+    _at_now(session)
+    rebuild_projection(session)
 
 
 def _bindings(factory: sessionmaker[Session]) -> tuple[int, int]:
@@ -266,11 +283,14 @@ def _bindings(factory: sessionmaker[Session]) -> tuple[int, int]:
 
 
 def _decide(client: TestClient, phrase_id: int, button: str) -> Response:
-    return client.post(f"/phrases/{phrase_id}/decision", json={"button": button})
+    return on_review(
+        client, "POST", f"/phrases/{phrase_id}/decision", json={"button": button},
+        current=phrase_id,
+    )
 
 
 def _card(client: TestClient, phrase_id: int) -> Json:
-    cards = client.get("/api/review/candidates", params={"scope": f"source-{HERE}"}).json()
+    cards = review_list(client, f"source-{HERE}")
     return next(card for card in cards if card["phrase_id"] == phrase_id)
 
 
@@ -284,8 +304,7 @@ def test_each_press_answers_with_the_card_it_leaves(
     response = _decide(client, row.phrase_id, row.button)
 
     assert response.status_code == 200, response.text
-    card = response.json()
-    assert card["phrase_id"] == row.phrase_id
+    card = card_in(response.json(), row.phrase_id)
     assert (card["choice"], card["shown"]["status"]) == (row.choice, row.status)
     assert card == _card(client, row.phrase_id) | {"section": card["section"]}
     assert _bindings(factory) == (int(row.in_anki), int(row.released))
@@ -367,7 +386,7 @@ def test_learn_cloze_known_skip_and_none_on_one_card(client: TestClient) -> None
         ("learn", "learn"), ("cloze", "cloze"), ("known", "known"), ("skip", "skip"),
         ("skip", "none"),
     ):
-        assert _decide(client, CARD, button).json()["choice"] == choice
+        assert card_in(_decide(client, CARD, button).json(), CARD)["choice"] == choice
 
 
 def test_an_unknown_phrase_is_404(client: TestClient) -> None:
@@ -400,9 +419,7 @@ def test_removing_known_frees_the_word_kept_by_a_deleted_sources_known_card(
     assert client.get("/vocabulary/learning").json()["in_anki"] == []
     other = next(
         card
-        for card in client.get(
-            "/api/review/candidates", params={"scope": f"source-{THERE}"},
-        ).json()
+        for card in review_list(client, f"source-{THERE}")
         if card["phrase_id"] == phrase_id_of(OTHER_WORD)
     )
     assert other["shown"]["status"] == "new"

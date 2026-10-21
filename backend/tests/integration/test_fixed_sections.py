@@ -26,6 +26,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
+from tests.review_support import on_review
+from tests.review_window_support import review_list
 from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -77,6 +80,7 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
         insert_word(session, SPARK, source_id=OTHER_SOURCE, lemma="spark")
         _store_phrase(session, SPARK_PHRASE, phrase("a spark quill", "spark"), "ready")
         session.commit()
+        rebuild_projection(session)
     yield made
     engine.dispose()
 
@@ -95,8 +99,8 @@ def client(factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
 
 
 def _section(client: TestClient, source_id: int, phrase_id: int) -> str:
-    source = client.get("/api/review", params={"scope": f"source-{source_id}"}).json()
-    card = next(c for c in source["candidates"] if c["phrase_id"] == phrase_id)
+    cards = review_list(client, f"source-{source_id}")
+    card = next(c for c in cards if c["phrase_id"] == phrase_id)
     return str(card["section"])
 
 
@@ -138,6 +142,7 @@ def _commit(factory: sessionmaker[Session], change: Callable[[Session], None]) -
     with factory() as session:
         change(session)
         session.commit()
+        rebuild_projection(session)
 
 
 def test_an_extra_card_stays_extra_when_the_other_word_becomes_known(
@@ -188,8 +193,8 @@ def test_an_unknown_word_report_takes_the_ready_cards_with_that_word_out_of_read
     assert _drift(client) == "ready"
     assert _section(client, OTHER_SOURCE, SPARK_PHRASE) == "ready"
 
-    reported = client.post(
-        f"/phrases/{DRIFT_PHRASE}/report", json={"unknown_words": [QUILL_INDEX]},
+    reported = on_review(
+        client, "POST", f"/phrases/{DRIFT_PHRASE}/report", json={"unknown_words": [QUILL_INDEX]},
     )
     assert reported.status_code == 201
 
@@ -198,7 +203,9 @@ def test_an_unknown_word_report_takes_the_ready_cards_with_that_word_out_of_read
 
 
 def test_removing_the_unknown_word_returns_the_cards_to_ready(client: TestClient) -> None:
-    client.post(f"/phrases/{DRIFT_PHRASE}/report", json={"unknown_words": [QUILL_INDEX]})
+    on_review(
+        client, "POST", f"/phrases/{DRIFT_PHRASE}/report", json={"unknown_words": [QUILL_INDEX]},
+    )
     [word] = client.get("/unknown-words").json()
 
     assert client.delete(f"/unknown-words/{word['id']}").status_code == 200
@@ -210,7 +217,9 @@ def test_removing_the_unknown_word_returns_the_cards_to_ready(client: TestClient
 def test_removing_known_returns_a_done_card_to_ready_when_it_earned_ready(
     client: TestClient,
 ) -> None:
-    decided = client.post(f"/phrases/{DRIFT_PHRASE}/decision", json={"button": "known"})
+    decided = on_review(
+        client, "POST", f"/phrases/{DRIFT_PHRASE}/decision", json={"button": "known"},
+    )
     assert decided.status_code == 200
     assert _drift(client) == "reviewed"
 
@@ -223,7 +232,9 @@ def test_removing_known_returns_a_done_card_to_ready_when_it_earned_ready(
 def test_removing_known_returns_a_done_card_to_extra_when_it_earned_extra(
     client: TestClient,
 ) -> None:
-    decided = client.post(f"/phrases/{EMBER_PHRASE}/decision", json={"button": "known"})
+    decided = on_review(
+        client, "POST", f"/phrases/{EMBER_PHRASE}/decision", json={"button": "known"},
+    )
     assert decided.status_code == 200
     assert _ember(client) == "reviewed"
 
@@ -247,5 +258,7 @@ def test_ready_generation_takes_the_cards_that_are_ready_now_and_earned_ready(
     _commit(factory, _known_zephyr)
     assert missing("meaning") == 1, "ember is Ready now but did not earn it"
 
-    client.post(f"/phrases/{DRIFT_PHRASE}/report", json={"unknown_words": [QUILL_INDEX]})
+    on_review(
+        client, "POST", f"/phrases/{DRIFT_PHRASE}/report", json={"unknown_words": [QUILL_INDEX]},
+    )
     assert missing("meaning") == 0, "drift left Ready"

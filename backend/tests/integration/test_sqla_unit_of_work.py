@@ -4,7 +4,11 @@ from unittest.mock import MagicMock
 
 import backend.infrastructure.persistence.models  # noqa: F401  registers every table on Base
 import pytest
-from backend.domain.exceptions import NestedWriteError, UncommittedWorkError
+from backend.domain.exceptions import (
+    NestedWriteError,
+    UncommittedWorkError,
+    WriteInReadError,
+)
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
 from backend.infrastructure.persistence.models import SourceModel
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
@@ -179,3 +183,75 @@ def test_session_that_only_read_enters_a_write(
         _add_source(unit_of_work)
 
     assert _source_count(engine) == 1
+
+
+@pytest.fixture()
+def wal_engine(tmp_path: Path) -> Iterator[Engine]:
+    """A file database in WAL, as the app runs it: a writer commits while a reader reads."""
+    file_engine = create_engine(f"sqlite:///{tmp_path / 'wal.db'}")
+    event.listen(file_engine, "connect", _enable_sqlite_foreign_keys)
+    event.listen(
+        file_engine, "connect", lambda conn, _record: conn.execute("PRAGMA journal_mode = WAL"),
+    )
+    Base.metadata.create_all(file_engine)
+    yield file_engine
+    file_engine.dispose()
+
+
+def _commit_a_source(engine: Engine, source_id: int) -> None:
+    with Session(engine) as other_session:
+        insert_source(other_session, source_id)
+        other_session.commit()
+
+
+def test_a_read_sees_the_database_as_at_its_first_read(wal_engine: Engine) -> None:
+    session = sessionmaker(bind=wal_engine)()
+    unit_of_work = SqlaUnitOfWork(session, MagicMock())
+    with unit_of_work.read():
+        assert _count_in_open_transaction(unit_of_work) == 0
+        _commit_a_source(wal_engine, SOURCE_ID)
+        assert _count_in_open_transaction(unit_of_work) == 0
+    assert _count_in_open_transaction(unit_of_work) == 1
+    with unit_of_work.write():
+        insert_source(session, SOURCE_ID + 1)
+    assert _source_count(wal_engine) == 2
+    session.close()
+
+
+def test_a_read_inside_a_write_reads_in_it(unit_of_work: SqlaUnitOfWork, engine: Engine) -> None:
+    with unit_of_work.write():
+        _add_source(unit_of_work)
+        with unit_of_work.read():
+            assert _count_in_open_transaction(unit_of_work) == 1
+    assert _source_count(engine) == 1
+
+
+def test_a_read_with_pending_work_raises(unit_of_work: SqlaUnitOfWork) -> None:
+    unit_of_work._session.add(SourceModel(id=SOURCE_ID, title="t", status="done"))
+    with pytest.raises(UncommittedWorkError), unit_of_work.read():
+        pass
+
+
+def test_a_flush_inside_a_read_is_refused(unit_of_work: SqlaUnitOfWork, engine: Engine) -> None:
+    session = unit_of_work._session
+    with pytest.raises(WriteInReadError), unit_of_work.read():
+        session.add(SourceModel(id=SOURCE_ID, title="t", status="done"))
+        session.flush()
+    assert _source_count(engine) == 0
+
+
+def test_a_statement_writing_inside_a_read_is_refused(
+    unit_of_work: SqlaUnitOfWork, engine: Engine,
+) -> None:
+    with pytest.raises(WriteInReadError), unit_of_work.read():
+        _add_source(unit_of_work)
+    assert _source_count(engine) == 0
+    with unit_of_work.write():
+        _add_source(unit_of_work)
+    assert _source_count(engine) == 1
+
+
+def test_a_write_inside_a_read_is_refused(unit_of_work: SqlaUnitOfWork, engine: Engine) -> None:
+    with pytest.raises(WriteInReadError), unit_of_work.read(), unit_of_work.write():
+        _add_source(unit_of_work)
+    assert _source_count(engine) == 0

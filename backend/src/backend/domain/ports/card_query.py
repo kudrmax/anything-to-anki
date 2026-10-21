@@ -6,13 +6,14 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Collection
 
+    from backend.domain.value_objects.generated_parts import GeneratedParts
     from backend.domain.value_objects.review_card import CardRow, CardTargetRow
     from backend.domain.value_objects.shown_place import ShownPlace
 
 
 class CardQuery(ABC):
-    """Port for light projections of the cards of sources — their shown phrases — without
-    loading what was made for them."""
+    """Port for light projections of the cards of sources — their shown phrases — with only
+    whether something was made for them, not what."""
 
     @abstractmethod
     def shown_cards(self, source_ids: list[int]) -> dict[int, list[CardRow]]:
@@ -27,6 +28,11 @@ class CardQuery(ABC):
     @abstractmethod
     def shown_cards_of_words(self, word_ids: Collection[int]) -> list[CardRow]:
         """Every card of these words. `elsewhere` is not filled."""
+
+    @abstractmethod
+    def generated_parts(self, phrase_ids: Collection[int]) -> dict[int, GeneratedParts]:
+        """What generation made for these phrases, by phrase id: a phrase not shown is left
+        out."""
 
     @abstractmethod
     def card_targets(self, phrase_ids: Collection[int]) -> list[CardTargetRow]:

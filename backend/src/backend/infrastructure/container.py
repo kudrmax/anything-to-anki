@@ -27,10 +27,8 @@ from backend.application.use_cases.fix_sections import FixSectionsUseCase
 from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
-from backend.application.use_cases.get_candidates import GetCandidatesUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
-from backend.application.use_cases.get_review import GetReviewUseCase
 from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
@@ -39,6 +37,7 @@ from backend.application.use_cases.manage_known_words import ManageKnownWordsUse
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.manage_unknown_words import ManageUnknownWordsUseCase
 from backend.application.use_cases.move_collection import MoveCollectionUseCase
+from backend.application.use_cases.open_review import OpenReviewUseCase
 from backend.application.use_cases.place_sources import PlaceSourcesUseCase
 from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
@@ -51,6 +50,8 @@ from backend.application.use_cases.render_names import RenderNamesUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
 from backend.application.use_cases.report_candidate import ReportCandidateUseCase
 from backend.application.use_cases.restore_collection import RestoreCollectionUseCase
+from backend.application.use_cases.review_mutation import ReviewMutation
+from backend.application.use_cases.review_window import ReviewWindowUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
 from backend.application.use_cases.scope_operation import ScopeOperationUseCase
@@ -62,7 +63,6 @@ from backend.application.utils.candidate_sorter import CandidateSorter
 from backend.application.utils.card_state_projector import CardStateProjector
 from backend.application.utils.card_views import CardViews
 from backend.application.utils.collected_phrases import CollectedPhrases
-from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.decision_effects import DecisionEffects
 from backend.application.utils.export_queue import ExportQueue
 from backend.application.utils.frequent_word_threshold_resolver import (
@@ -70,9 +70,15 @@ from backend.application.utils.frequent_word_threshold_resolver import (
 )
 from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.live_card_states import LiveCardStates
+from backend.application.utils.live_generation_status import LiveGenerationStatus
+from backend.application.utils.live_source_progress import LiveSourceProgress
 from backend.application.utils.phrase_reader import PhraseReader
+from backend.application.utils.review_answer import ReviewAnswer
 from backend.application.utils.review_cards import ReviewCards
+from backend.application.utils.review_header import ReviewHeader
+from backend.application.utils.review_ordering import ReviewOrdering
 from backend.application.utils.review_progress import ReviewProgress
+from backend.application.utils.review_updates import ReviewUpdates
 from backend.application.utils.rewrite_phrase import RewritePhrase
 from backend.application.utils.section_stamper import SectionStamper
 from backend.application.utils.source_ordering import SourceOrdering
@@ -168,6 +174,7 @@ from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_card_report_repository import (
     SqlaCardReportRepository,
 )
+from backend.infrastructure.persistence.sqla_card_state_query import SqlaCardStateQuery
 from backend.infrastructure.persistence.sqla_card_state_store import SqlaCardStateStore
 from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
@@ -202,6 +209,7 @@ from backend.infrastructure.persistence.sqla_word_mark_repository import (
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
+from backend.infrastructure.queue.in_memory_generation_stops import InMemoryGenerationStops
 from backend.infrastructure.readers.caching_reader import CachingFormatReader
 from backend.infrastructure.readers.epub_format_reader import EpubFormatReader
 from backend.infrastructure.readers.html_reader import HtmlReader
@@ -210,6 +218,7 @@ from backend.infrastructure.readers.plain_reader import PlainReader
 from backend.infrastructure.readers.srt_reader import SrtReader
 from backend.infrastructure.readers.video_file_reader import VideoFileReader
 from backend.infrastructure.readers.youtube_reader import YouTubeReader
+from backend.infrastructure.review.in_memory_review_order_store import InMemoryReviewOrderStore
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
@@ -251,6 +260,7 @@ if TYPE_CHECKING:
     from backend.application.utils.generation_targets import GenerationCards, GenerationTarget
     from backend.application.utils.job_phrases import JobPhrases
     from backend.application.utils.meaning_image_placer import MeaningImagePlacer
+    from backend.application.utils.open_review import OpenReview
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
     from backend.application.utils.requested_cards import RequestedCards
     from backend.domain.ports.clock import Clock
@@ -371,6 +381,9 @@ class Container:
             "MEDIA_ROOT",
             os.path.join(data_dir, "media"),
         )
+        # Read with the other settings, not when a request builds the AI service: a copy
+        # started without the proxy fails only the calls to it.
+        self._ai_proxy_url = os.environ.get("AI_PROXY_URL", "")
         default_prompts = project_root / "config" / "prompts.yaml"
         prompts_path = Path(
             os.environ.get("PROMPTS_CONFIG_PATH", str(default_prompts))
@@ -381,6 +394,12 @@ class Container:
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
         self._clock: Clock = clock or SystemClock()
         self._session_factory: sessionmaker[Session] | None = session_factory
+        # The open reviews live as long as the app: a restart lets them go.
+        self._review_order_store: InMemoryReviewOrderStore[OpenReview] = (
+            InMemoryReviewOrderStore()
+        )
+        # A run of generation learns of the user's stops made while it queues.
+        self._generation_stops = InMemoryGenerationStops()
 
     def _get_session_factory(self) -> sessionmaker[Session]:
         """The app's one session factory unless the container was given another; taken on
@@ -397,7 +416,7 @@ class Container:
         return SqlaJobQueue(self.session_work())
 
     def job_repository(self, session: Session) -> SqlaJobRepository:
-        return SqlaJobRepository(session)
+        return SqlaJobRepository(session, self._change_recorder(session))
 
     def add_manual_candidate_use_case(self, session: Session) -> AddManualCandidateUseCase:
         return AddManualCandidateUseCase(
@@ -433,6 +452,7 @@ class Container:
             scope_resolver=self._scope_resolver(session),
             document_repo=SqlaDocumentRepository(session),
             card_query=SqlaCardQuery(session),
+            card_state_query=self._card_state_query(session),
         )
 
     def add_saved_phrase_use_case(self, session: Session) -> AddSavedPhraseUseCase:
@@ -529,12 +549,61 @@ class Container:
             lock=SqlaSourceOperationLock(session),
         )
 
-    def get_review_use_case(self, session: Session) -> GetReviewUseCase:
-        return GetReviewUseCase(
-            card_views=self._card_views(session),
+    def open_review_use_case(self, session: Session) -> OpenReviewUseCase:
+        return OpenReviewUseCase(
             scope_resolver=self._scope_resolver(session),
+            ordering=self._review_ordering(session),
+            store=self._review_order_store,
+            answer=self._review_answer(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def review_window_use_case(self, session: Session) -> ReviewWindowUseCase:
+        return ReviewWindowUseCase(
+            store=self._review_order_store,
+            answer=self._review_answer(session),
+            updates=self._review_updates(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def review_mutation(self, session: Session) -> ReviewMutation:
+        return ReviewMutation(
+            store=self._review_order_store,
+            updates=self._review_updates(session),
+            card_states=self._card_state_query(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def _review_updates(self, session: Session) -> ReviewUpdates:
+        return ReviewUpdates(
+            scope_resolver=self._scope_resolver(session),
+            card_states=self._card_state_query(session),
+            ordering=self._review_ordering(session),
+            answer=self._review_answer(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def _review_ordering(self, session: Session) -> ReviewOrdering:
+        return ReviewOrdering(
+            card_states=self._card_state_query(session),
+            threshold_resolver=self._threshold_resolver(session),
+            candidate_sorter=self._candidate_sorter(session),
+        )
+
+    def _review_answer(self, session: Session) -> ReviewAnswer:
+        return ReviewAnswer(
+            header=self.review_header(session),
+            card_states=self._card_state_query(session),
+            card_views=self._card_views(session),
+        )
+
+    def review_header(self, session: Session) -> ReviewHeader:
+        return ReviewHeader(
+            scope_resolver=self._scope_resolver(session),
+            review_progress=self._review_progress(session),
             card_query=SqlaCardQuery(session),
             lock=SqlaSourceOperationLock(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
         )
 
     def create_collection_use_case(self, session: Session) -> CreateCollectionUseCase:
@@ -639,7 +708,7 @@ class Container:
             document_repo=SqlaDocumentRepository(session),
             occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
             anki_sync=SqlaAnkiSyncRepository(session, self._change_recorder(session)),
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             media_repo=SqlaCandidateMediaRepository(session, self._change_recorder(session)),
             media_files=LocalMediaFiles(self._media_root),
             settings_repo=settings_repo,
@@ -696,7 +765,7 @@ class Container:
         return EnqueueTopicGenerationUseCase(
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
             topic_target_repo=SqlaTopicTargetRepository(session),
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             lock=SqlaSourceOperationLock(session),
             unit_of_work=self._unit_of_work(session),
         )
@@ -721,7 +790,7 @@ class Container:
         )
         ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
         return HttpAIService(
-            url=os.environ["AI_PROXY_URL"],
+            url=self._ai_proxy_url,
             model=model_id_for(ai_model_key),
             usage_recorder=SessionAIUsageRecorder(self._get_session_factory()),
         )
@@ -733,18 +802,13 @@ class Container:
         )
         return GetAIUsageStatsUseCase(usage_repo=SqlaAIUsageRepository(session))
 
-    def get_candidates_use_case(self, session: Session) -> GetCandidatesUseCase:
-        return GetCandidatesUseCase(
-            card_views=self._card_views(session),
-        )
-
     def report_candidate_use_case(self, session: Session) -> ReportCandidateUseCase:
         return ReportCandidateUseCase(
             candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
             occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
             document_repo=SqlaDocumentRepository(session),
-            report_repo=SqlaCardReportRepository(session),
+            report_repo=SqlaCardReportRepository(session, self._change_recorder(session)),
             knowledge=self._user_knowledge(session),
             effects=self._decision_effects(session),
             unit_of_work=self._unit_of_work(session),
@@ -796,7 +860,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
             phrase_reader=self._phrase_reader,
             stamper=self._section_stamper(session),
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             lock=SqlaSourceOperationLock(session),
             card_views=self._card_views(session),
             word_states=SqlaWordStateRepository(session, self._change_recorder(session)),
@@ -826,7 +890,7 @@ class Container:
 
     def _generation_probe(self, session: Session) -> TopicGenerationProbe:
         return TopicGenerationProbe(
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             topic_target_repo=SqlaTopicTargetRepository(session),
         )
 
@@ -842,11 +906,27 @@ class Container:
             ),
         )
 
+    def _live_scope_resolver(self, session: Session) -> SourceScopeResolver:
+        """Sources in the user's order with their progress read from the facts: what the
+        live references take, so they never read the projection they are checked against."""
+        return SourceScopeResolver(
+            source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
+            collection_repo=SqlaCollectionRepository(session),
+            ordering=SourceOrdering(
+                settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
+                review_progress=LiveSourceProgress(
+                    SqlaCardQuery(session), self._candidate_sorter(session),
+                    self._user_vocabulary(session),
+                ),
+                generation_probe=self._generation_probe(session),
+                candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
+            ),
+        )
+
     def _review_progress(self, session: Session) -> ReviewProgress:
         return ReviewProgress(
-            card_query=SqlaCardQuery(session),
-            candidate_sorter=self._candidate_sorter(session),
-            decided_elsewhere=DecidedElsewhere(self._user_vocabulary(session)),
+            card_states=self._card_state_query(session),
+            threshold_resolver=self._threshold_resolver(session),
         )
 
     def _card_views(self, session: Session) -> CardViews:
@@ -858,9 +938,8 @@ class Container:
                 self._user_vocabulary(session),
             ),
             candidate_sorter=self._candidate_sorter(session),
-            job_repo=SqlaJobRepository(session),
-            report_repo=SqlaCardReportRepository(session),
-            scope_resolver=self._scope_resolver(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
+            report_repo=SqlaCardReportRepository(session, self._change_recorder(session)),
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
         )
 
@@ -892,6 +971,9 @@ class Container:
         """What time changed in the projection, written in one write transaction."""
         self.session_work().write(lambda session: self.card_state_projector(session).tick())
 
+    def _card_state_query(self, session: Session) -> SqlaCardStateQuery:
+        return SqlaCardStateQuery(session)
+
     def live_card_states(self, session: Session) -> LiveCardStates:
         return LiveCardStates(
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
@@ -899,6 +981,8 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
             knowledge=self._user_knowledge(session),
             vocabulary=self._user_vocabulary(session),
+            targets=self._generation_targets(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
         )
 
     def _user_vocabulary(self, session: Session) -> UserVocabulary:
@@ -1070,7 +1154,7 @@ class Container:
             cards=self._requested_cards(session),
             occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             stamper=self._section_stamper(session),
             unit_of_work=self._unit_of_work(session),
         )
@@ -1136,7 +1220,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
             vocabulary=self._user_vocabulary(session),
             export_queue=self._export_queue(session),
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
         )
 
     def build_bootstrap_index_use_case(self, session: Session) -> BuildBootstrapIndexUseCase:
@@ -1245,7 +1329,7 @@ class Container:
         return CleanupYoutubeVideoUseCase(
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
             media_repo=SqlaCandidateMediaRepository(session, self._change_recorder(session)),
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             video_path_resolver=self._video_path_resolver,
             unit_of_work=self._unit_of_work(session),
         )
@@ -1369,8 +1453,18 @@ class Container:
         )
         return GetGenerationStatusUseCase(
             scope_resolver=self._scope_resolver(session),
+            card_states=self._card_state_query(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
+            threshold_resolver=self._threshold_resolver(session),
+            targets=self._generation_targets(session),
+        )
+
+    def live_generation_status(self, session: Session) -> LiveGenerationStatus:
+        """The ✨ counts from the loaded cards: the reference of the stored projection's."""
+        return LiveGenerationStatus(
+            scope_resolver=self._live_scope_resolver(session),
             cards=self._generation_cards(session),
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             candidate_sorter=self._candidate_sorter(session),
             targets=self._generation_targets(session),
         )
@@ -1380,24 +1474,27 @@ class Container:
         return RunGenerationUseCase(
             scope_resolver=self._scope_resolver(session),
             cards=self._generation_cards(session),
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             candidate_sorter=self._candidate_sorter(session),
             targets=self._generation_targets(session),
             lock=SqlaSourceOperationLock(session),
             unit_of_work=self._unit_of_work(session),
+            stops=self._generation_stops,
         )
 
     def cancel_generation_use_case(self, session: Session) -> CancelGenerationUseCase:
         from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
         return CancelGenerationUseCase(
-            job_repo=SqlaJobRepository(session), scope_resolver=self._scope_resolver(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
+            scope_resolver=self._scope_resolver(session),
             unit_of_work=self._unit_of_work(session),
+            stops=self._generation_stops,
         )
 
     def get_queue_snapshot_use_case(self, session: Session) -> GetQueueSnapshotUseCase:
         from backend.application.use_cases.get_queue_snapshot import GetQueueSnapshotUseCase
         return GetQueueSnapshotUseCase(
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
             candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
         )
@@ -1405,8 +1502,9 @@ class Container:
     def manage_queue_use_case(self, session: Session) -> ManageQueueUseCase:
         from backend.application.use_cases.manage_queue import ManageQueueUseCase
         return ManageQueueUseCase(
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             unit_of_work=self._unit_of_work(session),
+            stops=self._generation_stops,
         )
 
     def request_video_download_use_case(
@@ -1417,13 +1515,14 @@ class Container:
         )
         return RequestVideoDownloadUseCase(
             scope_resolver=self._scope_resolver(session),
-            job_repo=SqlaJobRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             unit_of_work=self._unit_of_work(session),
         )
 
     def enqueue_phrase_tts_use_case(self, session: Session) -> EnqueuePhraseTTSUseCase:
         from backend.application.use_cases.enqueue_phrase_tts import EnqueuePhraseTTSUseCase
         return EnqueuePhraseTTSUseCase(
-            cards=self._requested_cards(session), job_repo=SqlaJobRepository(session),
+            cards=self._requested_cards(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             unit_of_work=self._unit_of_work(session),
         )

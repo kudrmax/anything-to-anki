@@ -32,6 +32,10 @@ class OccurrenceRepository(ABC):
     def get(self, occurrence_id: int) -> Occurrence | None: ...
 
     @abstractmethod
+    def of_ids(self, occurrence_ids: Sequence[int]) -> list[Occurrence]:
+        """The phrases of these ids that exist, with their results, by id."""
+
+    @abstractmethod
     def of_word(self, candidate_id: int) -> list[Occurrence]:
         """Every phrase of the word with its results, in the order they were made."""
 

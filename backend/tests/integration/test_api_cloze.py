@@ -15,6 +15,9 @@ from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
+from tests.review_support import card_in, on_review
+from tests.review_window_support import review_list
 from tests.word_support import PHRASE_ID_OFFSET, CardSeed, bind, store_cards
 
 GIVE_UP = "She finally gave up smoking last year."
@@ -59,6 +62,7 @@ def client() -> Generator[TestClient, None, None]:
     )
     bind(session, SYNCED_WORD_ID, SYNCED_PHRASE_ID, note_id=777, kind="cloze")
     session.commit()
+    rebuild_projection(session)
     session.close()
 
     def override_session() -> Generator[Session, None, None]:
@@ -77,23 +81,21 @@ def client() -> Generator[TestClient, None, None]:
 
 
 def _candidate_in_source(client: TestClient, phrase_id: int) -> dict[str, Any]:
-    response = client.get("/api/review", params={"scope": f"source-{SOURCE_ID}"})
-    assert response.status_code == 200
-    candidates: list[dict[str, Any]] = response.json()["candidates"]
+    candidates = review_list(client, f"source-{SOURCE_ID}")
     return next(c for c in candidates if c["phrase_id"] == phrase_id)
 
 
 @pytest.mark.integration
 class TestSaveClozeAPI:
     def test_save_marks_learn_and_shows_cloze(self, client: TestClient) -> None:
-        response = client.put(
-            f"/phrases/{PHRASE_ID}/cloze",
+        response = on_review(
+            client, "PUT", f"/phrases/{PHRASE_ID}/cloze",
             json={
                 "hidden_word_indices": [3, 2], "hint_kind": "first_letter", "phrase": GIVE_UP,
             },
         )
         assert response.status_code == 200
-        body = response.json()
+        body = card_in(response.json(), PHRASE_ID)
         assert (body["choice"], body["shown"]["status"]) == ("cloze", "learn")
         assert body["cloze"] == {
             "hidden_word_indices": [2, 3], "hint_kind": "first_letter", "custom_hint": None,
@@ -106,55 +108,59 @@ class TestSaveClozeAPI:
 
     def test_a_cloze_in_anki_keeps_its_markup(self, client: TestClient) -> None:
         assert _candidate_in_source(client, SYNCED_PHRASE_ID)["can_edit_cloze"] is False
-        response = client.put(
-            f"/phrases/{SYNCED_PHRASE_ID}/cloze",
+        response = on_review(
+            client, "PUT", f"/phrases/{SYNCED_PHRASE_ID}/cloze",
             json={"hidden_word_indices": [4], "hint_kind": "none", "phrase": GIVE_UP},
         )
         assert response.status_code == 409
 
     def test_empty_indices_are_rejected(self, client: TestClient) -> None:
-        response = client.put(
-            f"/phrases/{PHRASE_ID}/cloze",
+        response = on_review(
+            client, "PUT", f"/phrases/{PHRASE_ID}/cloze",
             json={"hidden_word_indices": [], "hint_kind": "none", "phrase": GIVE_UP},
         )
         assert response.status_code == 422
 
     def test_unknown_hint_kind_is_rejected(self, client: TestClient) -> None:
-        response = client.put(
-            f"/phrases/{PHRASE_ID}/cloze",
+        response = on_review(
+            client, "PUT", f"/phrases/{PHRASE_ID}/cloze",
             json={"hidden_word_indices": [2], "hint_kind": "bogus", "phrase": GIVE_UP},
         )
         assert response.status_code == 422
 
     def test_missing_candidate_is_404(self, client: TestClient) -> None:
-        response = client.put(
-            "/phrases/999/cloze",
+        response = on_review(
+            client, "PUT", "/phrases/999/cloze",
             json={"hidden_word_indices": [0], "hint_kind": "none", "phrase": GIVE_UP},
         )
         assert response.status_code == 404
 
     def test_a_card_no_longer_a_cloze_shows_no_markup(self, client: TestClient) -> None:
-        client.put(
-            f"/phrases/{PHRASE_ID}/cloze",
+        on_review(
+            client, "PUT", f"/phrases/{PHRASE_ID}/cloze",
             json={"hidden_word_indices": [2, 3], "hint_kind": "none", "phrase": GIVE_UP},
         )
-        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "skip"})
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "skip"},
+        )
         assert response.status_code == 200
-        response = client.post(f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"})
+        response = on_review(
+            client, "POST", f"/phrases/{PHRASE_ID}/decision", json={"button": "learn"},
+        )
         assert response.status_code == 200
         assert _candidate_in_source(client, PHRASE_ID)["cloze"] is None
 
     def test_markup_of_another_phrase_is_rejected(self, client: TestClient) -> None:
-        response = client.put(
-            f"/phrases/{PHRASE_ID}/cloze",
+        response = on_review(
+            client, "PUT", f"/phrases/{PHRASE_ID}/cloze",
             json={"hidden_word_indices": [2], "hint_kind": "none", "phrase": "Old phrase."},
         )
         assert response.status_code == 409
         assert _candidate_in_source(client, PHRASE_ID)["choice"] == "none"
 
     def test_missing_phrase_is_rejected(self, client: TestClient) -> None:
-        response = client.put(
-            f"/phrases/{PHRASE_ID}/cloze",
+        response = on_review(
+            client, "PUT", f"/phrases/{PHRASE_ID}/cloze",
             json={"hidden_word_indices": [2], "hint_kind": "none"},
         )
         assert response.status_code == 422

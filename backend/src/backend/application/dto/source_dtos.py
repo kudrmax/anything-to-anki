@@ -320,23 +320,6 @@ class CardDTO(BaseModel):
     phrase_position: DocumentPositionDTO | None = None
 
 
-class ReviewDTO(BaseModel):
-    """The review screen of a set of sources: one source, a collection or all of them."""
-
-    # The set's token, as the scope query parameter takes it back.
-    scope: str
-    title: str
-    status: str
-    progress: ProgressDTO = ProgressDTO()
-    learn_count: int = 0  # words to learn
-    candidates: list[CardDTO]
-    # How many candidates to show before "show more"; None — show all.
-    initially_shown_candidates: int | None = None
-    # Some source of the set is held by an operation: its cards wait for it.
-    busy: bool = False
-
-
-ReviewDTO.model_rebuild()
 
 
 @dataclass(frozen=True)

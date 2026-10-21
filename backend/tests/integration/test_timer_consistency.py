@@ -34,6 +34,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.decision_support import FixedClock
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
+from tests.review_window_support import review_list
 from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -66,7 +68,7 @@ def moment() -> Moment:
 
 
 @pytest.fixture()
-def factory() -> Generator[sessionmaker[Session], None, None]:
+def factory(moment: Moment) -> Generator[sessionmaker[Session], None, None]:
     engine = create_engine(
         "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
     )
@@ -75,6 +77,8 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
     with sessionmaker(bind=engine)() as session:
         _seed(session)
         session.commit()
+        session.info[KNOWLEDGE_SCOPE_KEY] = _scope(session, FixedClock(moment.at))
+        rebuild_projection(session)
     yield sessionmaker(bind=engine)
     engine.dispose()
 
@@ -134,7 +138,7 @@ def _seed(session: Session) -> None:
 
 
 def _card(client: TestClient, source_id: int, word_id: int) -> Json:
-    cards = client.get("/api/review/candidates", params={"scope": f"source-{source_id}"}).json()
+    cards = review_list(client, f"source-{source_id}")
     return next(card for card in cards if card["word_id"] == word_id)
 
 

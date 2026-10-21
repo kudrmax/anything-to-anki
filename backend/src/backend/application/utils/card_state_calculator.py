@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import TYPE_CHECKING, Protocol
 
-from backend.domain.services.candidate_sections import new_counts_at_steps, sections_at_steps
+from backend.domain.services.candidate_sections import (
+    done_sections,
+    new_counts_at_steps,
+    open_sections_at_steps,
+)
 from backend.domain.services.card_state_rules import changes_at, phrase_word_rows
 from backend.domain.services.card_view import card_status, open_elsewhere
 from backend.domain.value_objects.card_choice import decision_status
@@ -21,6 +25,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.card_choice import WordState
     from backend.domain.value_objects.card_state_rows import PhraseWordRow
+    from backend.domain.value_objects.generated_parts import GeneratedParts
     from backend.domain.value_objects.phrase_newness import PhraseNewness
     from backend.domain.value_objects.review_card import CardRow
     from backend.domain.value_objects.user_knowledge import KnowledgeBase, Newness, NewnessFacts
@@ -64,17 +69,6 @@ class CardStatusValues:
         return CardStatusValues(row.is_done, row.wants_generation, row.changes_at)
 
 
-@dataclass(frozen=True)
-class _SectionFacts:
-    """What tells a card's section besides its phrase, done as its card status says."""
-
-    lemma: str
-    pos: str
-    zipf_frequency: float
-    is_done: bool
-    earned_section: CandidateSection
-
-
 class CardStateCalculator:
     """What the user knows and `now` read once, at the first rule that needs them."""
 
@@ -112,13 +106,11 @@ class CardStateCalculator:
     @staticmethod
     def card(
         target: CardTarget, status: CardStatusValues, newness: PhraseNewness,
+        generated: GeneratedParts,
     ) -> CardStateRow:
         """`newness`: of the other words of the card's phrase."""
         new_counts = new_counts_at_steps(newness)
-        facts = _SectionFacts(
-            lemma=target.lemma, pos=target.pos, zipf_frequency=target.zipf_frequency,
-            is_done=status.is_done, earned_section=target.earned_section,
-        )
+        open_sections = open_sections_at_steps(target, new_counts)
         return CardStateRow(
             phrase_id=target.phrase_id,
             source_id=target.source_id,
@@ -126,8 +118,10 @@ class CardStateCalculator:
             lemma=target.lemma.lower(),
             is_done=status.is_done,
             wants_generation=status.wants_generation,
-            sections=sections_at_steps(facts, new_counts),
+            sections=done_sections(status, open_sections),
+            open_sections=open_sections,
             new_counts=new_counts,
+            generated=generated,
             changes_at=status.changes_at,
         )
 

@@ -157,7 +157,7 @@ def _rebuilder(session: Session) -> SourceRebuilder:
         document_repo=SqlaDocumentRepository(session),
         occurrence_repo=occurrences,
         anki_sync=SqlaAnkiSyncRepository(session, SessionChangeRecorder(session)),
-        job_repo=SqlaJobRepository(session),
+        job_repo=SqlaJobRepository(session, SessionChangeRecorder(session)),
         media_repo=SqlaCandidateMediaRepository(session, SessionChangeRecorder(session)),
         media_files=RemovedMediaFiles(),
         settings_repo=settings,

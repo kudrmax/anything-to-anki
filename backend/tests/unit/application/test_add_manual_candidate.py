@@ -202,6 +202,10 @@ class _RecordingUnitOfWork(UnitOfWork):
         finally:
             self.open = False
 
+    @contextmanager
+    def read(self) -> Iterator[None]:
+        yield
+
 
 NEW_WORD_ID = 100
 NEW_PHRASE_ID = 200
