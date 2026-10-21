@@ -12,7 +12,9 @@ review order of every sort order, computed from the stored rows, is today's orde
 order an open review holds for every source and the collection, each card in today's section.
 One review of the collection stays open through every step and takes what changed after
 each: it holds every live card of its set once and no gone one, and every card it served
-shows whether it is done as the review computes it now.
+shows whether it is done as the review computes it now. Its client is sent the first and
+the last chunk of every source's text as the source joins the set, and takes the marks every
+answer brings: each chunk it holds then equals a fresh read of it.
 
 Every write method of the owners of facts is reached by some step, or is named here with
 the reason it cannot change card state: a new write method without a scenario fails.
@@ -40,6 +42,8 @@ from backend.application.utils.candidate_sorter import CandidateSorter
 from backend.application.utils.card_state_differences import differences
 from backend.application.utils.live_generation_status import summed
 from backend.application.utils.review_answer import ReviewAnswer
+from backend.application.utils.served_text import ServedText
+from backend.application.utils.source_texts import SourceTexts
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
@@ -48,13 +52,14 @@ from backend.domain.entities.candidate_pronunciation import CandidatePronunciati
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.exceptions import DomainError
 from backend.domain.ports.card_state_query import CardStateQuery
-from backend.domain.services import candidate_sorting
+from backend.domain.services import candidate_sorting, text_chunks
 from backend.domain.services.candidate_sorting import CardStanding, sort_cards
 from backend.domain.services.review_layout import remove_cards
 from backend.domain.services.source_review_status import (
     derive_review_status,
     stored_status_of_set,
 )
+from backend.domain.services.text_chunks import LAST_BLOCK
 from backend.domain.value_objects.ai_unavailable import AI_UNAVAILABLE_MARKER, is_ai_unavailable
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
@@ -137,6 +142,8 @@ from tests.unit.architecture.test_owner_events import WRITE_CASES
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
 
+    from backend.application.dto.document_dtos import ChunkHighlightsDTO, HighlightDTO
+    from backend.application.dto.review_dtos import ReviewUpdateDTO
     from backend.application.dto.source_dtos import CardDTO
     from backend.application.utils.open_review import OpenReview
     from backend.domain.entities.occurrence import Occurrence
@@ -212,6 +219,9 @@ GENERATION_SCOPES = (GenerationScope.MISSING, GenerationScope.READY_ALL, Generat
 
 # Every this many cards of the order of today are taken out and placed back.
 TAKEN_EVERY = 3
+# About two lines of the corpus to a chunk: each source's text has a middle chunk or none,
+# which the held review is never sent.
+CHUNK_CHARS = 120
 MAX_EXAMPLES = 8
 STEPS_PER_EXAMPLE = 15
 
@@ -340,6 +350,13 @@ def _memory_engine() -> Engine:
 
 @pytest.fixture(scope="module")
 def scenario() -> Iterator[_Scenario]:
+    with processed_corpus() as processed:
+        yield processed
+
+
+@contextmanager
+def processed_corpus() -> Iterator[_Scenario]:
+    """The corpus processed once, kept in a database every example copies."""
     clock = FixedClock(NOW)
     anki = _Anki()
     polisher = _Polisher()
@@ -367,9 +384,7 @@ def _process_corpus(container: _ScenarioContainer, factory: sessionmaker[Session
                 "INSERT INTO sources (id, title, status, role, created_at)"
                 " VALUES (:id, :title, 'new', 'content', '2026-01-01 00:00:00')"
             ), {"id": source_id, "title": f"Source {source_id}"})
-            SqlaDocumentRepository(session).save(source_id, Document((Paragraph(
-                lines=tuple(Line(line) for line in lines), mode=ParagraphMode.FLOW,
-            ),)))
+            SqlaDocumentRepository(session).save(source_id, corpus_document(lines))
         session.execute(text(
             "INSERT INTO collections (id, name, position, created_at)"
             " VALUES (:id, 'Shared', 0, '2026-01-01 00:00:00')"
@@ -390,6 +405,13 @@ def _process_corpus(container: _ScenarioContainer, factory: sessionmaker[Session
         container.session_work().write(lambda s, p=phrase_id: _ready(s, p))
     container.session_work().write(_two_known_entries)
     container.rebuild_card_states()
+
+
+def corpus_document(lines: Iterable[str]) -> Document:
+    """A source of the corpus: each line a paragraph, so its text has several chunks."""
+    return Document(tuple(
+        Paragraph(lines=(Line(line),), mode=ParagraphMode.FLOW) for line in lines
+    ))
 
 
 def _video(session: Session) -> None:
@@ -473,7 +495,9 @@ class _Projection(RuleBasedStateMachine):
                 open_sections=list(CandidateSection),
             ))
         self.held = _HeldReview(opened.review_id, opened.revision)
-        self.held.took(opened.cards, {}, ())
+        self.held.took(opened.cards, {}, (), opened.revision)
+        self.text = _HeldText()
+        self._text_of_joined_sources()
         self.shown = self._shown_cards()
 
     def _shown_cards(self) -> dict[int, tuple[int, dict[str, object]]]:
@@ -878,11 +902,11 @@ class _Projection(RuleBasedStateMachine):
         """The line of the card's phrase; for an example, the line of a phrase of its word
         that has one."""
         if card.phrase_position is not None:
-            return card.phrase_position.start_line
+            return card.phrase_position.block
         with self.factory() as session:
             occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
             placed = [o for o in occurrences.of_word(card.candidate_id) if o.phrase_position]
-        return placed[0].phrase_position.start_line if placed else None  # type: ignore[union-attr]
+        return placed[0].phrase_position.block if placed else None  # type: ignore[union-attr]
 
     def _source_of(self, card: Occurrence) -> int:
         with self.factory() as session:
@@ -895,8 +919,8 @@ class _Projection(RuleBasedStateMachine):
     @staticmethod
     def _line(source_id: int, line: int) -> SelectionDTO:
         return SelectionDTO(
-            start_block=0, start_line=line, start_char=0,
-            end_block=0, end_line=line, end_char=len(SOURCES[source_id][line]),
+            start_block=line, start_line=0, start_char=0,
+            end_block=line, end_line=0, end_char=len(SOURCES[source_id][line]),
         )
 
     # --- the check -----------------------------------------------------------------------
@@ -955,7 +979,10 @@ class _Projection(RuleBasedStateMachine):
                 ReviewContext(review_id=held.review_id, since=held.since, current=None),
             )
         held.since = update.revision
-        held.took(update.cards, update.done, update.removed)
+        held.took(update.cards, update.done, update.removed, update.revision)
+        self.text.took(update.revision, update.highlights)
+        self._text_of_joined_sources()
+        self._held_text_equals_a_fresh_read()
         ids = {s.id for s in members}
         live = {c.phrase_id: c.is_done for c in cards if c.word.source_id in ids}
         store = self.container._review_order_store  # noqa: SLF001
@@ -977,6 +1004,40 @@ class _Projection(RuleBasedStateMachine):
             and shown[phrase_id][0] == revision
         ]
         assert stale == [], "a card the review shows changed and kept its revision"
+
+    def _text_of_joined_sources(self) -> None:
+        """The client drops the text of a source that left the set and is sent the first
+        and the last chunk of each source that joined it."""
+        held = self.held
+        with self.container._review_order_store.hold(held.review_id) as review:  # noqa: SLF001
+            sources = set(review.source_ids)
+        self.text.keep(sources)
+        for source_id in sorted(sources - self.text.sources):
+            self.text.sources.add(source_id)
+            for block in (0, LAST_BLOCK):
+                with self.factory() as session:
+                    answer = self.container.review_window_use_case(session).text(
+                        ReviewContext(review_id=held.review_id, since=held.since, current=None),
+                        source_id, block,
+                    )
+                self.text.read(answer)
+
+    def _held_text_equals_a_fresh_read(self) -> None:
+        """Each chunk the client holds shows the marks a fresh read of it shows; a mark is
+        done as the newer of its chunk's marks and the client's `done` says."""
+        store = self.container._review_order_store  # noqa: SLF001
+        for (source_id, first), (revision, marks) in sorted(self.text.chunks.items()):
+            with store.hold(self.held.review_id) as review, self.factory() as session:
+                served, review.text = review.text, ServedText()
+                try:
+                    fresh = self.container._review_text(session).chunk(  # noqa: SLF001
+                        review, source_id, first,
+                    )
+                finally:
+                    review.text = served
+            assert [self.held.shown(mark, revision) for mark in marks] == [
+                mark.model_dump() for mark in fresh.highlights
+            ], ("the client's marks of a chunk are not what it shows now", source_id, first)
 
     def _open_reviews_hold_todays_order(
         self,
@@ -1102,14 +1163,48 @@ class _HeldReview:
         self.review_id = review_id
         self.since = since
         self.done: dict[int, bool] = {}
+        self.done_at: dict[int, int] = {}
 
     def took(
         self, cards: list[CardDTO], done: dict[int, bool], removed: Iterable[int],
+        revision: int,
     ) -> None:
-        self.done.update({card.phrase_id: card.is_done for card in cards})
-        self.done.update(done)
+        told = {card.phrase_id: card.is_done for card in cards} | done
+        self.done.update(told)
+        self.done_at.update(dict.fromkeys(told, revision))
         for phrase_id in removed:
             self.done.pop(phrase_id, None)
+            self.done_at.pop(phrase_id, None)
+
+    def shown(self, mark: HighlightDTO, revision: int) -> dict[str, object]:
+        """The mark as the client shows it: done as told after the marks came, if it was."""
+        if self.done_at.get(mark.phrase_id, -1) > revision:
+            return mark.model_dump() | {"is_done": self.done[mark.phrase_id]}
+        return mark.model_dump()
+
+
+class _HeldText:
+    """The text the client of the held review holds: of each source it was sent text of,
+    the chunks by first block, each with its marks and the revision they came at."""
+
+    def __init__(self) -> None:
+        self.sources: set[int] = set()
+        self.chunks: dict[tuple[int, int], tuple[int, list[HighlightDTO]]] = {}
+
+    def read(self, answer: ReviewUpdateDTO) -> None:
+        chunk = answer.text
+        assert chunk is not None
+        self.chunks[chunk.source_id, chunk.first_block] = (answer.revision, chunk.highlights)
+
+    def took(self, revision: int, highlights: Iterable[ChunkHighlightsDTO]) -> None:
+        for marks in highlights:
+            key = (marks.source_id, marks.first_block)
+            assert key in self.chunks, ("marks of a chunk the client was not sent", key)
+            self.chunks[key] = (revision, marks.highlights)
+
+    def keep(self, sources: set[int]) -> None:
+        self.sources &= sources
+        self.chunks = {k: v for k, v in self.chunks.items() if k[0] in sources}
 
 
 def _summed_status(of_sources: list[GenerationStatusDTO]) -> GenerationStatusDTO:
@@ -1271,6 +1366,8 @@ def test_the_projection_equals_the_review_after_every_step(
 ) -> None:
     reached = _Reached()
     reached.watch(monkeypatch)
+    monkeypatch.setattr(text_chunks, "TEXT_CHUNK_CHARS", CHUNK_CHARS)
+    monkeypatch.setattr(scenario.container, "_source_texts", SourceTexts())
     _Projection.scenario = scenario
     _tour(_Projection())
     _timer_tour(_Projection())

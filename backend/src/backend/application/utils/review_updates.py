@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from backend.application.utils.open_review import OpenReview
     from backend.application.utils.review_answer import ReviewAnswer
     from backend.application.utils.review_ordering import ReviewOrdering
+    from backend.application.utils.review_text import ReviewText
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.domain.ports.card_state_query import CardStateQuery
     from backend.domain.ports.unit_of_work import UnitOfWork
@@ -47,7 +48,8 @@ class ReviewUpdates:
     """What changed for an open review since the client's revision, placed into the held
     order: gone cards leave it, new ones join it by the domain rules, and the answer holds
     the changed cards the client was served, whether every changed card of the set is
-    done, and the next focus. Called under the review's lock; reads one snapshot."""
+    done, the marks of the served chunks of text the changes changed, and the next focus.
+    Called under the review's lock; reads one snapshot."""
 
     def __init__(
         self,
@@ -55,12 +57,14 @@ class ReviewUpdates:
         card_states: CardStateQuery,
         ordering: ReviewOrdering,
         answer: ReviewAnswer,
+        text: ReviewText,
         unit_of_work: UnitOfWork,
     ) -> None:
         self._scope_resolver = scope_resolver
         self._card_states = card_states
         self._ordering = ordering
         self._answer = answer
+        self._text = text
         self._unit_of_work = unit_of_work
 
     def build(
@@ -82,6 +86,7 @@ class ReviewUpdates:
             changed = self._card_states.changed_since(source_ids, ctx.since)
             live = {c.row.phrase_id: c.row for c in changed if not c.removed}
             removed = [c.row.phrase_id for c in changed if c.removed]
+            gone_from = {c.row.phrase_id: c.row.source_id for c in changed if c.removed}
             # A source that left the set takes its cards out; one that joined brings all of
             # its live cards, whatever revision they were written at.
             held = review.source_ids
@@ -95,6 +100,8 @@ class ReviewUpdates:
             if current != held:
                 review.source_ids = current
                 review.contents_version += 1
+                for source_id in held - current:
+                    review.text.forget_source(source_id)
             version = review.layout_version
             review.current = ctx.current
             before = review.layout()
@@ -112,6 +119,7 @@ class ReviewUpdates:
                 review.current = focus_id
             layout = review.layout()
             replace = review.layout_version != version
+            highlights = self._text.changed_highlights(review, live, gone_from, source_ids)
             window = None
             if not replace and focus_id is not None and focus_id not in review.served:
                 window = window_around(layout, focus_id)
@@ -119,6 +127,7 @@ class ReviewUpdates:
                 ctx.review_id, review, window=window, replace=replace, focus_id=focus_id,
                 changed=live.keys(), removed=removed,
                 done={p: row.is_done for p, row in live.items()},
+                highlights=highlights,
             )
 
     def _placed(

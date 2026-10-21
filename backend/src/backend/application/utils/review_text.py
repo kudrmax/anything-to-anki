@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import bisect
 from typing import TYPE_CHECKING
 
 from backend.application.dto.document_dtos import (
     BlockDTO,
+    ChunkHighlightsDTO,
     ContentsEntryDTO,
     DocumentPositionDTO,
     HighlightDTO,
@@ -11,22 +13,30 @@ from backend.application.dto.document_dtos import (
     ReviewContentsDTO,
     TextChunkDTO,
 )
-from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
+from backend.domain.exceptions import (
+    SourceHasNoDocumentError,
+    SourceNotFoundError,
+    TextBlockNotFoundError,
+)
 from backend.domain.services.text_chunks import chunk_with
 from backend.domain.services.text_marks import PlacedMark, marks_shown
 from backend.domain.value_objects.document import Heading, ListItem, Paragraph
 from backend.domain.value_objects.source_scope import SourceScope
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable, Mapping, Sequence
 
+    from backend.application.dto.document_dtos import TextChunkRef
     from backend.application.utils.open_review import OpenReview
+    from backend.application.utils.served_text import ChunkRef
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.application.utils.source_texts import SourceText, SourceTexts
     from backend.domain.ports.card_query import CardQuery
     from backend.domain.ports.card_state_query import CardStateQuery
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.services.document_layout import DocumentLayout
+    from backend.domain.services.text_chunks import TextChunk
+    from backend.domain.value_objects.card_state_rows import CardStateRow
     from backend.domain.value_objects.document import Block, Document, Line
     from backend.domain.value_objects.shown_place import ShownPlace
 
@@ -73,16 +83,16 @@ class ReviewText:
 
     def chunk(self, review: OpenReview, source_id: int, block: int) -> TextChunkDTO:
         """The chunk of the source's document that holds the block; LAST_BLOCK names the
-        last one. SourceNotFoundError when the source is not in the set,
-        SourceHasNoDocumentError when it has no document, TextBlockNotFoundError when the
-        document has no such block."""
+        last one. The review counts it as served. SourceNotFoundError when the source is
+        not in the set, SourceHasNoDocumentError when it has no document,
+        TextBlockNotFoundError when the document has no such block."""
         if source_id not in review.source_ids:
             raise SourceNotFoundError(source_id)
         text = self._text(source_id)
         chunk = chunk_with(text.chunks, block)
         blocks = range(chunk.first_block, chunk.end_block)
         places = self._card_query.shown_places(source_id, blocks)
-        done = self._card_state_query.done_of_phrases([p.phrase_id for p in places])
+        review.text.serve(source_id, chunk, places)
         layout = text.layout
         return TextChunkDTO(
             source_id=source_id,
@@ -96,8 +106,88 @@ class ReviewText:
                 block_dto(layout.document.blocks[index], text.numbers[index])
                 for index in blocks
             ],
-            highlights=highlights(layout, places, done),
+            highlights=self._highlights(layout, places),
         )
+
+    def changed_highlights(
+        self,
+        review: OpenReview,
+        live: Mapping[int, CardStateRow],
+        removed: Mapping[int, int],
+        source_order: Sequence[int],
+    ) -> list[ChunkHighlightsDTO]:
+        """The marks of the served chunks whose marks the changed cards changed — `live`:
+        the changed cards as they are now; `removed`: the gone ones, each with its source —
+        in the order of `source_order`, then by first block. Each is served again. Reads a
+        source's document only for a chunk whose marks changed."""
+        served = review.text.sources()
+        changed = {p: row.source_id for p, row in live.items() if row.source_id in served}
+        changed |= {p: s for p, s in removed.items() if s in served}
+        if not changed:
+            return []
+        blocks = self._card_query.phrase_blocks(changed)
+        placed: list[tuple[int, int]] = []
+        anywhere: set[int] = set()
+        for phrase_id, source_id in changed.items():
+            found = blocks.get(phrase_id)
+            if found is None:
+                anywhere.add(source_id)
+            elif found.block is not None:
+                placed.append((source_id, found.block))
+        now: dict[ChunkRef, list[ShownPlace]] = {}
+        for source_id, chunks in review.text.candidates(placed, anywhere).items():
+            now |= _by_chunk(
+                source_id, chunks,
+                self._card_query.shown_places_in(
+                    source_id, [range(c.first_block, c.end_block) for c in chunks],
+                ),
+            )
+        touched = review.text.touched(now)
+        rank = {source_id: at for at, source_id in enumerate(source_order)}
+        answer: list[ChunkHighlightsDTO] = []
+        for source_id, first in sorted(touched, key=lambda ref: (rank.get(ref[0], -1), ref[1])):
+            chunk = review.text.chunk_of(source_id, first)
+            assert chunk is not None
+            places = now[source_id, first]
+            review.text.serve(source_id, chunk, places)
+            answer.append(ChunkHighlightsDTO(
+                source_id=source_id, first_block=first,
+                highlights=self._highlights(self._text(source_id).layout, places),
+            ))
+        return answer
+
+    def register(
+        self, review: OpenReview, refs: Sequence[TextChunkRef],
+    ) -> list[ChunkHighlightsDTO]:
+        """The chunks a client of a review opened again holds from before: each one of a
+        source of the set that has a document, which a chunk of it starts at, is served,
+        with its marks; any other is left out."""
+        answer: list[ChunkHighlightsDTO] = []
+        for ref in refs:
+            if ref.source_id not in review.source_ids:
+                continue
+            try:
+                text = self._text(ref.source_id)
+                chunk = chunk_with(text.chunks, ref.first_block)
+            except (SourceHasNoDocumentError, TextBlockNotFoundError):
+                continue
+            if chunk.first_block != ref.first_block:
+                continue
+            places = self._card_query.shown_places(
+                ref.source_id, range(chunk.first_block, chunk.end_block),
+            )
+            review.text.serve(ref.source_id, chunk, places)
+            answer.append(ChunkHighlightsDTO(
+                source_id=ref.source_id, first_block=chunk.first_block,
+                highlights=self._highlights(text.layout, places),
+            ))
+        return answer
+
+    def _highlights(
+        self, layout: DocumentLayout, places: Sequence[ShownPlace],
+    ) -> list[HighlightDTO]:
+        done = self._card_state_query.done_of_phrases([p.phrase_id for p in places])
+        return highlights(layout, places, done)
 
     def _text(self, source_id: int) -> SourceText:
         fingerprint = self._document_repo.fingerprint(source_id)
@@ -111,6 +201,18 @@ class ReviewText:
             return document
 
         return self._texts.of(source_id, fingerprint, read)
+
+
+def _by_chunk(
+    source_id: int, chunks: Sequence[TextChunk], places: Iterable[ShownPlace],
+) -> dict[ChunkRef, list[ShownPlace]]:
+    """The places of each chunk, which are in order: a place is in its block's chunk."""
+    found: dict[ChunkRef, list[ShownPlace]] = {(source_id, c.first_block): [] for c in chunks}
+    firsts = [c.first_block for c in chunks]
+    for place in places:
+        first = firsts[bisect.bisect_right(firsts, place.position.block) - 1]
+        found[source_id, first].append(place)
+    return found
 
 
 def highlights(

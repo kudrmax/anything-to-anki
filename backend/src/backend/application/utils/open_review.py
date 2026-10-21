@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from backend.application.utils.served_text import ServedText
 from backend.domain.services.review_layout import layout, unfolded
 
 if TYPE_CHECKING:
@@ -12,10 +13,9 @@ if TYPE_CHECKING:
 
 class OpenReview:
     """An open review between requests: the sources its set holds, its order from the
-    opening, the sections the user
-    opened, the current card, which card rows the client was sent, the version of the
-    rows and the version of the set's contents. Its visible list is built once per set of
-    sections that show."""
+    opening, the sections the user opened, the current card, which card rows the client was
+    sent, the version of the rows, the version of the set's contents and the chunks of text
+    it served. Its visible list is built once per set of sections that show."""
 
     def __init__(
         self,
@@ -39,6 +39,7 @@ class OpenReview:
         self.layout_version = 0
         # Moves on when the set's sources change: the client reads the contents anew.
         self.contents_version = 0
+        self.text = ServedText()
         self._shown: frozenset[CandidateSection] | None = None
         self._layout: ReviewLayout | None = None
 

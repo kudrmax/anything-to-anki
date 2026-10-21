@@ -105,3 +105,20 @@ class ReviewContentsDTO(BaseModel):
 
     version: int
     documents: list[ContentsEntryDTO]
+
+
+class ChunkHighlightsDTO(BaseModel):
+    """The targets to mark in a chunk of a source's text the client was sent, as they are
+    now: they replace the chunk's marks."""
+
+    source_id: int
+    first_block: int
+    highlights: list[HighlightDTO]
+
+
+class TextChunkRef(BaseModel):
+    """A chunk of a source's text the client holds: the source and the chunk's first
+    block."""
+
+    source_id: int
+    first_block: int

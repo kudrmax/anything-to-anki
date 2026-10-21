@@ -559,6 +559,7 @@ class Container:
             ordering=self._review_ordering(session),
             store=self._review_order_store,
             answer=self._review_answer(session),
+            text=self._review_text(session),
             unit_of_work=self._unit_of_work(session),
         )
 
@@ -594,6 +595,7 @@ class Container:
             card_states=self._card_state_query(session),
             ordering=self._review_ordering(session),
             answer=self._review_answer(session),
+            text=self._review_text(session),
             unit_of_work=self._unit_of_work(session),
         )
 

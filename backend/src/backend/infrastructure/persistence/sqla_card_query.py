@@ -3,13 +3,13 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 
 from backend.domain.ports.card_query import CardQuery
 from backend.domain.value_objects.generated_parts import JobState
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.review_card import CardRow, CardTargetRow
-from backend.domain.value_objects.shown_place import ShownPlace
+from backend.domain.value_objects.shown_place import PhraseBlock, ShownPlace
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.card_state_codecs import (
     DONE_COLUMNS,
@@ -33,6 +33,7 @@ from backend.infrastructure.persistence.models import (
     earned_section_of,
     load_phrase,
     load_position,
+    load_position_start,
 )
 from backend.infrastructure.persistence.phrase_writes import chunks
 
@@ -189,9 +190,46 @@ class SqlaCardQuery(CardQuery):
     def shown_places(self, source_id: int, blocks: range | None = None) -> list[ShownPlace]:
         """With `blocks`, a phrase is picked by the block of its key, where its target
         starts: the block of its place. A phrase without a key is picked by its place."""
-        in_blocks: list[ColumnElement[bool]] = [] if blocks is None else [
-            PhraseModel.block.is_(None)
-            | PhraseModel.block.between(blocks.start, blocks.stop - 1),
+        if blocks is None:
+            return self._places(source_id, None)
+        return self.shown_places_in(source_id, [blocks])
+
+    def shown_places_in(self, source_id: int, chunks: Sequence[range]) -> list[ShownPlace]:
+        runs = _joined(chunks)
+        found: dict[int, ShownPlace] = {}
+        for at in range(0, len(runs), _RUNS_PER_QUERY):
+            batch = runs[at:at + _RUNS_PER_QUERY]
+            for place in self._places(source_id, batch):
+                found[place.phrase_id] = place
+        return [found[phrase_id] for phrase_id in sorted(found)]
+
+    def phrase_blocks(self, phrase_ids: Collection[int]) -> dict[int, PhraseBlock]:
+        found: dict[int, PhraseBlock] = {}
+        for chunk in chunks(sorted(phrase_ids)):
+            rows = self._session.execute(
+                select(
+                    PhraseModel.id,
+                    StoredCandidateModel.source_id,
+                    PhraseModel.block,
+                    PhraseModel.phrase_position,
+                )
+                .join(StoredCandidateModel, StoredCandidateModel.id == PhraseModel.candidate_id)
+                .where(PhraseModel.id.in_(chunk))
+            ).tuples().all()
+            for phrase_id, source_id, key_block, stored_position in rows:
+                start = load_position_start(stored_position)
+                block = key_block if key_block is not None else (
+                    start[0] if start is not None else None
+                )
+                found[phrase_id] = PhraseBlock(source_id, block)
+        return found
+
+    def _places(self, source_id: int, runs: Sequence[range] | None) -> list[ShownPlace]:
+        in_blocks: list[ColumnElement[bool]] = [] if runs is None else [
+            or_(
+                PhraseModel.block.is_(None),
+                *(PhraseModel.block.between(run.start, run.stop - 1) for run in runs),
+            ),
         ]
         rows = self._session.execute(
             select(
@@ -221,7 +259,10 @@ class SqlaCardQuery(CardQuery):
         ):
             position = load_position(stored_position)
             assert position is not None
-            if blocks is not None and key_block is None and position.block not in blocks:
+            if (
+                runs is not None and key_block is None
+                and not any(position.block in run for run in runs)
+            ):
                 continue
             places.append(ShownPlace(
                 phrase_id=phrase_id, word_id=word_id, cefr_level=cefr_level_of(breakdown),
@@ -229,6 +270,22 @@ class SqlaCardQuery(CardQuery):
                 position=position,
             ))
         return places
+
+
+# How many runs of blocks one query of places names: SQLite bounds how deep an expression
+# goes, and each run is one more OR.
+_RUNS_PER_QUERY = 100
+
+
+def _joined(chunks: Sequence[range]) -> list[range]:
+    """The runs of blocks, those that touch or overlap joined into one."""
+    runs: list[range] = []
+    for run in sorted((c for c in chunks if c), key=lambda c: c.start):
+        if runs and run.start <= runs[-1].stop:
+            runs[-1] = range(runs[-1].start, max(runs[-1].stop, run.stop))
+        else:
+            runs.append(run)
+    return runs
 
 
 # What generation made for a shown phrase, as `GenerationTarget.is_done` and `covers` read
