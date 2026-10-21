@@ -43,7 +43,10 @@ from backend.infrastructure.persistence.database import (
     run_alembic_migrations,
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
+from backend.infrastructure.persistence.sqla_unit_of_work import BEGIN_IMMEDIATE
+from backend.infrastructure.startup_heap import freeze_startup_heap
 from pydantic import BaseModel
+from sqlalchemy import Engine, event
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -160,6 +163,28 @@ def timed[T](work: Callable[[], T]) -> tuple[T, float]:
     return result, (time.perf_counter() - began) * MS
 
 
+class WriteTransactions:
+    """How long each write transaction on the engine held the writer: from its BEGIN
+    IMMEDIATE to its commit or rollback."""
+
+    def __init__(self, engine: Engine) -> None:
+        self._began: float | None = None
+        self.held_ms: list[float] = []
+        event.listen(engine, "before_cursor_execute", self._begin)
+        event.listen(engine, "commit", self._end)
+        event.listen(engine, "rollback", self._end)
+
+    def _begin(self, *args: object) -> None:
+        statement = args[2]
+        if isinstance(statement, str) and statement.startswith(BEGIN_IMMEDIATE):
+            self._began = time.perf_counter()
+
+    def _end(self, *_args: object) -> None:
+        if self._began is not None:
+            self.held_ms.append((time.perf_counter() - self._began) * MS)
+            self._began = None
+
+
 class ReviewBench:
     """The use cases of the review on one container, as one app process holds them: the
     open reviews live in its memory."""
@@ -168,12 +193,16 @@ class ReviewBench:
         self._db_url = f"sqlite:///{db}"
         self._session_factory = create_session_factory(self._db_url)
         self._container = Container(session_factory=self._session_factory)
+        self.writes = WriteTransactions(self._session_factory.kw["bind"])
         self.scope = SourceScope.collection(collection_id)
 
     def start(self) -> dict[str, float]:
-        """The app's start: migrations, then the projection computed anew."""
+        """The app's start: migrations, the projection computed anew, then what start-up
+        made frozen out of the garbage collector's walks, as the app's lifespan does."""
         _, migrations = timed(lambda: run_alembic_migrations(self._db_url))
-        return {"migrations_s": migrations / MS, "startup_rebuild_s": self.rebuild() / MS}
+        rebuild = self.rebuild()
+        freeze_startup_heap()
+        return {"migrations_s": migrations / MS, "startup_rebuild_s": rebuild / MS}
 
     def rebuild(self) -> float:
         return timed(self._container.rebuild_card_states)[1]
@@ -450,8 +479,12 @@ def run(args: BenchArgs) -> dict[str, object]:
         result |= measure_presses(bench, open_ids, args.presses)
         runs: dict[str, object] = {}
         for kind in RUN_KINDS:
+            bench.writes.held_ms.clear()
             queued, ms = bench.run_generation(kind)
-            runs[kind.value] = {"queued": queued, "s": ms / MS}
+            runs[kind.value] = {
+                "queued": queued, "s": ms / MS, "writes": len(bench.writes.held_ms),
+                "longest_write_ms": max(bench.writes.held_ms, default=0.0),
+            }
         result["generation_run"] = runs
         queued_ms, queued_kb = bench.generation_status()
         result["generation_status_queued"] = {
