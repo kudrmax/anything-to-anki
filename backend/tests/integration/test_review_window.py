@@ -390,3 +390,75 @@ def test_changes_answer_the_header_and_revision(client: TestClient) -> None:
     assert (body["revision"], body["layout"], body["cards"]) == (opened["revision"], None, [])
     assert body["header"] == opened["header"]
     assert client.get(f"/api/review/{opened['review_id']}/changes").status_code == 422
+
+
+# --- changes on an open review ------------------------------------------------------------
+
+_PRESSED = phrase_id_of(1)
+_SELECTION = {
+    "start_block": 0, "start_line": 0, "start_char": 0,
+    "end_block": 0, "end_line": 0, "end_char": 4,
+}
+MUTATIONS: list[tuple[str, str, dict[str, object]]] = [
+    ("POST", f"/phrases/{_PRESSED}/decision", {"json": {"button": "known"}}),
+    ("PUT", f"/phrases/{_PRESSED}/cloze", {"json": {
+        "phrase": "word1", "hidden_word_indices": [0], "hint_kind": "none",
+    }}),
+    ("POST", f"/phrases/{_PRESSED}/replace-with-example", {"json": {"example_text": "a word1"}}),
+    ("POST", "/sources/1/candidates/manual", {"json": {
+        "target_words": [0], "selection": _SELECTION,
+    }}),
+    ("POST", f"/phrases/{_PRESSED}/report", {"json": {"comment": "odd"}}),
+    ("PUT", f"/phrases/{_PRESSED}/polish/reverted", {"json": {"reverted": True}}),
+    ("PUT", f"/phrases/{_PRESSED}/phrase", {"json": {"phrase": "word1 again"}}),
+    ("PUT", f"/phrases/{_PRESSED}/phrase-boundary", {"json": {"selection": _SELECTION}}),
+    ("POST", f"/phrases/{_PRESSED}/polish", {}),
+    ("POST", f"/phrases/{_PRESSED}/generate-tts", {}),
+    ("POST", f"/phrases/{_PRESSED}/regenerate-media", {}),
+    ("POST", f"/phrases/{_PRESSED}/generate-meaning", {}),
+    ("PUT", "/words/1/image", {"json": {"url": "https://example.com/x.jpg"}}),
+    ("PUT", "/words/1/image/pasted", {"content": b"picture"}),
+    ("POST", "/api/review/generation/meaning", {"params": {"scope": SCOPE, "cards": "all"}}),
+    ("POST", "/api/review/generation/meaning/cancel", {"params": {"scope": SCOPE}}),
+    ("POST", "/api/review/download-video", {"params": {"scope": SCOPE}}),
+]
+
+
+def _dump(factory: sessionmaker[Session]) -> list[str]:
+    with factory() as session:
+        connection = session.connection().connection.driver_connection
+        return list(connection.iterdump())  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize(("method", "path", "request_kwargs"), MUTATIONS)
+def test_a_change_on_a_review_no_longer_held_is_410_and_writes_nothing(
+    client: TestClient, factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch,
+    method: str, path: str, request_kwargs: dict[str, object],
+) -> None:
+    # The meaning's use case is built with the AI's address; nothing calls it here.
+    monkeypatch.setenv("AI_PROXY_URL", "http://127.0.0.1:9")
+    before = _dump(factory)
+    kwargs = dict(request_kwargs)
+    params = {"review_id": "gone", "since": 0, **kwargs.pop("params", {})}  # type: ignore[dict-item]
+
+    response = client.request(method, path, params=params, **kwargs)  # type: ignore[arg-type]
+
+    assert (response.status_code, response.json()["detail"]) == (410, "review_expired")
+    assert _dump(factory) == before
+
+
+def test_a_press_answers_with_the_update_and_the_next_focus(client: TestClient) -> None:
+    opened = client.post("/api/review", json={"scope": SCOPE}).json()
+    focus = opened["focus_id"]
+
+    response = client.post(
+        f"/phrases/{focus}/decision", json={"button": "known"},
+        params={"review_id": opened["review_id"], "since": opened["revision"], "current": focus},
+    )
+
+    assert response.status_code == 200
+    update = response.json()
+    assert update["review_id"] == opened["review_id"]
+    assert update["revision"] > opened["revision"]
+    assert update["done"][str(focus)] is True
+    assert update["focus_id"] not in (None, focus)

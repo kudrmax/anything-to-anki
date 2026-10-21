@@ -46,13 +46,14 @@ OPEN_MEANING, OPEN_FAILED, DONE, GONE, ARTICLE_CARD = 1, 2, 3, 4, 5
 def _row(
     word_id: int, source_id: int, sections: SectionsByStep, *, is_done: bool = False,
     done: frozenset[GenerationKind] = frozenset(),
+    failed: frozenset[GenerationKind] = frozenset(),
 ) -> CardStateRow:
     return CardStateRow(
         phrase_id=phrase_id_of(word_id), source_id=source_id, word_id=word_id,
         lemma=f"word{word_id}", is_done=is_done, wants_generation=not is_done,
         sections=REVIEWED if is_done else sections, open_sections=sections,
         new_counts=NO_NEW_WORDS,
-        generated=GeneratedParts(done, frozenset({GenerationKind.MEDIA})),
+        generated=GeneratedParts(done, frozenset({GenerationKind.MEDIA}), failed_jobs=failed),
         changes_at=None,
     )
 
@@ -64,16 +65,11 @@ def query(db_session: Session) -> SqlaCardStateQuery:
     for word_id in (OPEN_MEANING, OPEN_FAILED, DONE, GONE):
         insert_word(db_session, word_id, source_id=BOOK)
     insert_word(db_session, ARTICLE_CARD, source_id=ARTICLE)
-    db_session.execute(text(
-        "INSERT INTO jobs (job_type, candidate_id, source_id, status, error, created_at,"
-        " phrase_id, phrase_revision)"
-        " VALUES ('meaning', :word, 1, 'failed', 'boom', '2026-01-01 00:00:00', :phrase, 0)"
-    ), {"word": OPEN_FAILED, "phrase": phrase_id_of(OPEN_FAILED)})
     store = SqlaCardStateStore(db_session)
     revision = store.next_revision()
     store.write_cards([
         _row(OPEN_MEANING, BOOK, READY_FROM_THIRD_STEP, done=frozenset({GenerationKind.MEANING})),
-        _row(OPEN_FAILED, BOOK, READY_FROM_THIRD_STEP),
+        _row(OPEN_FAILED, BOOK, READY_FROM_THIRD_STEP, failed=frozenset({GenerationKind.MEANING})),
         _row(DONE, BOOK, ALL_READY, is_done=True),
         _row(GONE, BOOK, ALL_EXTRA),
         _row(ARTICLE_CARD, ARTICLE, ALL_READY),
@@ -173,3 +169,28 @@ def test_the_order_rows_are_the_live_cards_with_their_words_facts_and_place(
     )
     assert done.usage_distribution is None
     assert [row.source_id for row in query.order_rows([ARTICLE, 99])] == [ARTICLE]
+
+
+def test_what_changed_since_a_revision_holds_the_removed_cards_too(
+    query: SqlaCardStateQuery, db_session: Session,
+) -> None:
+    store = SqlaCardStateStore(db_session)
+    seen = query.revision()
+    revision = store.next_revision()
+    store.write_cards([_row(OPEN_MEANING, BOOK, ALL_EXTRA)], revision)
+    store.remove_cards([phrase_id_of(OPEN_FAILED)], revision)
+    store.write_cards([_row(ARTICLE_CARD, ARTICLE, ALL_EXTRA)], revision)
+
+    changed = {c.row.phrase_id: c for c in query.changed_since([BOOK], seen)}
+
+    assert set(changed) == {phrase_id_of(OPEN_MEANING), phrase_id_of(OPEN_FAILED)}
+    assert changed[phrase_id_of(OPEN_MEANING)].row == _row(OPEN_MEANING, BOOK, ALL_EXTRA)
+    assert changed[phrase_id_of(OPEN_FAILED)].removed
+    assert {c.revision for c in changed.values()} == {revision}
+    assert query.changed_since([BOOK], revision) == []
+
+
+def test_whether_cards_are_done_by_phrase(query: SqlaCardStateQuery) -> None:
+    assert query.done_of_phrases(
+        [phrase_id_of(i) for i in (OPEN_MEANING, DONE, GONE)] + [999],
+    ) == {phrase_id_of(OPEN_MEANING): False, phrase_id_of(DONE): True}

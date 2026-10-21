@@ -324,16 +324,30 @@ class TTSTarget(InPlaceGenerationTarget):
 
 
 def generated_parts(
-    targets: Iterable[GenerationTarget], word: StoredCandidate, phrase: Occurrence,
+    targets: Iterable[GenerationTarget],
+    word: StoredCandidate,
+    phrase: Occurrence,
+    jobs: CardJobs,
 ) -> GeneratedParts:
-    """What the targets read as made for the card, and the kinds it cannot get even in
-    play."""
+    """What the targets read as made for the card, the kinds it cannot get even in play,
+    and what the queue holds for it: each kind's job, an active one before a failed one."""
     card = GenerationCard(word, phrase, in_play=True)
     listed = list(targets)
+    held = {target.kind: target.job_of(jobs, card) for target in listed}
     return GeneratedParts(
         done=frozenset(target.kind for target in listed if target.is_done(card)),
         uncovered=frozenset(target.kind for target in listed if not target.covers(card)),
+        active_jobs=frozenset(
+            kind for kind, job in held.items() if job is not None and job.status in _ACTIVE
+        ),
+        failed_jobs=frozenset(
+            kind for kind, job in held.items()
+            if job is not None and job.status not in _ACTIVE
+        ),
     )
+
+
+_ACTIVE = frozenset({JobStatus.QUEUED, JobStatus.RUNNING})
 
 
 def target_for(

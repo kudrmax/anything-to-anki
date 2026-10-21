@@ -60,7 +60,7 @@ def factory(tmp_path: Path) -> Iterator[sessionmaker[Session]]:
             "INSERT INTO sources (id, title, status, created_at)"
             " VALUES (:id, 'source', 'done', '2026-01-01 00:00:00')"
         ), {"id": SOURCE_ID})
-        SqlaJobRepository(session).enqueue([
+        SqlaJobRepository(session, SessionChangeRecorder(session)).enqueue([
             Job.queued(JobType.TOPIC_TARGETS, SOURCE_ID, None),
             Job.queued(JobType.VIDEO_DOWNLOAD, SOURCE_ID, None),
         ])
@@ -121,4 +121,6 @@ def test_no_write_is_lost(factory: sessionmaker[Session]) -> None:
         assert SqlaSettingsRepository(
             session, SessionChangeRecorder(session),
         ).get(COUNTER) == str(WRITERS * WRITES_EACH)
-        assert SqlaJobRepository(session).get_jobs_by_status(list(JobStatus)) == []
+        assert SqlaJobRepository(
+            session, SessionChangeRecorder(session),
+        ).get_jobs_by_status(list(JobStatus)) == []

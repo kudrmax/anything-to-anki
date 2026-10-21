@@ -297,7 +297,7 @@ def _enqueue_polish(session: Session) -> None:
     EnqueuePhrasePolishUseCase(
         RequestedCards(candidates, occurrences, free_lock()), occurrences,
         SqlaSourceRepository(session, SessionChangeRecorder(session)),
-        SqlaJobRepository(session),
+        SqlaJobRepository(session, SessionChangeRecorder(session)),
         _stamper(session),
         MagicMock(),
     ).execute(PRIMARY)
@@ -356,19 +356,23 @@ class TestTextWritesOutdateJobs:
             session.commit()
 
         with factory() as session:
-            [job] = SqlaJobRepository(session).get_jobs_for_phrases([PRIMARY])[PRIMARY].values()
+            [job] = SqlaJobRepository(
+                session, SessionChangeRecorder(session),
+            ).get_jobs_for_phrases([PRIMARY])[PRIMARY].values()
         assert job.phrase_revision == _revision(factory) == 1
 
 
 def _queue_meaning(session: Session) -> None:
-    SqlaJobRepository(session).enqueue([Job.queued(
+    SqlaJobRepository(session, SessionChangeRecorder(session)).enqueue([Job.queued(
         JobType.MEANING, SOURCE, WORD, phrase_id=PRIMARY, phrase_revision=0,
     )])
 
 
 def _queued(factory: sessionmaker[Session]) -> dict[str, Job]:
     with factory() as session:
-        return SqlaJobRepository(session).get_jobs_for_phrases([PRIMARY]).get(PRIMARY, {})
+        return SqlaJobRepository(
+            session, SessionChangeRecorder(session),
+        ).get_jobs_for_phrases([PRIMARY]).get(PRIMARY, {})
 
 
 class TestQueuedJobsFollowTheText:

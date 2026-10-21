@@ -1,12 +1,18 @@
-"""The visible list of an open review and the card it opens on: the cases of the web app's
-former `sections.test.ts` and `initialFocus.test.ts`, kept by the backend now."""
+"""The visible list of an open review, the card it opens on and how the order and the focus
+follow changes: the cases of the web app's former `sections.test.ts`, `initialFocus.test.ts`,
+`nextFocus.test.ts` and `keptLayout.test.ts`, kept by the backend now."""
 from __future__ import annotations
 
 import pytest
 from backend.domain.services.review_layout import (
     FOLDED_BY_DEFAULT,
+    focus_after_press,
+    focus_after_removal,
     initial_focus,
     layout,
+    place_new,
+    remove_cards,
+    replace_card,
     unfolded,
 )
 from backend.domain.value_objects.candidate_section import CandidateSection
@@ -184,3 +190,168 @@ def test_it_passes_over_a_card_done_via_another_source() -> None:
 
 def test_an_empty_review_opens_on_no_card() -> None:
     assert initial_focus(_order(), {}, None) is None
+
+
+# --- the focus after a press --------------------------------------------------------------
+
+def _pressed(
+    *cards: tuple[int, bool, CandidateSection], sectioned: bool = True,
+) -> tuple[ReviewOrder, dict[int, bool]]:
+    """A held order and whether each card is done now, as the cards are listed."""
+    order = _order(*((phrase_id, section) for phrase_id, _done, section in cards),
+                   sectioned=sectioned)
+    return order, {phrase_id: done for phrase_id, done, _section in cards}
+
+
+def test_the_focus_takes_the_next_open_card_below_the_pressed_one() -> None:
+    order, done = _pressed((1, False, R), (2, True, R), (5, False, R), (3, False, R))
+    assert focus_after_press(order, 2, False, done) == 5
+
+
+def test_the_focus_skips_done_cards_below_it() -> None:
+    order, done = _pressed((1, False, R), (2, True, R), (4, True, R), (3, False, R))
+    assert focus_after_press(order, 2, False, done) == 3
+
+
+def test_the_focus_wraps_to_the_first_open_card_when_none_is_left_below() -> None:
+    order, done = _pressed((1, False, R), (2, True, R), (3, True, V))
+    assert focus_after_press(order, 2, False, done) == 1
+
+
+def test_the_focus_never_lands_on_the_pressed_card() -> None:
+    order, done = _pressed((2, True, R), (1, True, V))
+    assert focus_after_press(order, 2, False, done) is None
+
+
+def test_the_focus_stays_when_nothing_is_open() -> None:
+    order, done = _pressed((1, True, V), (2, True, V))
+    assert focus_after_press(order, 2, False, done) is None
+
+
+def test_the_focus_stays_in_the_section_of_the_pressed_card() -> None:
+    cards = ((1, True, R), (2, False, E), (3, True, V))
+    assert focus_after_press(*_pressed(*cards)[:1], 1, False, _pressed(*cards)[1]) is None
+    chronological, done = _pressed(*cards, sectioned=False)
+    assert focus_after_press(chronological, 1, False, done) == 2
+
+
+def test_the_focus_wraps_to_the_top_of_the_section_not_into_the_next_one() -> None:
+    cards = ((1, False, R), (2, True, R), (4, False, E), (3, True, R))
+    assert focus_after_press(*_pressed(*cards)[:1], 2, False, _pressed(*cards)[1]) == 1
+
+
+def test_text_order_ignores_the_sections() -> None:
+    order, done = _pressed(
+        (1, False, R), (2, True, R), (4, False, E), (3, True, R), sectioned=False,
+    )
+    assert focus_after_press(order, 2, False, done) == 4
+
+
+def test_the_focus_moves_on_when_the_pressed_card_became_done() -> None:
+    order, done = _pressed((1, True, R), (2, False, R), (3, True, V))
+    assert focus_after_press(order, 1, False, done) == 2
+
+
+def test_the_focus_stays_when_the_card_was_done_already() -> None:
+    order, done = _pressed((1, True, R), (2, False, R))
+    assert focus_after_press(order, 1, True, done) is None
+
+
+def test_the_focus_stays_when_the_card_is_open_again() -> None:
+    order, done = _pressed((1, False, V), (2, False, R))
+    assert focus_after_press(order, 1, True, done) is None
+
+
+def test_the_focus_stays_when_the_card_is_gone_from_the_order() -> None:
+    order, done = _pressed((2, False, R))
+    assert focus_after_press(order, 1, False, {**done, 1: True}) is None
+
+
+# --- the held order while the review is open ---------------------------------------------
+
+# At the opening: 1 and 2 in Ready, 3 in Extra, 4 done already.
+LOADED = _order((1, R), (2, R), (3, E), (4, V))
+
+
+def _ids(order: ReviewOrder) -> list[int]:
+    return list(order.phrase_ids)
+
+
+def _fresh(*cards: tuple[int, CandidateSection]) -> list[HeldCard]:
+    return list(_order(*cards).cards)
+
+
+def test_a_pressed_card_keeps_its_place_and_section() -> None:
+    after_press = _fresh((2, R), (3, E), (1, V), (4, V))
+    kept = place_new(LOADED, after_press, ())
+    assert _ids(kept) == [1, 2, 3, 4]
+    assert kept.card(1) == HeldCard(1, 10, R)
+    assert _rows(kept, {E, V}) == [1, 2, "extra-", 3, "reviewed-", 4]
+
+
+def test_a_card_no_longer_shown_leaves_the_order() -> None:
+    assert _ids(remove_cards(LOADED, {2})) == [1, 3, 4]
+    assert remove_cards(LOADED, {99}) is LOADED
+
+
+def test_a_new_card_goes_after_the_card_it_follows_in_the_fresh_order() -> None:
+    fresh = _fresh((5, R), (1, R), (6, R), (2, R), (3, E), (4, V))
+    placed = place_new(LOADED, fresh, {5, 6})
+    assert _ids(placed) == [5, 1, 6, 2, 3, 4]
+    assert placed.card(6) == HeldCard(6, 60, R)
+
+
+def test_a_new_card_before_every_held_card_goes_to_the_top() -> None:
+    fresh = _fresh((7, E), (2, R), (1, R), (3, E), (4, V))
+    assert _ids(place_new(LOADED, fresh, {7})) == [7, 1, 2, 3, 4]
+
+
+def test_a_run_of_new_cards_keeps_its_fresh_order() -> None:
+    fresh = _fresh((1, R), (8, R), (7, R), (9, R), (2, R), (3, E), (4, V))
+    assert _ids(place_new(LOADED, fresh, {7, 8, 9})) == [1, 8, 7, 9, 2, 3, 4]
+
+
+def test_a_new_card_takes_its_fresh_section() -> None:
+    fresh = _fresh((1, R), (9, E), (2, R), (3, E), (4, V))
+    placed = place_new(LOADED, fresh, {9})
+    assert placed.card(9) == HeldCard(9, 90, E)
+    assert _rows(placed, {E, V}) == [1, 2, "extra-", 9, 3, "reviewed-", 4]
+
+
+def test_the_first_order_is_the_fresh_one() -> None:
+    fresh = _fresh((2, R), (3, E), (1, V))
+    assert _ids(place_new(_order(), fresh, {1, 2, 3})) == [2, 3, 1]
+
+
+def test_an_example_takes_the_place_of_the_card_it_replaces_with_its_own_section() -> None:
+    replaced = replace_card(LOADED, 2, HeldCard(9, 20, E))
+    assert _ids(replaced) == [1, 9, 3, 4]
+    assert replaced.card(9) == HeldCard(9, 20, E)
+    assert replaced.card(2) is None
+
+
+# --- the focus when the current card is gone ------------------------------------------------
+
+def test_a_gone_current_card_hands_the_focus_to_the_card_under_it() -> None:
+    before = layout(_order((1, R), (2, R), (3, R)), frozenset(), 2)
+    assert focus_after_removal(before, 2, {2}) == 3
+
+
+def test_the_focus_goes_above_when_nothing_under_it_is_left() -> None:
+    before = layout(_order((1, R), (2, R), (3, R)), frozenset(), 2)
+    assert focus_after_removal(before, 2, {2, 3}) == 1
+
+
+def test_no_focus_is_left_when_every_card_is_gone() -> None:
+    before = layout(_order((1, R), (2, R)), frozenset(), 2)
+    assert focus_after_removal(before, 2, {1, 2}) is None
+
+
+def test_the_focus_passes_over_section_rows() -> None:
+    before = layout(_order((1, R), (2, R), (5, E)), frozenset({E}), 2)
+    assert focus_after_removal(before, 2, {2}) == 5
+
+
+def test_the_focus_skips_a_folded_section() -> None:
+    before = layout(_order((1, R), (2, R), (5, E)), frozenset(), 2)
+    assert focus_after_removal(before, 2, {2}) == 1

@@ -151,7 +151,7 @@ class Bench:
         self.lock = SqlaSourceOperationLock(session)
         self.occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
         self.media = SqlaCandidateMediaRepository(session, SessionChangeRecorder(session))
-        self.jobs = SqlaJobRepository(session)
+        self.jobs = SqlaJobRepository(session, SessionChangeRecorder(session))
         self.candidates = SqlaCandidateRepository(session, SessionChangeRecorder(session))
         self.sources = SqlaSourceRepository(session, SessionChangeRecorder(session))
         self.vocabulary = user_vocabulary()

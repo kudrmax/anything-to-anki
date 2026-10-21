@@ -9,6 +9,7 @@ from backend.domain.value_objects.job_selection import UNKNOWN_JOB_ERROR, JobSel
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.persistence.models import JobModel
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from sqlalchemy import text
 
@@ -79,7 +80,7 @@ class TestSqlaJobRepository:
     def test_claim_next_run_returns_oldest_queued(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
         t2 = datetime(2026, 1, 1, 0, 0, 1, tzinfo=UTC)
@@ -97,14 +98,14 @@ class TestSqlaJobRepository:
         self, db_session: Session,
     ) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         assert repo.claim_next_run({}) == []
 
     def test_claim_next_run_skips_running_and_failed(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, status=JobStatus.RUNNING,
@@ -120,7 +121,7 @@ class TestSqlaJobRepository:
         self._setup_source_and_candidate(db_session)
         for cid in (2, 3, 4):
             _insert_candidate(db_session, cid, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, job_type=JobType.MEANING),
@@ -139,7 +140,7 @@ class TestSqlaJobRepository:
         self._setup_source_and_candidate(db_session)
         for cid in (2, 3):
             _insert_candidate(db_session, cid, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [_make_job(candidate_id=1, job_type=JobType.POLISH)])
         _insert(db_session, [_make_job(candidate_id=2, job_type=JobType.MEANING)])
@@ -156,7 +157,7 @@ class TestSqlaJobRepository:
         self._setup_source_and_candidate(db_session)
         _insert_source(db_session, 2)
         _insert_candidate(db_session, 2, 2)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, source_id=1),
@@ -174,7 +175,7 @@ class TestSqlaJobRepository:
         _insert_candidate(db_session, 2, 2)
         _insert_candidate(db_session, 3, 1)
         _insert_candidate(db_session, 4, 2)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, source_id=1, job_type=JobType.POLISH),
@@ -191,7 +192,7 @@ class TestSqlaJobRepository:
     def test_claim_next_run_respects_accepted_types(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, job_type=JobType.POLISH),
@@ -212,7 +213,7 @@ class TestSqlaJobRepository:
     def test_enqueue_assigns_ids_and_queues(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         queued = repo.enqueue([_make_job(candidate_id=1), _make_job(candidate_id=2)])
 
@@ -224,7 +225,7 @@ class TestSqlaJobRepository:
         self, db_session: Session, status: JobStatus,
     ) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         _insert(db_session, [_make_job(candidate_id=1, status=status)])
 
         assert repo.enqueue([_make_job(candidate_id=1)]) == []
@@ -232,14 +233,14 @@ class TestSqlaJobRepository:
 
     def test_enqueue_skips_duplicates_within_one_call(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         assert len(repo.enqueue([_make_job(candidate_id=1), _make_job(candidate_id=1)])) == 1
 
     def test_enqueue_keys_source_level_jobs_by_source(self, db_session: Session) -> None:
         _insert_source(db_session, 1)
         _insert_source(db_session, 2)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         def download(source_id: int) -> Job:
             return _make_job(
@@ -253,7 +254,7 @@ class TestSqlaJobRepository:
     def test_enqueue_supersedes_failed_job_of_same_key(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         _insert(db_session, [
             _make_job(candidate_id=1, status=JobStatus.FAILED, error="boom"),
             _make_job(candidate_id=2, status=JobStatus.FAILED, error="boom"),
@@ -270,7 +271,7 @@ class TestSqlaJobRepository:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
         _insert_candidate(db_session, 3, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         repo.enqueue([_make_job(candidate_id=c) for c in (1, 2, 3)])
         kept, timed_out, cancelled = repo.claim_next_run({JobType.MEANING: 3})
         assert timed_out.id is not None and cancelled.id is not None
@@ -284,7 +285,7 @@ class TestSqlaJobRepository:
         self, db_session: Session,
     ) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         repo.enqueue([_make_job()])
         (first_claim,) = repo.claim_next_run({})
         assert first_claim.id is not None
@@ -301,7 +302,7 @@ class TestSqlaJobRepository:
     ) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         running, _, _ = _insert(db_session, [
             _make_job(candidate_id=1, status=JobStatus.RUNNING),
             _make_job(candidate_id=1, status=JobStatus.FAILED, error="old"),
@@ -316,7 +317,7 @@ class TestSqlaJobRepository:
     def test_fail_marks_only_running_jobs(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         running, queued = _insert(db_session, [
             _make_job(candidate_id=1, status=JobStatus.RUNNING),
             _make_job(candidate_id=2),
@@ -334,7 +335,7 @@ class TestSqlaJobRepository:
     def test_requeue_running_returns_jobs_to_their_place(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         _insert(db_session, [
             _make_job(candidate_id=1, status=JobStatus.RUNNING,
                       created_at=datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)),
@@ -348,7 +349,7 @@ class TestSqlaJobRepository:
     def test_fail_running_affects_only_given_type(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         _insert(db_session, [
             _make_job(candidate_id=1, job_type=JobType.TTS, status=JobStatus.RUNNING),
             _make_job(candidate_id=2, job_type=JobType.MEDIA, status=JobStatus.RUNNING),
@@ -385,7 +386,7 @@ class TestSqlaJobRepository:
         self, db_session: Session, selection: JobSelection, left: set[int],
     ) -> None:
         self._mixed_queue(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         cancelled = repo.cancel(selection)
 
@@ -396,14 +397,14 @@ class TestSqlaJobRepository:
 
     def test_cancel_single_running_job(self, db_session: Session) -> None:
         jobs = self._mixed_queue(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         assert repo.cancel(JobSelection(job_id=jobs[1].id)) == 1
         assert repo.cancel(JobSelection(job_id=jobs[1].id)) == 0
 
     def test_dismiss_removes_selected_failed_jobs(self, db_session: Session) -> None:
         self._mixed_queue(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         assert repo.dismiss(JobSelection(error="other")) == 0
         assert repo.dismiss(JobSelection(error="boom")) == 1
@@ -414,14 +415,14 @@ class TestSqlaJobRepository:
         self, db_session: Session,
     ) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         _insert(db_session, [_make_job(status=JobStatus.FAILED, error=None)])
 
         assert repo.dismiss(JobSelection(error=UNKNOWN_JOB_ERROR)) == 1
 
     def test_retry_moves_failed_jobs_to_queue_tail(self, db_session: Session) -> None:
         self._mixed_queue(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         assert repo.retry(JobSelection(job_type=JobType.MEANING)) == 1
 
@@ -431,7 +432,7 @@ class TestSqlaJobRepository:
 
     def test_retry_drops_failed_job_whose_key_is_active(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         _insert(db_session, [
             _make_job(candidate_id=1),
             _make_job(candidate_id=1, status=JobStatus.FAILED, error="boom"),
@@ -444,7 +445,7 @@ class TestSqlaJobRepository:
     def test_retry_filters_by_error(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         _insert(db_session, [
             _make_job(candidate_id=1, status=JobStatus.FAILED, error="a"),
             _make_job(candidate_id=2, status=JobStatus.FAILED, error="b"),
@@ -457,7 +458,7 @@ class TestSqlaJobRepository:
 
     def test_get(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         created = _insert(db_session, [_make_job()])
         job_id = created[0].id
@@ -472,7 +473,7 @@ class TestSqlaJobRepository:
 
     def test_has_active_jobs_for_source(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         assert repo.has_active_jobs_for_source(1) is False
 
@@ -483,7 +484,7 @@ class TestSqlaJobRepository:
         self, db_session: Session,
     ) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [_make_job(job_type=JobType.MEANING)])
 
@@ -500,7 +501,7 @@ class TestSqlaJobRepository:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
         _insert_candidate(db_session, 3, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, job_type=JobType.MEANING),
@@ -519,7 +520,7 @@ class TestSqlaJobRepository:
     def test_get_jobs_for_candidates(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, job_type=JobType.MEANING),
@@ -537,7 +538,7 @@ class TestSqlaJobRepository:
         self, db_session: Session,
     ) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         # Same candidate: one failed, one queued
         _insert(db_session, [
@@ -553,7 +554,7 @@ class TestSqlaJobRepository:
         self, db_session: Session,
     ) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         _insert(db_session, [_make_job(candidate_id=1)])
 
         mapping = repo.get_jobs_for_candidates(list(range(1, SQLITE_MAX_VARIABLES + 2)))
@@ -563,7 +564,7 @@ class TestSqlaJobRepository:
     def test_get_jobs_for_candidates_empty_list(
         self, db_session: Session,
     ) -> None:
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
         assert repo.get_jobs_for_candidates([]) == {}
 
     # --- get_queue_summary global ---
@@ -573,7 +574,7 @@ class TestSqlaJobRepository:
         _insert_source(db_session, 2)
         _insert_candidate(db_session, 1, 1)
         _insert_candidate(db_session, 2, 2)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, source_id=1, job_type=JobType.MEANING),
@@ -588,7 +589,7 @@ class TestSqlaJobRepository:
     def test_get_jobs_by_status_returns_matching(self, db_session: Session) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
         t2 = datetime(2026, 1, 1, 0, 0, 1, tzinfo=UTC)
@@ -608,7 +609,7 @@ class TestSqlaJobRepository:
     ) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
         t2 = datetime(2026, 1, 1, 0, 0, 1, tzinfo=UTC)
@@ -628,7 +629,7 @@ class TestSqlaJobRepository:
         _insert_source(db_session, 2)
         _insert_candidate(db_session, 1, 1)
         _insert_candidate(db_session, 2, 2)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, source_id=1),
@@ -644,7 +645,7 @@ class TestSqlaJobRepository:
     ) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, job_type=JobType.MEANING),
@@ -659,7 +660,7 @@ class TestSqlaJobRepository:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
         _insert_candidate(db_session, 3, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1),
@@ -674,7 +675,7 @@ class TestSqlaJobRepository:
         self, db_session: Session,
     ) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         jobs = repo.get_jobs_by_status([JobStatus.RUNNING])
         assert jobs == []
@@ -687,7 +688,7 @@ class TestSqlaJobRepository:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
         _insert_candidate(db_session, 3, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, status=JobStatus.FAILED, error="timeout"),
@@ -710,7 +711,7 @@ class TestSqlaJobRepository:
         _insert_source(db_session, 2)
         _insert_candidate(db_session, 1, 1)
         _insert_candidate(db_session, 2, 2)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, source_id=1, status=JobStatus.FAILED,
@@ -731,7 +732,7 @@ class TestSqlaJobRepository:
         _insert_source(db_session, 2)
         _insert_candidate(db_session, 1, 1)
         _insert_candidate(db_session, 2, 2)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, source_id=1, status=JobStatus.FAILED,
@@ -749,7 +750,7 @@ class TestSqlaJobRepository:
     ) -> None:
         self._setup_source_and_candidate(db_session)
         _insert_candidate(db_session, 2, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, job_type=JobType.MEANING,
@@ -766,7 +767,7 @@ class TestSqlaJobRepository:
         self, db_session: Session,
     ) -> None:
         self._setup_source_and_candidate(db_session)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [_make_job()])  # queued, not failed
 
@@ -780,7 +781,7 @@ class TestSqlaJobRepository:
         _insert_candidate(db_session, 2, 1)
         _insert_candidate(db_session, 3, 1)
         _insert_candidate(db_session, 4, 1)
-        repo = SqlaJobRepository(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
         _insert(db_session, [
             _make_job(candidate_id=1, status=JobStatus.FAILED, error="rare"),
@@ -831,7 +832,7 @@ class TestJobsOfPhrases:
         _insert_source(db_session, 1)
         _insert_candidate(db_session, 1, 1)
         _add_phrase(db_session, SECOND, 1)
-        return SqlaJobRepository(db_session)
+        return SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
 
     def test_each_phrase_of_a_word_gets_its_own_job(self, repo: SqlaJobRepository) -> None:
         queued = repo.enqueue([_phrase_job(FIRST), _phrase_job(SECOND)])

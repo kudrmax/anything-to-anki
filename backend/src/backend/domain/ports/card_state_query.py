@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
 
     from backend.domain.value_objects.by_step import SectionsByStep
+    from backend.domain.value_objects.card_state_rows import StoredCardState
     from backend.domain.value_objects.generation_tally import GenerationTally
     from backend.domain.value_objects.ordered_card import OrderedCard
     from backend.domain.value_objects.section_tally import SectionTally
@@ -15,7 +16,8 @@ if TYPE_CHECKING:
 class CardStateQuery(ABC):
     """Read side of the stored projection, for the screens. The rules never read it.
 
-    Only live rows count: a removed card is gone for the screens."""
+    Only live rows count: a removed card is gone for the screens, except for what changed,
+    which tells the removed ones too."""
 
     @abstractmethod
     def revision(self) -> int:
@@ -29,6 +31,15 @@ class CardStateQuery(ABC):
     @abstractmethod
     def done_of_sources(self, source_ids: Collection[int]) -> dict[int, bool]:
         """Phrase id → whether its card is done, for every card of these sources."""
+
+    @abstractmethod
+    def done_of_phrases(self, phrase_ids: Collection[int]) -> dict[int, bool]:
+        """Phrase id → whether its card is done, for the live cards of these phrases."""
+
+    @abstractmethod
+    def changed_since(self, source_ids: Sequence[int], revision: int) -> list[StoredCardState]:
+        """Every stored card of these sources written after `revision`, removed ones too:
+        what changed for a client that has seen the projection up to it."""
 
     @abstractmethod
     def order_rows(self, source_ids: Sequence[int]) -> list[OrderedCard]:

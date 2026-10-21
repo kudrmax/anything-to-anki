@@ -3,12 +3,16 @@ own computation after every step of random sequences of the app's real use cases
 §6.1): three sources sharing lemmas, about fifty cards, presses and their undo, reports,
 the Known and Unknown lists, export and release, generated content, polish and its revert,
 boundary edits, examples, words added from the text, Update and Re-cut, the level, source
-deletion and the clock crossing an Anki timer.
+deletion, the clock crossing an Anki timer, and the queue: ✨ runs and cancels, the worker
+taking, failing, finishing and requeueing jobs, retry and dismiss.
 
 After each step the stored rows equal `LiveCardStates` (statuses, done, wants generation,
 sections and new-word counts at every threshold step, word statuses, phrase words), and the
 review order of every sort order, computed from the stored rows, is today's order; so is the
 order an open review holds for every source and the collection, each card in today's section.
+One review of the collection stays open through every step and takes what changed after
+each: it holds every live card of its set once and no gone one, and every card it served
+shows whether it is done as the review computes it now.
 
 Every write method of the owners of facts is reached by some step, or is named here with
 the reason it cannot change card state: a new write method without a scenario fails.
@@ -28,7 +32,7 @@ import pytest
 from backend.application.dto.candidate_dtos import SelectionDTO
 from backend.application.dto.card_report_dtos import ReportCandidateRequest
 from backend.application.dto.generation_dtos import GenerationKindStatusDTO, GenerationStatusDTO
-from backend.application.dto.review_dtos import OpenReviewRequest
+from backend.application.dto.review_dtos import OpenReviewRequest, ReviewContext
 from backend.application.dto.source_dtos import ProgressDTO
 from backend.application.utils import candidate_sorter
 from backend.application.utils.candidate_sorter import CandidateSorter
@@ -59,6 +63,7 @@ from backend.domain.value_objects.document import Document, Line, Paragraph, Par
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.generation_scope import GenerationScope
+from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
@@ -95,6 +100,9 @@ from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
 from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
+from backend.infrastructure.persistence.sqla_card_report_repository import (
+    SqlaCardReportRepository,
+)
 from backend.infrastructure.persistence.sqla_card_state_query import SqlaCardStateQuery
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
@@ -107,6 +115,7 @@ from backend.infrastructure.persistence.sqla_word_mark_repository import SqlaWor
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
+from backend.infrastructure.review.in_memory_review_order_store import InMemoryReviewOrderStore
 from hypothesis import HealthCheck, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import (
@@ -124,8 +133,10 @@ from tests.decision_support import NOW, FixedClock
 from tests.unit.architecture.test_owner_events import WRITE_CASES
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterable, Iterator
 
+    from backend.application.dto.source_dtos import CardDTO
+    from backend.application.utils.open_review import OpenReview
     from backend.domain.entities.occurrence import Occurrence
     from backend.domain.entities.source import Source
     from backend.domain.ports.ai_service import AIService
@@ -224,7 +235,12 @@ OWNERS: dict[str, type] = {
     "CandidateClozeRepository": SqlaCandidateClozeRepository,
     "CandidatePronunciationRepository": SqlaCandidatePronunciationRepository,
     "CandidateMeaningImageRepository": SqlaCandidateMeaningImageRepository,
+    "JobRepository": SqlaJobRepository,
+    "CardReportRepository": SqlaCardReportRepository,
 }
+QUEUE_ACTIONS = ("retry", "dismiss", "cancel")
+# How many jobs of the head of the queue the worker takes at a time here.
+RUN_SIZES = st.integers(min_value=1, max_value=4)
 
 
 class _Polisher:
@@ -447,6 +463,13 @@ class _Projection(RuleBasedStateMachine):
     def start(self) -> None:
         self.factory = self.scenario.fresh()
         self.container = self.scenario.container
+        with self.factory() as session:
+            opened = self.container.open_review_use_case(session).execute(OpenReviewRequest(
+                scope=SourceScope.collection(COLLECTION).token,
+                open_sections=list(CandidateSection),
+            ))
+        self.held = _HeldReview(opened.review_id, opened.revision)
+        self.held.took(opened.cards, {}, ())
 
     # --- what the steps work on ---------------------------------------------------------
 
@@ -708,39 +731,87 @@ class _Projection(RuleBasedStateMachine):
             lambda s: self.container.run_generation_use_case(s).execute(scope, kind, cards),
         )
 
-    @rule(pick=PICK, blocked=st.booleans())
-    def jobs_run_and_fail(self, pick: int, blocked: bool) -> None:
-        """The worker takes some queued jobs and some of them fail, with the AI blocked here
-        or another error."""
+    @rule(pick=PICK, blocked=st.booleans(), size=RUN_SIZES)
+    def jobs_run_and_fail(self, pick: int, blocked: bool, size: int) -> None:
+        """The worker takes a run of queued jobs and some of them fail, with the AI blocked
+        here or another error."""
         error = AI_UNAVAILABLE_MARKER if blocked else "AI proxy error: boom"
-        with self.factory() as session:
-            session.execute(text(
-                "UPDATE jobs SET status = 'running' WHERE status = 'queued' AND id % 3 = :pick"
-            ), {"pick": pick % 3})
-            session.execute(text(
-                "UPDATE jobs SET status = 'failed', error = :error"
-                " WHERE status = 'running' AND id % 2 = :pick"
-            ), {"error": error, "pick": pick % 2})
-            session.commit()
+
+        def run(s: Session) -> None:
+            jobs = SqlaJobRepository(s, SessionChangeRecorder(s))
+            taken = jobs.claim_next_run(dict.fromkeys(JobType, size), None, frozenset(JobType))
+            jobs.fail([j.id for j in taken if j.id is not None and j.id % 2 == pick % 2], error)
+
+        self.container.session_work().write(run)
 
     @rule(pick=PICK)
     def jobs_finish(self, pick: int) -> None:
         """The worker finishes some jobs: their result written, the job gone. A polish job
         finishes without a text: the polish step writes texts."""
         with self.factory() as session:
-            done = session.execute(text(
-                "SELECT id, job_type, phrase_id, candidate_id FROM jobs"
-                " WHERE status IN ('queued', 'running') AND id % 2 = :pick"
-            ), {"pick": pick % 2}).all()
+            done = [
+                job for job in SqlaJobRepository(
+                    session, SessionChangeRecorder(session),
+                ).get_jobs_by_status([JobStatus.QUEUED, JobStatus.RUNNING])
+                if job.id is not None and job.id % 2 == pick % 2
+            ]
 
         def finish(s: Session) -> None:
-            for job_id, job_type, phrase_id, word_id in done:
-                if phrase_id is not None or job_type == "pronunciation":
-                    _write_result(s, job_type, phrase_id, word_id)
-                s.execute(text("DELETE FROM jobs WHERE id = :id"), {"id": job_id})
+            for job in done:
+                if job.phrase_id is not None or job.job_type is JobType.PRONUNCIATION:
+                    assert job.candidate_id is not None
+                    _write_result(s, job.job_type.value, job.phrase_id, job.candidate_id)
+            SqlaJobRepository(s, SessionChangeRecorder(s)).complete(done)
 
         if done:
             self.container.session_work().write(finish)
+
+    @rule()
+    def worker_restarts(self) -> None:
+        """The jobs a stopped worker held go back to the queue."""
+        self.container.session_work().write(
+            lambda s: SqlaJobRepository(s, SessionChangeRecorder(s)).requeue_running(),
+        )
+
+    @rule(kind=st.sampled_from(GENERATED_KINDS))
+    def worker_crashes(self, kind: GenerationKind) -> None:
+        """The process making one kind dies: its running jobs fail."""
+        self.container.session_work().write(
+            lambda s: SqlaJobRepository(s, SessionChangeRecorder(s)).fail_running(
+                kind.job_type, "crashed",
+            ),
+        )
+
+    @rule(action=st.sampled_from(QUEUE_ACTIONS), kind=st.sampled_from(GENERATED_KINDS))
+    def queue_action(self, action: str, kind: GenerationKind) -> None:
+        """Retry, dismiss or cancel on the queue screen, for one kind."""
+        selection = JobSelection(job_type=kind.job_type)
+        self._refusable(
+            lambda s: getattr(self.container.manage_queue_use_case(s), action)(selection),
+        )
+
+    @rule(kind=st.sampled_from(GENERATED_KINDS), collection=st.booleans(), source_pick=PICK)
+    def cancel_generation(self, kind: GenerationKind, collection: bool, source_pick: int) -> None:
+        """✨ cancelled on a source or the collection."""
+        sources = self._sources()
+        scope = SourceScope.collection(COLLECTION) if collection else SourceScope.source(
+            sources[source_pick % len(sources)],
+        )
+        self._refusable(
+            lambda s: self.container.cancel_generation_use_case(s).execute(scope, kind),
+        )
+
+    @rule(pick=PICK)
+    def jobs_of_a_card_cancelled(self, pick: int) -> None:
+        """The jobs of a card a Rebuild takes away go with it."""
+        card = self._card(pick)
+        if card is not None and card.id is not None:
+            phrase_id = card.id
+            self.container.session_work().write(
+                lambda s: SqlaJobRepository(s, SessionChangeRecorder(s)).cancel_for_phrases(
+                    [phrase_id],
+                ),
+            )
 
     @rule(pick=PICK)
     def drop_timecodes_of_a_queued_clip(self, pick: int) -> None:
@@ -851,6 +922,30 @@ class _Projection(RuleBasedStateMachine):
                 }
             self._screens_equal_the_review(session, sources, cards, sets)
             self._open_reviews_hold_todays_order(session, sorter, cards, sets)
+        self._the_held_review_takes_what_changed(cards, sets[SourceScope.collection(COLLECTION)])
+
+    def _the_held_review_takes_what_changed(
+        self, cards: list[ReviewCard], members: list[Source],
+    ) -> None:
+        """The collection's review open since the first step takes what changed: it holds
+        every live card of the set once and no other, and each card it served is done or
+        not as the client was last told."""
+        held = self.held
+        with self.factory() as session:
+            update = self.container.review_window_use_case(session).changes(
+                ReviewContext(review_id=held.review_id, since=held.since, current=None),
+            )
+        held.since = update.revision
+        held.took(update.cards, update.done, update.removed)
+        ids = {s.id for s in members}
+        live = {c.phrase_id: c.is_done for c in cards if c.word.source_id in ids}
+        store = self.container._review_order_store  # noqa: SLF001
+        with store.hold(held.review_id) as review:
+            order = list(review.order.phrase_ids)
+            served = set(review.served)
+        assert sorted(order) == sorted(live)
+        assert len(order) == len(set(order))
+        assert {p: held.done[p] for p in served} == {p: live[p] for p in served}
 
     def _open_reviews_hold_todays_order(
         self,
@@ -876,11 +971,15 @@ class _Projection(RuleBasedStateMachine):
     ) -> list[tuple[int, CandidateSection]]:
         """The card rows of the set's open review with every section open, each with its held
         section. The answer's windows and cards are left out: the order is what is checked."""
-        with patch.object(ReviewAnswer, "of", lambda _answer, review_id, *_a, **_k: review_id):
+        store: InMemoryReviewOrderStore[OpenReview] = InMemoryReviewOrderStore()
+        with (
+            patch.object(ReviewAnswer, "of", lambda _answer, review_id, *_a, **_k: review_id),
+            patch.object(self.container, "_review_order_store", store),
+        ):
             review_id = self.container.open_review_use_case(session).execute(OpenReviewRequest(
                 scope=scope.token, sort=order, open_sections=list(CandidateSection),
             ))
-        with self.container._review_order_store.hold(review_id) as review:  # type: ignore[arg-type]  # noqa: SLF001
+        with store.hold(review_id) as review:  # type: ignore[arg-type]
             held = {card.phrase_id: card.section for card in review.order.cards}
             return [
                 (row.phrase_id, held[row.phrase_id])
@@ -901,7 +1000,9 @@ class _Projection(RuleBasedStateMachine):
         of_source = {i: [c for c in cards if c.word.source_id == i] for i in sources}
         with _projection_unread():
             live = container._candidate_sorter(session).progress(of_source)  # noqa: SLF001
-            jobs = SqlaJobRepository(session).get_jobs_for_phrases([c.phrase_id for c in cards])
+            jobs = SqlaJobRepository(
+                session, SessionChangeRecorder(session),
+            ).get_jobs_for_phrases([c.phrase_id for c in cards])
         projected = container._review_progress(session).of_sources(sources)  # noqa: SLF001
         assert {i: p.progress for i, p in projected.items()} == live
         assert {i: p.cards for i, p in projected.items()} == {
@@ -933,6 +1034,24 @@ class _Projection(RuleBasedStateMachine):
             assert container.get_generation_status_use_case(session).execute(scope) == (
                 expected
             ), scope
+
+
+class _HeldReview:
+    """The client of the review open through every step: its id, the revision it has seen
+    and whether each card it was told of is done."""
+
+    def __init__(self, review_id: str, since: int) -> None:
+        self.review_id = review_id
+        self.since = since
+        self.done: dict[int, bool] = {}
+
+    def took(
+        self, cards: list[CardDTO], done: dict[int, bool], removed: Iterable[int],
+    ) -> None:
+        self.done.update({card.phrase_id: card.is_done for card in cards})
+        self.done.update(done)
+        for phrase_id in removed:
+            self.done.pop(phrase_id, None)
 
 
 def _summed_status(of_sources: list[GenerationStatusDTO]) -> GenerationStatusDTO:
@@ -1162,13 +1281,7 @@ def _generation_tour(machine: _Projection) -> None:
         ),
     )
     machine.projection_equals_the_review()
-    with machine.factory() as session:
-        session.execute(text(
-            "UPDATE jobs SET status = 'running' WHERE id IN (SELECT min(id) FROM jobs"
-            " WHERE job_type = :kind UNION SELECT max(id) FROM jobs WHERE job_type = :kind)"
-        ), {"kind": "meaning"})
-        session.commit()
-    machine.jobs_run_and_fail(0, blocked=True)
+    machine.jobs_run_and_fail(0, blocked=True, size=2)
     machine.projection_equals_the_review()
     with machine.factory() as session:
         status = machine.container.get_generation_status_use_case(session).execute(scope)
@@ -1183,6 +1296,16 @@ def _generation_tour(machine: _Projection) -> None:
         lambda: machine.queue_generation(
             GenerationKind.MEDIA, GenerationScope.FAILED, False, video,
         ),
+        lambda: machine.jobs_run_and_fail(1, blocked=False, size=3),
+        machine.worker_restarts,
+        lambda: machine.jobs_run_and_fail(1, blocked=False, size=3),
+        lambda: machine.worker_crashes(GenerationKind.MEANING),
+        lambda: machine.queue_action("retry", GenerationKind.MEANING),
+        lambda: machine.jobs_run_and_fail(0, blocked=False, size=4),
+        lambda: machine.queue_action("dismiss", GenerationKind.MEANING),
+        lambda: machine.jobs_of_a_card_cancelled(1),
+        lambda: machine.queue_action("cancel", GenerationKind.POLISH),
+        lambda: machine.cancel_generation(GenerationKind.PRONUNCIATION, True, 0),
         lambda: machine.jobs_finish(0),
         lambda: machine.jobs_finish(1),
         lambda: machine.video("not downloaded"),

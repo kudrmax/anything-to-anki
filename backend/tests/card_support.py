@@ -171,8 +171,8 @@ def card_views(session: Session) -> CardViews:
         candidate_sorter=candidate_sorter(SqlaSettingsRepository(
             session, SessionChangeRecorder(session),
         )),
-        job_repo=SqlaJobRepository(session),
-        report_repo=SqlaCardReportRepository(session),
+        job_repo=SqlaJobRepository(session, SessionChangeRecorder(session)),
+        report_repo=SqlaCardReportRepository(session, SessionChangeRecorder(session)),
         scope_resolver=SourceScopeResolver(
             SqlaSourceRepository(session, SessionChangeRecorder(session)),
             SqlaCollectionRepository(session),

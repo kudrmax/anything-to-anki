@@ -13,6 +13,7 @@ from sqlalchemy import StaticPool, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.integration.conftest import insert_source
+from tests.review_support import on_review
 from tests.word_support import insert_word
 
 pytestmark = pytest.mark.integration
@@ -105,8 +106,10 @@ def test_sources_without_a_document_have_no_text(client: TestClient) -> None:
 
 def test_download_video_of_a_set_without_links_is_400(client: TestClient) -> None:
     scope = _show(client)
-    assert client.post("/api/review/download-video", params={"scope": scope}).status_code == 400
-    assert client.post(
-        "/api/review/download-video", params={"scope": "unsorted"},
+    assert on_review(
+        client, "POST", "/api/review/download-video", params={"scope": scope},
+    ).status_code == 400
+    assert on_review(
+        client, "POST", "/api/review/download-video", params={"scope": "unsorted"},
     ).status_code == 400
     assert client.post(f"/sources/{PILOT}/download-video").status_code == 404

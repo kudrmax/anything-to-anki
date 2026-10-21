@@ -133,7 +133,8 @@ class World:
 
     def check(self, *, touched: frozenset[int] = frozenset()) -> StoredCardStates:
         """Stored equals live; the cards whose row changed and the `touched` ones moved to
-        the new revision, every other card kept its own."""
+        the new revision. Every other card kept its own, or moved to the new one when the
+        write reached it: it shows the change though its stored values stay."""
         after = self.stored()
         assert differences(after, live_states(self.container, self.factory)) == []
         before = self.before
@@ -148,7 +149,9 @@ class World:
             elif card.row.phrase_id in touched:
                 assert card.revision == after.revision, card
             else:
-                assert card.revision == old.revision, card
+                assert card.revision in (old.revision, after.revision), card
+                if card.revision != old.revision:
+                    moved.add(card.row.phrase_id)
         if moved or touched:
             assert after.revision == before.revision + 1
         return after
@@ -240,14 +243,32 @@ def test_a_new_word_gets_its_row(world: World) -> None:
     assert "quill" in {w.lemma for w in after.words}
 
 
-def test_a_word_fact_written_without_a_state_change_moves_no_card(world: World) -> None:
+def test_a_word_fact_written_without_a_state_change_moves_only_the_cards_of_its_lemma(
+    world: World,
+) -> None:
     world.rebuild()
     world.write(
         lambda s: SqlaCandidateRepository(s, _recorder(s)).set_studied_at(GLARE, NOW),
     )
     after = world.check()
+    moved = {c.row.phrase_id for c in after.cards if c.revision == after.revision}
+    assert moved == {c.row.phrase_id for c in after.cards if c.row.lemma == "glare"}
+
+
+def test_a_choice_that_leaves_the_stored_values_moves_the_cards_of_its_lemma(
+    world: World,
+) -> None:
+    """Learn, then Cloze: the card stays done in the same section, but it shows the other
+    button pressed, so a client that saw the first press is told of it."""
+    world.rebuild()
+    world.decide(phrase_id_of(GLARE), Press.LEARN)
+    world.check()
+    world.decide(phrase_id_of(GLARE), Press.CLOZE)
+    after = world.check()
     assert world.before is not None
-    assert after.revision == world.before.revision
+    assert [c.row for c in after.cards] == [c.row for c in world.before.cards]
+    moved = {c.row.phrase_id for c in after.cards if c.revision == after.revision}
+    assert moved == {c.row.phrase_id for c in after.cards if c.row.lemma == "glare"}
 
 
 def test_a_deleted_source_leaves_tombstones_and_releases_its_learn_elsewhere(

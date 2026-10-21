@@ -316,21 +316,26 @@ class _Increment:
         before = self._stored_cards(self._cards.keys())
         changed: list[CardStateRow] = []
         sections: list[CardStateRow] = []
+        alike: list[int] = []
         for pid, row in self._cards.items():
             kept = before.get(pid)
             if kept is None or kept.removed:
                 changed.append(row)
-            elif kept.row != row:
+            elif kept.row == row:
+                alike.append(pid)
+            else:
                 only_sections = kept.row == replace(
                     row, sections=kept.row.sections, open_sections=kept.row.open_sections,
                     new_counts=kept.row.new_counts,
                 )
                 (sections if only_sections else changed).append(row)
         removed = self._removed - self._cards.keys()
-        touched = facts.content_phrases or facts.content_words
-        if changed or sections or removed or touched:
+        # A card the changes reached shows them even when its stored values stay: its
+        # decision, its text, its words. It moves to the new revision all the same.
+        touched = [*facts.content_phrases, *alike]
+        if changed or sections or removed or touched or facts.content_words:
             revision = store.next_revision()
-            store.touch_cards(facts.content_phrases, facts.content_words, revision)
+            store.touch_cards(touched, facts.content_words, revision)
             store.write_cards(changed, revision)
             store.write_sections(sections, revision)
             store.remove_cards(removed, revision)

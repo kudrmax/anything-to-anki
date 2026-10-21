@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy import delete, select, update
 
@@ -20,10 +19,13 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_newness import PhraseNewness
 from backend.domain.value_objects.user_knowledge import Newness
 from backend.infrastructure.persistence.card_state_codecs import (
+    CARD_COLUMNS,
+    CARD_NAMES,
     GENERATED_COLUMNS,
     GeneratedPartsCodec,
     NewCountsByStepCodec,
     SectionsByStepCodec,
+    plain_stored_card,
 )
 from backend.infrastructure.persistence.models import (
     PROJECTION_META_ID,
@@ -36,6 +38,7 @@ from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Mapping
+    from datetime import datetime
 
     from sqlalchemy import ColumnElement, Row, Table
     from sqlalchemy.orm import Session
@@ -167,12 +170,12 @@ class SqlaCardStateStore(CardStateStore):
             for chunk in chunks(sorted(phrase_ids)):
                 marks = ", ".join("?" for _ in chunk)
                 cursor.execute(
-                    f"SELECT {_CARD_NAMES} FROM {_CARDS.name}"  # noqa: S608 — model names
+                    f"SELECT {CARD_NAMES} FROM {_CARDS.name}"  # noqa: S608 — model names
                     f" WHERE phrase_id IN ({marks})",
                     chunk,
                 )
                 for values in cursor.fetchall():
-                    card = _plain_stored_card(values)
+                    card = plain_stored_card(values)
                     found[card.row.phrase_id] = card
         finally:
             cursor.close()
@@ -360,51 +363,12 @@ def _phrase_word_values(row: PhraseWordRow) -> tuple[object, ...]:
     )
 
 
-_CARD_COLUMNS = (
-    "phrase_id", "source_id", "word_id", "lemma", "is_done", "wants_generation", "sections",
-    "open_sections", "new_counts", *GENERATED_COLUMNS, "changes_at", "revision", "removed",
-)
-_CARD_NAMES = ", ".join(_CARD_COLUMNS)
-_GENERATED_AT = _CARD_COLUMNS.index(GENERATED_COLUMNS[0])
-_GENERATED_END = _GENERATED_AT + len(GENERATED_COLUMNS)
 _UPSERT_CARD = (
-    f"INSERT INTO {_CARDS.name} ({_CARD_NAMES})"  # noqa: S608 — model names
-    f" VALUES ({', '.join('?' for _ in _CARD_COLUMNS)})"
-    f" ON CONFLICT ({_CARD_COLUMNS[0]}) DO UPDATE SET "
-    + ", ".join(f"{column} = excluded.{column}" for column in _CARD_COLUMNS[1:])
+    f"INSERT INTO {_CARDS.name} ({CARD_NAMES})"  # noqa: S608 — model names
+    f" VALUES ({', '.join('?' for _ in CARD_COLUMNS)})"
+    f" ON CONFLICT ({CARD_COLUMNS[0]}) DO UPDATE SET "
+    + ", ".join(f"{column} = excluded.{column}" for column in CARD_COLUMNS[1:])
 )
-
-
-# Any: the driver's rows are untyped; each value is read into its typed field here.
-def _plain_stored_card(values: tuple[Any, ...]) -> StoredCardState:
-    """A row of _CARD_COLUMNS as the driver gives it: `changes_at` as the UTC text the
-    column type stores."""
-    (
-        phrase_id, source_id, word_id, lemma, is_done, wants_generation, sections, open_sections,
-        new_counts,
-    ) = values[:_GENERATED_AT]
-    generated = values[_GENERATED_AT:_GENERATED_END]
-    changes_at, revision, removed = values[_GENERATED_END:]
-    return StoredCardState(
-        row=CardStateRow(
-            phrase_id=phrase_id,
-            source_id=source_id,
-            word_id=word_id,
-            lemma=lemma,
-            is_done=bool(is_done),
-            wants_generation=bool(wants_generation),
-            sections=SectionsByStepCodec.decode(sections),
-            open_sections=SectionsByStepCodec.decode(open_sections),
-            new_counts=NewCountsByStepCodec.decode(new_counts),
-            generated=GeneratedPartsCodec.decode(generated),
-            changes_at=(
-                datetime.fromisoformat(changes_at).replace(tzinfo=UTC)
-                if changes_at is not None else None
-            ),
-        ),
-        revision=revision,
-        removed=bool(removed),
-    )
 
 
 def _stored_card(row: Row[tuple[object, ...]]) -> StoredCardState:

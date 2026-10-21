@@ -14,6 +14,8 @@ from backend.domain.entities.candidate_meaning_image import CandidateMeaningImag
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.candidate_tts import CandidateTTS
+from backend.domain.entities.card_report import CardReport
+from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -29,6 +31,8 @@ from backend.domain.ports.candidate_pronunciation_repository import (
 )
 from backend.domain.ports.candidate_repository import CandidateRepository
 from backend.domain.ports.candidate_tts_repository import CandidateTTSRepository
+from backend.domain.ports.card_report_repository import CardReportRepository
+from backend.domain.ports.job_repository import JobRepository
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
 from backend.domain.ports.settings_repository import SettingsRepository
 from backend.domain.ports.source_repository import SourceRepository
@@ -62,6 +66,8 @@ from backend.domain.value_objects.card_change import (
 )
 from backend.domain.value_objects.card_choice import NoteKind
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
+from backend.domain.value_objects.job_selection import JobSelection
+from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
@@ -86,6 +92,10 @@ from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCan
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
+from backend.infrastructure.persistence.sqla_card_report_repository import (
+    SqlaCardReportRepository,
+)
+from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -121,6 +131,8 @@ OWNER_PORTS: tuple[type, ...] = (
     CandidateClozeRepository,
     CandidatePronunciationRepository,
     CandidateMeaningImageRepository,
+    JobRepository,
+    CardReportRepository,
 )
 
 SOURCE = 1
@@ -177,6 +189,18 @@ READ_ONLY: frozenset[tuple[str, str]] = frozenset({
     ("CandidateTTSRepository", "get_by_phrase_id"),
     ("CandidateTTSRepository", "get_by_phrase_ids"),
     ("CandidateClozeRepository", "get_by_phrase_id"),
+    ("JobRepository", "still_claimed"),
+    ("JobRepository", "get"),
+    ("JobRepository", "has_active_jobs_for_source"),
+    ("JobRepository", "sources_with_active_jobs"),
+    ("JobRepository", "has_failed_matching"),
+    ("JobRepository", "get_queue_summary"),
+    ("JobRepository", "get_jobs_for_phrases"),
+    ("JobRepository", "get_jobs_for_candidates"),
+    ("JobRepository", "get_jobs_by_status"),
+    ("JobRepository", "get_failed_grouped_by_error"),
+    ("CardReportRepository", "list_all"),
+    ("CardReportRepository", "reported_phrase_ids"),
 })
 
 
@@ -199,6 +223,8 @@ class Bench:
         self.clozes = SqlaCandidateClozeRepository(session, self.recorder)
         self.pronunciations = SqlaCandidatePronunciationRepository(session, self.recorder)
         self.images = SqlaCandidateMeaningImageRepository(session, self.recorder)
+        self.jobs = SqlaJobRepository(session, self.recorder)
+        self.reports = SqlaCardReportRepository(session, self.recorder)
 
     def word(self, word_id: int, lemma: str, *, source_id: int = SOURCE) -> int:
         """A word with one shown phrase, written straight to the tables; returns the
@@ -590,6 +616,119 @@ def _image_delete(b: Bench) -> Expected:
     return {WordContentChanged(1)}
 
 
+def _phrase_job(phrase_id: int, word_id: int = 1) -> Job:
+    return Job.queued(JobType.MEANING, SOURCE, word_id, phrase_id=phrase_id, phrase_revision=0)
+
+
+def _word_job(word_id: int) -> Job:
+    return Job.queued(JobType.PRONUNCIATION, SOURCE, word_id)
+
+
+def _queued(b: Bench, *jobs: Job) -> list[Job]:
+    """The jobs queued and running: the arrangement's changes dropped."""
+    queued = b.jobs.enqueue(list(jobs))
+    b.ready()
+    return queued
+
+
+def _running(b: Bench, *jobs: Job) -> list[Job]:
+    _queued(b, *jobs)
+    running = b.jobs.claim_next_run({}, None, frozenset(JobType))
+    b.ready()
+    return running
+
+
+def _job_enqueue(b: Bench) -> Expected:
+    phrase_id = b.word(1, "glare")
+    b.word(2, "stare")
+    b.ready()
+    b.jobs.enqueue([_phrase_job(phrase_id), _word_job(2)])
+    return {CardContentChanged(phrase_id), WordContentChanged(2)}
+
+
+def _job_claim_next_run(b: Bench) -> Expected:
+    phrase_id = b.word(1, "glare")
+    _queued(b, _phrase_job(phrase_id))
+    b.jobs.claim_next_run({})
+    return {CardContentChanged(phrase_id)}
+
+
+def _job_complete(b: Bench) -> Expected:
+    b.word(1, "glare")
+    b.jobs.complete(_running(b, _word_job(1)))
+    return {WordContentChanged(1)}
+
+
+def _job_fail(b: Bench) -> Expected:
+    phrase_id = b.word(1, "glare")
+    [job] = _running(b, _phrase_job(phrase_id))
+    assert job.id is not None
+    b.jobs.fail([job.id], "boom")
+    return {CardContentChanged(phrase_id)}
+
+
+def _job_requeue_running(b: Bench) -> Expected:
+    phrase_id = b.word(1, "glare")
+    _running(b, _phrase_job(phrase_id))
+    b.jobs.requeue_running()
+    return {CardContentChanged(phrase_id)}
+
+
+def _job_fail_running(b: Bench) -> Expected:
+    phrase_id = b.word(1, "glare")
+    _running(b, _phrase_job(phrase_id))
+    b.jobs.fail_running(JobType.MEANING, "boom")
+    return {CardContentChanged(phrase_id)}
+
+
+def _job_cancel(b: Bench) -> Expected:
+    phrase_id = b.word(1, "glare")
+    b.word(2, "stare")
+    _queued(b, _phrase_job(phrase_id), _word_job(2))
+    b.jobs.cancel(JobSelection(job_type=JobType.PRONUNCIATION))
+    return {WordContentChanged(2)}
+
+
+def _job_cancel_for_phrases(b: Bench) -> Expected:
+    first, second = b.word(1, "glare"), b.word(2, "stare")
+    _queued(b, _phrase_job(first), _phrase_job(second, 2))
+    b.jobs.cancel_for_phrases([first])
+    return {CardContentChanged(first)}
+
+
+def _failed(b: Bench, job: Job) -> None:
+    [running] = _running(b, job)
+    assert running.id is not None
+    b.jobs.fail([running.id], "boom")
+    b.ready()
+
+
+def _job_dismiss(b: Bench) -> Expected:
+    phrase_id = b.word(1, "glare")
+    _failed(b, _phrase_job(phrase_id))
+    b.jobs.dismiss(JobSelection())
+    return {CardContentChanged(phrase_id)}
+
+
+def _job_retry(b: Bench) -> Expected:
+    phrase_id = b.word(1, "glare")
+    _failed(b, _phrase_job(phrase_id))
+    b.jobs.retry(JobSelection())
+    return {CardContentChanged(phrase_id)}
+
+
+def _report_add(b: Bench) -> Expected:
+    phrase_id = b.word(1, "glare")
+    b.ready()
+    b.reports.add(CardReport(
+        source_id=SOURCE, source_title="title", candidate_id=1, lemma="glare",
+        surface_form=None, context_fragment="She glared.", zipf_frequency=3.0,
+        cefr_level=None, fragment_unknown_count=0, is_phrasal_verb=False, reasons=(),
+        comment="odd", phrase_id=phrase_id,
+    ))
+    return {CardContentChanged(phrase_id)}
+
+
 WRITE_CASES: dict[tuple[str, str], WriteCase] = {
     ("WordStateRepository", "save"): WriteCase(_word_state_save),
     ("OccurrenceRepository", "add"): WriteCase(_occurrence_add),
@@ -635,6 +774,17 @@ WRITE_CASES: dict[tuple[str, str], WriteCase] = {
     ("CandidatePronunciationRepository", "upsert"): WriteCase(_pronunciation_upsert),
     ("CandidateMeaningImageRepository", "upsert"): WriteCase(_image_upsert),
     ("CandidateMeaningImageRepository", "delete_by_candidate_id"): WriteCase(_image_delete),
+    ("JobRepository", "enqueue"): WriteCase(_job_enqueue),
+    ("JobRepository", "claim_next_run"): WriteCase(_job_claim_next_run),
+    ("JobRepository", "complete"): WriteCase(_job_complete),
+    ("JobRepository", "fail"): WriteCase(_job_fail),
+    ("JobRepository", "requeue_running"): WriteCase(_job_requeue_running),
+    ("JobRepository", "fail_running"): WriteCase(_job_fail_running),
+    ("JobRepository", "cancel"): WriteCase(_job_cancel),
+    ("JobRepository", "cancel_for_phrases"): WriteCase(_job_cancel_for_phrases),
+    ("JobRepository", "dismiss"): WriteCase(_job_dismiss),
+    ("JobRepository", "retry"): WriteCase(_job_retry),
+    ("CardReportRepository", "add"): WriteCase(_report_add),
 }
 
 

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tests.export_support import export_card
 from tests.phrase_support import phrase
+from tests.review_support import on_review
 from tests.word_support import insert_word
 
 if TYPE_CHECKING:
@@ -306,7 +307,9 @@ def _store_learned(client: TestClient, card: ExportCard) -> None:
             pos=card.word.pos, phrase_text=card.phrase.phrase.text,
         )
         session.commit()
-    decided = client.post(f"/phrases/{card.phrase_id}/decision", json={"button": "learn"})
+    decided = on_review(
+        client, "POST", f"/phrases/{card.phrase_id}/decision", json={"button": "learn"},
+    )
     assert decided.status_code == 200
 
 

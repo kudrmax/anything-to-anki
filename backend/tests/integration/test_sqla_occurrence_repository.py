@@ -153,7 +153,7 @@ def test_a_write_that_keeps_the_shown_text_does_not_bump(
 
 
 def _job(session: Session, phrase_id: int, job_type: JobType, status: JobStatus) -> None:
-    SqlaJobRepository(session).enqueue([Job.queued(
+    SqlaJobRepository(session, SessionChangeRecorder(session)).enqueue([Job.queued(
         job_type, SOURCE, WORD, phrase_id=phrase_id, phrase_revision=0,
     )])
     session.execute(

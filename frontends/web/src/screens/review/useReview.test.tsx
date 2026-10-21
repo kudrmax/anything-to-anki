@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import type { CandidateSection, GenerationOverview, ReviewDetail, SetScope, StoredCandidate } from '@/api/types'
+import type { CandidateSection, GenerationOverview, ReviewDetail, ReviewUpdate, SetScope, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref } from '@/lib/preferences'
 import { buttons, state } from './reviewFixtures'
 import { useReview, type Review } from './useReview'
@@ -12,6 +12,9 @@ const POLL_MS = 3000
 
 const card = (id: number, section: CandidateSection, isDone = section === 'reviewed') =>
   ({ phrase_id: id, word_id: id, section, is_done: isDone, state: state() }) as StoredCandidate
+/** Ответ ревью на нажатие: карточка после него. */
+const pressed = (candidate: StoredCandidate) =>
+  ({ cards: [candidate], removed: [], done: {}, focus_id: null }) as unknown as ReviewUpdate
 const detail = (candidates: StoredCandidate[]) =>
   ({ scope: SCOPE, candidates, busy: false, progress: { decided: 0, total: 0 } }) as unknown as ReviewDetail
 
@@ -45,7 +48,7 @@ describe('useReview layout', () => {
     vi.spyOn(api, 'getReviewGeneration').mockResolvedValue({ in_progress: true } as GenerationOverview)
     vi.spyOn(api, 'decidePhrase').mockImplementation(async id => {
       backend = AFTER_PRESS
-      return AFTER_PRESS.find(c => c.phrase_id === id)!
+      return pressed(AFTER_PRESS.find(c => c.phrase_id === id)!)
     })
     root = createRoot(document.createElement('div'))
   })
@@ -157,7 +160,7 @@ describe('useReview layout', () => {
     backend = LOADED.map(withAudio)
     vi.mocked(api.decidePhrase).mockImplementation(async id => {
       backend = AFTER_PRESS.map(withAudio)
-      return backend.find(c => c.phrase_id === id)!
+      return pressed(backend.find(c => c.phrase_id === id)!)
     })
     autoPlayAudioPref.write(true)
     try {

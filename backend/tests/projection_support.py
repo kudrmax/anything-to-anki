@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
     from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.domain.services.candidate_sections import ShownCardFacts
+    from backend.domain.value_objects.card_state_rows import StoredCardState
     from backend.domain.value_objects.generation_tally import GenerationTally
     from backend.domain.value_objects.ordered_card import OrderedCard
     from sqlalchemy.orm import Session
@@ -66,6 +67,12 @@ class LiveSectionTallies(CardStateQuery):
         raise NotImplementedError("the screens of these tests do not count generation")
 
     def order_rows(self, source_ids: Sequence[int]) -> list[OrderedCard]:
+        raise NotImplementedError("the screens of these tests do not open a review")
+
+    def done_of_phrases(self, phrase_ids: Collection[int]) -> dict[int, bool]:
+        raise NotImplementedError("the screens of these tests do not open a review")
+
+    def changed_since(self, source_ids: Sequence[int], revision: int) -> list[StoredCardState]:
         raise NotImplementedError("the screens of these tests do not open a review")
 
 

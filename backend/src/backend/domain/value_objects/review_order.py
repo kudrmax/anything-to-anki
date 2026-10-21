@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, overload
 from backend.domain.value_objects.candidate_section import CandidateSection
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Iterator
+    from collections.abc import Collection, Iterable, Iterator, Mapping
 
 _IDS = "q"
 _INDICES = "I"
@@ -43,9 +43,22 @@ class ReviewOrder:
             phrase_ids.append(card.phrase_id)
             word_ids.append(card.word_id)
             codes.append(_SECTION_CODE[card.section])
+        self._hold(phrase_ids, word_ids, bytes(codes), sectioned=sectioned)
+
+    @classmethod
+    def _of_columns(
+        cls, phrase_ids: array[int], word_ids: array[int], codes: bytes, *, sectioned: bool,
+    ) -> ReviewOrder:
+        order = cls.__new__(cls)
+        order._hold(phrase_ids, word_ids, codes, sectioned=sectioned)
+        return order
+
+    def _hold(
+        self, phrase_ids: array[int], word_ids: array[int], codes: bytes, *, sectioned: bool,
+    ) -> None:
         self._phrase_ids = phrase_ids
         self._word_ids = word_ids
-        self._sections = bytes(codes)
+        self._sections = codes
         self._in_section: dict[CandidateSection, array[int]] = {}
         self._rank = array(_INDICES)
         for index, code in enumerate(codes):
@@ -112,6 +125,51 @@ class ReviewOrder:
 
     def __len__(self) -> int:
         return len(self._phrase_ids)
+
+    def spliced(
+        self,
+        *,
+        dropped: Collection[int] = (),
+        replaced: Mapping[int, HeldCard] | None = None,
+        following: Mapping[int | None, Sequence[HeldCard]] | None = None,
+    ) -> ReviewOrder:
+        """A new order from this one: the `dropped` cards left out, each card of `replaced`
+        in the place of the one it names, and the cards of `following` right after the one
+        each list names (at the top for None). Built column by column, with no object per
+        held card."""
+        replaced = replaced or {}
+        following = following or {}
+        phrase_ids, word_ids, codes = array(_IDS), array(_IDS), bytearray()
+
+        def put(card: HeldCard) -> None:
+            phrase_ids.append(card.phrase_id)
+            word_ids.append(card.word_id)
+            codes.append(_SECTION_CODE[card.section])
+
+        for card in following.get(None, ()):
+            put(card)
+        marked = (
+            {*dropped, *replaced, *(k for k in following if k is not None)}
+        )
+        start = 0
+        for index in sorted(i for p in marked if (i := self.index_of(p)) is not None):
+            phrase_ids.extend(self._phrase_ids[start:index])
+            word_ids.extend(self._word_ids[start:index])
+            codes.extend(self._sections[start:index])
+            start = index + 1
+            phrase_id = self._phrase_ids[index]
+            if phrase_id in replaced:
+                put(replaced[phrase_id])
+            elif phrase_id not in dropped:
+                put(self.at(index))
+            for card in following.get(phrase_id, ()):
+                put(card)
+        phrase_ids.extend(self._phrase_ids[start:])
+        word_ids.extend(self._word_ids[start:])
+        codes.extend(self._sections[start:])
+        return ReviewOrder._of_columns(
+            phrase_ids, word_ids, bytes(codes), sectioned=self.sectioned,
+        )
 
 
 class _HeldCards(Sequence[HeldCard]):

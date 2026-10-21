@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from backend.application.dto.review_dtos import ReviewContext, ReviewUpdateDTO
     from backend.application.utils.open_review import OpenReview
     from backend.application.utils.review_answer import ReviewAnswer
+    from backend.application.utils.review_updates import ReviewUpdates
     from backend.domain.ports.review_order_store import ReviewOrderStore
     from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.candidate_section import CandidateSection
@@ -26,15 +27,17 @@ class ReviewWindowUseCase:
         self,
         store: ReviewOrderStore[OpenReview],
         answer: ReviewAnswer,
+        updates: ReviewUpdates,
         unit_of_work: UnitOfWork,
     ) -> None:
         self._store = store
         self._answer = answer
+        self._updates = updates
         self._unit_of_work = unit_of_work
 
     def rows(self, ctx: ReviewContext, start: int, count: int) -> ReviewUpdateDTO:
         """`count` rows from `start`, at most REVIEW_ROWS_MAX."""
-        with self._unit_of_work.read(), self._store.hold(ctx.review_id) as review:
+        with self._store.hold(ctx.review_id) as review, self._unit_of_work.read():
             replace = _moved(review, ctx.current)
             window = rows_from(review.layout(), start, min(count, REVIEW_ROWS_MAX))
             return self._answer.of(ctx.review_id, review, window=window, replace=replace)
@@ -42,7 +45,7 @@ class ReviewWindowUseCase:
     def around(self, ctx: ReviewContext, phrase_id: int) -> ReviewUpdateDTO:
         """The rows around the card, which becomes the current one. PhraseNotFoundError when
         the review does not hold it."""
-        with self._unit_of_work.read(), self._store.hold(ctx.review_id) as review:
+        with self._store.hold(ctx.review_id) as review, self._unit_of_work.read():
             if review.order.card(phrase_id) is None:
                 raise PhraseNotFoundError(phrase_id)
             replace = _moved(review, phrase_id)
@@ -56,7 +59,7 @@ class ReviewWindowUseCase:
         self, ctx: ReviewContext, section: CandidateSection, *, is_open: bool,
     ) -> ReviewUpdateDTO:
         """The section opened or folded; the current card's stays open while it holds it."""
-        with self._unit_of_work.read(), self._store.hold(ctx.review_id) as review:
+        with self._store.hold(ctx.review_id) as review, self._unit_of_work.read():
             version = review.layout_version
             review.current = ctx.current
             review.opened = (
@@ -69,10 +72,9 @@ class ReviewWindowUseCase:
             )
 
     def changes(self, ctx: ReviewContext) -> ReviewUpdateDTO:
-        """What changed since the client's revision."""
-        with self._unit_of_work.read(), self._store.hold(ctx.review_id) as review:
-            replace = _moved(review, ctx.current)
-            return self._answer.of(ctx.review_id, review, window=None, replace=replace)
+        """What changed since the client's revision, placed into the held order."""
+        with self._store.hold(ctx.review_id) as review:
+            return self._updates.build(ctx, review)
 
 
 def _moved(review: OpenReview, current: int | None) -> bool:

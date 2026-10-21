@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tests.decision_support import Decisions
 from tests.integration.conftest import insert_source
+from tests.review_support import on_review
 from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -68,7 +69,9 @@ def client(factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_db_session] = override_session
     app.dependency_overrides[get_session_factory] = lambda: factory
     with TestClient(app) as c:
-        response = c.post(f"/phrases/{phrase_id_of(WORD)}/decision", json={"button": "learn"})
+        response = on_review(
+            c, "POST", f"/phrases/{phrase_id_of(WORD)}/decision", json={"button": "learn"},
+        )
         assert response.status_code == 200
         yield c
     app.dependency_overrides.clear()

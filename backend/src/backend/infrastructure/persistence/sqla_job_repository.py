@@ -6,10 +6,11 @@ from datetime import UTC, datetime
 from itertools import takewhile
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CursorResult, and_, delete, exists, func, or_, select, update
+from sqlalchemy import and_, delete, exists, func, or_, select, update
 from sqlalchemy.orm import aliased
 
 from backend.domain.ports.job_repository import DEFAULT_RUN_LIMIT, JobRepository
+from backend.domain.value_objects.card_change import CardContentChanged, WordContentChanged
 from backend.domain.value_objects.failed_job_group import FailedJobGroup
 from backend.domain.value_objects.job_selection import UNKNOWN_JOB_ERROR
 from backend.domain.value_objects.job_status import JobStatus
@@ -18,12 +19,13 @@ from backend.infrastructure.persistence.models import JobModel, PhraseModel
 from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Mapping
+    from collections.abc import Collection, Iterable, Mapping
 
     from sqlalchemy import ColumnElement, Delete, Update
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.job import Job
+    from backend.domain.ports.change_recorder import ChangeRecorder
     from backend.domain.value_objects.job_selection import JobSelection
 
 _ACTIVE_STATUSES = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
@@ -77,10 +79,13 @@ def _selected(selection: JobSelection) -> list[ColumnElement[bool]]:
 
 
 class SqlaJobRepository(JobRepository):
-    """SQLAlchemy implementation of JobRepository."""
+    """SQLAlchemy implementation of JobRepository. A card shows what the queue holds for
+    it: every write that adds, moves on or removes a job of a phrase records the phrase's
+    content changed, of a word the word's."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
 
     # ── Lifecycle ────────────────────────────────────────────────────
 
@@ -102,6 +107,7 @@ class SqlaJobRepository(JobRepository):
             models.append(model)
         self._session.add_all(models)
         self._session.flush()
+        self._record_models(models)
         return [m.to_entity() for m in models]
 
     def claim_next_run(
@@ -137,6 +143,7 @@ class SqlaJobRepository(JobRepository):
             model.status = JobStatus.RUNNING.value
             model.started_at = now
         self._session.flush()
+        self._record_models(run)
         return [m.to_entity() for m in run]
 
     def still_claimed(self, jobs: list[Job]) -> set[int]:
@@ -162,16 +169,16 @@ class SqlaJobRepository(JobRepository):
                 )
             )
         self._session.flush()
+        self._record((job.phrase_id, job.candidate_id) for job in jobs)
 
     def fail(self, job_ids: list[int], error: str) -> None:
         if not job_ids:
             return
-        self._session.execute(
+        self._affected(
             update(JobModel)
             .where(JobModel.id.in_(job_ids), JobModel.status == JobStatus.RUNNING.value)
             .values(status=JobStatus.FAILED.value, error=error)
         )
-        self._session.flush()
 
     def requeue_running(self) -> int:
         return self._affected(
@@ -233,6 +240,7 @@ class SqlaJobRepository(JobRepository):
             model.created_at = now
             retried += 1
         self._session.flush()
+        self._record_models(failed)
         return retried
 
     # ── Reads ────────────────────────────────────────────────────────
@@ -425,6 +433,21 @@ class SqlaJobRepository(JobRepository):
         return self._session.execute(stmt).scalar_one() > 0
 
     def _affected(self, stmt: Update | Delete) -> int:
-        result: CursorResult[tuple[()]] = self._session.execute(stmt)  # type: ignore[assignment]
+        """Runs the write; records what the jobs it touched work on and counts them."""
+        rows = self._session.execute(
+            stmt.returning(JobModel.phrase_id, JobModel.candidate_id),
+        ).all()
         self._session.flush()
-        return result.rowcount
+        self._record((phrase_id, word_id) for phrase_id, word_id in rows)
+        return len(rows)
+
+    def _record_models(self, models: Iterable[JobModel]) -> None:
+        self._record((model.phrase_id, model.candidate_id) for model in models)
+
+    def _record(self, keys: Iterable[tuple[int | None, int | None]]) -> None:
+        """A job of a phrase changes what its card shows; a job of a word, its cards'."""
+        for phrase_id, word_id in keys:
+            if phrase_id is not None:
+                self._recorder.record(CardContentChanged(phrase_id))
+            elif word_id is not None:
+                self._recorder.record(WordContentChanged(word_id))

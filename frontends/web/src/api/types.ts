@@ -387,6 +387,58 @@ export interface ReviewDetail {
   busy: boolean
 }
 
+/** Шапка открытого ревью: по всему набору. */
+export interface ReviewHeader {
+  scope: string
+  title: string
+  status: SourceStatus
+  progress: Progress
+  learn_count: number
+  busy: boolean
+  /** Значение показанной карточки не сделано: AI недоступен отсюда. */
+  ai_unavailable: boolean
+}
+
+/** Строка видимого списка ревью: карточка или строка сворачиваемого раздела. */
+export interface ReviewRow {
+  index: number
+  kind: 'card' | 'section'
+  phrase_id: number | null
+  position: number | null
+  section: CandidateSection | null
+  count: number | null
+  open: boolean | null
+}
+
+/** Строки списка. replace — это все строки, которые есть у клиента, заново пронумерованные. */
+export interface ReviewLayout {
+  version: number
+  total_rows: number
+  total_cards: number
+  replace: boolean
+  rows: ReviewRow[]
+}
+
+/** Единственный ответ открытого ревью: что изменилось с `since` до `revision` и куда фокус. */
+export interface ReviewUpdate {
+  review_id: string
+  revision: number
+  header: ReviewHeader
+  layout: ReviewLayout | null
+  cards: StoredCandidate[]
+  removed: number[]
+  /** Разобрана ли каждая изменившаяся карточка набора. */
+  done: Record<number, boolean>
+  focus_id: number | null
+}
+
+/** Что шлёт каждый запрос к открытому ревью. */
+export interface ReviewQuery {
+  review_id: string
+  since: number
+  current: number | null
+}
+
 export interface AnkiStatus {
   available: boolean
   version: number | null
@@ -556,6 +608,8 @@ export interface GenerateMeaningResult {
   examples: string
   ipa: string | null
   tokens_used: number
+  /** Что изменилось в открытом ревью, на котором сделано значение. */
+  update: ReviewUpdate | null
 }
 
 export type GenerationKind = 'polish' | 'meaning' | 'media' | 'pronunciation' | 'tts'

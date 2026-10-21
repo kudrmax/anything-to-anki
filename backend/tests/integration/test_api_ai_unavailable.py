@@ -12,6 +12,8 @@ from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_container, get_db_session
 from fastapi.testclient import TestClient
 
+from tests.review_support import REVIEW_PARAMS, RunningMutation
+
 if TYPE_CHECKING:
     from collections.abc import Generator
 
@@ -40,6 +42,10 @@ class _Container:
         del session
         return _FailingMeaning(self._error)
 
+    def review_mutation(self, session: object) -> RunningMutation:
+        del session
+        return RunningMutation()
+
 
 def _answer(error: AIServiceError) -> Response:
     def no_session() -> Generator[MagicMock, None, None]:
@@ -49,7 +55,7 @@ def _answer(error: AIServiceError) -> Response:
     app.dependency_overrides[get_db_session] = no_session
     try:
         client = TestClient(app)
-        return client.post(f"/phrases/{PHRASE_ID}/generate-meaning")
+        return client.post(f"/phrases/{PHRASE_ID}/generate-meaning", params=REVIEW_PARAMS)
     finally:
         app.dependency_overrides.clear()
 

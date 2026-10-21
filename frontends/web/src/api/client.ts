@@ -15,6 +15,8 @@ import type {
   DeletedCollection,
   MovedCollection,
   RenamedCollection,
+  ReviewQuery,
+  ReviewUpdate,
   Scope,
   SourceBoard,
   SourcePlacement,
@@ -80,6 +82,14 @@ function queueAction(action: 'cancel' | 'retry' | 'dismiss', selection: QueueSel
   return req<QueueActionResult>(`/api/queue/${action}`, { method: 'POST', body: JSON.stringify(selection) })
 }
 
+/** Путь изменения на открытом ревью: его id, ревизия клиента и показанная карточка. */
+function onReview(path: string, review?: ReviewQuery): string {
+  if (!review) return path
+  const params = new URLSearchParams({ review_id: review.review_id, since: String(review.since) })
+  if (review.current !== null) params.set('current', String(review.current))
+  return `${path}${path.includes('?') ? '&' : '?'}${params}`
+}
+
 export const api = {
   addSource: (text: string, subtitlesPath: string, title: string, answers: Record<string, string>[], naming?: Naming) =>
     req<AddSourceResult>('/sources/add', {
@@ -126,17 +136,17 @@ export const api = {
   getReviewGeneration: (scope: SetScope) =>
     req<GenerationOverview>(`/api/review/generation?${new URLSearchParams({ scope: String(scope) })}`),
 
-  runReviewGeneration: (scope: SetScope, kind: GenerationKind, cards: GenerationScope, sort: CandidateSortOrder = 'relevance') =>
-    req<{ enqueued: number }>(
-      `/api/review/generation/${kind}?${new URLSearchParams({ scope: String(scope), cards, sort })}`,
+  runReviewGeneration: (scope: SetScope, kind: GenerationKind, cards: GenerationScope, sort: CandidateSortOrder = 'relevance', review?: ReviewQuery) =>
+    req<ReviewUpdate>(
+      onReview(`/api/review/generation/${kind}?${new URLSearchParams({ scope: String(scope), cards, sort })}`, review),
       { method: 'POST' },
     ),
 
-  cancelReviewGeneration: (scope: SetScope, kind: GenerationKind) =>
-    req<{ cancelled: number }>(`/api/review/generation/${kind}/cancel?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
+  cancelReviewGeneration: (scope: SetScope, kind: GenerationKind, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/api/review/generation/${kind}/cancel?${new URLSearchParams({ scope: String(scope) })}`, review), { method: 'POST' }),
 
-  downloadReviewVideos: (scope: SetScope) =>
-    req<{ queued: number }>(`/api/review/download-video?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
+  downloadReviewVideos: (scope: SetScope, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/api/review/download-video?${new URLSearchParams({ scope: String(scope) })}`, review), { method: 'POST' }),
 
   processSource: (id: number) =>
     req<{ status: string }>(`/sources/${id}/process`, { method: 'POST' }),
@@ -144,11 +154,11 @@ export const api = {
   previewCloze: (id: number, draft: Partial<ClozeDraft>, signal?: AbortSignal) =>
     req<ClozePreview>(`/phrases/${id}/cloze/preview`, { method: 'POST', body: JSON.stringify(draft), signal }),
 
-  saveCloze: (phraseId: number, request: SaveClozeRequest) =>
-    req<StoredCandidate>(`/phrases/${phraseId}/cloze`, { method: 'PUT', body: JSON.stringify(request) }),
+  saveCloze: (phraseId: number, request: SaveClozeRequest, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/cloze`, review), { method: 'PUT', body: JSON.stringify(request) }),
 
-  decidePhrase: (phraseId: number, button: DecisionButton) =>
-    req<StoredCandidate>(`/phrases/${phraseId}/decision`, {
+  decidePhrase: (phraseId: number, button: DecisionButton, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/decision`, review), {
       method: 'POST',
       body: JSON.stringify({ button }),
     }),
@@ -183,47 +193,47 @@ export const api = {
 
   deleteSource: (id: number) => reqVoid(`/sources/${id}`, { method: 'DELETE' }),
 
-  generateMeaning: (phraseId: number, followUpAction?: FollowUpAction, followUpText?: string) =>
-    req<GenerateMeaningResult>(`/phrases/${phraseId}/generate-meaning`, {
+  generateMeaning: (phraseId: number, followUpAction?: FollowUpAction, followUpText?: string, review?: ReviewQuery) =>
+    req<GenerateMeaningResult>(onReview(`/phrases/${phraseId}/generate-meaning`, review), {
       method: 'POST',
       body: followUpAction
         ? JSON.stringify({ action: followUpAction, ...(followUpText ? { text: followUpText } : {}) })
         : undefined,
     }),
 
-  regeneratePhraseMedia: (phraseId: number) =>
-    req<{ status: string }>(`/phrases/${phraseId}/regenerate-media`, { method: 'POST' }),
+  regeneratePhraseMedia: (phraseId: number, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/regenerate-media`, review), { method: 'POST' }),
 
   searchTargetImages: (wordId: number, query?: string) =>
     req<ImageSearchResult>(`/words/${wordId}/image-options${query === undefined ? '' : `?${new URLSearchParams({ query })}`}`),
 
-  applyTargetImage: (wordId: number, url: string) =>
-    req<{ status: string }>(`/words/${wordId}/image`, { method: 'PUT', body: JSON.stringify({ url }) }),
+  applyTargetImage: (wordId: number, url: string, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/words/${wordId}/image`, review), { method: 'PUT', body: JSON.stringify({ url }) }),
 
-  pasteTargetImage: (wordId: number, picture: Blob) =>
-    req<{ status: string }>(`/words/${wordId}/image/pasted`, {
+  pasteTargetImage: (wordId: number, picture: Blob, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/words/${wordId}/image/pasted`, review), {
       method: 'PUT',
       headers: { 'Content-Type': picture.type, ...buildHeaders() },
       body: picture,
     }),
 
-  polishPhraseAgain: (phraseId: number) =>
-    req<{ status: string }>(`/phrases/${phraseId}/polish`, { method: 'POST' }),
+  polishPhraseAgain: (phraseId: number, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/polish`, review), { method: 'POST' }),
 
-  setPolishReverted: (phraseId: number, reverted: boolean) =>
-    req<{ id: number; reverted: boolean }>(`/phrases/${phraseId}/polish/reverted`, {
+  setPolishReverted: (phraseId: number, reverted: boolean, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/polish/reverted`, review), {
       method: 'PUT',
       body: JSON.stringify({ reverted }),
     }),
 
-  editPhrase: (phraseId: number, phrase: string) =>
-    req<{ id: number }>(`/phrases/${phraseId}/phrase`, {
+  editPhrase: (phraseId: number, phrase: string, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/phrase`, review), {
       method: 'PUT',
       body: JSON.stringify({ phrase }),
     }),
 
-  generatePhraseTTS: (phraseId: number) =>
-    req<{ status: string }>(`/phrases/${phraseId}/generate-tts`, { method: 'POST' }),
+  generatePhraseTTS: (phraseId: number, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/generate-tts`, review), { method: 'POST' }),
 
   enqueueTopicGeneration: (sourceId: number) =>
     req<{ status: string }>(`/sources/${sourceId}/topic-targets/generate`, { method: 'POST' }),
@@ -250,22 +260,22 @@ export const api = {
   fixNoteType: (kind: NoteTypeKind) =>
     req<NoteTypeCheck>(`/anki/note-types/${kind}/fix`, { method: 'POST' }),
 
-  setPhraseBoundary: (phraseId: number, selection: DocumentSelection) =>
-    req<{ id: number; context_fragment: string }>(`/phrases/${phraseId}/phrase-boundary`, {
+  setPhraseBoundary: (phraseId: number, selection: DocumentSelection, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/phrase-boundary`, review), {
       method: 'PUT',
       body: JSON.stringify({ selection }),
     }),
 
-  reportCandidate: (phraseId: number, reasons: string[], comment: string, unknownWords: number[]) =>
-    req<unknown>(`/phrases/${phraseId}/report`, {
+  reportCandidate: (phraseId: number, reasons: string[], comment: string, unknownWords: number[], review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/report`, review), {
       method: 'POST',
       body: JSON.stringify({ reasons, comment, unknown_words: unknownWords }),
     }),
 
   getReportReasons: () => req<ReportReason[]>('/api/card-reports/reasons'),
 
-  replaceWithExample: (phraseId: number, exampleText: string) =>
-    req<StoredCandidate>(`/phrases/${phraseId}/replace-with-example`, {
+  replaceWithExample: (phraseId: number, exampleText: string, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/replace-with-example`, review), {
       method: 'POST',
       body: JSON.stringify({ example_text: exampleText }),
     }),
@@ -276,8 +286,8 @@ export const api = {
       body: JSON.stringify({ phrase, target_words: targetWords }),
     }),
 
-  addManualCandidate: (sourceId: number, targetWords: number[], selection: DocumentSelection) =>
-    req<StoredCandidate>(`/sources/${sourceId}/candidates/manual`, {
+  addManualCandidate: (sourceId: number, targetWords: number[], selection: DocumentSelection, review?: ReviewQuery) =>
+    req<ReviewUpdate>(onReview(`/sources/${sourceId}/candidates/manual`, review), {
       method: 'POST',
       body: JSON.stringify({ target_words: targetWords, selection }),
     }),

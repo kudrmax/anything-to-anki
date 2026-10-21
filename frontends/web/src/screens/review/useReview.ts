@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { ButtonCommand, CardButton, DecisionButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, ReviewDetail, SaveClozeRequest, SetScope, SourceDocument, StoredCandidate } from '@/api/types'
+import type { ButtonCommand, CardButton, DecisionButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationOverview, GenerationScope, ImageSearchResult, ReportReason, ReviewDetail, ReviewUpdate, SaveClozeRequest, SetScope, SourceDocument, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { isVpnError, isVpnErrorText } from '@/lib/aiErrors'
 import { messageOf } from '@/lib/apiError'
@@ -166,9 +166,9 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   /** Нажатие кнопки, которую backend сказал слать; ответ — карточка после него. */
   const mark = useCallback(async (candidateId: number, button: DecisionButton) => {
     stop()
-    let decided: StoredCandidate
+    let decided: StoredCandidate | undefined
     try {
-      decided = await api.decidePhrase(candidateId, button)
+      decided = cardOf(await api.decidePhrase(candidateId, button), candidateId)
     } catch (e) {
       showToast(messageOf(e))
       return
@@ -201,9 +201,9 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   /** true — разметка сохранена (фокус уходит, если карточка стала разобранной); при ошибке показывает её. */
   const saveCloze = useCallback(async (candidateId: number, request: SaveClozeRequest): Promise<boolean> => {
     stop()
-    let saved: StoredCandidate
+    let saved: StoredCandidate | undefined
     try {
-      saved = await api.saveCloze(candidateId, request)
+      saved = cardOf(await api.saveCloze(candidateId, request), candidateId)
     } catch (e) {
       showToast(messageOf(e))
       return false
@@ -241,10 +241,13 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
 
   const replaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
     try {
-      const newCandidate = await api.replaceWithExample(candidateId, exampleText)
+      const update = await api.replaceWithExample(candidateId, exampleText)
+      const newCandidate = update.focus_id === null ? undefined : cardOf(update, update.focus_id)
       // Пример — новая фраза слова: он встаёт на место заменённой карточки, которая больше не показана.
-      setCandidates(prev => prev.map(c => (c.phrase_id === candidateId ? newCandidate : c)))
-      setCurrentId(newCandidate.phrase_id)
+      if (newCandidate) {
+        setCandidates(prev => prev.map(c => (c.phrase_id === candidateId ? newCandidate : c)))
+        setCurrentId(newCandidate.phrase_id)
+      }
       showToast('Phrase replaced — generating meaning...')
       await loadGeneration()
     } catch (e) {
@@ -353,7 +356,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
       const result = await api.addManualCandidate(selected.sourceId, targetWords, selected.selection)
       window.getSelection()?.removeAllRanges()
       await loadCandidates()
-      setCurrentId(result.phrase_id)
+      if (result.focus_id !== null) setCurrentId(result.focus_id)
       return true
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to add the word')
@@ -439,4 +442,9 @@ function wordOf(candidates: StoredCandidate[], candidateId: number): number {
   const wordId = candidates.find(c => c.phrase_id === candidateId)?.word_id
   if (wordId == null) throw new Error('The card is not in the list')
   return wordId
+}
+
+/** Карточка, которую прислал ответ ревью целиком. */
+function cardOf(update: ReviewUpdate, phraseId: number): StoredCandidate | undefined {
+  return update.cards.find(c => c.phrase_id === phraseId)
 }

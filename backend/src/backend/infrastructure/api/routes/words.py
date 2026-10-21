@@ -5,6 +5,10 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from backend.application.dto.review_dtos import (  # noqa: TC001 — FastAPI's at runtime
+    ReviewContext,
+    ReviewUpdateDTO,
+)
 from backend.application.dto.target_image_dtos import (  # noqa: TC001
     ApplyTargetImageRequest,
     TargetImageOptionsDTO,
@@ -15,11 +19,13 @@ from backend.domain.exceptions import (
     UnknownImageUrlError,
 )
 from backend.infrastructure.api.dependencies import use_case
+from backend.infrastructure.api.review_context import review_context, review_expired
 from backend.infrastructure.container import Container
 
 if TYPE_CHECKING:
     from backend.application.use_cases.apply_target_image import ApplyTargetImageUseCase
     from backend.application.use_cases.paste_target_image import PasteTargetImageUseCase
+    from backend.application.use_cases.review_mutation import ReviewMutation
     from backend.application.use_cases.search_target_images import SearchTargetImagesUseCase
 
 # Actions on a word of a source; its cards (phrases) have theirs under /phrases.
@@ -49,10 +55,13 @@ def apply_target_image(
     apply: ApplyTargetImageUseCase = Depends(  # noqa: B008
         use_case(Container.apply_target_image_use_case),  # noqa: B008
     ),
-) -> dict[str, str]:
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    mutation: ReviewMutation = Depends(use_case(Container.review_mutation)),  # noqa: B008
+) -> ReviewUpdateDTO:
     try:
-        apply.execute(candidate_id, request.url)
-        return {"status": "applied"}
+        with review_expired():
+            _, update = mutation.edit(ctx, lambda: apply.execute(candidate_id, request.url))
+        return update
     except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except UnknownImageUrlError as e:
@@ -68,11 +77,16 @@ async def paste_target_image(
     paste: PasteTargetImageUseCase = Depends(  # noqa: B008
         use_case(Container.paste_target_image_use_case),  # noqa: B008
     ),
-) -> dict[str, str]:
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    mutation: ReviewMutation = Depends(use_case(Container.review_mutation)),  # noqa: B008
+) -> ReviewUpdateDTO:
     picture = await request.body()
     try:
-        await asyncio.to_thread(paste.execute, candidate_id, picture)
-        return {"status": "applied"}
+        with review_expired():
+            _, update = await asyncio.to_thread(
+                mutation.edit, ctx, lambda: paste.execute(candidate_id, picture),
+            )
+        return update
     except CandidateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except OSError as e:

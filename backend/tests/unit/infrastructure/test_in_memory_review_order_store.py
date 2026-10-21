@@ -69,3 +69,41 @@ def test_another_review_is_not_held_up() -> None:
     first, second = store.open("first"), store.open("second")
     with store.hold(first), store.hold(second) as review:
         assert review == "second"
+
+
+def test_a_pinned_review_outlives_newer_ones() -> None:
+    store: InMemoryReviewOrderStore[str] = InMemoryReviewOrderStore(capacity=2)
+    pinned = store.open("pinned")
+    with store.pin(pinned):
+        others = [store.open(f"review {i}") for i in range(3)]
+        with store.hold(pinned) as review:
+            assert review == "pinned"
+    for gone in others[:2]:
+        with pytest.raises(ReviewNotFoundError):
+            store.hold(gone).__enter__()
+    with store.hold(others[2]) as review:
+        assert review == "review 2"
+
+
+def test_a_review_let_go_from_its_pin_goes_when_it_is_the_oldest() -> None:
+    store: InMemoryReviewOrderStore[str] = InMemoryReviewOrderStore(capacity=1)
+    pinned = store.open("pinned")
+    with store.pin(pinned):
+        newest = store.open("newest")
+    with pytest.raises(ReviewNotFoundError):
+        store.hold(pinned).__enter__()
+    with store.hold(newest) as review:
+        assert review == "newest"
+
+
+def test_a_pin_leaves_the_review_free_for_other_requests() -> None:
+    store: InMemoryReviewOrderStore[str] = InMemoryReviewOrderStore()
+    review_id = store.open("review")
+    with store.pin(review_id), store.hold(review_id) as review:
+        assert review == "review"
+
+
+def test_an_unknown_review_cannot_be_pinned() -> None:
+    store: InMemoryReviewOrderStore[str] = InMemoryReviewOrderStore()
+    with pytest.raises(ReviewNotFoundError):
+        store.pin("unknown").__enter__()

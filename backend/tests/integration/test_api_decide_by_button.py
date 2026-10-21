@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.decision_support import NOW, FixedClock
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.review_support import card_in, on_review
 from tests.word_marks_support import insert_known
 from tests.word_support import bind, insert_word, phrase_id_of
 
@@ -266,7 +267,10 @@ def _bindings(factory: sessionmaker[Session]) -> tuple[int, int]:
 
 
 def _decide(client: TestClient, phrase_id: int, button: str) -> Response:
-    return client.post(f"/phrases/{phrase_id}/decision", json={"button": button})
+    return on_review(
+        client, "POST", f"/phrases/{phrase_id}/decision", json={"button": button},
+        current=phrase_id,
+    )
 
 
 def _card(client: TestClient, phrase_id: int) -> Json:
@@ -284,8 +288,7 @@ def test_each_press_answers_with_the_card_it_leaves(
     response = _decide(client, row.phrase_id, row.button)
 
     assert response.status_code == 200, response.text
-    card = response.json()
-    assert card["phrase_id"] == row.phrase_id
+    card = card_in(response.json(), row.phrase_id)
     assert (card["choice"], card["shown"]["status"]) == (row.choice, row.status)
     assert card == _card(client, row.phrase_id) | {"section": card["section"]}
     assert _bindings(factory) == (int(row.in_anki), int(row.released))
@@ -367,7 +370,7 @@ def test_learn_cloze_known_skip_and_none_on_one_card(client: TestClient) -> None
         ("learn", "learn"), ("cloze", "cloze"), ("known", "known"), ("skip", "skip"),
         ("skip", "none"),
     ):
-        assert _decide(client, CARD, button).json()["choice"] == choice
+        assert card_in(_decide(client, CARD, button).json(), CARD)["choice"] == choice
 
 
 def test_an_unknown_phrase_is_404(client: TestClient) -> None:

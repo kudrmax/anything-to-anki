@@ -1286,6 +1286,12 @@ class CardStateModel(Base):
     tts_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
     pronunciation_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
     media_timed: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    # What the queue holds for the card, per kind: a JobState.
+    polish_job: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    meaning_job: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    media_job: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    tts_job: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    pronunciation_job: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     changes_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
     removed: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="0")
@@ -1299,6 +1305,7 @@ class CardStateModel(Base):
             "ix_card_states_generation",
             "source_id", "removed", "wants_generation", "open_sections", "polish_done",
             "meaning_done", "media_done", "tts_done", "pronunciation_done", "media_timed",
+            "polish_job", "meaning_job", "media_job", "tts_job", "pronunciation_job",
         ),
         Index(
             "ix_card_states_words_in_play", "source_id", "removed", "wants_generation", "word_id",
