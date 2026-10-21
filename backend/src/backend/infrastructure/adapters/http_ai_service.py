@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING, Any, TypeVar
 import httpx
 
 from backend.domain.entities.ai_usage_record import AIUsageRecord
-from backend.domain.exceptions import AIServiceError
+from backend.domain.exceptions import AIServiceError, AIUnavailableError
 from backend.domain.ports.ai_service import AIService
 from backend.domain.value_objects.ai_feature import AIFeature
+from backend.domain.value_objects.ai_unavailable import is_ai_unavailable
 from backend.domain.value_objects.batch_meaning_result import BatchMeaningResult
 from backend.domain.value_objects.generation_result import GenerationResult
 from backend.domain.value_objects.polished_phrase import PolishedPhrase
@@ -190,10 +191,10 @@ class HttpAIService(AIService):
                 "http_ai_service: http error (endpoint=%s, status=%d, detail=%s)",
                 endpoint, e.response.status_code, detail[:500],
             )
-            raise AIServiceError(f"AI proxy error: {detail}") from e
+            raise _ai_error(f"AI proxy error: {detail}") from e
         except Exception as e:
             logger.exception("http_ai_service: unexpected error (endpoint=%s)", endpoint)
-            raise AIServiceError(str(e)) from e
+            raise _ai_error(str(e)) from e
         finally:
             self._record(feature, model, usage, item_count, started, succeeded)
 
@@ -220,3 +221,10 @@ class HttpAIService(AIService):
             self._usage_recorder.record(record)
         except Exception:
             logger.exception("http_ai_service: failed to record usage (feature=%s)", feature)
+
+
+def _ai_error(message: str) -> AIServiceError:
+    """The AI's failure; one that says the AI is not available from here is told apart."""
+    if is_ai_unavailable(message):
+        return AIUnavailableError(message)
+    return AIServiceError(message)

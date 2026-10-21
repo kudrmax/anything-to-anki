@@ -152,6 +152,10 @@ class AIServiceError(DomainError):
         self.detail = detail
 
 
+class AIUnavailableError(AIServiceError):
+    """Raised when the AI is not offered where the host is: no request can succeed."""
+
+
 class GenerationAlreadyRunningError(DomainError):
     """Raised when trying to start generation while one is already running."""
 

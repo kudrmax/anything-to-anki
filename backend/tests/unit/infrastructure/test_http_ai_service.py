@@ -10,9 +10,10 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
-from backend.domain.exceptions import AIServiceError
+from backend.domain.exceptions import AIServiceError, AIUnavailableError
 from backend.domain.ports.ai_usage_recorder import AIUsageRecorder
 from backend.domain.value_objects.ai_feature import AIFeature
+from backend.domain.value_objects.ai_unavailable import AI_UNAVAILABLE_MARKER
 from backend.domain.value_objects.token_usage import TokenUsage
 from backend.infrastructure.adapters.http_ai_service import HttpAIService
 
@@ -176,6 +177,25 @@ class TestGenerateMeaning:
             svc.generate_meaning("s", "u")
         assert "AI proxy error" in str(exc.value)
         assert "boom" in str(exc.value)
+
+    def test_a_blocked_country_answer_is_the_ai_unavailable(self) -> None:
+        svc = HttpAIService(url="http://x", model="m", usage_recorder=FakeUsageRecorder())
+        with patch(
+            _MODULE,
+            return_value=_err_raising_response(
+                _http_status_error(403, f"{AI_UNAVAILABLE_MARKER}: RU"),
+            ),
+        ), pytest.raises(AIUnavailableError) as exc:
+            svc.generate_meaning("s", "u")
+        assert AI_UNAVAILABLE_MARKER in str(exc.value)
+
+    def test_another_failure_is_not_the_ai_unavailable(self) -> None:
+        svc = HttpAIService(url="http://x", model="m", usage_recorder=FakeUsageRecorder())
+        with patch(
+            _MODULE, return_value=_err_raising_response(_http_status_error(500, "boom")),
+        ), pytest.raises(AIServiceError) as exc:
+            svc.generate_meaning("s", "u")
+        assert not isinstance(exc.value, AIUnavailableError)
 
     def test_unexpected_exception_wrapped(self) -> None:
         svc = HttpAIService(url="http://x", model="m", usage_recorder=FakeUsageRecorder())

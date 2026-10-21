@@ -28,6 +28,7 @@ from backend.application.dto.source_dtos import CardDTO  # noqa: TC001
 from backend.domain.exceptions import (
     ActionRefusedError,
     AIServiceError,
+    AIUnavailableError,
     CandidateNotPolishedError,
     ClozeNotAllowedError,
     ClozePhraseChangedError,
@@ -299,7 +300,9 @@ async def generate_meaning(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except REFUSED_GENERATION as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
-    except AIServiceError as e:
+    except AIUnavailableError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
+    except AIServiceError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
