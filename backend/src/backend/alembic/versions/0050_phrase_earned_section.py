@@ -3,7 +3,7 @@
 Revision ID: 0050
 Revises: 0049
 
-The column stays empty on existing phrases: `make fix-sections` stamps them.
+The column stays empty on existing phrases; a one-off script stamped them.
 """
 from __future__ import annotations
 

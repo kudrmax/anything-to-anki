@@ -77,7 +77,6 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 |---|---|
 | Пункт меню источника или набора источников | Update или Re-cut phrases |
 | Смена уровня CEFR или настройки порога (`background_rebuild_launcher`) | Update |
-| `make fix-sections` (`fix_sections`) | Update |
 | Первая обработка источника (`process_source`) | Update (фраз ещё нет, результат тот же, что сейчас) |
 
 У источников без своего текста (тема, Saved phrases) есть только Update; он пересчитывает секции (`plan_sections`). Re-cut им не предлагается.
@@ -171,5 +170,5 @@ Rebuild с галочкой «Also unreviewed cards» смешивает две 
 - Re-cut: новая нарезка → текст новый, revision + 1, Polish (и отменённый), TTS, media удалены с файлами, Meaning на месте, таймкоды новые; задача в очереди на новой revision, задача в работе отменена.
 - Re-cut: место пропало → фраза удалена с генерацией, показ перешёл.
 - Тема и Saved phrases: только Update, меняет только секции; Re-cut не предлагается.
-- Смена уровня и `fix_sections` запускают Update.
+- Смена уровня запускает Update.
 - Счётчики превью совпадают с итогом на том же состоянии; пустой план → `nothing_to_update`.

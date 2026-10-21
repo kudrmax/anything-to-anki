@@ -22,8 +22,6 @@ from backend.domain.value_objects.question import Answers
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.database import create_session_factory, open_query_only
 
-from scripts.fix_sections import fix_sections
-
 COLLECTION_NAME = "Worm"
 SPLIT_QUESTION = "book.split"
 SPLIT_ANSWER = "split"
@@ -149,8 +147,6 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     backup_copy(args.source_db, args.out)
     db_url = f"sqlite:///{args.out.resolve()}"
-    report = fix_sections(db_url)
-    print(f"fix_sections: stamped {report.phrases_stamped}, failed {report.failed or 'none'}")
     container = Container(session_factory=create_session_factory(db_url))
     clear_collection(container, db_url, COLLECTION_NAME)
     created = add_book(container, db_url, args.epub)

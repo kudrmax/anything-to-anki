@@ -15,8 +15,8 @@ HEAD = "head"
 
 
 def upgrade_to_head_with_sections(cfg: Config, url: str) -> None:
-    """The later migrations, then the sections `make fix-sections` would stamp on the
-    phrases the earlier ones left without."""
+    """The later migrations, then a section on every phrase the earlier ones left
+    without one."""
     command.upgrade(cfg, HEAD)
     engine = create_engine(url)
     try:

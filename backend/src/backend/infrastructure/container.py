@@ -23,7 +23,6 @@ from backend.application.use_cases.delete_collection import DeleteCollectionUseC
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
 from backend.application.use_cases.describe_input import DescribeInputUseCase
-from backend.application.use_cases.fix_sections import FixSectionsUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
@@ -670,15 +669,6 @@ class Container:
             unit_of_work=self._unit_of_work(session),
             rebuilder=self._source_rebuilder(session),
             topic_phrase_collector=self._topic_phrase_collector(session),
-        )
-
-    def fix_sections_use_case(self, session: Session) -> FixSectionsUseCase:
-        return FixSectionsUseCase(
-            source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
-            occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
-            stamper=self._section_stamper(session),
-            rebuild_source=self.rebuild_source_use_case(session),
-            unit_of_work=self._unit_of_work(session),
         )
 
     def rebuild_source_use_case(self, session: Session) -> RebuildSourceUseCase:

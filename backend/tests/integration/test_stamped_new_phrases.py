@@ -44,11 +44,11 @@ def test_rebuild_stamps_the_phrases_it_adds(bench: Bench) -> None:
     assert bench.phrase_on("zephyr", 1).earned_section == CandidateSection.EXTRA.value
 
 
-def test_reading_a_phrase_without_a_section_says_to_run_fix_sections(bench: Bench) -> None:
+def test_reading_a_phrase_without_a_section_is_refused(bench: Bench) -> None:
     bench.processed(word("glare", at(0)))
     stored = bench.phrase_on("glare", 0)
     bench.session.execute(text("UPDATE phrases SET earned_section = NULL"))
     bench.session.commit()
 
-    with pytest.raises(PhraseSectionMissingError, match="make fix-sections"):
+    with pytest.raises(PhraseSectionMissingError, match="has no section"):
         bench.occurrences.get(stored.id)
