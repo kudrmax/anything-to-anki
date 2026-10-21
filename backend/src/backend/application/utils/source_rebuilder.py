@@ -52,6 +52,24 @@ class AnalysedSource:
     done_on_the_fly: frozenset[WordKey] = frozenset()
 
 
+@dataclass(frozen=True)
+class AnalysisValues:
+    """The settings an analysis runs with, given rather than read: a level change analyses
+    with the values it has not saved yet."""
+
+    user_level: str
+    frequent_word_zipf: float | None
+
+
+@dataclass(frozen=True)
+class AppliedSource:
+    """What applying a source wrote, and the files of what it dropped, to remove once the
+    write is committed."""
+
+    plan: RebuildPlan
+    dropped_files: list[str]
+
+
 class SourceRebuilder:
     """Analyses a source and applies the analysis without losing the user's work.
 
@@ -95,26 +113,34 @@ class SourceRebuilder:
         self._weight_unknown = weight_unknown
         self._builder = OccurrenceBuilder()
 
-    def analyse(self, source_id: int) -> AnalysedSource:
-        """Runs outside any write transaction, so no writer waits for the analysis."""
+    def analyse(self, source_id: int, values: AnalysisValues | None = None) -> AnalysedSource:
+        """Runs outside any write transaction, so no writer waits for the analysis. With no
+        `values`, it reads them from the settings."""
         source = self._source_repo.get_by_id(source_id)
         if source is not None and not source.has_text:
             return AnalysedSource(source_id, None, None)
         document = self._document_repo.get(source_id)
         if document is None:
             raise SourceHasNoDocumentError(source_id)
+        values = values or self._saved_values()
         request = AnalyzeTextRequest(
-            user_level=self._settings_repo.get("cefr_level", DEFAULT_USER_LEVEL)
-            or DEFAULT_USER_LEVEL,
+            user_level=values.user_level,
             vocabulary=self._vocabulary.snapshot().without_learning(
                 self._learned_here(source_id),
             ),
-            frequent_word_zipf=self._threshold_resolver.resolve().zipf,
+            frequent_word_zipf=values.frequent_word_zipf,
         )
         result = self._analyze_text.execute(document, request)
         return AnalysedSource(
             source_id, document, self._builder.words(result.words),
             self._done_on_the_fly(source_id),
+        )
+
+    def _saved_values(self) -> AnalysisValues:
+        return AnalysisValues(
+            user_level=self._settings_repo.get("cefr_level", DEFAULT_USER_LEVEL)
+            or DEFAULT_USER_LEVEL,
+            frequent_word_zipf=self._threshold_resolver.resolve().zipf,
         )
 
     def _learned_here(self, source_id: int) -> set[str]:
@@ -157,20 +183,26 @@ class SourceRebuilder:
 
     def apply(self, analysed: AnalysedSource, mode: RebuildMode) -> RebuildPlan:
         """Plan and write in one write transaction; the source is done after it."""
-        source_id = analysed.source_id
         with self._unit_of_work.write():
-            source = self._source_repo.get_by_id(source_id)
-            if source is None:
-                raise SourceNotFoundError(source_id)
-            plan = self.plan(analysed, mode)
-            # A word goes only with its last phrase, so the phrases cover the words too.
-            self._anki_sync.orphan(plan.occ_to_delete)
-            applied = self._occurrence_repo.apply_plan(plan)
-            self._job_repo.cancel_for_phrases(list(plan.occ_to_delete))
-            self._time(analysed.document, plan, applied.inserted)
-            if source.status is not SourceStatus.DONE:
-                self._source_repo.update_status(source_id, SourceStatus.DONE)
+            applied = self.apply_inside(analysed, mode)
         self._media_files.remove(applied.dropped_files)
+        return applied.plan
+
+    def apply_inside(self, analysed: AnalysedSource, mode: RebuildMode) -> AppliedSource:
+        """Plan and write inside the caller's write transaction; its caller removes the
+        dropped files once that is committed."""
+        source_id = analysed.source_id
+        source = self._source_repo.get_by_id(source_id)
+        if source is None:
+            raise SourceNotFoundError(source_id)
+        plan = self.plan(analysed, mode)
+        # A word goes only with its last phrase, so the phrases cover the words too.
+        self._anki_sync.orphan(plan.occ_to_delete)
+        applied = self._occurrence_repo.apply_plan(plan)
+        self._job_repo.cancel_for_phrases(list(plan.occ_to_delete))
+        self._time(analysed.document, plan, applied.inserted)
+        if source.status is not SourceStatus.DONE:
+            self._source_repo.update_status(source_id, SourceStatus.DONE)
         logger.info(
             "rebuild: applied (source_id=%d, mode=%s, words +%d -%d, phrases +%d ~%d -%d, "
             "files -%d)",
@@ -178,7 +210,7 @@ class SourceRebuilder:
             len(plan.occ_to_insert), len(plan.occ_to_update_text), len(plan.occ_to_delete),
             len(applied.dropped_files),
         )
-        return plan
+        return AppliedSource(plan, applied.dropped_files)
 
     def _time(self, document: Document | None, plan: RebuildPlan, inserted: list[int]) -> None:
         """Phrases of a video whose text the plan wrote get the time of their lines."""

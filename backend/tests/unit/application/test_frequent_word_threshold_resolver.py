@@ -41,3 +41,10 @@ class TestFrequentWordThresholdResolver:
     def test_missing_or_broken_setting_means_auto(self) -> None:
         assert threshold_resolver(_settings(None), _friends_pilot()).resolve().zipf == 3.5
         assert threshold_resolver(_settings("3.0"), _friends_pilot()).resolve().zipf == 3.5
+
+    def test_resolve_for_a_key_not_saved_yet(self) -> None:
+        saved_auto = threshold_resolver(_settings("auto"), _friends_pilot())
+        assert saved_auto.resolve_for("5.0").zipf == 5.0
+        assert saved_auto.resolve_for("off").zipf is None
+        saved_fixed = threshold_resolver(_settings("5.0"), _friends_pilot())
+        assert saved_fixed.resolve_for("auto").zipf == 3.5

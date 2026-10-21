@@ -30,12 +30,18 @@ class FrequentWordThresholdResolver:
         self._calibrator = FrequencyThresholdCalibrator()
 
     def resolve(self) -> FrequentWordThreshold:
-        threshold = self._resolved()
+        return self._checked(self._configured())
+
+    def resolve_for(self, key: str) -> FrequentWordThreshold:
+        """The threshold the setting would give if it held `key`."""
+        return self._checked(_parsed(key))
+
+    def _checked(self, configured: FrequentWordThreshold) -> FrequentWordThreshold:
+        threshold = self._resolved(configured)
         step_index(threshold.zipf)
         return threshold
 
-    def _resolved(self) -> FrequentWordThreshold:
-        threshold = self._configured()
+    def _resolved(self, threshold: FrequentWordThreshold) -> FrequentWordThreshold:
         if not threshold.is_auto:
             return threshold
         return threshold.calibrated(self.auto_zipf())
@@ -47,7 +53,11 @@ class FrequentWordThresholdResolver:
         raw = self._settings_repo.get(FREQUENT_WORD_THRESHOLD_SETTING)
         if not isinstance(raw, str):
             return DEFAULT_FREQUENT_WORD_THRESHOLD
-        try:
-            return FrequentWordThreshold.from_key(raw)
-        except ValueError:
-            return DEFAULT_FREQUENT_WORD_THRESHOLD
+        return _parsed(raw)
+
+
+def _parsed(key: str) -> FrequentWordThreshold:
+    try:
+        return FrequentWordThreshold.from_key(key)
+    except ValueError:
+        return DEFAULT_FREQUENT_WORD_THRESHOLD
