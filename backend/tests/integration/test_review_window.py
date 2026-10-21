@@ -12,6 +12,7 @@ from backend.application.utils.card_views import CardViews
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.card_choice import Press
+from backend.domain.value_objects.review_order import SectionRow
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import (
@@ -30,7 +31,7 @@ from tests.projection_support import rebuild_projection
 from tests.word_support import KNOWN, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Callable, Iterator, Sequence
 
     from backend.application.dto.review_dtos import ReviewUpdateDTO
     from backend.application.dto.source_dtos import CardDTO
@@ -93,6 +94,19 @@ def client(factory: sessionmaker[Session]) -> Iterator[TestClient]:
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def restart() -> Iterator[Callable[[], None]]:
+    """Lets every open review go, as a restart does; the app's store comes back after."""
+    container = get_container()
+    kept = container._review_order_store  # noqa: SLF001
+
+    def let_go() -> None:
+        container._review_order_store = InMemoryReviewOrderStore()  # noqa: SLF001
+
+    yield let_go
+    container._review_order_store = kept  # noqa: SLF001
 
 
 def _open(
@@ -184,7 +198,7 @@ def test_a_review_keeps_its_order_while_cards_are_decided(
 # --- Review Focus 5: a review the server let go opens again on the same card --------------
 
 def test_a_review_let_go_opens_again_on_its_card_with_its_sections(
-    factory: sessionmaker[Session], client: TestClient,
+    client: TestClient, restart: Callable[[], None],
 ) -> None:
     opened = client.post("/api/review", json={
         "scope": SCOPE, "open_sections": ["reviewed"],
@@ -198,9 +212,9 @@ def test_a_review_let_go_opens_again_on_its_card_with_its_sections(
         "since": opened["revision"], "current": opened["focus_id"],
     }).json()
     assert around["layout"]["replace"] is True
-    assert _section_rows(around) == {"probably_known": True, "reviewed": True}
+    assert _section_rows(review_id) == {"probably_known": True, "reviewed": True}
 
-    get_container()._review_order_store = InMemoryReviewOrderStore()  # noqa: SLF001
+    restart()
 
     for answer in (
         client.get(f"/api/review/{review_id}/rows", params={
@@ -217,15 +231,17 @@ def test_a_review_let_go_opens_again_on_its_card_with_its_sections(
     }).json()
     assert again["review_id"] != review_id
     assert again["focus_id"] == folded
-    assert _section_rows(again) == {"probably_known": True, "reviewed": True}
+    assert _section_rows(again["review_id"]) == {"probably_known": True, "reviewed": True}
     assert folded in {row["phrase_id"] for row in again["layout"]["rows"]}
     assert _held(again["review_id"]).opened == frozenset({CandidateSection.REVIEWED})
 
 
-def _section_rows(update: dict[str, object]) -> dict[str, bool]:
-    layout = update["layout"]
-    assert isinstance(layout, dict)
-    return {row["section"]: row["open"] for row in layout["rows"] if row["kind"] == "section"}
+def _section_rows(review_id: str) -> dict[str, bool]:
+    """The section rows of the review's visible list, open or not."""
+    return {
+        row.section.value: row.open for row in _held(review_id).layout().rows
+        if isinstance(row, SectionRow)
+    }
 
 
 # --- the routes -----------------------------------------------------------------------
@@ -298,10 +314,13 @@ def test_an_unknown_review_is_410_on_every_route(client: TestClient) -> None:
         assert (answer.status_code, answer.json()["detail"]) == (410, "review_expired")
 
 
-def test_opening_a_section_sends_the_rows_served_indexed_anew(client: TestClient) -> None:
+def test_opening_a_section_sends_the_window_around_the_card_anew(client: TestClient) -> None:
     opened = client.post("/api/review", json={"scope": SCOPE}).json()
     review_id = opened["review_id"]
-    served = {row["phrase_id"] for row in opened["layout"]["rows"] if row["kind"] == "card"}
+    scrolled = client.get(f"/api/review/{review_id}/rows", params={
+        "start": 100, "count": 20, "since": opened["revision"], "current": opened["focus_id"],
+    }).json()
+    assert scrolled["layout"]["replace"] is False
     put = client.put(f"/api/review/{review_id}/sections/probably_known", params={
         "since": opened["revision"], "current": opened["focus_id"],
     }, json={"open": True})
@@ -309,11 +328,10 @@ def test_opening_a_section_sends_the_rows_served_indexed_anew(client: TestClient
     layout = put.json()["layout"]
     assert (layout["version"], layout["replace"]) == (1, True)
     assert layout["total_rows"] > opened["layout"]["total_rows"]
-    assert {row["phrase_id"] for row in layout["rows"] if row["kind"] == "card"} == served
-    assert {row["section"]: row["open"] for row in layout["rows"] if row["kind"] == "section"} == {
-        "probably_known": True, "reviewed": False,
-    }
-    assert put.json()["cards"] == []
+    assert layout["rows"] == opened["layout"]["rows"]
+    window = [row["phrase_id"] for row in layout["rows"] if row["kind"] == "card"]
+    assert [card["phrase_id"] for card in put.json()["cards"]] == window
+    assert _held(review_id).served == set(window)
 
     again = client.put(f"/api/review/{review_id}/sections/probably_known", params={
         "since": opened["revision"], "current": opened["focus_id"],
@@ -323,6 +341,43 @@ def test_opening_a_section_sends_the_rows_served_indexed_anew(client: TestClient
     assert client.put(f"/api/review/{review_id}/sections/nope", params={
         "since": 0,
     }, json={"open": True}).status_code == 422
+
+
+def test_moving_between_shown_cards_changes_no_rows(client: TestClient) -> None:
+    opened = client.post("/api/review", json={
+        "scope": SCOPE, "open_sections": ["probably_known"],
+    }).json()
+    review_id = opened["review_id"]
+    order = _held(review_id).order.cards
+    ready = next(c.phrase_id for c in order if c.section is CandidateSection.READY)
+    junk = next(c.phrase_id for c in order if c.section is CandidateSection.PROBABLY_KNOWN)
+    for current in (junk, ready, None, junk):
+        params = {"since": opened["revision"]}
+        if current is not None:
+            params["current"] = current
+        answer = client.get(f"/api/review/{review_id}/changes", params=params).json()
+        assert answer["layout"] is None, current
+    rows = client.get(f"/api/review/{review_id}/rows", params={
+        "start": 0, "count": 5, "since": opened["revision"], "current": ready,
+    }).json()["layout"]
+    assert (rows["version"], rows["replace"]) == (0, False)
+
+
+def test_a_set_gone_since_the_opening_is_404(
+    client: TestClient, factory: sessionmaker[Session],
+) -> None:
+    opened = client.post("/api/review", json={"scope": f"source-{SOURCES[0]}"}).json()
+    review_id, focus = opened["review_id"], opened["focus_id"]
+    with factory() as session:
+        session.execute(text("DELETE FROM sources WHERE id = :id"), {"id": SOURCES[0]})
+        session.commit()
+    params = {"since": opened["revision"], "current": focus}
+    for answer in (
+        client.get(f"/api/review/{review_id}/rows", params={**params, "start": 0, "count": 5}),
+        client.get(f"/api/review/{review_id}/changes", params=params),
+        client.get(f"/api/review/{review_id}/around/{focus}", params=params),
+    ):
+        assert answer.status_code == 404
 
 
 def test_changes_answer_the_header_and_revision(client: TestClient) -> None:

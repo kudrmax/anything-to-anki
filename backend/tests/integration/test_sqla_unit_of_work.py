@@ -4,7 +4,11 @@ from unittest.mock import MagicMock
 
 import backend.infrastructure.persistence.models  # noqa: F401  registers every table on Base
 import pytest
-from backend.domain.exceptions import NestedWriteError, UncommittedWorkError
+from backend.domain.exceptions import (
+    NestedWriteError,
+    UncommittedWorkError,
+    WriteInReadError,
+)
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
 from backend.infrastructure.persistence.models import SourceModel
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
@@ -226,3 +230,28 @@ def test_a_read_with_pending_work_raises(unit_of_work: SqlaUnitOfWork) -> None:
     unit_of_work._session.add(SourceModel(id=SOURCE_ID, title="t", status="done"))
     with pytest.raises(UncommittedWorkError), unit_of_work.read():
         pass
+
+
+def test_a_flush_inside_a_read_is_refused(unit_of_work: SqlaUnitOfWork, engine: Engine) -> None:
+    session = unit_of_work._session
+    with pytest.raises(WriteInReadError), unit_of_work.read():
+        session.add(SourceModel(id=SOURCE_ID, title="t", status="done"))
+        session.flush()
+    assert _source_count(engine) == 0
+
+
+def test_a_statement_writing_inside_a_read_is_refused(
+    unit_of_work: SqlaUnitOfWork, engine: Engine,
+) -> None:
+    with pytest.raises(WriteInReadError), unit_of_work.read():
+        _add_source(unit_of_work)
+    assert _source_count(engine) == 0
+    with unit_of_work.write():
+        _add_source(unit_of_work)
+    assert _source_count(engine) == 1
+
+
+def test_a_write_inside_a_read_is_refused(unit_of_work: SqlaUnitOfWork, engine: Engine) -> None:
+    with pytest.raises(WriteInReadError), unit_of_work.read(), unit_of_work.write():
+        _add_source(unit_of_work)
+    assert _source_count(engine) == 0

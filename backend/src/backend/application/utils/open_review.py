@@ -37,8 +37,9 @@ class OpenReview:
         self._layout: ReviewLayout | None = None
 
     def layout(self) -> ReviewLayout:
-        """The visible list as the review stands now; a new one moves the version on."""
-        shown = unfolded(self.order, self.opened, self.current) if self.order.sectioned else None
+        """The visible list as the review stands now; only a list that shows other rows moves
+        the version on."""
+        shown = unfolded(self.order, self.opened, self.current)
         if self._layout is None or shown != self._shown:
             if self._layout is not None:
                 self.layout_version += 1

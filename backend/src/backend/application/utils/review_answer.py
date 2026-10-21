@@ -49,16 +49,23 @@ class ReviewAnswer:
         focus_id: int | None = None,
     ) -> ReviewUpdateDTO:
         """`window`: the rows to send with their cards. `replace`: the visible list changed;
-        every row served before goes with them, indexed anew."""
+        the client drops every row it has and gets the rows around the current card instead,
+        which are all the review counts as served from then on."""
         layout = review.layout()
+        if replace:
+            window = window_around(layout, review.current)
+            review.served.clear()
         rows = range(0) if window is None else window
         sent = [
             row.phrase_id for row in (layout.row(i) for i in rows) if isinstance(row, CardRow)
         ]
         cards = self._card_views.of_phrases(sent, review.order.sections_of(sent))
-        layout_dto = (
-            self._layout(layout, review, rows, replace=replace)
-            if window is not None or replace else None
+        layout_dto = None if window is None else ReviewLayoutDTO(
+            version=review.layout_version,
+            total_rows=len(layout),
+            total_cards=layout.total_cards,
+            replace=replace,
+            rows=[_row(index, layout.row(index)) for index in rows],
         )
         review.served.update(sent)
         return ReviewUpdateDTO(
@@ -68,22 +75,6 @@ class ReviewAnswer:
             layout=layout_dto,
             cards=cards,
             focus_id=focus_id,
-        )
-
-    @staticmethod
-    def _layout(
-        layout: ReviewLayout, review: OpenReview, window: range, *, replace: bool,
-    ) -> ReviewLayoutDTO:
-        indices: list[int] = list(window)
-        if replace:
-            kept = {*layout.section_indices(), *layout.indices_of(review.served)}
-            indices = sorted(kept.union(window))
-        return ReviewLayoutDTO(
-            version=review.layout_version,
-            total_rows=len(layout),
-            total_cards=layout.total_cards,
-            replace=replace,
-            rows=[_row(index, layout.row(index)) for index in indices],
         )
 
 

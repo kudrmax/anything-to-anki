@@ -65,16 +65,18 @@ class OpenReviewUseCase:
             focus = initial_focus(
                 order, {c.phrase_id: c.is_done for c in rows}, request.requested_id,
             )
-            review_id = self._store.open(OpenReview(
+            review = OpenReview(
                 scope_token=scope.token,
                 sort=request.sort,
                 step=step,
                 order=order,
                 opened=frozenset(request.open_sections),
                 current=focus,
-            ))
-            with self._store.hold(review_id) as review:
-                return self._answer.of(
-                    review_id, review,
-                    window=window_around(review.layout(), focus), replace=True, focus_id=focus,
-                )
+            )
+            # Answered from the review itself, not held back from the store: the store may
+            # let it go before the answer, and no other request knows its id yet.
+            review_id = self._store.open(review)
+            return self._answer.of(
+                review_id, review,
+                window=window_around(review.layout(), focus), replace=True, focus_id=focus,
+            )

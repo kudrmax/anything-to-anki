@@ -89,12 +89,12 @@ def get_review(
 @contextmanager
 def _review_errors() -> Iterator[None]:
     """A review no longer held is a 410 the client opens again on; a card it does not
-    hold, a 404."""
+    hold, or a source or collection of its set that is gone since, a 404."""
     try:
         yield
     except ReviewNotFoundError as e:
         raise HTTPException(status_code=410, detail=REVIEW_EXPIRED) from e
-    except PhraseNotFoundError as e:
+    except (PhraseNotFoundError, SourceNotFoundError, CollectionNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
@@ -111,7 +111,7 @@ def open_review(
 ) -> ReviewUpdateDTO:
     """Opens the review of a set: its order is held under the answer's review id."""
     review_scope(request.scope)
-    with _scope_errors():
+    with _scope_errors(), _review_errors():
         return review.execute(request)
 
 

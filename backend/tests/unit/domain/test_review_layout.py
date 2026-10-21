@@ -2,7 +2,13 @@
 former `sections.test.ts` and `initialFocus.test.ts`, kept by the backend now."""
 from __future__ import annotations
 
-from backend.domain.services.review_layout import FOLDED_BY_DEFAULT, initial_focus, layout
+import pytest
+from backend.domain.services.review_layout import (
+    FOLDED_BY_DEFAULT,
+    initial_focus,
+    layout,
+    unfolded,
+)
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.review_order import (
     CardRow,
@@ -108,19 +114,33 @@ def test_every_row_is_found_where_the_list_has_it() -> None:
         assert [shown.row(i) for i in range(len(shown))] == rows
         cards = {row.phrase_id: i for i, row in enumerate(rows) if isinstance(row, CardRow)}
         assert {p: shown.index_of(p) for p in cards} == cards
-        assert shown.indices_of([*cards, 99]) == sorted(cards.values())
-        assert shown.section_indices() == [
-            i for i, row in enumerate(rows) if isinstance(row, SectionRow)
-        ]
+        hidden = {c.phrase_id for c in CARDS.cards} - set(cards)
+        assert all(shown.index_of(p) is None for p in (*hidden, 99))
 
 
 def test_a_row_past_the_list_is_refused() -> None:
     shown = layout(CARDS, frozenset(), None)
-    try:
+    with pytest.raises(IndexError):
         shown.row(len(shown))
-    except IndexError:
-        return
-    raise AssertionError("a row past the list was read")
+
+
+def test_the_same_sections_shown_are_the_same_list() -> None:
+    """Moving between a Ready card and a card of an open section, or to no card, opens or
+    folds nothing: the unfolded sections stay the same."""
+    shown = {
+        unfolded(CARDS, frozenset({E}), current) for current in (1, 2, 3, None, 99)
+    }
+    assert shown == {frozenset({E})}
+    assert unfolded(CARDS, frozenset({R}), 1) == frozenset()
+    assert unfolded(_order((1, R), (2, E)), frozenset({V}), None) == frozenset()
+    assert unfolded(_order((1, E), sectioned=False), frozenset({E}), 1) == frozenset()
+
+
+def test_the_order_cannot_be_changed_through_its_ids() -> None:
+    with pytest.raises(TypeError):
+        CARDS.phrase_ids[0] = 5  # type: ignore[index]
+    with pytest.raises(TypeError):
+        CARDS.word_ids[0] = 5  # type: ignore[index]
 
 
 def test_the_order_reads_back_the_cards_it_holds() -> None:

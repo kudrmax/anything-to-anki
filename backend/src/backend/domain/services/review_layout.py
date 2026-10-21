@@ -7,7 +7,6 @@ has no sections: every card shows, in held order.
 """
 from __future__ import annotations
 
-from array import array
 from typing import TYPE_CHECKING
 
 from backend.domain.services.candidate_sections import SECTION_ORDER
@@ -17,7 +16,7 @@ from backend.domain.value_objects.review_order import ReviewLayout, SectionRow
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from backend.domain.value_objects.review_order import ReviewOrder
+    from backend.domain.value_objects.review_order import CardRun, ReviewOrder
 
 FOLDED_BY_DEFAULT: frozenset[CandidateSection] = frozenset({
     CandidateSection.EXTRA,
@@ -30,11 +29,16 @@ _FOLDING = tuple(sorted(FOLDED_BY_DEFAULT, key=SECTION_ORDER.__getitem__))
 def unfolded(
     order: ReviewOrder, opened: frozenset[CandidateSection], current: int | None,
 ) -> frozenset[CandidateSection]:
-    """The sections that show their cards: those the user opened and the current card's."""
-    if not order.sectioned or current is None:
-        return opened
-    held = order.card(current)
-    return opened if held is None else opened | {held.section}
+    """The folding sections that hold cards and show them: those the user opened and the
+    current card's. Two reviews with the same unfolded sections show the same list."""
+    if not order.sectioned:
+        return frozenset()
+    shown = set(opened)
+    if current is not None:
+        held = order.card(current)
+        if held is not None:
+            shown.add(held.section)
+    return frozenset(shown & FOLDED_BY_DEFAULT & order.held_sections)
 
 
 def layout(
@@ -43,25 +47,21 @@ def layout(
     """The rows of the visible list: the Ready cards, then the row of each folding section
     that holds a card, with its cards under it when it is open."""
     if not order.sectioned:
-        return ReviewLayout(order.phrase_ids, ())
+        return ReviewLayout(order, ((None, range(len(order))),), ())
     shown = unfolded(order, opened, current)
-    of_section: dict[CandidateSection, array[int]] = {}
-    for index, phrase_id in enumerate(order.phrase_ids):
-        section = order.section_at(index)
-        if section not in of_section:
-            of_section[section] = array(order.phrase_ids.typecode)
-        of_section[section].append(phrase_id)
-    cards = of_section.get(CandidateSection.READY, array(order.phrase_ids.typecode))
+    runs: list[CardRun] = [(CandidateSection.READY, order.in_section(CandidateSection.READY))]
+    cards = len(runs[0][1])
     section_rows: list[tuple[int, SectionRow]] = []
     for section in _FOLDING:
-        held = of_section.get(section)
+        held = order.in_section(section)
         if not held:
             continue
         is_open = section in shown
-        section_rows.append((len(cards), SectionRow(section, len(held), is_open)))
+        section_rows.append((cards, SectionRow(section, len(held), is_open)))
         if is_open:
-            cards.extend(held)
-    return ReviewLayout(cards, section_rows)
+            runs.append((section, held))
+            cards += len(held)
+    return ReviewLayout(order, runs, section_rows)
 
 
 def initial_focus(
@@ -74,4 +74,4 @@ def initial_focus(
     pending = next((p for p in order.phrase_ids if not is_done[p]), None)
     if pending is not None:
         return pending
-    return order.phrase_ids[0] if len(order) else None
+    return order.phrase_id_at(0) if len(order) else None

@@ -478,6 +478,13 @@ class NestedWriteError(DomainError):
         super().__init__("A write transaction is already open: write() cannot be nested")
 
 
+class WriteInReadError(DomainError):
+    """Raised when something is written inside a read transaction, which only reads."""
+
+    def __init__(self) -> None:
+        super().__init__("A write was made inside read(): a read transaction only reads")
+
+
 class UncommittedWorkError(DomainError):
     """Raised when a write transaction opens on a session that holds changes made outside
     any write: they would be committed by a write that does not own them."""

@@ -3,7 +3,10 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
-from backend.domain.exceptions import NestedWriteError, UncommittedWorkError
+from sqlalchemy import event
+from sqlalchemy.exc import OperationalError
+
+from backend.domain.exceptions import NestedWriteError, UncommittedWorkError, WriteInReadError
 from backend.domain.ports.unit_of_work import UnitOfWork
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 
@@ -22,6 +25,9 @@ BEGIN_IMMEDIATE = "BEGIN IMMEDIATE"
 BEGIN_DEFERRED = "BEGIN DEFERRED"
 # Kept on the session, not the unit of work: every unit of work on a session sees it.
 WRITE_OPEN_KEY = "unit_of_work.write_open"
+READ_OPEN_KEY = "unit_of_work.read_open"
+# SQLite refuses every write of a connection in query-only mode, flushed or not, with this.
+_QUERY_ONLY_REFUSAL = "attempt to write a readonly database"
 COMMIT_CHECKS_KEY = "unit_of_work.commit_checks"
 
 
@@ -52,6 +58,8 @@ class SqlaUnitOfWork(UnitOfWork):
 
     @contextmanager
     def write(self) -> Iterator[None]:
+        if self._session.info.get(READ_OPEN_KEY, False):
+            raise WriteInReadError
         if self._session.info.get(WRITE_OPEN_KEY, False):
             raise NestedWriteError
         if self._has_pending_work():
@@ -87,10 +95,23 @@ class SqlaUnitOfWork(UnitOfWork):
         ):
             yield
             return
-        session.connection().exec_driver_sql(BEGIN_DEFERRED)
+        # The connection is the one the transaction runs on: the session gives it back to
+        # the pool at the rollback, so query-only is turned off on it before.
+        connection = session.connection()
+        connection.exec_driver_sql(BEGIN_DEFERRED)
+        connection.exec_driver_sql("PRAGMA query_only = ON")
+        session.info[READ_OPEN_KEY] = True
+        event.listen(session, "before_flush", _refuse_flush)
         try:
             yield
+        except OperationalError as e:
+            if _QUERY_ONLY_REFUSAL in str(e):
+                raise WriteInReadError from e
+            raise
         finally:
+            event.remove(session, "before_flush", _refuse_flush)
+            session.info[READ_OPEN_KEY] = False
+            connection.exec_driver_sql("PRAGMA query_only = OFF")
             session.rollback()
 
     def _has_pending_work(self) -> bool:
@@ -101,3 +122,8 @@ class SqlaUnitOfWork(UnitOfWork):
             return True
         dbapi_connection = session.connection().connection.dbapi_connection
         return dbapi_connection is not None and bool(dbapi_connection.in_transaction)
+
+
+def _refuse_flush(*_args: object) -> None:
+    """A read transaction flushes nothing: the session's changes would be written in it."""
+    raise WriteInReadError

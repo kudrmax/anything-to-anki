@@ -21,5 +21,6 @@ class UnitOfWork(ABC):
     @abstractmethod
     def read(self) -> AbstractContextManager[None]:
         """One read transaction: every read inside it sees the database as it was at its
-        first read, whatever is written meanwhile. Inside an open transaction of the
-        session it reads in that one."""
+        first read, whatever is written meanwhile. Nothing is written inside it: a write,
+        flushed or not, and a write() opened in it raise WriteInReadError. Inside an open
+        transaction of the session it reads in that one."""
