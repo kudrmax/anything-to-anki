@@ -432,11 +432,9 @@ def _dump(factory: sessionmaker[Session]) -> list[str]:
 
 @pytest.mark.parametrize(("method", "path", "request_kwargs"), MUTATIONS)
 def test_a_change_on_a_review_no_longer_held_is_410_and_writes_nothing(
-    client: TestClient, factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch,
+    client: TestClient, factory: sessionmaker[Session],
     method: str, path: str, request_kwargs: dict[str, object],
 ) -> None:
-    # The meaning's use case is built with the AI's address; nothing calls it here.
-    monkeypatch.setenv("AI_PROXY_URL", "http://127.0.0.1:9")
     before = _dump(factory)
     kwargs = dict(request_kwargs)
     params = {"review_id": "gone", "since": 0, **kwargs.pop("params", {})}  # type: ignore[dict-item]

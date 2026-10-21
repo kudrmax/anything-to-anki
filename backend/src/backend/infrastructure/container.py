@@ -382,6 +382,9 @@ class Container:
             "MEDIA_ROOT",
             os.path.join(data_dir, "media"),
         )
+        # Read with the other settings, not when a request builds the AI service: a copy
+        # started without the proxy fails only the calls to it.
+        self._ai_proxy_url = os.environ.get("AI_PROXY_URL", "")
         default_prompts = project_root / "config" / "prompts.yaml"
         prompts_path = Path(
             os.environ.get("PROMPTS_CONFIG_PATH", str(default_prompts))
@@ -791,7 +794,7 @@ class Container:
         )
         ai_model_key = settings_repo.get("ai_model", "sonnet") or "sonnet"
         return HttpAIService(
-            url=os.environ["AI_PROXY_URL"],
+            url=self._ai_proxy_url,
             model=model_id_for(ai_model_key),
             usage_recorder=SessionAIUsageRecorder(self._get_session_factory()),
         )

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, func, select, update
 
 from backend.domain.ports.word_state_repository import WordStateRepository
-from backend.domain.value_objects.card_change import DecisionChanged
+from backend.domain.value_objects.card_change import CardContentChanged, DecisionChanged
 from backend.domain.value_objects.card_choice import (
     Binding,
     CardChoice,
@@ -74,6 +74,13 @@ class SqlaWordStateRepository(WordStateRepository):
         return found
 
     def save(self, word: WordState) -> None:
+        """Records the decision's change; when a card's choice changes, the content of every
+        card of the word too: each shows the word's pressed button, even when its stored
+        state stays (Learn, then Cloze)."""
+        before = dict(self._session.execute(
+            select(PhraseModel.id, PhraseModel.choice)
+            .where(PhraseModel.candidate_id == word.word_id)
+        ).tuples().all())
         # A card that stops being the decision is written first: the decision card is unique.
         for card in sorted(word.cards, key=lambda c: c.is_decision):
             self._session.execute(
@@ -84,6 +91,9 @@ class SqlaWordStateRepository(WordStateRepository):
             )
         self._session.flush()
         self._recorder.record(DecisionChanged(word.lemma))
+        if any(before.get(card.card_id) != card.choice.value for card in word.cards):
+            for card in word.cards:
+                self._recorder.record(CardContentChanged(card.card_id))
         self._after_save()
 
     def _read(self, where: ColumnElement[bool]) -> dict[int, WordState]:

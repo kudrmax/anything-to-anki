@@ -25,8 +25,9 @@ class ReviewMutation:
     held any more; an error of the action goes out as it is.
 
     A press, a replacement and an added word run under the review's lock, so the focus
-    reads the review as their own write left it; any other change runs without it, and the
-    review stays held until it answers."""
+    reads the review as their own write left it; any other change runs without it, the
+    review pinned until it answers: it stays held and does not count against the reviews
+    the store keeps (REVIEWS_KEPT)."""
 
     def __init__(
         self,
@@ -75,7 +76,8 @@ class ReviewMutation:
     def edit[T](
         self, ctx: ReviewContext, action: Callable[[], T],
     ) -> tuple[T, ReviewUpdateDTO]:
-        """Any other change: what the action gives, and what changed. The focus stays."""
+        """Any other change: what the action gives, and what changed. The focus stays. The
+        review is pinned meanwhile, not counted against REVIEWS_KEPT."""
         with self._store.pin(ctx.review_id):
             result = action()
             with self._store.hold(ctx.review_id) as review:
