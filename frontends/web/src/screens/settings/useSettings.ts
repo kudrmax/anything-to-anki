@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
+import { notifyLevelChange } from '@/api/levelChangeSignal'
 import type { BootstrapStatus, NoteTypeCheck, NoteTypeKind, CleanupMediaKind, FrequentWordThresholdOption, KnownWord, LearningWords, Settings, SourceMediaStats, UnknownWord } from '@/api/types'
 
 const BOOTSTRAP_POLL_MS = 2000
@@ -125,6 +126,7 @@ export function useSettings() {
         Object.entries(form).filter(([key]) => !SAVED_ON_CHANGE.has(key)),
       ) as Partial<Settings>
       setForm(await api.updateSettings(fields))
+      notifyLevelChange()
       void loadNoteTypes()
       setSaved(true)
       setTimeout(() => setSaved(false), FLASH_MS)

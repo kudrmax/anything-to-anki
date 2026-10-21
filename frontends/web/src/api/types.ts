@@ -1005,3 +1005,14 @@ export interface AIUsageStats {
   buckets: AIUsageBucket[]
   features: AIUsageFeature[]
 }
+
+export type LevelChangeOutcome = 'succeeded' | 'cancelled' | 'failed'
+
+/** Идёт ли смена уровня и насколько; после неё — чем закончилась. */
+export interface LevelChangeStatus {
+  running: boolean
+  percent: number
+  cancellable: boolean
+  outcome: LevelChangeOutcome | null
+  error: string | null
+}
