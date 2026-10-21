@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import time
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
@@ -122,6 +123,10 @@ class _Container:
 
 def _unit_of_work(session: Session) -> SqlaUnitOfWork:
     return SqlaUnitOfWork(session, MagicMock())
+
+
+SHORT_TIMEOUT_S = 0.2
+RUN_PAST_TIMEOUT_S = 0.6
 
 
 @pytest.fixture()
@@ -412,6 +417,30 @@ class TestLifecycle:
             (JobType.PRONUNCIATION, 1, JobStatus.FAILED, job_worker.TIMEOUT_ERROR),
         ]
         assert _title(container) == "original"
+
+
+@pytest.mark.integration
+class TestLevelChangeWait:
+    async def test_wait_at_gate_does_not_count(self, container: _Container) -> None:
+        """A run whose writes wait out a level change past the timeout is not failed: the
+        wait is not its own time."""
+        _enqueue(container, (JobType.PRONUNCIATION, 1))
+        started = time.monotonic()
+
+        def waiting_all_along() -> float:
+            return time.monotonic() - started
+
+        def slow(cid: int) -> None:
+            time.sleep(RUN_PAST_TIMEOUT_S)
+            _write_title(container.pronunciation)
+
+        container.pronunciation.execute_one.side_effect = slow
+
+        with patch.object(job_worker, "JOB_TIMEOUT", SHORT_TIMEOUT_S):
+            await _drain(JobWorker(container, waited_seconds=waiting_all_along))  # type: ignore[arg-type]
+
+        assert _jobs(container) == []
+        assert _title(container) == WRITTEN_TITLE
 
 
 @pytest.mark.integration

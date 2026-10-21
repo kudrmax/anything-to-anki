@@ -23,7 +23,7 @@ from backend.domain.value_objects.job_type import JobType
 from backend.infrastructure.queue.claimed_run import ClaimedRun
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from backend.domain.entities.job import Job
     from backend.infrastructure.container import Container
@@ -53,8 +53,13 @@ LOCK_FILE_NAME = "worker.lock"
 class JobWorker:
     """Async polling worker that processes jobs from the SQLite queue."""
 
-    def __init__(self, container: Container) -> None:
+    def __init__(
+        self, container: Container, waited_seconds: Callable[[], float] = lambda: 0.0,
+    ) -> None:
+        """`waited_seconds`: the total time this process's writes spent waiting out a level
+        change; a run's timeout leaves it out."""
         self._container = container
+        self._waited_seconds = waited_seconds
         self._queue = container.job_queue()
         self._work = container.session_work()
         self._shutdown = False
@@ -134,9 +139,7 @@ class JobWorker:
             return True
 
         try:
-            unanswered = await asyncio.wait_for(
-                asyncio.to_thread(self._execute, run), timeout=JOB_TIMEOUT,
-            )
+            unanswered = await self._within_timeout(lambda: self._execute(run))
         except CancelledByUserError as cancelled:
             logger.info("Run from job %d cancelled: %s", head.id, cancelled)
         except AIUnavailableError as exc:
@@ -158,6 +161,22 @@ class JobWorker:
             self._fail(failed, NO_AI_RESULT_ERROR)
             self._complete([j for j in jobs if j not in failed])
         return True
+
+    async def _within_timeout[T](self, work: Callable[[], T]) -> T:
+        """`work` on a thread, given JOB_TIMEOUT of its own time: the deadline moves on by
+        what the writes spent waiting out a level change meanwhile."""
+        loop = asyncio.get_running_loop()
+        task = asyncio.ensure_future(asyncio.to_thread(work))
+        deadline = loop.time() + JOB_TIMEOUT
+        waited_before = self._waited_seconds()
+        while True:
+            remaining = deadline + self._waited_seconds() - waited_before - loop.time()
+            if remaining <= 0:
+                task.cancel()
+                raise TimeoutError
+            done, _ = await asyncio.wait({task}, timeout=remaining)
+            if done:
+                return task.result()
 
     async def _pause(self, seconds: float) -> None:
         """Sleep, but wake at once on shutdown."""
@@ -281,7 +300,8 @@ async def main() -> None:
     configure_logging("worker")
     lock = _acquire_single_worker_lock()
     try:
-        worker = JobWorker(Container(write_gate=WaitOutLevelChange()))
+        gate = WaitOutLevelChange()
+        worker = JobWorker(Container(write_gate=gate), waited_seconds=gate.waited_seconds)
         freeze_startup_heap()
         await worker.run()
     finally:
