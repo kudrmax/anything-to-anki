@@ -35,6 +35,7 @@ from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.entities.candidate_pronunciation import CandidatePronunciation
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.exceptions import DomainError
+from backend.domain.ports.card_state_query import CardStateQuery
 from backend.domain.services.candidate_sorting import CardStanding, sort_cards
 from backend.domain.services.source_review_status import (
     derive_review_status,
@@ -728,6 +729,25 @@ class _Projection(RuleBasedStateMachine):
         if done:
             self.container.session_work().write(finish)
 
+    @rule(pick=PICK)
+    def drop_timecodes_of_a_queued_clip(self, pick: int) -> None:
+        """A Rebuild loses the timecodes of a phrase whose clip is queued and not made yet:
+        its job stays, the card no longer gets a clip."""
+        with self.factory() as session:
+            queued = session.scalars(text(
+                "SELECT j.phrase_id FROM jobs j JOIN candidate_media m"
+                " ON m.phrase_id = j.phrase_id WHERE j.job_type = 'media'"
+                " AND m.screenshot_path IS NULL AND m.audio_path IS NULL"
+                " AND m.start_ms IS NOT NULL ORDER BY j.phrase_id"
+            )).all()
+        if queued:
+            phrase_id = queued[pick % len(queued)]
+            self.container.session_work().write(
+                lambda s: SqlaCandidateMediaRepository(
+                    s, SessionChangeRecorder(s),
+                ).set_timecodes({phrase_id: None}),
+            )
+
     @precondition(lambda self: VIDEO_SOURCE in self._sources())
     @rule(state=st.sampled_from(VIDEO_STATES))
     def video(self, state: str) -> None:
@@ -881,8 +901,7 @@ def _projection_unread() -> Iterator[None]:
         raise AssertionError("a live reference read the stored projection")
 
     with patch.multiple(
-        SqlaCardStateQuery, revision=refused, section_tallies=refused,
-        done_of_sources=refused, generation_tallies=refused,
+        SqlaCardStateQuery, **dict.fromkeys(CardStateQuery.__abstractmethods__, refused),
     ):
         yield
 
@@ -1020,9 +1039,22 @@ def _generation_tour(machine: _Projection) -> None:
         ),
         lambda: machine.queue_generation(GenerationKind.POLISH, GenerationScope.ALL, False, 0),
         lambda: machine.queue_generation(GenerationKind.MEDIA, GenerationScope.ALL, False, video),
+        lambda: machine.drop_timecodes_of_a_queued_clip(0),
     ):
         step()
         machine.projection_equals_the_review()
+    with machine.factory() as session:
+        dropped = session.scalars(text(
+            "SELECT j.phrase_id FROM jobs j JOIN candidate_media m ON m.phrase_id = j.phrase_id"
+            " WHERE j.job_type = 'media' AND m.start_ms IS NULL"
+        )).all()
+    assert dropped, "a queued clip lost its timecodes"
+    machine.container.session_work().write(
+        lambda s: SqlaCandidateMediaRepository(s, SessionChangeRecorder(s)).set_timecodes(
+            dict.fromkeys(dropped, (0, 1000)),
+        ),
+    )
+    machine.projection_equals_the_review()
     with machine.factory() as session:
         session.execute(text(
             "UPDATE jobs SET status = 'running' WHERE id IN (SELECT min(id) FROM jobs"
