@@ -18,7 +18,7 @@ DONE_PERCENT = 100
 
 def percent(stage: LevelChangeStage, done: int, total: int) -> int:
     """How far a running level change is; it reaches DONE_PERCENT only once committed."""
-    part = 1.0 if total == 0 else min(done, total) / total
+    part = 0.0 if total == 0 else min(done, total) / total
     match stage:
         case LevelChangeStage.ANALYSE:
             return int(ANALYSE_SHARE * part)
