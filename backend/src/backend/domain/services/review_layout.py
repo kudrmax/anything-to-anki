@@ -18,6 +18,7 @@ from backend.domain.value_objects.review_order import CardRow, ReviewLayout, Sec
 if TYPE_CHECKING:
     from collections.abc import Collection, Mapping, Sequence
 
+    from backend.domain.services.candidate_sorting import OrderKey
     from backend.domain.value_objects.review_order import CardRun, HeldCard, ReviewOrder
 
 FOLDED_BY_DEFAULT: frozenset[CandidateSection] = frozenset({
@@ -118,6 +119,36 @@ def place_new(
     if not following:
         return order
     return order.spliced(following=following)
+
+
+def place_by_key(order: ReviewOrder, new: Sequence[HeldCard]) -> ReviewOrder:
+    """The new cards placed by their keys against the keys the held cards were held by: each
+    right after the last held card below it, as an order opened on the held cards and the
+    new ones would stand. A held card keeps the key of the opening however it changed since,
+    so the held cards stay in key order and a binary search finds the place; placing keeps
+    that order. Cards placed after the same held card keep their key order."""
+    if not new:
+        return order
+    following: dict[int | None, list[HeldCard]] = {}
+    for card in sorted(new, key=_key_of):
+        key = _key_of(card)
+        low, high = 0, len(order)
+        while low < high:
+            middle = (low + high) // 2
+            if order.key_at(middle) < key:
+                low = middle + 1
+            else:
+                high = middle
+        anchor = order.phrase_id_at(low - 1) if low > 0 else None
+        following.setdefault(anchor, []).append(card)
+    return order.spliced(following=following)
+
+
+def _key_of(card: HeldCard) -> OrderKey:
+    if card.key is None:
+        msg = "a card placed by key needs its key"
+        raise ValueError(msg)
+    return card.key
 
 
 def replace_card(order: ReviewOrder, old_id: int, new: HeldCard) -> ReviewOrder:

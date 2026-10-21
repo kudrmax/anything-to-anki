@@ -19,6 +19,7 @@ the reason it cannot change card state: a new write method without a scenario fa
 """
 from __future__ import annotations
 
+import itertools
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
@@ -49,6 +50,7 @@ from backend.domain.exceptions import DomainError
 from backend.domain.ports.card_state_query import CardStateQuery
 from backend.domain.services import candidate_sorting
 from backend.domain.services.candidate_sorting import CardStanding, sort_cards
+from backend.domain.services.review_layout import remove_cards
 from backend.domain.services.source_review_status import (
     derive_review_status,
     stored_status_of_set,
@@ -70,7 +72,7 @@ from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.rebuild_mode import RebuildMode
-from backend.domain.value_objects.review_order import CardRow
+from backend.domain.value_objects.review_order import CardRow, ReviewOrder
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.infrastructure.api.background_rebuild_launcher import (
     BackgroundSourcesRebuildLauncher,
@@ -208,6 +210,8 @@ TARGET_ORDER = (
 )
 GENERATION_SCOPES = (GenerationScope.MISSING, GenerationScope.READY_ALL, GenerationScope.ALL)
 
+# Every this many cards of the order of today are taken out and placed back.
+TAKEN_EVERY = 3
 MAX_EXAMPLES = 8
 STEPS_PER_EXAMPLE = 15
 
@@ -960,6 +964,11 @@ class _Projection(RuleBasedStateMachine):
             served = set(review.served)
         assert sorted(order) == sorted(live)
         assert len(order) == len(set(order))
+        with store.hold(held.review_id) as review:
+            keys = [review.order.key_at(i) for i in range(len(review.order))]
+        assert all(a < b for a, b in itertools.pairwise(keys)), (
+            "the held review left the key order it places new cards by"
+        )
         assert {p: held.done[p] for p in served} == {p: live[p] for p in served}
         shown, self.shown = self.shown, self._shown_cards()
         stale = [
@@ -987,6 +996,33 @@ class _Projection(RuleBasedStateMachine):
                 assert self._opened(session, scope, order) == [
                     (c.phrase_id, today.section(c)) for c in today.cards
                 ], (scope, order)
+                self._new_cards_land_where_todays_order_has_them(session, ids, order)
+
+    def _new_cards_land_where_todays_order_has_them(
+        self, session: Session, source_ids: list[int], sort: CandidateSortOrder,
+    ) -> None:
+        """Cards placed into a held order from the rows of their own words stand where the
+        order opened on the whole set has them: an order opened now, with its keys, has some
+        of its cards and every card of its last word taken out and placed back."""
+        ordering = self.container._review_ordering(session)  # noqa: SLF001
+        step = ordering.step()
+        pairs = ordering.ordered(source_ids, sort, step)
+        today = ReviewOrder(
+            ordering.held([c for c, _ in pairs], step, {c.phrase_id: k for c, k in pairs}),
+            sectioned=sort != CandidateSortOrder.CHRONOLOGICAL,
+        )
+        if not len(today):
+            return
+        last_word = today.at(len(today) - 1).word_id
+        taken = {
+            card.phrase_id for at, card in enumerate(today.cards)
+            if at % TAKEN_EVERY == 0 or card.word_id == last_word
+        }
+        placed = ordering.placed(
+            remove_cards(today, taken), source_ids, sort, step,
+            {p: card.word_id for p in taken if (card := today.card(p)) is not None},
+        )
+        assert list(placed.cards) == list(today.cards), (source_ids, sort)
 
     def _opened(
         self, session: Session, scope: SourceScope, order: CandidateSortOrder,

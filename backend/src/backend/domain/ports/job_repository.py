@@ -29,7 +29,8 @@ class JobRepository(ABC):
     @abstractmethod
     def enqueue(self, jobs: list[Job]) -> list[Job]:
         """Queue jobs at the tail. Jobs whose key is already active are skipped;
-        failed jobs with the same key are superseded. Returns the queued jobs."""
+        failed jobs with the same key are superseded; a job whose phrase, word or source is
+        gone is left out. Returns the queued jobs."""
 
     @abstractmethod
     def claim_next_run(

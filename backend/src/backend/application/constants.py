@@ -22,6 +22,10 @@ DEFAULT_IMAGES_PER_SOURCE: int = 12
 MIN_IMAGES_PER_SOURCE: int = 1
 MAX_IMAGES_PER_SOURCE: int = 30
 
+# The most jobs a generation run queues in one write transaction: a book's run (120k
+# cards) holds the writer for one chunk at a time, so a press waits well under 2 s.
+GENERATION_RUN_CHUNK: int = 5_000
+
 # An open review sends this many rows on each side of the card it lands on.
 REVIEW_WINDOW_AROUND: int = 30
 # The most rows one request on an open review gets.

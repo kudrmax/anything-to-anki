@@ -211,6 +211,7 @@ from backend.infrastructure.persistence.sqla_word_mark_repository import (
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
+from backend.infrastructure.queue.in_memory_generation_stops import InMemoryGenerationStops
 from backend.infrastructure.readers.caching_reader import CachingFormatReader
 from backend.infrastructure.readers.epub_format_reader import EpubFormatReader
 from backend.infrastructure.readers.html_reader import HtmlReader
@@ -401,6 +402,8 @@ class Container:
         )
         # The laid-out documents of the sources read last, for the life of the app.
         self._source_texts = SourceTexts()
+        # A run of generation learns of the user's stops made while it queues.
+        self._generation_stops = InMemoryGenerationStops()
 
     def _get_session_factory(self) -> sessionmaker[Session]:
         """The app's one session factory unless the container was given another; taken on
@@ -1490,6 +1493,7 @@ class Container:
             targets=self._generation_targets(session),
             lock=SqlaSourceOperationLock(session),
             unit_of_work=self._unit_of_work(session),
+            stops=self._generation_stops,
         )
 
     def cancel_generation_use_case(self, session: Session) -> CancelGenerationUseCase:
@@ -1498,6 +1502,7 @@ class Container:
             job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             scope_resolver=self._scope_resolver(session),
             unit_of_work=self._unit_of_work(session),
+            stops=self._generation_stops,
         )
 
     def get_queue_snapshot_use_case(self, session: Session) -> GetQueueSnapshotUseCase:
@@ -1513,6 +1518,7 @@ class Container:
         return ManageQueueUseCase(
             job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             unit_of_work=self._unit_of_work(session),
+            stops=self._generation_stops,
         )
 
     def request_video_download_use_case(

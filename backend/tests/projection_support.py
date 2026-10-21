@@ -69,6 +69,9 @@ class LiveSectionTallies(CardStateQuery):
     def order_rows(self, source_ids: Sequence[int]) -> list[OrderedCard]:
         raise NotImplementedError("the screens of these tests do not open a review")
 
+    def order_rows_of_words(self, word_ids: Collection[int]) -> list[OrderedCard]:
+        raise NotImplementedError("the screens of these tests do not open a review")
+
     def done_of_phrases(self, phrase_ids: Collection[int]) -> dict[int, bool]:
         raise NotImplementedError("the screens of these tests do not open a review")
 

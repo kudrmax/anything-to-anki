@@ -47,6 +47,11 @@ class CardStateQuery(ABC):
         standing, the facts of its word and the place of its phrase. In no given order."""
 
     @abstractmethod
+    def order_rows_of_words(self, word_ids: Collection[int]) -> list[OrderedCard]:
+        """What `order_rows` reads, for every card of these words: a few cards placed into
+        a held order. In no given order."""
+
+    @abstractmethod
     def generation_tallies(
         self, source_ids: Collection[int], ready: Callable[[SectionsByStep], bool],
     ) -> dict[int, GenerationTally]:

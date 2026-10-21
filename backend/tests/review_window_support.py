@@ -31,8 +31,8 @@ def open_review(client: TestClient, scope: str, sort: str = "relevance") -> dict
 def review_list(
     client: TestClient, scope: str, sort: str = "relevance",
 ) -> list[dict[str, Any]]:
-    """Every card of the set's review in row order, each with the section the review holds
-    it in."""
+    """Every card of the set's review in row order, as the card JSON the rows send: its
+    `section` is the section the review holds it in."""
     opened = open_review(client, scope, sort)
     layout = opened["layout"]
     rows: list[dict[str, Any]] = []

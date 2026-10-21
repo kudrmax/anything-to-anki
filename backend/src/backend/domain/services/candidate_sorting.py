@@ -33,6 +33,11 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.user_knowledge import UserKnowledge
 
 type SortKey = tuple[float | int | bool, ...]
+# A card's place in a review order: its partition, the key of its word's best card there,
+# its word, its own key and its phrase. Sorted by it, the cards stand as `sort_cards` puts
+# them; no two cards share one.
+type OrderKey = tuple[int, SortKey, int, SortKey, int]
+type _Ranking[C] = tuple[Callable[[C], int], Callable[[C], SortKey]]
 
 
 @dataclass(frozen=True)
@@ -118,11 +123,44 @@ def sort_cards[C: SortableCard](
     source_order: Sequence[int],
 ) -> list[C]:
     """The cards in the review order `order`, each standing as `standing` says."""
+    return [card for card, _ in sort_with_keys(
+        cards, order, standing, usage_order=usage_order, source_order=source_order,
+    )]
+
+
+def sort_with_keys[C: SortableCard](
+    cards: list[C],
+    order: CandidateSortOrder,
+    standing: StandingOf[C],
+    *,
+    usage_order: list[str] | None,
+    source_order: Sequence[int],
+) -> list[tuple[C, OrderKey]]:
+    """The cards as `sort_cards` orders them, each with the key it is sorted by."""
+    keys = order_keys(
+        cards, order, standing, usage_order=usage_order, source_order=source_order,
+    )
+    return sorted(((c, keys[c.phrase_id]) for c in cards), key=lambda pair: pair[1])
+
+
+def order_keys[C: SortableCard](
+    cards: Sequence[C],
+    order: CandidateSortOrder,
+    standing: StandingOf[C],
+    *,
+    usage_order: list[str] | None,
+    source_order: Sequence[int],
+) -> dict[int, OrderKey]:
+    """Phrase id → the card's place in the review order `order`, as `sort_cards` sorts by
+    it. A card's key reads only the cards of its own word, so it is exact for every card
+    whose word's cards are all given: a few cards can be placed without the whole set."""
     if order == CandidateSortOrder.CHRONOLOGICAL:
-        return _chronological(cards, source_order, lambda c: standing(c).is_done)
-    if order == CandidateSortOrder.KEY_WORDS:
-        return _by_key_words(cards, standing)
-    return _by_relevance(cards, standing, usage_order)
+        ranking = _chronological_ranking(cards, source_order, lambda c: standing(c).is_done)
+    elif order == CandidateSortOrder.KEY_WORDS:
+        ranking = _key_words_ranking(cards, standing)
+    else:
+        ranking = _relevance_ranking(cards, standing, usage_order)
+    return _grouped_keys(cards, *ranking)
 
 _CEFR_ORDER: dict[str | None, int] = {
     "A1": 1, "A2": 2,
@@ -176,11 +214,16 @@ def sort_by_relevance(
 def _by_relevance[C: SortableCard](
     cards: list[C], standing: StandingOf[C], usage_order: list[str] | None,
 ) -> list[C]:
+    return _grouped(cards, *_relevance_ranking(cards, standing, usage_order))
+
+
+def _relevance_ranking[C: SortableCard](
+    cards: Sequence[C], standing: StandingOf[C], usage_order: list[str] | None,
+) -> _Ranking[C]:
     stood = {c.phrase_id: standing(c) for c in cards}
-    return _grouped(
-        cards,
-        partition=lambda c: SECTION_ORDER[stood[c.phrase_id].section],
-        key=lambda c: (
+    return (
+        lambda c: SECTION_ORDER[stood[c.phrase_id].section],
+        lambda c: (
             is_junk(c),
             stood[c.phrase_id].new_words,
             c.is_phrasal_verb,
@@ -211,11 +254,16 @@ def sort_by_key_words(
 
 
 def _by_key_words[C: SortableCard](cards: list[C], standing: StandingOf[C]) -> list[C]:
+    return _grouped(cards, *_key_words_ranking(cards, standing))
+
+
+def _key_words_ranking[C: SortableCard](
+    cards: Sequence[C], standing: StandingOf[C],
+) -> _Ranking[C]:
     stood = {c.phrase_id: standing(c) for c in cards}
-    return _grouped(
-        cards,
-        partition=lambda c: SECTION_ORDER[stood[c.phrase_id].section],
-        key=lambda c: (
+    return (
+        lambda c: SECTION_ORDER[stood[c.phrase_id].section],
+        lambda c: (
             is_junk(c),
             -c.occurrences,
             c.zipf_frequency,
@@ -239,6 +287,12 @@ def sort_chronologically(
 def _chronological[C: SortableCard](
     cards: list[C], source_order: Sequence[int], is_done: Callable[[C], bool],
 ) -> list[C]:
+    return _grouped(cards, *_chronological_ranking(cards, source_order, is_done))
+
+
+def _chronological_ranking[C: SortableCard](
+    cards: Sequence[C], source_order: Sequence[int], is_done: Callable[[C], bool],
+) -> _Ranking[C]:
     rank = {source_id: i for i, source_id in enumerate(source_order)}
     reviewed = {c.phrase_id for c in cards if is_done(c)}
 
@@ -249,19 +303,19 @@ def _chronological[C: SortableCard](
             return (source_rank, True, 0, 0, 0)
         return (source_rank, False, *place)
 
-    return _grouped(
-        cards,
-        partition=lambda c: _REVIEWED if c.phrase_id in reviewed else _OPEN,
-        key=_position_key,
-    )
+    return (lambda c: _REVIEWED if c.phrase_id in reviewed else _OPEN, _position_key)
 
 
 def _grouped[C: SortableCard](
-    cards: list[C],
-    *,
-    partition: Callable[[C], int],
-    key: Callable[[C], SortKey],
+    cards: list[C], partition: Callable[[C], int], key: Callable[[C], SortKey],
 ) -> list[C]:
+    keys = _grouped_keys(cards, partition, key)
+    return sorted(cards, key=lambda c: keys[c.phrase_id])
+
+
+def _grouped_keys[C: SortableCard](
+    cards: Sequence[C], partition: Callable[[C], int], key: Callable[[C], SortKey],
+) -> dict[int, OrderKey]:
     """Cards by partition, then by word — placed by its best card in the partition — then
     by card: the cards of one word stand together inside each partition."""
     parts = {c.phrase_id: partition(c) for c in cards}
@@ -271,13 +325,13 @@ def _grouped[C: SortableCard](
         group = (parts[c.phrase_id], c.word_id)
         if group not in best or keys[c.phrase_id] < best[group]:
             best[group] = keys[c.phrase_id]
-    return sorted(
-        cards,
-        key=lambda c: (
+    return {
+        c.phrase_id: (
             parts[c.phrase_id],
             best[(parts[c.phrase_id], c.word_id)],
             c.word_id,
             keys[c.phrase_id],
             c.phrase_id,
-        ),
-    )
+        )
+        for c in cards
+    }
