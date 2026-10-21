@@ -43,6 +43,14 @@ class Command(StrEnum):
     EDIT_CLOZE = "edit_cloze"   # the editor opens; its Save is the press
 
 
+class Closes(StrEnum):
+    """What a press leaves done: every card of the lemma, in every source, when it decides
+    the word; only this card when it skips the phrase."""
+
+    LEMMA = "lemma"
+    CARD = "card"
+
+
 class Where(StrEnum):
     HERE = "here"
     OTHER_CARD = "other_card"
@@ -56,6 +64,7 @@ class ButtonState:
     command: Command | None
     pressed: bool
     refused: Refusal | None
+    closes: Closes | None
 
 
 class ShownTone(StrEnum):
@@ -124,6 +133,15 @@ _COMMANDS: Mapping[tuple[bool, bool], Command | None] = MappingProxyType(
         (False, False): Command.DECIDE,
     },
 )
+_CLOSES: Mapping[CardChoice, Closes | None] = MappingProxyType(
+    {  # the card's choice after the press
+        CardChoice.NONE: None,
+        CardChoice.LEARN: Closes.LEMMA,
+        CardChoice.CLOZE: Closes.LEMMA,
+        CardChoice.KNOWN: Closes.LEMMA,
+        CardChoice.SKIP: Closes.CARD,
+    },
+)
 _BOTH = (False, True)
 _KINDS: tuple[NoteKind | None, ...] = (None, *NoteKind)
 _LEARN_PRESS: Mapping[NoteKind | None, Press] = MappingProxyType(
@@ -162,6 +180,7 @@ def _button(
         command=_COMMANDS[(target.refusal is not None, opens_editor)],
         pressed=button is shown_press,
         refused=target.refusal,
+        closes=None if target.refusal is not None else _CLOSES[target.choice],
     )
 
 
