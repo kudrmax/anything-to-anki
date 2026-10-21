@@ -1,5 +1,5 @@
 .tree { display: flex; flex-direction: column; gap: var(--s1); width: 100%; }
-.heading { display: flex; align-items: center; justify-content: space-between; margin-top: var(--s5); padding-left: var(--s4); font-size: var(--fs-xs); font-weight: var(--fw-m); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--tx3); }
+.heading { display: flex; align-items: center; min-height: var(--h); justify-content: space-between; margin-top: var(--s5); padding-left: var(--s4); font-size: var(--fs-xs); font-weight: var(--fw-m); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--tx3); }
 .cell > span, .cell > span > span { display: flex; width: 100%; }
 
 /* строка: иконка | имя | счётчик или действия. У папки с детьми иконка — она же стрелка: при наведении, а у свёрнутой всегда */

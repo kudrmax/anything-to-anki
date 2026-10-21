@@ -79,6 +79,7 @@ class CollectionNodeDTO(BaseModel):
     parent_id: int | None
     counts: ScopeCountsDTO
     depth: int
+    favorite: bool
     # May hold subcollections; the parents it may move under, None being the top level.
     accepts_collections: bool
     move_targets: list[int | None]
@@ -90,6 +91,8 @@ class CollectionTreeDTO(BaseModel):
     unsorted: ScopeCountsDTO
     max_depth: int
     collections: list[CollectionNodeDTO]
+    # Favorite collections in the order they were added; each one is in `collections` too.
+    favorites: list[int]
 
 
 class SourcePlacementDTO(BaseModel):

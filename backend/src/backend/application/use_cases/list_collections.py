@@ -130,6 +130,7 @@ class ListCollectionsUseCase:
                     [s for s in sources if s.collection_id in subtree],
                 ),
                 depth=tree.depth(collection.id),
+                favorite=collection.favorited_at is not None,
                 accepts_collections=tree.can_hold_children(collection.id),
                 move_targets=tree.move_targets(collection.id),
                 children=[node(child) for child in tree.children(collection.id)],
@@ -142,4 +143,5 @@ class ListCollectionsUseCase:
             ),
             max_depth=tree.max_depth,
             collections=[node(c) for c in tree.children(None)],
+            favorites=[c.id for c in tree.favorites() if c.id is not None],
         )

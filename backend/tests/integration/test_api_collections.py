@@ -136,6 +136,30 @@ class TestCollectionsAPI:
         assert client.post("/collections/999/move", json={"position": 0}).status_code == 404
         assert client.delete("/collections/999").status_code == 404
         assert client.post("/collections/999/restore").status_code == 404
+        assert client.put("/collections/999/favorite").status_code == 404
+        assert client.delete("/collections/999/favorite").status_code == 404
+
+    def test_favorites_in_order_of_adding_survive_undo(self, client: TestClient) -> None:
+        friends = client.post("/collections", json={"name": "Friends"}).json()
+        season = client.post(
+            "/collections", json={"name": "Season 1", "parent_id": friends["id"]},
+        ).json()
+        ielts = client.post("/collections", json={"name": "IELTS"}).json()
+
+        assert client.put(f"/collections/{season['id']}/favorite").status_code == 204
+        assert client.put(f"/collections/{ielts['id']}/favorite").status_code == 204
+        tree = client.get("/collections").json()
+        assert tree["favorites"] == [season["id"], ielts["id"]]
+        assert tree["collections"][0]["children"][0]["favorite"] is True
+        assert tree["collections"][0]["favorite"] is False
+
+        client.delete(f"/collections/{friends['id']}")
+        assert client.get("/collections").json()["favorites"] == [ielts["id"]]
+        client.post(f"/collections/{friends['id']}/restore")
+        assert client.get("/collections").json()["favorites"] == [season["id"], ielts["id"]]
+
+        assert client.delete(f"/collections/{season['id']}/favorite").status_code == 204
+        assert client.get("/collections").json()["favorites"] == [ielts["id"]]
 
     def test_board_unknown_collection_is_404(self, client: TestClient) -> None:
         assert client.get("/sources/board", params={"scope": "999"}).status_code == 404

@@ -48,6 +48,7 @@ class SqlaCollectionRepository(CollectionRepository):
             model.parent_id = collection.parent_id
             model.position = collection.position
             model.deleted_at = collection.deleted_at
+            model.favorited_at = collection.favorited_at
         self._session.flush()
 
     def record_evictions(

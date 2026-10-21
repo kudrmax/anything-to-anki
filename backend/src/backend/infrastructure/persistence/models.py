@@ -188,6 +188,7 @@ class CollectionModel(Base):
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    favorited_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
@@ -199,6 +200,7 @@ class CollectionModel(Base):
             parent_id=self.parent_id,
             position=self.position,
             deleted_at=self.deleted_at,
+            favorited_at=self.favorited_at,
             created_at=self.created_at,
         )
 
@@ -209,6 +211,7 @@ class CollectionModel(Base):
             parent_id=collection.parent_id,
             position=collection.position,
             deleted_at=collection.deleted_at,
+            favorited_at=collection.favorited_at,
             created_at=collection.created_at,
         )
 

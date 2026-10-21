@@ -25,7 +25,7 @@ class CollectionRepository(ABC):
 
     @abstractmethod
     def save(self, collections: Sequence[Collection]) -> None:
-        """Persist name, parent, position and deletion mark of existing collections."""
+        """Persist name, parent, position, deletion and favorite marks of existing collections."""
 
     @abstractmethod
     def record_evictions(

@@ -71,6 +71,10 @@ export function useCollections(props: Callbacks) {
     return true
   }
 
+  const setFavorite = async (id: number, favorite: boolean) => {
+    await guarded(() => api.setCollectionFavorite(id, favorite))
+  }
+
   const place = async (sourceIds: number[], collectionId: number | null, targetName: string): Promise<boolean> => {
     const placed = await guarded(() => api.placeSources(sourceIds.map(source_id => ({ source_id, collection_id: collectionId }))))
     if (!placed) return false
@@ -82,5 +86,5 @@ export function useCollections(props: Callbacks) {
     return true
   }
 
-  return { tree, reload, create, rename, move, remove, place }
+  return { tree, reload, create, rename, move, remove, setFavorite, place }
 }

@@ -51,6 +51,7 @@ export interface CollectionNode {
   counts: ScopeCounts
   /** Глубина узла: верхний уровень — 1. */
   depth: number
+  favorite: boolean
   /** Может получить новую подколлекцию. */
   accepts_collections: boolean
   /** Все допустимые новые родители, включая текущего; null — верхний уровень. */
@@ -63,6 +64,8 @@ export interface CollectionTree {
   unsorted: ScopeCounts
   max_depth: number
   collections: CollectionNode[]
+  /** Избранные коллекции в порядке добавления; каждая есть и в collections. */
+  favorites: number[]
 }
 
 export interface Collection {

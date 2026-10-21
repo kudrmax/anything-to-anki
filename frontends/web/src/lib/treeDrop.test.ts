@@ -6,7 +6,7 @@ const counts = { total: 0, reviewed: 0, pending: 0, progress: { decided: 0, tota
 
 /** move_targets задаются явно: их считает backend, фронт лишь сверяется с ними. */
 const node = (id: number, parent: number | null, depth: number, moveTargets: (number | null)[], children: CollectionNode[] = []): CollectionNode => ({
-  id, name: `c${id}`, parent_id: parent, counts, depth, accepts_collections: depth < 4, move_targets: moveTargets, children,
+  id, name: `c${id}`, parent_id: parent, counts, depth, favorite: false, accepts_collections: depth < 4, move_targets: moveTargets, children,
 })
 
 // 1 › 2 › 3 › 4, затем 5 и 6 на верхнем уровне.

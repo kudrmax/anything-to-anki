@@ -366,6 +366,9 @@ export const api = {
 
   deleteCollection: (id: number) => req<DeletedCollection>(`/collections/${id}`, { method: 'DELETE' }),
 
+  setCollectionFavorite: (id: number, favorite: boolean) =>
+    reqVoid(`/collections/${id}/favorite`, { method: favorite ? 'PUT' : 'DELETE' }),
+
   restoreCollection: (id: number) => req<Collection>(`/collections/${id}/restore`, { method: 'POST' }),
 
   getSourceBoard: (scope: Scope, query: string, signal?: AbortSignal) =>

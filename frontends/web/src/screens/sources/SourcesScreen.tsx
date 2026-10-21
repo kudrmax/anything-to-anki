@@ -205,6 +205,7 @@ export function SourcesScreen() {
           onMove={(id, parentId, position) => void collections.move(id, parentId, position)}
           onDelete={deleteCollection}
           onMoveTo={id => setMoveTarget({ kind: 'collection', id })}
+          onFavorite={(id, favorite) => void collections.setFavorite(id, favorite)}
           onExport={exportSet}
           onOperation={(id, operation) => operate(id, findNode(tree.collections, id)?.name ?? '', operation)}
           onDropSources={placeSources}
@@ -272,6 +273,7 @@ export function SourcesScreen() {
             onRename={() => node && setNaming({ kind: 'rename', node })}
             onNewSubcollection={() => node && setNaming({ kind: 'create', parent: node })}
             onMoveTo={() => node && setMoveTarget({ kind: 'collection', id: node.id })}
+            onFavorite={() => node && void collections.setFavorite(node.id, !node.favorite)}
             onDelete={() => node && deleteCollection(node.id)}
             viewItems={sourceOrder.order
               ? sourceOrderItems(sourceOrder.order, {

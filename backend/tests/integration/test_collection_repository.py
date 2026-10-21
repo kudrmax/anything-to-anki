@@ -37,13 +37,16 @@ class TestSqlaCollectionRepository:
         assert sub.id is not None
         deleted_at = datetime(2026, 10, 14, tzinfo=UTC)
         repo.save(
-            [Collection(id=sub.id, name="S1", parent_id=None, position=3, deleted_at=deleted_at)],
+            [Collection(
+                id=sub.id, name="S1", parent_id=None, position=3,
+                deleted_at=deleted_at, favorited_at=deleted_at,
+            )],
         )
         stored = repo.get_by_id(sub.id)
         assert stored is not None
-        assert (stored.name, stored.parent_id, stored.position, stored.deleted_at) == (
-            "S1", None, 3, deleted_at,
-        )
+        assert (
+            stored.name, stored.parent_id, stored.position, stored.deleted_at, stored.favorited_at,
+        ) == ("S1", None, 3, deleted_at, deleted_at)
         assert [c.name for c in repo.list_all()] == ["Friends"]
         assert {c.name for c in repo.list_all(include_deleted=True)} == {"Friends", "S1"}
 
