@@ -84,9 +84,10 @@ def process_tts_run(
 def main() -> None:
     from backend.infrastructure.container import Container
     from backend.infrastructure.logging_setup import configure_logging
+    from backend.infrastructure.persistence.write_gate import WaitOutLevelChange
 
     configure_logging("tts-worker")
-    container = Container()
+    container = Container(write_gate=WaitOutLevelChange())
     logger.info("TTS subprocess started")
     worker_pid = os.getppid()
     processed = process_tts_run(

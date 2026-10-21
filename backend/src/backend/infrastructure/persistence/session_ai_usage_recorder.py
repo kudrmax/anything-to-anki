@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
 from backend.domain.ports.ai_usage_recorder import AIUsageRecorder
 from backend.infrastructure.persistence.sqla_ai_usage_repository import SqlaAIUsageRepository
+from backend.infrastructure.persistence.sqla_level_change_lock import SqlaLevelChangeLock
+from backend.infrastructure.persistence.write_gate import GATE_RETRY_SECONDS
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session, sessionmaker
@@ -22,5 +25,17 @@ class SessionAIUsageRecorder(AIUsageRecorder):
         self._session_factory = session_factory
 
     def record(self, record: AIUsageRecord) -> None:
-        with self._session_factory() as session, session.begin():
-            SqlaAIUsageRepository(session).add(record)
+        with self._session_factory() as session:
+            self._wait_out_level_change(session)
+            with session.begin():
+                SqlaAIUsageRepository(session).add(record)
+
+    @staticmethod
+    def _wait_out_level_change(session: Session) -> None:
+        """Writes beside every gate, in any process: it waits for a level change to end
+        rather than meet its write past SQLite's busy timeout. A change takes its lock
+        minutes before that write, so a record that saw no lock is long done by then."""
+        while SqlaLevelChangeLock(session).held():
+            session.rollback()
+            time.sleep(GATE_RETRY_SECONDS)
+        session.rollback()

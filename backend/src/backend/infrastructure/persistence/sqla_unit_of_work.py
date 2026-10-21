@@ -9,6 +9,7 @@ from sqlalchemy.exc import OperationalError
 from backend.domain.exceptions import NestedWriteError, UncommittedWorkError, WriteInReadError
 from backend.domain.ports.unit_of_work import UnitOfWork
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
+from backend.infrastructure.persistence.write_gate import RefuseDuringLevelChange
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
 
     from backend.application.utils.knowledge_scope import KnowledgeScope
     from backend.domain.value_objects.card_change import CardChange
+    from backend.infrastructure.persistence.write_gate import WriteGate
 
 # SQLite takes the write lock at the start of the transaction, not at its first write:
 # reads inside it see the state the writes are applied to.
@@ -43,15 +45,18 @@ class SqlaUnitOfWork(UnitOfWork):
     unit of work on the session makes another one there a nested write. The session's
     commit checks run before each commit. The changes the session's recorder holds are
     drained by every write: passed to `before_commit` right before the commit, or dropped
-    when there is none or the write fails."""
+    when there is none or the write fails. While a level change holds its lock, `gate`
+    decides whether a write is refused (the default), waits, or goes on."""
 
     def __init__(
         self,
         session: Session,
         knowledge: KnowledgeScope,
         before_commit: Callable[[tuple[CardChange, ...]], None] | None = None,
+        gate: WriteGate | None = None,
     ) -> None:
         self._session = session
+        self._gate = gate if gate is not None else RefuseDuringLevelChange()
         self._knowledge = knowledge
         self._recorder = SessionChangeRecorder(session)
         self._before_commit = before_commit
@@ -66,7 +71,7 @@ class SqlaUnitOfWork(UnitOfWork):
             raise UncommittedWorkError
         # Ends the read transaction: BEGIN IMMEDIATE cannot start inside it.
         self._session.commit()
-        self._session.connection().exec_driver_sql(BEGIN_IMMEDIATE)
+        self._begin_through_gate()
         self._session.info[WRITE_OPEN_KEY] = True
         try:
             self._knowledge.invalidate()
@@ -83,6 +88,19 @@ class SqlaUnitOfWork(UnitOfWork):
             raise
         finally:
             self._session.info[WRITE_OPEN_KEY] = False
+
+    def _begin_through_gate(self) -> None:
+        while True:
+            self._session.connection().exec_driver_sql(BEGIN_IMMEDIATE)
+            try:
+                admitted = self._gate.admit(self._session)
+            except BaseException:
+                self._session.rollback()
+                raise
+            if admitted:
+                return
+            self._session.rollback()
+            self._gate.wait()
 
     @contextmanager
     def read(self) -> Iterator[None]:

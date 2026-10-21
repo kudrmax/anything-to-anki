@@ -209,6 +209,11 @@ from backend.infrastructure.persistence.sqla_word_mark_repository import (
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
+from backend.infrastructure.persistence.write_gate import (
+    OwnLevelChange,
+    RefuseDuringLevelChange,
+    WriteGate,
+)
 from backend.infrastructure.queue.in_memory_generation_stops import InMemoryGenerationStops
 from backend.infrastructure.readers.caching_reader import CachingFormatReader
 from backend.infrastructure.readers.epub_format_reader import EpubFormatReader
@@ -282,9 +287,14 @@ class Container:
     """Dependency injection container. Single point of assembly for all dependencies."""
 
     def __init__(
-        self, session_factory: sessionmaker[Session] | None = None, clock: Clock | None = None,
+        self,
+        session_factory: sessionmaker[Session] | None = None,
+        clock: Clock | None = None,
+        write_gate: WriteGate | None = None,
     ) -> None:
-        """`clock`: where every request and job reads `now`; the system's unless given."""
+        """`clock`: where every request and job reads `now`; the system's unless given.
+        `write_gate`: what this process's writes do while the level is being changed; they
+        are refused unless given."""
 
         from backend.infrastructure.adapters.ffmpeg_media_extractor import FfmpegMediaExtractor
         from backend.infrastructure.adapters.ffmpeg_subtitle_extractor import (
@@ -394,6 +404,7 @@ class Container:
         templates_dir = project_root / "anki-templates"
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
         self._clock: Clock = clock or SystemClock()
+        self._write_gate: WriteGate = write_gate or RefuseDuringLevelChange()
         self._session_factory: sessionmaker[Session] | None = session_factory
         # The open reviews live as long as the app: a restart lets them go.
         self._review_order_store: InMemoryReviewOrderStore[OpenReview] = (
@@ -993,6 +1004,15 @@ class Container:
         return SqlaUnitOfWork(
             session, self.knowledge_scope(session),
             before_commit=self.card_state_projector(session).apply,
+            gate=self._write_gate,
+        )
+
+    def _level_change_unit_of_work(self, session: Session) -> SqlaUnitOfWork:
+        """The level change's own writes: they go on while its lock keeps the others out."""
+        return SqlaUnitOfWork(
+            session, self.knowledge_scope(session),
+            before_commit=self.card_state_projector(session).apply,
+            gate=OwnLevelChange(),
         )
 
     def _change_recorder(self, session: Session) -> SessionChangeRecorder:

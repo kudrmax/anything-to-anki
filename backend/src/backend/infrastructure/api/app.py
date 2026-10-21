@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
+from backend.domain.exceptions import LevelChangeInProgressError
 from backend.infrastructure.api.client_build import StaleClientMiddleware
 from backend.infrastructure.api.dependencies import get_container, get_session_factory
 from backend.infrastructure.api.routes import (
@@ -108,6 +109,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 status=response.status_code,
             )
         return response
+
+
+# One code for every write refused while the level is being changed: the frontend shows the
+# level change instead of an error.
+LEVEL_CHANGE_IN_PROGRESS_STATUS = 423
+
+
+@app.exception_handler(LevelChangeInProgressError)
+async def level_change_in_progress(
+    _request: Request, exc: LevelChangeInProgressError,
+) -> JSONResponse:
+    return JSONResponse(status_code=LEVEL_CHANGE_IN_PROGRESS_STATUS, content={"detail": str(exc)})
 
 
 app.add_middleware(RequestLoggingMiddleware)
