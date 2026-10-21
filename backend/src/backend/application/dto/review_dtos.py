@@ -5,6 +5,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from backend.application.dto.document_dtos import (
+    TextChunkDTO,  # noqa: TC001 — pydantic field type
+)
 from backend.application.dto.source_dtos import (  # noqa: TC001 — pydantic field types
     CardDTO,
     ProgressDTO,
@@ -93,3 +96,7 @@ class ReviewUpdateDTO(BaseModel):
     # Whether each card of the set whose row changed since `since` is done.
     done: dict[int, bool] = Field(default_factory=dict)
     focus_id: int | None = None
+    # A chunk of a source's text, when the request asked for one.
+    text: TextChunkDTO | None = None
+    # The version of the set's contents: it moves on when the set's sources change.
+    contents_version: int = 0

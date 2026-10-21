@@ -7,9 +7,11 @@ from backend.application.utils.review_answer import rows_from, window_around
 from backend.domain.exceptions import PhraseNotFoundError
 
 if TYPE_CHECKING:
+    from backend.application.dto.document_dtos import ReviewContentsDTO
     from backend.application.dto.review_dtos import ReviewContext, ReviewUpdateDTO
     from backend.application.utils.open_review import OpenReview
     from backend.application.utils.review_answer import ReviewAnswer
+    from backend.application.utils.review_text import ReviewText
     from backend.application.utils.review_updates import ReviewUpdates
     from backend.domain.ports.review_order_store import ReviewOrderStore
     from backend.domain.ports.unit_of_work import UnitOfWork
@@ -18,7 +20,8 @@ if TYPE_CHECKING:
 
 class ReviewWindowUseCase:
     """Reads of an open review: rows of its visible list, the rows around a card, a section
-    opened or folded, and what changed. Each first records the card the client shows: its
+    opened or folded, what changed, the contents of its set and a chunk of a source's text.
+    Each but the contents first records the card the client shows: its
     section opens by itself. When that or the request changes the visible list, the answer
     sends every row served before, indexed anew. ReviewNotFoundError when the review is not
     held any more."""
@@ -28,11 +31,13 @@ class ReviewWindowUseCase:
         store: ReviewOrderStore[OpenReview],
         answer: ReviewAnswer,
         updates: ReviewUpdates,
+        text: ReviewText,
         unit_of_work: UnitOfWork,
     ) -> None:
         self._store = store
         self._answer = answer
         self._updates = updates
+        self._text = text
         self._unit_of_work = unit_of_work
 
     def rows(self, ctx: ReviewContext, start: int, count: int) -> ReviewUpdateDTO:
@@ -69,6 +74,21 @@ class ReviewWindowUseCase:
             replace = review.layout_version != version
             return self._answer.of(
                 ctx.review_id, review, window=None if replace else range(0), replace=replace,
+            )
+
+    def contents(self, ctx: ReviewContext) -> ReviewContentsDTO:
+        """The sources of the set that have a document, in the set's order."""
+        with self._store.hold(ctx.review_id) as review, self._unit_of_work.read():
+            return self._text.contents(review)
+
+    def text(self, ctx: ReviewContext, source_id: int, block: int) -> ReviewUpdateDTO:
+        """The chunk of the source's text that holds the block (LAST_BLOCK: the last one),
+        with no rows unless the current card changed the visible list."""
+        with self._store.hold(ctx.review_id) as review, self._unit_of_work.read():
+            chunk = self._text.chunk(review, source_id, block)
+            replace = _moved(review, ctx.current)
+            return self._answer.of(
+                ctx.review_id, review, window=None, replace=replace, text=chunk,
             )
 
     def changes(self, ctx: ReviewContext) -> ReviewUpdateDTO:

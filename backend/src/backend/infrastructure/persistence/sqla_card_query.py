@@ -186,7 +186,13 @@ class SqlaCardQuery(CardQuery):
             counts.update({source_id: count for source_id, count in rows})
         return counts
 
-    def shown_places(self, source_id: int) -> list[ShownPlace]:
+    def shown_places(self, source_id: int, blocks: range | None = None) -> list[ShownPlace]:
+        """With `blocks`, a phrase is picked by the block of its key, where its target
+        starts: the block of its place. A phrase without a key is picked by its place."""
+        in_blocks: list[ColumnElement[bool]] = [] if blocks is None else [
+            PhraseModel.block.is_(None)
+            | PhraseModel.block.between(blocks.start, blocks.stop - 1),
+        ]
         rows = self._session.execute(
             select(
                 PhraseModel.id,
@@ -195,6 +201,7 @@ class SqlaCardQuery(CardQuery):
                 CEFRBreakdownModel,
                 PhraseModel.source_phrase,
                 PhraseModel.phrase_position,
+                PhraseModel.block,
             )
             .join(StoredCandidateModel, StoredCandidateModel.id == PhraseModel.candidate_id)
             .outerjoin(
@@ -204,13 +211,18 @@ class SqlaCardQuery(CardQuery):
                 StoredCandidateModel.source_id == source_id,
                 PhraseModel.shown_by.is_not(None),
                 PhraseModel.phrase_position.is_not(None),
+                *in_blocks,
             )
             .order_by(PhraseModel.id)
         ).all()
         places: list[ShownPlace] = []
-        for phrase_id, word_id, phrasal, breakdown, source_phrase, stored_position in rows:
+        for phrase_id, word_id, phrasal, breakdown, source_phrase, stored_position, key_block in (
+            rows
+        ):
             position = load_position(stored_position)
             assert position is not None
+            if blocks is not None and key_block is None and position.block not in blocks:
+                continue
             places.append(ShownPlace(
                 phrase_id=phrase_id, word_id=word_id, cefr_level=cefr_level_of(breakdown),
                 is_phrasal_verb=phrasal, source_phrase=_required(source_phrase),

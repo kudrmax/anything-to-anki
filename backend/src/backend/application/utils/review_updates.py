@@ -93,7 +93,9 @@ class ReviewUpdates:
             for card in self._card_states.changed_since(sorted(current - held), 0):
                 if not card.removed:
                     live[card.row.phrase_id] = card.row
-            review.source_ids = current
+            if current != held:
+                review.source_ids = current
+                review.contents_version += 1
             version = review.layout_version
             review.current = ctx.current
             before = review.layout()

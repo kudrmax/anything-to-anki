@@ -2,15 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.application.dto.document_dtos import (
-    BlockDTO,
-    DocumentPositionDTO,
-    HighlightDTO,
-    LineDTO,
-    SourceDocumentDTO,
-)
+from backend.application.dto.document_dtos import SourceDocumentDTO
+from backend.application.utils.review_text import block_dto, highlights
 from backend.domain.services.document_layout import DocumentLayout
-from backend.domain.value_objects.document import Heading, ListItem, Paragraph
+from backend.domain.services.text_chunks import list_numbers
 
 if TYPE_CHECKING:
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
@@ -18,19 +13,13 @@ if TYPE_CHECKING:
     from backend.domain.ports.card_query import CardQuery
     from backend.domain.ports.card_state_query import CardStateQuery
     from backend.domain.ports.document_repository import DocumentRepository
-    from backend.domain.value_objects.document import Block, Line
-    from backend.domain.value_objects.document_position import DocumentPosition
-    from backend.domain.value_objects.shown_place import ShownPlace
     from backend.domain.value_objects.source_scope import SourceScope
 
 
 class GetReviewDocumentsUseCase:
     """The documents of a set's sources for its review screen, in the set's order, each with
-    the targets of its cards — the shown phrases — to mark in it. A source without a document
-    is left out.
-
-    Where marks would overlap, the one that starts first stays; of two starting together,
-    the longer one (a phrasal verb rather than its verb).
+    the targets of its cards — the shown phrases — to mark in it, as `marks_shown` keeps
+    them. A source without a document is left out.
     """
 
     def __init__(
@@ -58,69 +47,18 @@ class GetReviewDocumentsUseCase:
         if document is None:
             return None
         layout = DocumentLayout(document)
-        done = self._card_state_query.done_of_sources([source_id])
-        placed = sorted(
-            (
-                (_target_span(layout, place), place)
-                for place in self._card_query.shown_places(source_id)
-            ),
-            key=lambda pair: (pair[0][0], -pair[0][1], pair[1].phrase_id),
-        )
-        highlights: list[HighlightDTO] = []
-        taken_until = -1
-        for (start, end), place in placed:
-            if start < taken_until:
-                continue
-            highlights.append(_highlight(
-                place, layout.position(start, end), is_done=done.get(place.phrase_id, False),
-            ))
-            taken_until = end
+        numbers = list_numbers(document.blocks)
         return SourceDocumentDTO(
             source_id=source_id,
             title=source.title or "",
-            blocks=[_block(block) for block in document.blocks], highlights=highlights,
+            blocks=[
+                block_dto(block, number) for block, number in zip(
+                    document.blocks, numbers, strict=True,
+                )
+            ],
+            highlights=highlights(
+                layout,
+                self._card_query.shown_places(source_id),
+                self._card_state_query.done_of_sources([source_id]),
+            ),
         )
-
-
-def _target_span(layout: DocumentLayout, place: ShownPlace) -> tuple[int, int]:
-    """Where the target of the source phrase stands in the document text, first word to last."""
-    start, _ = layout.span(place.position)
-    phrase = place.source_phrase
-    words = [phrase.words[i] for i in phrase.target]
-    return start + words[0].start, start + words[-1].end
-
-
-def _highlight(
-    place: ShownPlace, position: DocumentPosition, *, is_done: bool,
-) -> HighlightDTO:
-    """`is_done`: as the stored projection has the card; a card it has no live row of is
-    open."""
-    return HighlightDTO(
-        phrase_id=place.phrase_id,
-        word_id=place.word_id,
-        position=DocumentPositionDTO.from_position(position),
-        cefr_level=place.cefr_level,
-        is_phrasal_verb=place.is_phrasal_verb,
-        is_done=is_done,
-    )
-
-
-def _block(block: Block) -> BlockDTO:
-    match block:
-        case Heading():
-            return BlockDTO(type="heading", lines=[LineDTO(text=block.text)], level=block.level)
-        case Paragraph():
-            return BlockDTO(
-                type="paragraph", lines=_lines(block.lines), mode=block.mode.value,
-            )
-        case ListItem():
-            return BlockDTO(
-                type="list_item",
-                lines=_lines(block.lines),
-                ordered=block.ordered,
-                depth=block.depth,
-            )
-
-
-def _lines(lines: tuple[Line, ...]) -> list[LineDTO]:
-    return [LineDTO(text=line.text) for line in lines]

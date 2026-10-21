@@ -48,5 +48,6 @@ class CardQuery(ABC):
         """Source id → how many of its words are to learn; a source without any is left out."""
 
     @abstractmethod
-    def shown_places(self, source_id: int) -> list[ShownPlace]:
-        """The shown phrases of the source that stand in its document."""
+    def shown_places(self, source_id: int, blocks: range | None = None) -> list[ShownPlace]:
+        """The shown phrases of the source that stand in its document; with `blocks`, those
+        whose place is in one of these blocks."""

@@ -13,8 +13,9 @@ if TYPE_CHECKING:
 class OpenReview:
     """An open review between requests: the sources its set holds, its order from the
     opening, the sections the user
-    opened, the current card, which card rows the client was sent and the version of the
-    rows. Its visible list is built once per set of sections that show."""
+    opened, the current card, which card rows the client was sent, the version of the
+    rows and the version of the set's contents. Its visible list is built once per set of
+    sections that show."""
 
     def __init__(
         self,
@@ -36,6 +37,8 @@ class OpenReview:
         self.current = current
         self.served: set[int] = set()
         self.layout_version = 0
+        # Moves on when the set's sources change: the client reads the contents anew.
+        self.contents_version = 0
         self._shown: frozenset[CandidateSection] | None = None
         self._layout: ReviewLayout | None = None
 

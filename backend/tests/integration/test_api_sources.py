@@ -151,7 +151,7 @@ class TestSourcesAPI:
             "title": "Hello world",
             "blocks": [{
                 "type": "paragraph", "lines": [{"text": "Hello world"}], "mode": "flow",
-                "level": None, "ordered": None, "depth": None,
+                "level": None, "ordered": None, "depth": None, "number": None,
             }],
             "highlights": [],
         }

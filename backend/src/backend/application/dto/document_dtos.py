@@ -48,6 +48,8 @@ class BlockDTO(BaseModel):
     mode: str | None = None
     ordered: bool | None = None
     depth: int | None = None
+    # A list item's number among the items around it; an unordered one shows a bullet.
+    number: int | None = None
 
 
 class HighlightDTO(BaseModel):
@@ -70,3 +72,36 @@ class SourceDocumentDTO(BaseModel):
     blocks: list[BlockDTO]
     # Targets that don't overlap, in reading order
     highlights: list[HighlightDTO]
+
+
+class TextChunkDTO(BaseModel):
+    """Blocks `first_block` up to `end_block` of a source's document, with the targets to
+    mark in them. The offsets, in the document's text, and the counts only size the
+    placeholders of the text not loaded."""
+
+    source_id: int
+    first_block: int
+    end_block: int
+    block_count: int
+    start_offset: int
+    end_offset: int
+    text_length: int
+    blocks: list[BlockDTO]
+    # Targets that don't overlap, in reading order
+    highlights: list[HighlightDTO]
+
+
+class ContentsEntryDTO(BaseModel):
+    """A source of a review set that has a document; `size_hint` only sizes its placeholder."""
+
+    source_id: int
+    title: str
+    size_hint: int
+
+
+class ReviewContentsDTO(BaseModel):
+    """The documents of an open review's set in the set's order; `version` moves on when
+    the set's sources change."""
+
+    version: int
+    documents: list[ContentsEntryDTO]
