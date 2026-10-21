@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 from backend.application.dto.collection_dtos import SourcePlacementDTO
 from backend.application.use_cases.place_sources import PlaceSourcesUseCase
@@ -22,7 +24,7 @@ class TestPlaceSources:
         self.collections = InMemoryCollectionRepository([
             Collection(id=5, name="IELTS"), Collection(id=6, name="Worm", position=1),
         ])
-        self.use_case = PlaceSourcesUseCase(self.sources, self.collections)
+        self.use_case = PlaceSourcesUseCase(self.sources, self.collections, MagicMock())
 
     def test_moves_batch_and_answers_previous_places(self) -> None:
         placed = self.use_case.execute([

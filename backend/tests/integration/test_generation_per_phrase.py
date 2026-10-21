@@ -34,6 +34,7 @@ from backend.infrastructure.persistence.models import (
     PhraseModel,
     dump_phrase,
 )
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -114,16 +115,18 @@ def _answer() -> list[BatchMeaningResult]:
 def _meaning_use_case(session: Session, ai_service: MagicMock) -> MeaningGenerationUseCase:
     return MeaningGenerationUseCase(
         job_phrases=_job_phrases(session),
-        meaning_repo=SqlaCandidateMeaningRepository(session),
+        meaning_repo=SqlaCandidateMeaningRepository(session, SessionChangeRecorder(session)),
         ai_service=ai_service,
         prompts_config=CONFIG,
+        unit_of_work=MagicMock(),
     )
 
 
 def _job_phrases(session: Session) -> JobPhrases:
     decisions = Decisions(session)
     return JobPhrases(
-        SqlaCandidateRepository(session), SqlaOccurrenceRepository(session),
+        SqlaCandidateRepository(session, SessionChangeRecorder(session)),
+        SqlaOccurrenceRepository(session, SessionChangeRecorder(session)),
         decisions.word_states, decisions.vocabulary,
     )
 
@@ -226,7 +229,7 @@ DOCUMENT = {
 
 
 def _stamper(session: Session) -> SectionStamper:
-    return section_stamper(SqlaSettingsRepository(session))
+    return section_stamper(SqlaSettingsRepository(session, SessionChangeRecorder(session)))
 
 
 def _reader() -> MagicMock:
@@ -249,8 +252,10 @@ def _set_boundary(session: Session) -> None:
         {"s": SOURCE, "d": json.dumps(DOCUMENT)},
     )
     SetPhraseBoundaryUseCase(
-        SqlaOccurrenceRepository(session), SqlaCandidateRepository(session),
+        SqlaOccurrenceRepository(session, SessionChangeRecorder(session)),
+        SqlaCandidateRepository(session, SessionChangeRecorder(session)),
         SqlaDocumentRepository(session), _reader(), free_lock(), _stamper(session),
+        MagicMock(),
     ).execute(PRIMARY, SelectionDTO(
         start_block=0, start_line=0, start_char=0,
         end_block=0, end_line=0, end_char=len(PHRASE_TEXT),
@@ -258,18 +263,19 @@ def _set_boundary(session: Session) -> None:
 
 
 def _edit(session: Session) -> None:
-    occurrences = SqlaOccurrenceRepository(session)
+    occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
     EditCardPhraseUseCase(
-        occurrences, SqlaCandidateRepository(session),
+        occurrences, SqlaCandidateRepository(session, SessionChangeRecorder(session)),
         RewritePhrase(_reader(), occurrences, _stamper(session)), free_lock(),
+        MagicMock(),
     ).execute(PRIMARY, PHRASE_TEXT)
 
 
 def _polish_lands(session: Session) -> None:
-    occurrences = SqlaOccurrenceRepository(session)
+    occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
     occurrence = occurrences.get(PRIMARY)
     assert occurrence is not None
-    word = SqlaCandidateRepository(session).get_by_id(WORD)
+    word = SqlaCandidateRepository(session, SessionChangeRecorder(session)).get_by_id(WORD)
     assert word is not None
     RewritePhrase(_reader(), occurrences, _stamper(session)).of_phrase(
         occurrence, word, PHRASE_TEXT,
@@ -278,24 +284,29 @@ def _polish_lands(session: Session) -> None:
 
 def _revert_polish(session: Session) -> None:
     RevertPhrasePolishUseCase(
-        SqlaOccurrenceRepository(session), SqlaCandidateRepository(session),
+        SqlaOccurrenceRepository(session, SessionChangeRecorder(session)),
+        SqlaCandidateRepository(session, SessionChangeRecorder(session)),
         MagicMock(), free_lock(), _stamper(session),
+        MagicMock(),
     ).execute(PRIMARY, reverted=True)
 
 
 def _enqueue_polish(session: Session) -> None:
-    occurrences = SqlaOccurrenceRepository(session)
-    candidates = SqlaCandidateRepository(session)
+    occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
+    candidates = SqlaCandidateRepository(session, SessionChangeRecorder(session))
     EnqueuePhrasePolishUseCase(
         RequestedCards(candidates, occurrences, free_lock()), occurrences,
-        SqlaSourceRepository(session), SqlaJobRepository(session), _stamper(session),
+        SqlaSourceRepository(session, SessionChangeRecorder(session)),
+        SqlaJobRepository(session, SessionChangeRecorder(session)),
+        _stamper(session),
+        MagicMock(),
     ).execute(PRIMARY)
 
 
 def _discard_polish(session: Session) -> None:
-    occurrences = SqlaOccurrenceRepository(session)
+    occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
     occurrence = occurrences.get(PRIMARY)
-    word = SqlaCandidateRepository(session).get_by_id(WORD)
+    word = SqlaCandidateRepository(session, SessionChangeRecorder(session)).get_by_id(WORD)
     assert occurrence is not None and word is not None
     PolishTarget(occurrences, _stamper(session)).discard(
         GenerationCard(word, occurrence, in_play=True),
@@ -345,19 +356,23 @@ class TestTextWritesOutdateJobs:
             session.commit()
 
         with factory() as session:
-            [job] = SqlaJobRepository(session).get_jobs_for_phrases([PRIMARY])[PRIMARY].values()
+            [job] = SqlaJobRepository(
+                session, SessionChangeRecorder(session),
+            ).get_jobs_for_phrases([PRIMARY])[PRIMARY].values()
         assert job.phrase_revision == _revision(factory) == 1
 
 
 def _queue_meaning(session: Session) -> None:
-    SqlaJobRepository(session).enqueue([Job.queued(
+    SqlaJobRepository(session, SessionChangeRecorder(session)).enqueue([Job.queued(
         JobType.MEANING, SOURCE, WORD, phrase_id=PRIMARY, phrase_revision=0,
     )])
 
 
 def _queued(factory: sessionmaker[Session]) -> dict[str, Job]:
     with factory() as session:
-        return SqlaJobRepository(session).get_jobs_for_phrases([PRIMARY]).get(PRIMARY, {})
+        return SqlaJobRepository(
+            session, SessionChangeRecorder(session),
+        ).get_jobs_for_phrases([PRIMARY]).get(PRIMARY, {})
 
 
 class TestQueuedJobsFollowTheText:
@@ -431,11 +446,11 @@ def _run_queued_polish(factory: sessionmaker[Session], ai_service: MagicMock) ->
     polish = _queued(factory)["polish"]
     assert polish.phrase_revision == _revision(factory)
     with factory() as session:
-        occurrences = SqlaOccurrenceRepository(session)
+        occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
         PhrasePolishUseCase(
             job_phrases=_job_phrases(session),
             occurrence_repo=occurrences,
-            source_repo=SqlaSourceRepository(session),
+            source_repo=SqlaSourceRepository(session, SessionChangeRecorder(session)),
             document_repo=SqlaDocumentRepository(session),
             settings_repo=MagicMock(get=MagicMock(return_value="B1")),
             enrichment_reset=MagicMock(),
@@ -443,13 +458,14 @@ def _run_queued_polish(factory: sessionmaker[Session], ai_service: MagicMock) ->
             prompts_config=POLISH_CONFIG,
             rewrite_phrase=RewritePhrase(_reader(), occurrences, _stamper(session)),
             stamper=_stamper(session),
+            unit_of_work=MagicMock(),
         ).execute_batch([PhraseRef(PRIMARY, polish.phrase_revision)])
         session.commit()
 
 
 def _shown_text(factory: sessionmaker[Session]) -> str:
     with factory() as session:
-        found = SqlaOccurrenceRepository(session).get(PRIMARY)
+        found = SqlaOccurrenceRepository(session, SessionChangeRecorder(session)).get(PRIMARY)
         assert found is not None
         return found.phrase.text
 
@@ -553,8 +569,9 @@ def _tts_use_case(
     settings.get.return_value = None
     return GenerateTTSUseCase(
         job_phrases=_job_phrases(session),
-        tts_repo=SqlaCandidateTTSRepository(session),
+        tts_repo=SqlaCandidateTTSRepository(session, SessionChangeRecorder(session)),
         tts_generator=generator,
         settings_repo=settings,
         media_files=LocalMediaFiles(str(tmp_path / "media")),
+        unit_of_work=MagicMock(),
     )

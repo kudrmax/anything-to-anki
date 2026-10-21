@@ -13,7 +13,9 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     SourceOperationBusyError,
 )
+from backend.domain.services.source_operations import REBUILD_OPERATION
 from backend.domain.value_objects.card_choice import CardChoice
+from backend.domain.value_objects.held_operation import HeldOperation
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin
@@ -29,6 +31,7 @@ from tests.source_rebuild_support import (
     LINES,
     SOURCE,
     Bench,
+    SharedBench,
     at,
     time_of_line,
     word,
@@ -37,6 +40,9 @@ from tests.vocabulary_support import user_vocabulary
 from tests.word_support import bind, store_card
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
+
     from backend.application.dto.analysis_dtos import AnalyzeTextRequest
     from backend.domain.value_objects.document import Document
     from sqlalchemy.orm import Session
@@ -57,6 +63,41 @@ def bench(db_session: Session) -> Bench:
 @pytest.fixture
 def video(db_session: Session) -> Bench:
     return Bench(db_session, timed=True)
+
+
+@pytest.fixture
+def shared(tmp_path: Path) -> Iterator[SharedBench]:
+    shared_bench = SharedBench(tmp_path)
+    yield shared_bench
+    shared_bench.close()
+
+
+# ── what other sessions see ───────────────────────────────────────────
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_others_see_the_source_busy_while_it_is_analysed(
+    shared: SharedBench, mode: RebuildMode,
+) -> None:
+    shared.bench.processed(word("glare", at(0)))
+    shared.seen.clear()
+
+    shared.bench.rebuild().execute(SOURCE, mode)
+
+    assert shared.seen == [HeldOperation(REBUILD_OPERATION[mode])]
+    assert shared.held_elsewhere() is None
+
+
+def test_others_see_the_source_busy_while_its_preview_is_analysed(
+    shared: SharedBench,
+) -> None:
+    shared.bench.processed(word("glare", at(0)))
+    shared.seen.clear()
+
+    shared.bench.rebuild().preview(SOURCE, UPDATE)
+
+    assert shared.seen == [HeldOperation(SourceOperationKind.PREVIEW)]
+    assert shared.held_elsewhere() is None
 
 
 # ── decisions and generation survive ──────────────────────────────────
@@ -156,7 +197,7 @@ def test_a_card_of_a_word_known_elsewhere_stays_though_the_analysis_lost_it(
     card = bench.phrase_on("linger", 3)
     bench.give_meaning(card.id)
     known = MagicMock()
-    known.get_all_pairs.return_value = {("linger", None)}
+    known.known_lemmas.return_value = {"linger"}
     bench.vocabulary = user_vocabulary(known)
     bench.analysis = [word("glare", at(0))]
 
@@ -275,8 +316,7 @@ PROTECTED = {  # the card's choice, bound to a note, edited, shown by, origin
 
 
 def _protect(bench: Bench, phrase_id: int, word_id: int, kind: str) -> None:
-    """Only the card changes: the word's stored status stays as processing left it, since
-    the rebuild reads the decision from the cards."""
+    """Only the card changes: the rebuild reads the decision from the cards."""
     choice, bound, edited, shown_by, origin = PROTECTED[kind]
     bench.session.execute(
         text(
@@ -290,14 +330,6 @@ def _protect(bench: Bench, phrase_id: int, word_id: int, kind: str) -> None:
     )
     if bound:
         bind(bench.session, word_id, phrase_id)
-    bench.session.commit()
-
-
-def _store_status(bench: Bench, word_id: int, status: str) -> None:
-    bench.session.execute(
-        text("UPDATE candidates SET status = :status WHERE id = :id"),
-        {"status": status, "id": word_id},
-    )
     bench.session.commit()
 
 
@@ -322,15 +354,13 @@ def test_an_update_keeps_the_text_of_every_card(bench: Bench) -> None:
     assert (untouched.source_phrase.text, untouched.revision) == (LINES[3], 0)
 
 
-def test_the_cards_choice_decides_the_word_not_its_stored_status(bench: Bench) -> None:
-    """A Learn card keeps a word stored as new; a word stored as known with no card
-    decided goes when the analysis loses it."""
+def test_the_cards_choice_decides_whether_a_lost_word_stays(bench: Bench) -> None:
+    """A word with a Learn card stays when the analysis loses it; a word with no card
+    decided goes."""
     bench.processed(word("glare", at(0)), word("linger", at(3)), word("wander", at(5)))
     decided = bench.phrase_on("linger", 3)
     bench.set_choice(decided.id, "learn")
     bench.session.commit()
-    stale = bench.phrase_on("wander", 5)
-    _store_status(bench, stale.candidate_id, "known")
     bench.analysis = [word("glare", at(0))]
 
     bench.rebuild().execute(SOURCE, UPDATE)

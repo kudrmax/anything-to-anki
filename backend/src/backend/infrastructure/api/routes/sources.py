@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import traceback
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy.orm import Session, sessionmaker  # noqa: TC002 — FastAPI reads route annotations
 
 from backend.application.dto.add_source_dtos import (
     AddSourceRequest,
@@ -29,6 +29,10 @@ from backend.application.dto.collection_dtos import (  # noqa: TC001
     PlaceSourcesRequest,
     SourceIdsRequest,
     StartedSourcesDTO,
+)
+from backend.application.dto.review_dtos import (  # noqa: TC001 — FastAPI's at runtime
+    ReviewContext,
+    ReviewUpdateDTO,
 )
 from backend.application.dto.source_dtos import (  # noqa: TC001
     CardDTO,
@@ -60,29 +64,44 @@ from backend.domain.value_objects.collection_choice import CollectionChoice
 from backend.domain.value_objects.naming_rule import NamingRule
 from backend.domain.value_objects.number_format import NumberFormat
 from backend.domain.value_objects.question import Answers
-from backend.domain.value_objects.source_status import SourceStatus
-from backend.infrastructure.api.background import free_source, in_background
+from backend.infrastructure.api.background import in_background
 from backend.infrastructure.api.dependencies import (
+    DetachedUseCases,
     get_container,
-    get_db_session,
-    get_session_factory,
+    get_detached_use_cases,
+    use_case,
 )
+from backend.infrastructure.api.review_context import review_context, review_expired
 from backend.infrastructure.api.scope_param import parse_scope
+from backend.infrastructure.container import Container
 
 if TYPE_CHECKING:
-    from backend.infrastructure.container import Container
+    from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
+    from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
+    from backend.application.use_cases.add_source import AddSourceUseCase
+    from backend.application.use_cases.create_topic import CreateTopicUseCase
+    from backend.application.use_cases.delete_source import DeleteSourceUseCase
+    from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
+    from backend.application.use_cases.get_sources import GetSourcesUseCase
+    from backend.application.use_cases.place_sources import PlaceSourcesUseCase
+    from backend.application.use_cases.process_source import ProcessSourceUseCase
+    from backend.application.use_cases.process_sources import ProcessSourcesUseCase
+    from backend.application.use_cases.rename_source import RenameSourceUseCase
+    from backend.application.use_cases.review_mutation import ReviewMutation
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sources", tags=["sources"])
+
+# The tail of the traceback a failed processing leaves on its source.
+ERROR_DETAIL_LENGTH = 500
 
 
 @router.post("/add", status_code=201)
 def add_source(
     request: AddSourceRequest,
     response: Response,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    add: AddSourceUseCase = Depends(use_case(Container.add_source_use_case)),  # noqa: B008
 ) -> QuestionsRequired | NamingRequired | SourcesCreated:
     """Pasted text, file paths or a link. Questions come back until every one is answered;
     several sources ask how to name them."""
@@ -91,7 +110,7 @@ def add_source(
     except ValueError as e:
         raise HTTPException(status_code=422, detail={"message": str(e)}) from e
     try:
-        result = container.add_source_use_case(session).execute(
+        result = add.execute(
             typed_inputs(request.text, request.subtitles_path),
             request.title,
             [Answers(answers) for answers in request.answers],
@@ -104,7 +123,6 @@ def add_source(
     if isinstance(result, QuestionsRequired | NamingRequired):
         response.status_code = 200
         return result
-    session.commit()
     return result
 
 
@@ -170,27 +188,24 @@ def describe_input(
 @router.post("/topic", status_code=201)
 def create_topic(
     request: CreateTopicRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    create: CreateTopicUseCase = Depends(use_case(Container.create_topic_use_case)),  # noqa: B008
 ) -> dict[str, Any]:
     try:
-        source = container.create_topic_use_case(session).execute(request.query, request.title)
+        source = create.execute(request.query, request.title)
     except InvalidSourceInputError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    session.commit()
     return {"id": source.id, "status": source.status.value}
 
 
 @router.post("/saved-phrases", status_code=201)
 def add_saved_phrase(
     request: AddSavedPhraseRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    save: AddSavedPhraseUseCase = Depends(  # noqa: B008
+        use_case(Container.add_saved_phrase_use_case),  # noqa: B008
+    ),
 ) -> CardDTO:
     try:
-        use_case = container.add_saved_phrase_use_case(session)
-        result = use_case.execute(request.phrase, request.target_words)
-        session.commit()
+        result = save.execute(request.phrase, request.target_words)
         return result
     except InvalidPhraseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -198,22 +213,19 @@ def add_saved_phrase(
 
 @router.get("")
 def list_sources(
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    sources: GetSourcesUseCase = Depends(use_case(Container.get_sources_use_case)),  # noqa: B008
 ) -> list[SourceDTO]:
-    use_case = container.get_sources_use_case(session)
-    return use_case.list_all()
+    return sources.list_all()
 
 
 @router.get("/board")
 def get_source_board(
     scope: str = "all",
     query: str = "",
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    sources: GetSourcesUseCase = Depends(use_case(Container.get_sources_use_case)),  # noqa: B008
 ) -> SourceBoardDTO:
     try:
-        return container.get_sources_use_case(session).board(parse_scope(scope), query)
+        return sources.board(parse_scope(scope), query)
     except CollectionNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
@@ -221,12 +233,10 @@ def get_source_board(
 @router.post("/placements")
 def place_sources(
     request: PlaceSourcesRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    place: PlaceSourcesUseCase = Depends(use_case(Container.place_sources_use_case)),  # noqa: B008
 ) -> PlacedSourcesDTO:
     try:
-        result = container.place_sources_use_case(session).execute(request.placements)
-        session.commit()
+        result = place.execute(request.placements)
         return result
     except (SourceNotFoundError, CollectionNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -235,66 +245,57 @@ def place_sources(
 @router.post("/process-pending", status_code=202)
 async def process_pending(
     scope: str = "all",
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
+    process: ProcessSourcesUseCase = Depends(  # noqa: B008
+        use_case(Container.process_sources_use_case),  # noqa: B008
+    ),
+    detached: DetachedUseCases = Depends(get_detached_use_cases),  # noqa: B008
 ) -> StartedSourcesDTO:
-    use_case = container.process_sources_use_case(session)
     try:
-        result = use_case.start(use_case.pending_in(parse_scope(scope)))
+        result = process.start(process.pending_in(parse_scope(scope)))
     except CollectionNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    session.commit()
-    _launch(result.started, container, session_factory)
+    _launch(result.started, detached)
     return result
 
 
 @router.post("/process-batch", status_code=202)
 async def process_batch(
     request: SourceIdsRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
+    process: ProcessSourcesUseCase = Depends(  # noqa: B008
+        use_case(Container.process_sources_use_case),  # noqa: B008
+    ),
+    detached: DetachedUseCases = Depends(get_detached_use_cases),  # noqa: B008
 ) -> StartedSourcesDTO:
-    result = container.process_sources_use_case(session).start(
-        list(dict.fromkeys(request.source_ids)),
-    )
-    session.commit()
-    _launch(result.started, container, session_factory)
+    result = process.start(list(dict.fromkeys(request.source_ids)))
+    _launch(result.started, detached)
     return result
 
 
 @router.post("/delete-batch")
 def delete_batch(
     request: SourceIdsRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    delete: DeleteSourcesUseCase = Depends(  # noqa: B008
+        use_case(Container.delete_sources_use_case),  # noqa: B008
+    ),
 ) -> DeletedSourcesDTO:
-    result = container.delete_sources_use_case(session).execute(
-        list(dict.fromkeys(request.source_ids)),
-    )
-    session.commit()
-    return result
+    return delete.execute(list(dict.fromkeys(request.source_ids)))
 
 
-def _launch(
-    source_ids: list[int], container: Container, session_factory: sessionmaker[Session],
-) -> None:
+def _launch(source_ids: list[int], detached: DetachedUseCases) -> None:
     for source_id in source_ids:
-        in_background(_process_background(source_id, container, session_factory))
+        in_background(_process_background(source_id, detached))
 
 
 @router.patch("/{source_id}/title")
 def rename_source(
     source_id: int,
     request: UpdateTitleRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    rename: RenameSourceUseCase = Depends(  # noqa: B008
+        use_case(Container.rename_source_use_case),  # noqa: B008
+    ),
 ) -> dict[str, Any]:
     try:
-        use_case = container.rename_source_use_case(session)
-        use_case.execute(source_id, request.title)
-        session.commit()
+        rename.execute(source_id, request.title)
         return {"id": source_id, "title": request.title.strip()}
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -305,14 +306,13 @@ def rename_source(
 @router.post("/{source_id}/process", status_code=202)
 async def process_source(
     source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-    session_factory: sessionmaker[Session] = Depends(get_session_factory),  # noqa: B008
+    process: ProcessSourceUseCase = Depends(  # noqa: B008
+        use_case(Container.process_source_use_case),  # noqa: B008
+    ),
+    detached: DetachedUseCases = Depends(get_detached_use_cases),  # noqa: B008
 ) -> dict[str, str]:
     try:
-        use_case = container.process_source_use_case(session)
-        use_case.start(source_id)
-        session.commit()
+        process.start(source_id)
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except (
@@ -320,60 +320,35 @@ async def process_source(
     ) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
-    in_background(_process_background(source_id, container, session_factory))
+    in_background(_process_background(source_id, detached))
     return {"status": "processing"}
 
 
-async def _process_background(
-    source_id: int,
-    container: Container,
-    session_factory: sessionmaker[Session],
-) -> None:
-    entered = False
-    bg_session: Session | None = None
+async def _process_background(source_id: int, detached: DetachedUseCases) -> None:
+    ran = False
     try:
-        bg_session = session_factory()
-        use_case = container.process_source_use_case(bg_session)
-        entered = True
-        await asyncio.to_thread(use_case.execute, source_id)
-        bg_session.commit()
+        with detached.open(Container.process_source_use_case) as process:
+            ran = True
+            await asyncio.to_thread(process.execute, source_id)
     except Exception:
         logger.exception("Background processing failed (source_id=%d)", source_id)
-        if bg_session is not None:
-            bg_session.rollback()
-        if not entered:
-            free_source(source_id, session_factory)
-        # Mark source as ERROR in a fresh session
-        err_session: Session = session_factory()
+        error = traceback.format_exc()[-ERROR_DETAIL_LENGTH:]
         try:
-            import traceback
-            error_detail = traceback.format_exc()
-            from backend.infrastructure.persistence.sqla_source_repository import (
-                SqlaSourceRepository,
-            )
-            repo = SqlaSourceRepository(err_session)
-            repo.update_status(source_id, SourceStatus.ERROR, error_message=error_detail[-500:])
-            err_session.commit()
+            with detached.open(Container.process_source_use_case) as process:
+                process.fail(source_id, error, never_ran=not ran)
         except Exception:
             logger.exception("Failed to mark source %d as ERROR", source_id)
-            err_session.rollback()
-        finally:
-            err_session.close()
-    finally:
-        if bg_session is not None:
-            bg_session.close()
 
 
 @router.delete("/{source_id}", status_code=204)
 def delete_source(
     source_id: int,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    delete: DeleteSourceUseCase = Depends(  # noqa: B008
+        use_case(Container.delete_source_use_case),  # noqa: B008
+    ),
 ) -> None:
     try:
-        use_case = container.delete_source_use_case(session)
-        use_case.execute(source_id)
-        session.commit()
+        delete.execute(source_id)
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except (SourceIsProcessingError, PermanentSourceError) as e:
@@ -384,14 +359,18 @@ def delete_source(
 def add_manual_candidate(
     source_id: int,
     request: AddManualCandidateRequest,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
-) -> CardDTO:
+    add_manual: AddManualCandidateUseCase = Depends(  # noqa: B008
+        use_case(Container.add_manual_candidate_use_case),  # noqa: B008
+    ),
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    mutation: ReviewMutation = Depends(use_case(Container.review_mutation)),  # noqa: B008
+) -> ReviewUpdateDTO:
+    """A word added from the source's text on the review: its card takes the focus."""
     try:
-        use_case = container.add_manual_candidate_use_case(session)
-        result = use_case.execute(source_id, request.target_words, request.selection)
-        session.commit()
-        return result
+        with review_expired():
+            return mutation.add(ctx, lambda: add_manual.execute(
+                source_id, request.target_words, request.selection,
+            ))
     except (SourceNotFoundError, SourceHasNoDocumentError) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except SourceOperationBusyError as e:

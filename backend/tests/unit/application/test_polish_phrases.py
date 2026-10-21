@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import replace
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
@@ -28,6 +29,8 @@ from tests.phrase_support import make_occurrence, phrase
 from tests.word_support import phrase_id_of
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from backend.domain.value_objects.phrase import Phrase
 
 _CONFIG = PromptsConfig(
@@ -109,7 +112,9 @@ def _use_case(
     source: Source | None = None,
     *,
     holds: bool = True,
+    journal: list[str] | None = None,
 ) -> tuple[PhrasePolishUseCase, MagicMock, MagicMock, MagicMock]:
+    """`journal` gets "read" for each answer read and "write" for the write it lands in."""
     job_phrases = MagicMock()
     job_phrases.cards.return_value = candidates
     job_phrases.holds.return_value = holds
@@ -123,8 +128,20 @@ def _use_case(
     reset = MagicMock()
     document_repo = MagicMock()
     document_repo.get.return_value = _DOCUMENT
+    steps = journal if journal is not None else []
     reader = MagicMock()
-    reader.read_for.side_effect = _read_for
+    reader.read_for.side_effect = lambda text, lemma: steps.append("read") or _read_for(
+        text, lemma,
+    )
+    unit_of_work = MagicMock()
+
+    @contextmanager
+    def write() -> Iterator[None]:
+        steps.append("write")
+        yield
+        steps.append("commit")
+
+    unit_of_work.write = write
     stamper = MagicMock()
     stamper.earned.return_value = CandidateSection.EXTRA
     use_case = PhrasePolishUseCase(
@@ -138,6 +155,7 @@ def _use_case(
         prompts_config=_CONFIG,
         rewrite_phrase=RewritePhrase(reader, occurrence_repo, stamper),
         stamper=stamper,
+        unit_of_work=unit_of_work,
     )
     return use_case, occurrence_repo, ai_service, reset
 
@@ -151,6 +169,19 @@ def test_stores_polished_phrase_and_drops_old_enrichments() -> None:
 
     assert _polished(repo) == [(P1, easy)]
     reset.reset_phrase.assert_called_once_with(P1)
+
+
+@pytest.mark.unit
+def test_answers_are_read_before_the_write_opens() -> None:
+    journal: list[str] = []
+    use_case, repo, _, _ = _use_case(
+        [_candidate()], [PolishedPhrase(1, "People abandoned the old barn.")], journal=journal,
+    )
+
+    use_case.execute_batch(_refs(P1))
+
+    assert journal == ["read", "write", "commit"]
+    assert len(_polished(repo)) == 1
 
 
 @pytest.mark.unit

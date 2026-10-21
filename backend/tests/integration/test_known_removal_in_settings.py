@@ -11,7 +11,6 @@ from backend.domain.value_objects.source_operation_kind import SourceOperationKi
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
-from backend.infrastructure.persistence.models import KnownWordModel
 from backend.infrastructure.persistence.sqla_source_operation_lock import (
     SqlaSourceOperationLock,
 )
@@ -20,6 +19,9 @@ from sqlalchemy import StaticPool, create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.integration.conftest import insert_source
+from tests.projection_support import rebuild_projection
+from tests.review_window_support import review_list
+from tests.word_marks_support import insert_known
 from tests.word_support import bind, insert_word, phrase_id_of
 
 pytestmark = pytest.mark.integration
@@ -42,6 +44,7 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
     with sessionmaker(bind=engine)() as session:
         _seed(session)
         session.commit()
+        rebuild_projection(session)
     yield sessionmaker(bind=engine)
     engine.dispose()
 
@@ -64,9 +67,8 @@ def _seed(session: Session) -> None:
     insert_source(session, HERE)
     insert_source(session, THERE)
     insert_source(session, ELSEWHERE)
-    session.add(KnownWordModel(lemma="glare", pos="NOUN"))
-    session.add(KnownWordModel(lemma="spark", pos="NOUN"))
-    session.add(KnownWordModel(lemma="spark", pos="VERB"))
+    insert_known(session, "glare", "NOUN")
+    insert_known(session, "spark", "NOUN", "VERB")
     session.flush()
     insert_word(session, CHOSEN, source_id=HERE, lemma="glare", status="known")
     insert_word(session, BOUND, source_id=ELSEWHERE, lemma="glare", status="learn")
@@ -79,7 +81,7 @@ def _seed(session: Session) -> None:
 
 
 def _card(client: TestClient, source_id: int, word_id: int) -> Json:
-    cards = client.get("/api/review/candidates", params={"scope": f"source-{source_id}"}).json()
+    cards = review_list(client, f"source-{source_id}")
     return next(card for card in cards if card["word_id"] == word_id)
 
 

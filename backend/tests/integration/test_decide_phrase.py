@@ -24,6 +24,7 @@ from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
@@ -36,7 +37,8 @@ from sqlalchemy import text
 from tests.decision_support import NOW, Decisions
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
-from tests.word_support import bind, insert_word, phrase_id_of
+from tests.word_marks_support import insert_known, insert_unknown, known_rows, unknown_lemmas
+from tests.word_support import bind, decision_status_of, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -59,8 +61,8 @@ class Bench:
     def __init__(self, session: Session) -> None:
         self.session = session
         insert_word(session, WORD, lemma=LEMMA, pos="VERB", phrase_text="He glared at me.")
-        self.occurrences = SqlaOccurrenceRepository(session)
-        self.clozes = SqlaCandidateClozeRepository(session)
+        self.occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
+        self.clozes = SqlaCandidateClozeRepository(session, SessionChangeRecorder(session))
         self.second = self._add_phrase("She glared back.")
         self.decisions = Decisions(session)
 
@@ -81,9 +83,7 @@ class Bench:
         self.decisions = self.decisions.request(NOW + timedelta(days=days))
 
     def status(self, word_id: int = WORD) -> str:
-        return str(self.session.execute(
-            text("SELECT status FROM candidates WHERE id = :id"), {"id": word_id},
-        ).scalar_one())
+        return decision_status_of(self.session, word_id)
 
     def choice(self, phrase_id: int) -> CardChoice:
         return CardChoice(self.session.execute(
@@ -109,31 +109,22 @@ class Bench:
         ).scalar_one())
 
     def known(self) -> set[tuple[str, str | None]]:
-        return {
-            (str(lemma), pos) for lemma, pos in self.session.execute(
-                text("SELECT lemma, pos FROM known_words"),
-            )
-        }
+        return known_rows(self.session)
+
+    def unknown(self) -> set[str]:
+        return unknown_lemmas(self.session)
+
+    def list_unknown(self) -> None:
+        insert_unknown(self.session, LEMMA)
 
     def list_known(self, *pos: str | None) -> None:
-        for one in pos:
-            self.session.execute(
-                text(
-                    "INSERT INTO known_words (lemma, pos, created_at)"
-                    " VALUES (:l, :p, '2026-01-01')"
-                ),
-                {"l": LEMMA, "p": one},
-            )
+        insert_known(self.session, LEMMA, *pos)
 
     def in_anki(self, phrase_id: int, choice: CardChoice, *, since: str = FRESH) -> None:
         """The card, decided `choice`, as an export left it."""
         self.session.execute(
             text("UPDATE phrases SET choice = :c WHERE id = :id"),
             {"c": choice.value, "id": phrase_id},
-        )
-        self.session.execute(
-            text("UPDATE candidates SET status = :s WHERE id = :id"),
-            {"s": "known" if choice is CardChoice.KNOWN else "learn", "id": WORD},
         )
         bind(self.session, WORD, phrase_id, lemma=LEMMA, since=since)
 
@@ -244,19 +235,67 @@ def test_a_press_for_the_user_leaves_a_card_decided_elsewhere_as_it_is(
     assert bench.status() == "pending"
 
 
-def test_learn_on_a_word_marked_unknown_but_learning_elsewhere_is_allowed(
-    bench: Bench, db_session: Session,
+# ── a word is never Unknown and decided Learn at once (spec §1) ─────────
+
+
+@pytest.mark.parametrize("button", [LEARN, Press.CLOZE])
+def test_learn_or_cloze_on_an_unknown_word_takes_it_out_of_unknown(
+    bench: Bench, button: Press,
 ) -> None:
-    """Unknown > Known > learning: the user's "I don't know it" wins here too."""
-    insert_source(db_session, OTHER_SOURCE)
-    insert_word(db_session, OTHER_WORD, source_id=OTHER_SOURCE, lemma=LEMMA, status="learn")
-    db_session.execute(text(
-        "INSERT INTO unknown_words (lemma, created_at) VALUES ('glare', '2026-01-01')"
-    ))
+    bench.list_unknown()
+
+    bench.press(FIRST, button)
+
+    assert (bench.status(), bench.choice(FIRST)) == ("learn", CardChoice(button.value))
+    assert bench.unknown() == set()
+
+
+def test_known_on_an_unknown_word_takes_it_out_of_unknown(bench: Bench) -> None:
+    bench.list_unknown()
+
+    bench.press(FIRST, KNOWN)
+
+    assert bench.status() == "known"
+    assert bench.unknown() == set()
+
+
+def test_skip_on_an_unknown_word_leaves_it_unknown(bench: Bench) -> None:
+    bench.list_unknown()
+
+    bench.press(FIRST, SKIP)
+
+    assert bench.unknown() == {LEMMA}
+
+
+def test_undo_of_learn_does_not_bring_unknown_back(bench: Bench) -> None:
+    bench.list_unknown()
+    bench.press(FIRST, LEARN)
 
     bench.press(FIRST, LEARN)
 
+    assert (bench.status(), bench.choice(FIRST)) == ("pending", CardChoice.NONE)
+    assert bench.unknown() == set()
+
+
+def test_a_saved_phrase_learn_takes_the_word_out_of_unknown(bench: Bench) -> None:
+    """Saved phrases press Learn for the user."""
+    bench.list_unknown()
+
+    bench.decisions.decide_phrase().press_unless_done(FIRST, LEARN)
+
     assert bench.status() == "learn"
+    assert bench.unknown() == set()
+
+
+def test_a_saved_cloze_takes_the_word_out_of_unknown(bench: Bench) -> None:
+    """Saving a cloze presses Cloze for the user."""
+    bench.list_unknown()
+    bench.session.commit()
+
+    bench.decisions.save_cloze().execute(FIRST, "He glared at me.", [1], ClozeHintKind.NONE, None)
+
+    assert bench.choice(FIRST) is CardChoice.CLOZE
+    assert bench.unknown() == set()
 
 
 def test_cloze_markup_survives_every_decision_change(bench: Bench) -> None:
@@ -458,7 +497,9 @@ def test_a_refusal_with_no_reason_in_the_table_is_a_rule_gap(
 
 
 def _studied_at(bench: Bench) -> datetime | None:
-    return SqlaCandidateRepository(bench.session).last_studied([1]).get(1)
+    return SqlaCandidateRepository(
+        bench.session, SessionChangeRecorder(bench.session),
+    ).last_studied([1]).get(1)
 
 
 @pytest.mark.parametrize("button", list(Press))

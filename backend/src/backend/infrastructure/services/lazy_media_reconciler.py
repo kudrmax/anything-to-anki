@@ -6,12 +6,13 @@ import os
 import re
 from typing import TYPE_CHECKING
 
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session, sessionmaker
+    from backend.infrastructure.persistence.session_work import SessionWork
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +35,8 @@ class LazyMediaReconciler:
     blast radius equal to the user's actual loss.
     """
 
-    def __init__(self, session_factory: sessionmaker[Session], media_root: str) -> None:
-        self._session_factory = session_factory
+    def __init__(self, work: SessionWork, media_root: str) -> None:
+        self._work = work
         self._media_root = media_root
         self._in_progress: set[tuple[int, str]] = set()
         self._lock = asyncio.Lock()
@@ -73,13 +74,12 @@ class LazyMediaReconciler:
         if os.path.exists(full):
             return
 
-        session = self._session_factory()
-        try:
-            SqlaCandidateMediaRepository(session).clear_missing_file(full)
-            session.commit()
-            logger.warning(
-                "LazyReconcile: cleared the rows pointing at %s (source %d, file missing)",
-                full, source_id,
-            )
-        finally:
-            session.close()
+        self._work.write(
+            lambda session: SqlaCandidateMediaRepository(
+                session, SessionChangeRecorder(session),
+            ).clear_missing_file(full),
+        )
+        logger.warning(
+            "LazyReconcile: cleared the rows pointing at %s (source %d, file missing)",
+            full, source_id,
+        )

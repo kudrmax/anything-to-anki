@@ -203,26 +203,49 @@ def _shown(
 # --- the view ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class CardStatus:
+    """What a card reads as, without its buttons."""
+
+    shown: Shown
+    wants_generation: bool
+
+    @property
+    def is_done(self) -> bool:
+        return self.shown.is_done
+
+
+def card_status(
+    word: WordState, card_id: int, lemma: LemmaKnowledge, elsewhere: ElsewhereStatus | None,
+    now: datetime,
+) -> CardStatus:
+    card = word.card(card_id)
+    role = role_of(word, card)
+    open_elsewhere = _open_elsewhere(role, elsewhere)
+    return CardStatus(
+        shown=_shown(word, card, open_elsewhere, lemma, now),
+        wants_generation=(
+            (role is Role.DECISION and in_export_queue(word, lemma, now))
+            or (role is Role.OPEN and card.choice is CardChoice.NONE and open_elsewhere is None)
+        ),
+    )
+
+
 def card_view(
     word: WordState, card_id: int, lemma: LemmaKnowledge, elsewhere: ElsewhereStatus | None,
     now: datetime,
 ) -> CardView:
     card = word.card(card_id)
-    role = role_of(word, card)
-    open_elsewhere = _open_elsewhere(role, elsewhere)
-    shown = _shown(word, card, open_elsewhere, lemma, now)
-    shown_press = _shown_press(word, shown)
+    status = card_status(word, card_id, lemma, elsewhere, now)
+    shown_press = _shown_press(word, status.shown)
     return CardView(
         card_id=card_id,
         buttons=tuple(
             _button(word, card, button, shown_press, lemma, elsewhere, now) for button in Press
         ),
         can_edit_cloze=card.choice is CardChoice.CLOZE and not in_anki(card),
-        shown=shown,
-        wants_generation=(
-            (role is Role.DECISION and in_export_queue(word, lemma, now))
-            or (role is Role.OPEN and card.choice is CardChoice.NONE and open_elsewhere is None)
-        ),
+        shown=status.shown,
+        wants_generation=status.wants_generation,
     )
 
 
@@ -264,19 +287,19 @@ def chosen_to_learn(word: WordState) -> bool:
     return decision_status(word) in CHOSEN_TO_LEARN
 
 
-# A word's decision status as stored in `candidates.status`, which reads it as a WordStatus.
+# A word's decision status as a read of its decision card gives it, as a WordStatus.
 _STORED: Mapping[DecisionStatus, WordStatus] = MappingProxyType(
     {status: WordStatus(status.value) for status in DecisionStatus},
 )
 
 
 def stored_decided(stored: WordStatus) -> bool:
-    """The stored decision status says the word is decided here."""
+    """The word's decision status says it is decided here."""
     return stored is not WordStatus.NEW
 
 
 def stored_chosen_to_learn(stored: WordStatus) -> bool:
-    """`chosen_to_learn` of the word whose stored decision status this is."""
+    """`chosen_to_learn` of the word whose decision status this is."""
     return DecisionStatus(stored.value) in CHOSEN_TO_LEARN
 
 
@@ -333,11 +356,19 @@ def wants_ready_generation(wants_generation: bool, section: CandidateSection) ->
 
 def progress(sections: Iterable[CandidateSection]) -> DecisionProgress:
     """Reviewed / (Reviewed + open Ready)."""
-    listed = list(sections)
-    reviewed = listed.count(CandidateSection.REVIEWED)
-    return DecisionProgress(
-        decided=reviewed, total=reviewed + listed.count(CandidateSection.READY),
-    )
+    return counted_progress((section, 1) for section in sections)
+
+
+def counted_progress(counts: Iterable[tuple[CandidateSection, int]]) -> DecisionProgress:
+    """`progress` of cards counted by section: each pair is a section and how many cards
+    stand in it."""
+    reviewed = ready = 0
+    for section, count in counts:
+        if section is CandidateSection.REVIEWED:
+            reviewed += count
+        elif section is CandidateSection.READY:
+            ready += count
+    return DecisionProgress(decided=reviewed, total=reviewed + ready)
 
 
 _REACH: Mapping[tuple[bool, bool], ReviewReach] = MappingProxyType(

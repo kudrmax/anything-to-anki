@@ -19,8 +19,3 @@ class TestVocabulary:
         vocabulary = Vocabulary.of(known={"make up"}, unknown=set())
         assert vocabulary.is_known("make up") is True
         assert vocabulary.is_known("make") is False
-
-    def test_word_in_both_lists_is_unknown(self) -> None:
-        vocabulary = Vocabulary.of(known={"lurk"}, unknown={"lurk"})
-        assert vocabulary.is_known("lurk") is False
-        assert vocabulary.is_unknown("lurk") is True

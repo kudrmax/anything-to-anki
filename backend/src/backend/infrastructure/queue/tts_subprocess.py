@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING
 from backend.domain.exceptions import CancelledByUserError
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
-from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.queue.claimed_run import ClaimedRun
 
 if TYPE_CHECKING:
@@ -26,39 +25,37 @@ if TYPE_CHECKING:
 
     from backend.domain.entities.job import Job
     from backend.infrastructure.container import Container
+    from backend.infrastructure.persistence.sqla_job_queue import SqlaJobQueue
 
 logger = logging.getLogger(__name__)
 
 TTS_ONLY: frozenset[JobType] = frozenset({JobType.TTS})
 
 
-def _claim_next_tts(container: Container) -> Job | None:
-    with container.session_scope() as session:
-        run = SqlaJobRepository(session).claim_next_run({}, accepted_types=TTS_ONLY)
+def _claim_next_tts(queue: SqlaJobQueue) -> Job | None:
+    run = queue.claim_next_run({}, accepted_types=TTS_ONLY)
     return run[0] if run else None
 
 
-def _process(container: Container, job: Job) -> None:
+def _process(container: Container, queue: SqlaJobQueue, job: Job) -> None:
     logger.info("TTS job %d: phrase %s", job.id, job.phrase_id)
-    run = ClaimedRun(container, [job])
+    run = ClaimedRun(queue, [job])
     error: str | None = None
     try:
-        with run.session() as session:
+        with run.use_case(container.generate_tts_use_case) as tts:
             for phrase in run.phrases:
-                container.generate_tts_use_case(session).execute_one(phrase)
-    except CancelledByUserError:
-        logger.info("TTS job %d cancelled, result dropped", job.id)
+                tts.execute_one(phrase)
+    except CancelledByUserError as cancelled:
+        logger.info("TTS job %d cancelled: %s", job.id, cancelled)
         return
     except Exception as exc:
         logger.exception("TTS job %d failed", job.id)
         error = f"{type(exc).__name__}: {exc}"
-    with container.session_scope() as session:
-        repo = SqlaJobRepository(session)
-        if error is None:
-            repo.complete([job])
-        else:
-            assert job.id is not None
-            repo.fail([job.id], error)
+    if error is None:
+        queue.complete([job])
+    else:
+        assert job.id is not None
+        queue.fail([job.id], error)
 
 
 def process_tts_run(
@@ -69,18 +66,18 @@ def process_tts_run(
     """Process the given claimed job, then TTS jobs while they head the queue.
     Stops early once the worker that spawned it is gone: the next worker owns
     the queue then. Returns how many jobs were processed."""
-    with container.session_scope() as session:
-        job = SqlaJobRepository(session).get(first_job_id)
+    queue = container.job_queue()
+    job = queue.get(first_job_id)
     if job is not None and job.status is not JobStatus.RUNNING:
         job = None  # cancelled before the subprocess started
     processed = 0
     while job is not None:
-        _process(container, job)
+        _process(container, queue, job)
         processed += 1
         if not worker_alive():
             logger.warning("Worker is gone, TTS subprocess stops")
             break
-        job = _claim_next_tts(container)
+        job = _claim_next_tts(queue)
     return processed
 
 

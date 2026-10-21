@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.projection_support import rebuild_projection
+from tests.review_support import on_review
 from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -119,6 +121,7 @@ def seeded(db_session: Session) -> None:
     _insert_job(db_session, 30, 3, 1, "queued")
     _insert_job(db_session, 40, 4, 1, "failed")
     db_session.commit()
+    rebuild_projection(db_session)
 
 
 SECOND_PHRASE = phrase_id_of(2)
@@ -126,6 +129,14 @@ _SELECTION = {
     "start_block": 0, "start_line": 0, "start_char": 0,
     "end_block": 0, "end_line": 0, "end_char": 5,
 }
+
+
+def _queued(db_session: Session) -> int:
+    """The meaning jobs on their way."""
+    count: int = db_session.execute(text(
+        "SELECT count(*) FROM jobs WHERE job_type = 'meaning' AND status = 'queued'"
+    )).scalar_one()
+    return count
 
 
 def _meaning_status(client: TestClient) -> dict[str, object]:
@@ -149,6 +160,7 @@ def in_collection(db_session: Session) -> None:
         text("UPDATE sources SET collection_id = :c WHERE id IN (1, 2)"), {"c": COLLECTION},
     )
     db_session.commit()
+    rebuild_projection(db_session)
 
 
 def _hold(session: Session, source_id: int, kind: str) -> None:
@@ -166,16 +178,19 @@ class TestGenerationOnASet:
         self, client: TestClient, db_session: Session,
     ) -> None:
         _hold(db_session, 1, "update")
-        response = client.post(
-            "/api/review/generation/meaning", params={"scope": "7", "cards": "missing"},
+        response = on_review(
+            client, "POST", "/api/review/generation/meaning",
+            params={"scope": "7", "cards": "missing"},
         )
-        assert response.json() == {"enqueued": 1}
+        assert response.status_code == 202
+        assert _queued(db_session) == 2
 
     def test_all_sources_busy_is_409(self, client: TestClient, db_session: Session) -> None:
         _hold(db_session, 1, "update")
         _hold(db_session, 2, "update")
-        response = client.post(
-            "/api/review/generation/meaning", params={"scope": "7", "cards": "missing"},
+        response = on_review(
+            client, "POST", "/api/review/generation/meaning",
+            params={"scope": "7", "cards": "missing"},
         )
         assert response.status_code == 409
 
@@ -185,15 +200,19 @@ class TestGenerationOnASet:
         assert (meaning["total"], meaning["missing"]) == (5, 2)
         assert status["in_progress"] is True
 
-    def test_cancel_covers_the_set(self, client: TestClient) -> None:
-        response = client.post("/api/review/generation/meaning/cancel", params={"scope": "7"})
-        assert response.json() == {"cancelled": 1}
+    def test_cancel_covers_the_set(self, client: TestClient, db_session: Session) -> None:
+        response = on_review(
+            client, "POST", "/api/review/generation/meaning/cancel", params={"scope": "7"},
+        )
+        assert response.status_code == 200
+        assert _queued(db_session) == 0
 
     def test_unsorted_is_400(self, client: TestClient) -> None:
         status = client.get("/api/review/generation", params={"scope": "unsorted"})
         assert status.status_code == 400
-        assert client.post(
-            "/api/review/generation/meaning", params={"scope": "unsorted", "cards": "missing"},
+        assert on_review(
+            client, "POST", "/api/review/generation/meaning",
+            params={"scope": "unsorted", "cards": "missing"},
         ).status_code == 400
 
     def test_old_generation_routes_are_gone(self, client: TestClient) -> None:
@@ -217,38 +236,57 @@ class TestGenerationApi:
             "blocked_by": None, "videos_to_download": 0,
         }
 
-    def test_generate_missing_then_retry_failed(self, client: TestClient) -> None:
-        missing = client.post("/api/review/generation/meaning?scope=source-1&cards=missing")
+    def test_generate_missing_then_retry_failed(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        missing = on_review(
+            client, "POST", "/api/review/generation/meaning?scope=source-1&cards=missing",
+        )
         assert missing.status_code == 202
-        assert missing.json() == {"enqueued": 1}
+        assert _queued(db_session) == 2
 
-        failed = client.post("/api/review/generation/meaning?scope=source-1&cards=failed")
-        assert failed.json() == {"enqueued": 1}
+        failed = on_review(
+            client, "POST", "/api/review/generation/meaning?scope=source-1&cards=failed",
+        )
+        assert failed.status_code == 202
+        assert _queued(db_session) == 3
 
         status = _meaning_status(client)
         assert (status["done"], status["running"], status["failed"], status["missing"]) == (
             1, 3, 0, 0,
         )
 
-    def test_regenerate_all_drops_old_meanings(self, client: TestClient) -> None:
-        response = client.post("/api/review/generation/meaning?scope=source-1&cards=all")
+    def test_regenerate_all_drops_old_meanings(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        response = on_review(
+            client, "POST", "/api/review/generation/meaning?scope=source-1&cards=all",
+        )
 
-        assert response.json() == {"enqueued": 3}
+        assert response.status_code == 202
+        assert _queued(db_session) == 4
         status = _meaning_status(client)
         assert (status["done"], status["running"]) == (0, 4)
 
-    def test_cancel_stops_the_kind(self, client: TestClient) -> None:
-        response = client.post("/api/review/generation/meaning/cancel?scope=source-1")
+    def test_cancel_stops_the_kind(self, client: TestClient, db_session: Session) -> None:
+        response = on_review(
+            client, "POST", "/api/review/generation/meaning/cancel?scope=source-1",
+        )
 
-        assert response.json() == {"cancelled": 1}
+        assert response.status_code == 200
+        assert _queued(db_session) == 0
         assert _meaning_status(client)["running"] == 0
 
     def test_kind_the_source_has_no_use_for_is_400(self, client: TestClient) -> None:
-        response = client.post("/api/review/generation/media?scope=source-1&cards=missing")
+        response = on_review(
+            client, "POST", "/api/review/generation/media?scope=source-1&cards=missing",
+        )
         assert response.status_code == 400
 
     def test_unknown_scope_is_422(self, client: TestClient) -> None:
-        response = client.post("/api/review/generation/meaning?scope=source-1&cards=some")
+        response = on_review(
+            client, "POST", "/api/review/generation/meaning?scope=source-1&cards=some",
+        )
         assert response.status_code == 422
 
     def test_unknown_source_is_404(self, client: TestClient) -> None:
@@ -260,9 +298,13 @@ class TestGenerationApi:
     ) -> None:
         _hold(db_session, 1, "update")
 
-        response = client.post("/api/review/generation/meaning?scope=source-1&cards=missing")
+        response = on_review(
+            client, "POST", "/api/review/generation/meaning?scope=source-1&cards=missing",
+        )
         assert response.status_code == 409
-        assert client.post(f"/phrases/{SECOND_PHRASE}/generate-tts").status_code == 409
+        assert on_review(
+            client, "POST", f"/phrases/{SECOND_PHRASE}/generate-tts",
+        ).status_code == 409
         assert _meaning_status(client)["missing"] == 1
 
     @pytest.mark.parametrize(("method", "path", "body"), [
@@ -287,7 +329,7 @@ class TestGenerationApi:
         ))
         db_session.commit()
 
-        response = client.request(method, path, json=body)
+        response = on_review(client, method, path, json=body)
 
         assert response.status_code == 409, response.text
         phrase = db_session.execute(text(

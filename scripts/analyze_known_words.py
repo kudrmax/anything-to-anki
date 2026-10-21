@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +25,7 @@ from backend.infrastructure.adapters.cefrpy_cefr_source import CefrpyCEFRSource
 from backend.infrastructure.adapters.dict_cache.cefr_source import DictCacheCEFRSource
 from backend.infrastructure.adapters.dict_cache.reader import DictCacheReader
 from backend.infrastructure.adapters.wordfreq_frequency_provider import WordfreqFrequencyProvider
+from backend.infrastructure.persistence.database import open_query_only
 from dotenv import load_dotenv
 
 if TYPE_CHECKING:
@@ -38,6 +38,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 DB_PATH = PROJECT_ROOT / "data" / "app.db"
 USER_CEFR_LEVEL = "B1"
+ANY_POS_LABEL = "ANY"
 
 CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2", "UNKNOWN"]
 ZIPF_BIN_SIZE = 0.5
@@ -103,8 +104,11 @@ def _print_bar(label: str, count: int, max_count: int, width: int = 40) -> None:
 # --- load data ---
 
 def load_known_words() -> list[tuple[str, str]]:
-    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
-    rows = conn.execute("SELECT lemma, pos FROM known_words").fetchall()
+    conn = open_query_only(str(DB_PATH))
+    rows = conn.execute(
+        "SELECT lemma, pos FROM known_pos JOIN word_marks USING (lemma)"
+        " WHERE mark = 'known'"
+    ).fetchall()
     conn.close()
     return rows
 
@@ -266,7 +270,7 @@ def report_anomalies(words: list[WordInfo]) -> None:
     if low_zipf:
         for w in low_zipf:
             print(
-                f"      {w.lemma:<25s} {w.pos:<6s} "
+                f"      {w.lemma:<25s} {w.pos or ANY_POS_LABEL:<6s} "
                 f"CEFR={w.cefr}  Zipf={w.zipf:.2f}  ({w.decision_method})"
             )
     else:
@@ -277,7 +281,7 @@ def report_anomalies(words: list[WordInfo]) -> None:
     if unknown:
         for w in unknown:
             zipf_note = f"Zipf={w.zipf:.2f}" if w.zipf > 0 else "not in wordfreq"
-            print(f"      {w.lemma:<25s} {w.pos:<6s} {zipf_note}")
+            print(f"      {w.lemma:<25s} {w.pos or ANY_POS_LABEL:<6s} {zipf_note}")
     else:
         print("      (none)")
 
@@ -290,7 +294,7 @@ def report_anomalies(words: list[WordInfo]) -> None:
     if below_level:
         for w in below_level:
             print(
-                f"      {w.lemma:<25s} {w.pos:<6s} "
+                f"      {w.lemma:<25s} {w.pos or ANY_POS_LABEL:<6s} "
                 f"CEFR={w.cefr}  Zipf={w.zipf:.2f}  ({w.decision_method})"
             )
     else:

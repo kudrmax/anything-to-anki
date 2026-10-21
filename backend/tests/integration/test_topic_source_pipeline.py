@@ -30,6 +30,7 @@ from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.container import Container
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -37,9 +38,6 @@ from backend.infrastructure.persistence.sqla_candidate_repository import (
     SqlaCandidateRepository,
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -47,6 +45,9 @@ from backend.infrastructure.persistence.sqla_settings_repository import SqlaSett
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from backend.infrastructure.persistence.sqla_topic_target_repository import (
     SqlaTopicTargetRepository,
+)
+from backend.infrastructure.persistence.sqla_word_mark_repository import (
+    SqlaWordMarkRepository,
 )
 from sqlalchemy import text
 
@@ -76,7 +77,7 @@ def _add_source(
     status: SourceStatus = SourceStatus.DONE,
 ) -> int:
     """Content with a one-paragraph document, or a topic (no kind) asking for `text`."""
-    source = SqlaSourceRepository(session).create(
+    source = SqlaSourceRepository(session, SessionChangeRecorder(session)).create(
         Source(
             title=title,
             status=status,
@@ -91,6 +92,7 @@ def _add_source(
             source.id,
             Document((Paragraph(lines=(Line(text),), mode=ParagraphMode.FLOW),)),
         )
+    session.commit()
     return source.id
 
 
@@ -124,12 +126,13 @@ def _add_topic(session: Session) -> int:
         TopicTarget(source_id=topic_id, position=i, phrase=target, example=example)
         for i, (target, example) in enumerate(examples)
     ])
+    session.commit()
     return topic_id
 
 
 def _by_lemma(session: Session, source_id: int) -> dict[str, Occurrence]:
     """The first shown phrase of each word of the source."""
-    occurrences = SqlaOccurrenceRepository(session)
+    occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
     lemmas = {w.id: w.lemma for w in occurrences.word_rows(source_id)}
     shown: dict[str, Occurrence] = {}
     for occ in occurrences.by_source(source_id):
@@ -155,7 +158,8 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
         db_session, "Subtitles", Kind.SUBTITLES, LATER_ARTICLE,
         status=SourceStatus.NEW,
     )
-    SqlaKnownWordRepository(db_session).add("salary", "NOUN")
+    marks = SqlaWordMarkRepository(db_session, SessionChangeRecorder(db_session))
+    marks.mark_known("salary", "NOUN")
     topic_id = _add_topic(db_session)
 
     use_case = container.process_source_use_case(db_session)
@@ -180,7 +184,7 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
     assert counter_offer.source_phrase.target_text() == "counter-offer"
     assert counter_offer.collected_from == PhraseOrigin.from_source("Subtitles")
 
-    topic = SqlaSourceRepository(db_session).get_by_id(topic_id)
+    topic = SqlaSourceRepository(db_session, SessionChangeRecorder(db_session)).get_by_id(topic_id)
     assert topic is not None
     assert topic.status == SourceStatus.DONE
 
@@ -195,10 +199,14 @@ def _processed_topic(db_session: Session, container: Container) -> int:
 
 
 def _texts(db_session: Session, topic_id: int, lemma: str) -> list[str]:
-    word_ids = {w.lemma: w.id for w in SqlaOccurrenceRepository(db_session).word_rows(topic_id)}
+    word_ids = {w.lemma: w.id for w in SqlaOccurrenceRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).word_rows(topic_id)}
     return [
         o.source_phrase.text
-        for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)
+        for o in SqlaOccurrenceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).by_source(topic_id)
         if o.candidate_id == word_ids[lemma]
     ]
 
@@ -219,7 +227,9 @@ def test_a_real_phrase_is_added_beside_an_untouched_generated_one(
     assert (summary.words_added, summary.phrases_added) == (0, 1)
     assert _texts(db_session, topic_id, "counter-offer") == [generated, LATER_ARTICLE]
     [added] = [
-        o for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)
+        o for o in SqlaOccurrenceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).by_source(topic_id)
         if o.source_phrase.text == LATER_ARTICLE
     ]
     assert added.origin is OccurrenceOrigin.COLLECTED
@@ -231,7 +241,7 @@ def test_a_generated_phrase_with_generation_stays_beside_the_real_one(
     db_session: Session, container: Container,
 ) -> None:
     topic_id = _processed_topic(db_session, container)
-    occurrences = SqlaOccurrenceRepository(db_session)
+    occurrences = SqlaOccurrenceRepository(db_session, SessionChangeRecorder(db_session))
     word_ids = {w.lemma: w.id for w in occurrences.word_rows(topic_id)}
     [generated] = [
         o for o in occurrences.by_source(topic_id) if o.candidate_id == word_ids["counter-offer"]
@@ -254,7 +264,9 @@ def test_a_generated_phrase_with_generation_stays_beside_the_real_one(
 
 
 def _give_meaning(db_session: Session, phrase_id: int, word_id: int) -> None:
-    SqlaCandidateMeaningRepository(db_session).upsert_for_phrase(phrase_id, CandidateMeaning(
+    SqlaCandidateMeaningRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).upsert_for_phrase(phrase_id, CandidateMeaning(
         candidate_id=word_id, meaning="a reply offer", translation=None,
         synonyms=None, examples=None, ipa=None, generated_at=None,
     ))
@@ -265,14 +277,10 @@ def test_refreshing_keeps_decisions_and_results(
     db_session: Session, container: Container,
 ) -> None:
     topic_id = _processed_topic(db_session, container)
-    occurrences = SqlaOccurrenceRepository(db_session)
+    occurrences = SqlaOccurrenceRepository(db_session, SessionChangeRecorder(db_session))
     before = {o.id: o for o in occurrences.by_source(topic_id)}
     word_ids = {w.lemma: w.id for w in occurrences.word_rows(topic_id)}
     decided = next(o for o in before.values() if o.candidate_id == word_ids["counter-offer"])
-    db_session.execute(
-        text("UPDATE candidates SET status = 'learn' WHERE id = :id"),
-        {"id": word_ids["counter-offer"]},
-    )
     db_session.execute(
         text("UPDATE phrases SET choice = 'learn' WHERE id = :id"), {"id": decided.id},
     )
@@ -298,7 +306,9 @@ def test_topic_and_refresh_phrases_are_stamped(
     db_session.commit()
     container.refresh_topic_use_case(db_session).execute(topic_id)
 
-    stored = SqlaOccurrenceRepository(db_session).by_source(topic_id)
+    stored = SqlaOccurrenceRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).by_source(topic_id)
     assert len(stored) > 1
     assert all(o.earned_section is CandidateSection.READY for o in stored)
 
@@ -307,7 +317,7 @@ def test_a_real_phrase_added_beside_a_generated_one_is_never_replaced(
     db_session: Session, container: Container,
 ) -> None:
     topic_id = _processed_topic(db_session, container)
-    occurrences = SqlaOccurrenceRepository(db_session)
+    occurrences = SqlaOccurrenceRepository(db_session, SessionChangeRecorder(db_session))
     word_ids = {w.lemma: w.id for w in occurrences.word_rows(topic_id)}
     [generated] = [
         o for o in occurrences.by_source(topic_id) if o.candidate_id == word_ids["counter-offer"]
@@ -316,7 +326,9 @@ def test_a_real_phrase_added_beside_a_generated_one_is_never_replaced(
     _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
     db_session.commit()
     container.refresh_topic_use_case(db_session).execute(topic_id)
-    SqlaCandidateMeaningRepository(db_session).delete_by_phrase_id(generated.id)
+    SqlaCandidateMeaningRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).delete_by_phrase_id(generated.id)
     db_session.commit()
     _add_source(db_session, "Reply", Kind.TEXT, ANOTHER_ARTICLE)
     db_session.commit()
@@ -357,12 +369,12 @@ def _refresh_use_case(
     collector.collect.return_value = collected
     use_case = container.refresh_topic_use_case(db_session)
     return RefreshTopicUseCase(
-        source_repo=SqlaSourceRepository(db_session),
-        occurrence_repo=SqlaOccurrenceRepository(db_session),
+        source_repo=SqlaSourceRepository(db_session, SessionChangeRecorder(db_session)),
+        occurrence_repo=SqlaOccurrenceRepository(db_session, SessionChangeRecorder(db_session)),
         collected_phrases=CollectedPhrases(
-            SqlaCandidateRepository(db_session),
-            SqlaOccurrenceRepository(db_session),
-            section_stamper(SqlaSettingsRepository(db_session)),
+            SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session)),
+            SqlaOccurrenceRepository(db_session, SessionChangeRecorder(db_session)),
+            section_stamper(SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session))),
         ),
         lock=use_case._lock,
         unit_of_work=use_case._unit_of_work,
@@ -375,12 +387,16 @@ def test_a_second_refresh_adds_nothing(db_session: Session, container: Container
     _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
     db_session.commit()
     container.refresh_topic_use_case(db_session).execute(topic_id)
-    before = [o.id for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)]
+    before = [o.id for o in SqlaOccurrenceRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).by_source(topic_id)]
 
     summary = container.refresh_topic_use_case(db_session).execute(topic_id)
 
     assert (summary.words_added, summary.phrases_added) == (0, 0)
-    assert [o.id for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)] == before
+    assert [o.id for o in SqlaOccurrenceRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).by_source(topic_id)] == before
 
 
 def test_only_a_topic_is_refreshed(db_session: Session, container: Container) -> None:
@@ -407,13 +423,17 @@ def test_refresh_does_not_restamp(db_session: Session, container: Container) -> 
     topic_id = _processed_topic(db_session, container)
     db_session.execute(text("UPDATE phrases SET earned_section = 'extra'"))
     db_session.commit()
-    stale = {o.id for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)}
+    stale = {o.id for o in SqlaOccurrenceRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).by_source(topic_id)}
 
     _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
     db_session.commit()
     container.refresh_topic_use_case(db_session).execute(topic_id)
 
     sections = {
-        o.id: o.earned_section for o in SqlaOccurrenceRepository(db_session).by_source(topic_id)
+        o.id: o.earned_section for o in SqlaOccurrenceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).by_source(topic_id)
     }
     assert {sections[i] for i in stale} == {CandidateSection.EXTRA}

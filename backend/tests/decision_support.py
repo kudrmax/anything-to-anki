@@ -13,20 +13,18 @@ from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.user_vocabulary import UserVocabulary
 from backend.domain.ports.clock import Clock
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
-from backend.infrastructure.persistence.sqla_known_word_repository import SqlaKnownWordRepository
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
-from backend.infrastructure.persistence.sqla_unknown_word_repository import (
-    SqlaUnknownWordRepository,
-)
+from backend.infrastructure.persistence.sqla_word_mark_repository import SqlaWordMarkRepository
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
@@ -52,6 +50,33 @@ class FixedClock(Clock):
         return self.moment
 
 
+def project(session: Session, now: datetime = NOW) -> None:
+    """The projection made from the facts as they are on the session, as the app keeps it:
+    what the screens and the export queue read."""
+    from backend.infrastructure.container import KNOWLEDGE_SCOPE_KEY, Container
+
+    session.info.pop(KNOWLEDGE_SCOPE_KEY, None)
+    Container(clock=FixedClock(now)).card_state_projector(session).rebuild()
+    session.info.pop(KNOWLEDGE_SCOPE_KEY, None)
+
+
+def project_words(session: Session) -> None:
+    """Only the words of the projection, made from the facts as they are on the session: what
+    the export queue reads, for a database whose cards the projection need not read."""
+    from backend.application.utils.card_state_calculator import CardStateCalculator
+    from backend.infrastructure.persistence.sqla_card_state_store import SqlaCardStateStore
+    from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
+
+    recorder = SessionChangeRecorder(session)
+    words = SqlaWordStateRepository(session, recorder)
+    SqlaCardStateStore(session).write_words([
+        CardStateCalculator.word(word)
+        for source in SqlaSourceRepository(session, recorder).list_all()
+        if source.id is not None
+        for word in words.of_source(source.id).values()
+    ])
+
+
 class Decisions:
     """One request over the session: one knowledge scope, its vocabulary and effects.
 
@@ -67,15 +92,15 @@ class Decisions:
         self.decision_repo = MagicMock()
         self.scope = KnowledgeScope(
             clock=self.clock,
-            known_word_repo=SqlaKnownWordRepository(session),
-            unknown_word_repo=SqlaUnknownWordRepository(session),
+            word_mark_repo=SqlaWordMarkRepository(session, SessionChangeRecorder(session)),
             learning_query=SqlaLearningQuery(session),
         )
         self.vocabulary = UserVocabulary(
-            SqlaKnownWordRepository(session), SqlaUnknownWordRepository(session), self.scope,
+            SqlaWordMarkRepository(session, SessionChangeRecorder(session)),
+            self.scope,
         )
-        self.word_states = SqlaWordStateRepository(session)
-        self.anki_sync = SqlaAnkiSyncRepository(session)
+        self.word_states = SqlaWordStateRepository(session, SessionChangeRecorder(session))
+        self.anki_sync = SqlaAnkiSyncRepository(session, SessionChangeRecorder(session))
 
     def request(self, now: datetime | None = None) -> Decisions:
         later = Decisions(self.session, now=now or self.clock.moment, lock=self.lock)
@@ -93,9 +118,15 @@ class Decisions:
 
     def save_cloze(self) -> SaveClozeUseCase:
         return SaveClozeUseCase(
-            occurrence_repo=SqlaOccurrenceRepository(self.session),
-            candidate_repo=SqlaCandidateRepository(self.session),
-            cloze_repo=SqlaCandidateClozeRepository(self.session),
+            occurrence_repo=SqlaOccurrenceRepository(
+                self.session, SessionChangeRecorder(self.session),
+            ),
+            candidate_repo=SqlaCandidateRepository(
+                self.session, SessionChangeRecorder(self.session),
+            ),
+            cloze_repo=SqlaCandidateClozeRepository(
+                self.session, SessionChangeRecorder(self.session),
+            ),
             card_views=MagicMock(),
             decide_phrase=self.decide_phrase(),
             builder=ClozeBuilder(),
@@ -105,8 +136,12 @@ class Decisions:
 
     def decide_phrase(self) -> DecidePhraseUseCase:
         return DecidePhraseUseCase(
-            occurrence_repo=SqlaOccurrenceRepository(self.session),
-            candidate_repo=SqlaCandidateRepository(self.session),
+            occurrence_repo=SqlaOccurrenceRepository(
+                self.session, SessionChangeRecorder(self.session),
+            ),
+            candidate_repo=SqlaCandidateRepository(
+                self.session, SessionChangeRecorder(self.session),
+            ),
             word_states=self.word_states,
             vocabulary=self.vocabulary,
             effects=self.effects(),

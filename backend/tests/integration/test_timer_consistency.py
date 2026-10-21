@@ -1,6 +1,6 @@
 """One `now` for every reader: 30 days after its export a word is Known on its card, in
 other sources, in the sections of other phrases, in the Known list and in the stats, at the
-same moment and with nothing written. A word in Unknown is never Known by its timer."""
+same moment and with nothing written."""
 from __future__ import annotations
 
 from collections.abc import Generator  # noqa: TC003
@@ -16,9 +16,7 @@ from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
 from backend.infrastructure.container import KNOWLEDGE_SCOPE_KEY
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
@@ -26,8 +24,8 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 from backend.infrastructure.persistence.sqla_source_operation_lock import (
     SqlaSourceOperationLock,
 )
-from backend.infrastructure.persistence.sqla_unknown_word_repository import (
-    SqlaUnknownWordRepository,
+from backend.infrastructure.persistence.sqla_word_mark_repository import (
+    SqlaWordMarkRepository,
 )
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, event, text
@@ -36,6 +34,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.decision_support import FixedClock
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
+from tests.review_window_support import review_list
 from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -47,8 +47,8 @@ pytestmark = pytest.mark.integration
 Json = Any
 
 HERE, THERE, BOARD = 1, 2, 3
-GLARE, SPARK = 1, 2                 # Learn in HERE, exported at EXPORTED
-GLARE_THERE, SPARK_THERE, DRIFT = 3, 4, 5
+GLARE = 1                           # Learn in HERE, exported at EXPORTED
+GLARE_THERE, DRIFT = 3, 5
 ECHO, BLIND = 6, 7                  # in BOARD: ECHO skipped, BLIND's phrase shows glare
 EXPORTED = datetime(2026, 9, 1, 12, tzinfo=UTC)
 DAY_30 = EXPORTED + LEARNING_KNOWN_AFTER
@@ -68,7 +68,7 @@ def moment() -> Moment:
 
 
 @pytest.fixture()
-def factory() -> Generator[sessionmaker[Session], None, None]:
+def factory(moment: Moment) -> Generator[sessionmaker[Session], None, None]:
     engine = create_engine(
         "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
     )
@@ -77,6 +77,8 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
     with sessionmaker(bind=engine)() as session:
         _seed(session)
         session.commit()
+        session.info[KNOWLEDGE_SCOPE_KEY] = _scope(session, FixedClock(moment.at))
+        rebuild_projection(session)
     yield sessionmaker(bind=engine)
     engine.dispose()
 
@@ -84,8 +86,7 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
 def _scope(session: Session, clock: Clock) -> KnowledgeScope:
     return KnowledgeScope(
         clock=clock,
-        known_word_repo=SqlaKnownWordRepository(session),
-        unknown_word_repo=SqlaUnknownWordRepository(session),
+        word_mark_repo=SqlaWordMarkRepository(session, SessionChangeRecorder(session)),
         learning_query=SqlaLearningQuery(session),
     )
 
@@ -109,15 +110,12 @@ def _seed(session: Session) -> None:
     since = EXPORTED.replace(tzinfo=None).isoformat(sep=" ")
     insert_source(session, HERE)
     insert_source(session, THERE)
-    for word_id, lemma in ((GLARE, "glare"), (SPARK, "spark")):
-        insert_word(session, word_id, source_id=HERE, lemma=lemma, status="learn")
-        bind(session, word_id, phrase_id_of(word_id), since=since)
-    SqlaUnknownWordRepository(session).add("spark")
+    insert_word(session, GLARE, source_id=HERE, lemma="glare", status="learn")
+    bind(session, GLARE, phrase_id_of(GLARE), since=since)
     insert_word(session, GLARE_THERE, source_id=THERE, lemma="glare")
-    insert_word(session, SPARK_THERE, source_id=THERE, lemma="spark")
     insert_word(session, DRIFT, source_id=THERE, lemma="drift")
     # Only the target is new once glare is known: Ready; while glare is learning: Extra.
-    SqlaOccurrenceRepository(session).write_text(
+    SqlaOccurrenceRepository(session, SessionChangeRecorder(session)).write_text(
         phrase_id_of(DRIFT),
         phrase("The glare drifts.", "drift", new=("glare", "drifts"),
                lemmas={"drifts": "drift"}),
@@ -126,7 +124,7 @@ def _seed(session: Session) -> None:
     insert_source(session, BOARD)
     insert_word(session, ECHO, source_id=BOARD, lemma="echo", status="skip")
     insert_word(session, BLIND, source_id=BOARD, lemma="blind")
-    occurrences = SqlaOccurrenceRepository(session)
+    occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
     occurrences.write_text(
         phrase_id_of(ECHO), phrase("The echo fades.", "echo", new=("echo",)), None,
         earned_section=CandidateSection.READY,
@@ -140,7 +138,7 @@ def _seed(session: Session) -> None:
 
 
 def _card(client: TestClient, source_id: int, word_id: int) -> Json:
-    cards = client.get("/api/review/candidates", params={"scope": f"source-{source_id}"}).json()
+    cards = review_list(client, f"source-{source_id}")
     return next(card for card in cards if card["word_id"] == word_id)
 
 
@@ -191,15 +189,6 @@ def test_at_day_29_every_reader_sees_the_word_learning(
     assert [(w["lemma"], w["known_on"][:10]) for w in learning["in_anki"]] == [
         ("glare", DAY_30.date().isoformat()),
     ]
-
-
-def test_a_word_in_unknown_is_never_known_by_its_timer(client: TestClient) -> None:
-    own = _card(client, HERE, SPARK)
-    assert own["shown"]["status"] == "learning"
-    assert _pressed(own) == ["learn"]
-    assert _card(client, THERE, SPARK_THERE)["shown"]["where"] == "nowhere"
-    assert "spark" not in {w["lemma"] for w in _known_list(client)}
-    assert _known_count(client) == 1
 
 
 @pytest.mark.parametrize("lemma", ["glare", "Glare"])

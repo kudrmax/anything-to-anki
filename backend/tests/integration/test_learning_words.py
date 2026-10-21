@@ -10,15 +10,16 @@ from backend.application.utils.export_queue import ExportQueue
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import dump_phrase
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
-from backend.infrastructure.persistence.sqla_known_word_repository import (
-    SqlaKnownWordRepository,
-)
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
+from backend.infrastructure.persistence.sqla_word_mark_repository import (
+    SqlaWordMarkRepository,
+)
 from sqlalchemy import text
 
 from tests.decision_support import NOW, Decisions
@@ -39,7 +40,7 @@ class Bench:
 
     def __init__(self, session: Session) -> None:
         self.session = session
-        self.known = SqlaKnownWordRepository(session)
+        self.known = SqlaWordMarkRepository(session, SessionChangeRecorder(session))
         self.learning = SqlaLearningQuery(session)
         self.decisions = Decisions(session)
 
@@ -79,7 +80,7 @@ def test_a_learn_word_waiting_for_export_is_learning(bench: Bench) -> None:
 
 def test_known_is_stronger_than_a_note_in_anki(bench: Bench) -> None:
     bench.exported_learn_word(1, "glare", NOTE)
-    bench.known.add("glare", None)
+    bench.known.mark_known("glare", None)
 
     assert bench.is_known("glare")
     assert not bench.is_learning("glare")
@@ -87,7 +88,7 @@ def test_known_is_stronger_than_a_note_in_anki(bench: Bench) -> None:
 
 def test_deleting_the_source_keeps_the_exported_word_learning(bench: Bench) -> None:
     bench.exported_learn_word(1, "glare", NOTE)
-    SqlaSourceRepository(bench.session).delete(1)
+    SqlaSourceRepository(bench.session, SessionChangeRecorder(bench.session)).delete(1)
     bench.session.flush()
 
     assert bench.is_learning("glare")
@@ -97,7 +98,7 @@ def test_a_deleted_sources_export_turns_the_word_known_by_its_timer(bench: Bench
     """Q13: the binding outlives its source (SET NULL); its timer still runs."""
     insert_word(bench.session, 1, lemma="glare", status=WordStatus.LEARN.value)
     bind(bench.session, 1, phrase_id_of(1), note_id=NOTE, since="2026-09-01 00:00:00")
-    SqlaSourceRepository(bench.session).delete(1)
+    SqlaSourceRepository(bench.session, SessionChangeRecorder(bench.session)).delete(1)
     bench.session.flush()
 
     orphan = bench.session.execute(text(
@@ -112,7 +113,7 @@ def test_the_learning_list_tells_words_in_anki_from_words_waiting(bench: Bench) 
     bench.exported_learn_word(1, "glare", NOTE)
     insert_word(bench.session, 2, lemma="linger", status=WordStatus.LEARN.value)
     insert_word(bench.session, 3, lemma="wander", status=WordStatus.LEARN.value)
-    bench.known.add("wander", None)
+    bench.known.mark_known("wander", None)
 
     learning = GetLearningWordsUseCase(bench.vocabulary).execute()
 
@@ -161,7 +162,8 @@ def test_a_decision_phrase_waits_for_export_though_another_phrase_was_exported(
     assert bench.learning.awaiting_export() == frozenset({"linger"})
     decisions = bench.decisions.request()
     queue = ExportQueue(
-        SqlaCandidateRepository(bench.session), SqlaOccurrenceRepository(bench.session),
+        SqlaCandidateRepository(bench.session, SessionChangeRecorder(bench.session)),
+        SqlaOccurrenceRepository(bench.session, SessionChangeRecorder(bench.session)),
         decisions.word_states, decisions.vocabulary,
     )
     batch = queue.for_sources([1])

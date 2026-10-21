@@ -7,9 +7,22 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.services.card_view import chosen_to_learn, in_export_queue, learning_in_anki
-from backend.domain.value_objects.card_choice import CardChoice, CardState, NoteKind, is_skipped
+from backend.domain.value_objects.card_choice import (
+    CardChoice,
+    CardState,
+    DecisionStatus,
+    NoteKind,
+    decision_status,
+    is_skipped,
+)
 from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
-from backend.infrastructure.persistence.models import PhraseModel, StoredCandidateModel
+from backend.infrastructure.persistence.models import (
+    WORD_DECISION_STATUS,
+    PhraseModel,
+    StoredCandidateModel,
+    WordStateModel,
+)
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
@@ -18,7 +31,7 @@ from backend.infrastructure.persistence.sqla_word_state_repository import (
 )
 from sqlalchemy import select, text
 
-from tests.decision_support import NOW
+from tests.decision_support import NOW, project_words
 from tests.integration.conftest import insert_source
 from tests.word_support import bind, insert_word, phrase_id_of
 
@@ -79,7 +92,7 @@ def _second_phrase(session: Session, word_id: int) -> int:
 
 
 def _store(session: Session, word_id: int, shape: Shape) -> WordState:
-    words = SqlaWordStateRepository(session)
+    words = SqlaWordStateRepository(session, SessionChangeRecorder(session))
     insert_word(session, word_id, source_id=shape.source_id)
     ids = [phrase_id_of(word_id)] + [_second_phrase(session, word_id) for _ in shape.cards[1:]]
     stored = words.of_word(word_id)
@@ -93,21 +106,38 @@ def _store(session: Session, word_id: int, shape: Shape) -> WordState:
             bind(session, word_id, card_id, note_id=word_id, kind=kind.value)
     bound = words.of_word(word_id)
     assert bound is not None
-    words.save(bound)  # the stored decision status follows the bindings, as an export does
     return bound
 
 
 @pytest.fixture
 def words(db_session: Session, source_id: int) -> dict[int, WordState]:
     insert_source(db_session, OTHER_SOURCE)
-    return {
+    stored = {
         word_id: _store(db_session, word_id, shape)
         for word_id, shape in enumerate(SHAPES, start=1)
     }
+    project_words(db_session)
+    return stored
 
 
-def _word_ids(session: Session, where: ColumnElement[bool]) -> set[int]:
-    return set(session.scalars(select(StoredCandidateModel.id).where(where)))
+def _projected_word_ids(session: Session, where: ColumnElement[bool]) -> set[int]:
+    return set(session.scalars(select(WordStateModel.word_id).where(where)))
+
+
+def _word_ids_of_cards(session: Session, where: ColumnElement[bool]) -> set[int]:
+    return set(session.scalars(select(PhraseModel.candidate_id).where(where)))
+
+
+def test_the_decision_status_in_sql_is_the_rule(
+    db_session: Session, words: dict[int, WordState],
+) -> None:
+    found = {
+        word_id: status for word_id, status in db_session.execute(
+            select(StoredCandidateModel.id, WORD_DECISION_STATUS),
+        )
+    }
+    assert found == {word_id: decision_status(word).value for word_id, word in words.items()}
+    assert set(found.values()) == {status.value for status in DecisionStatus}
 
 
 def test_the_stored_shapes_are_the_ones_meant(words: dict[int, WordState]) -> None:
@@ -124,8 +154,8 @@ def test_chosen_to_learn_in_sql_is_the_predicate(
     assert expected  # the fixtures hold words of both kinds
     assert expected != set(words)
 
-    assert _word_ids(db_session, StoredCandidateModel.chosen_to_learn()) == expected
-    candidates = SqlaCandidateRepository(db_session)
+    assert _projected_word_ids(db_session, WordStateModel.chosen_to_learn()) == expected
+    candidates = SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session))
     assert {w.id for w in candidates.chosen_to_learn()} == expected
     assert {w.id for w in candidates.chosen_to_learn([OTHER_SOURCE])} == {
         word_id for word_id in expected if words[word_id].source_id == OTHER_SOURCE
@@ -146,7 +176,7 @@ def test_in_export_queue_in_sql_is_the_predicate(
     }
     assert expected
 
-    assert _word_ids(db_session, StoredCandidateModel.in_export_queue()) == expected
+    assert _word_ids_of_cards(db_session, PhraseModel.awaits_export()) == expected
     assert SqlaLearningQuery(db_session).awaiting_export() == {
         words[word_id].lemma for word_id in expected
     }
@@ -158,16 +188,18 @@ def test_learning_in_anki_in_sql_is_the_predicate(
     expected = {word_id for word_id, word in words.items() if learning_in_anki(word)}
     assert expected
 
-    assert _word_ids(db_session, StoredCandidateModel.learning_in_anki()) == expected
-    assert SqlaCandidateRepository(db_session).count_learning_in_anki() == len(expected)
+    assert _projected_word_ids(db_session, WordStateModel.learning_in_anki()) == expected
+    assert SqlaCandidateRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).count_learning_in_anki() == len(expected)
 
 
 def test_a_learn_listed_known_since_leaves_the_queue_only_by_its_knowledge(
     db_session: Session, words: dict[int, WordState],
 ) -> None:
-    """Q15 is knowledge, not stored: the SQL form selects the Learn words, and the
-    predicate drops those whose lemma is in Known."""
-    stored = _word_ids(db_session, StoredCandidateModel.in_export_queue())
+    """Q15 is knowledge, not a fact of the card: the SQL form selects the Learn words, and
+    the predicate drops those whose lemma is in Known."""
+    stored = _word_ids_of_cards(db_session, PhraseModel.awaits_export())
 
     assert {
         word_id for word_id, word in words.items() if in_export_queue(word, LISTED_KNOWN, NOW)

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.entities.word_decision import WordDecision
+from backend.domain.exceptions import KnownRemovalLeftKnownError
 from backend.domain.services.decision_rules import Effect, on_known_removed
 from backend.domain.value_objects.anki_binding import AnkiBinding
 from backend.domain.value_objects.word_status import WordStatus
@@ -74,6 +75,7 @@ class DecisionEffects:
             Effect.CALIBRATE: self._calibrate,
             Effect.FORGET_CALIBRATION: self._forget_calibration,
             Effect.REMOVE_KNOWN: self._remove_known,
+            Effect.FORGET_UNKNOWN: self._forget_unknown,
         }
 
     def apply(
@@ -86,9 +88,21 @@ class DecisionEffects:
     def known_removed(
         self, lemma: str, knowledge_before: LemmaKnowledge, acting_word: int | None = None,
     ) -> None:
-        """§2.7 after Known of the lemma was removed some other way (a report's Unknown).
+        """§2.7 after Known of the lemma was removed some other way (the Known words list).
         `knowledge_before`: what the lemma was before the removal."""
         self._cascade(lemma, knowledge_before, acting_word)
+
+    def mark_unknown(self, lemma: str) -> None:
+        """The user said they don't know the lemma: marked as its rule says. A Known one
+        loses Known first (§2.7), then is marked by the rule on what is left, so a Learn or
+        a note in Anki the removal kept is never beside the mark; a learned one stays. A
+        lemma the removal left Known is a rule gap: it raises."""
+        before = self._vocabulary.of(lemma)
+        if not self._vocabulary.mark_unknown(lemma).removes_known:
+            return
+        self._cascade(lemma, before, None)
+        if self._vocabulary.mark_unknown(lemma).removes_known:
+            raise KnownRemovalLeftKnownError(lemma)
 
     @contextmanager
     def batch(self) -> Iterator[None]:
@@ -157,6 +171,9 @@ class DecisionEffects:
         if _calibrated(applied.lemma, phrasal):
             self._decisions.forget(applied.lemma)
 
+    def _forget_unknown(self, applied: _Applied) -> None:
+        self._vocabulary.forget_unknown(applied.lemma)
+
     def _remove_known(self, applied: _Applied) -> None:
         self._cascade(applied.lemma, applied.knowledge_before, applied.before.word_id)
 
@@ -187,7 +204,7 @@ class DecisionEffects:
 
 # Writes first, then what reads them: the cascade reads the bindings left by the release.
 _ORDER = (
-    Effect.RELEASE, Effect.BIND, Effect.MARK_KNOWN, Effect.CALIBRATE,
+    Effect.RELEASE, Effect.BIND, Effect.MARK_KNOWN, Effect.FORGET_UNKNOWN, Effect.CALIBRATE,
     Effect.FORGET_CALIBRATION, Effect.REMOVE_KNOWN,
 )
 

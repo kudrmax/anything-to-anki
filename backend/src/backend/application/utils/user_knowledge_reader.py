@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.domain.value_objects.cefr_level import CEFRLevel
-from backend.domain.value_objects.user_knowledge import UserKnowledge
+from backend.domain.value_objects.user_knowledge import KnowledgeBase, UserKnowledge
 
 if TYPE_CHECKING:
     from backend.application.utils.frequent_word_threshold_resolver import (
@@ -29,9 +29,16 @@ class UserKnowledgeReader:
         self._threshold_resolver = threshold_resolver
 
     def current(self) -> UserKnowledge:
-        level = self._settings_repo.get("cefr_level", DEFAULT_CEFR_LEVEL) or DEFAULT_CEFR_LEVEL
         return UserKnowledge(
             vocabulary=self._vocabulary.snapshot(),
-            user_level=CEFRLevel.from_str(level),
+            user_level=self._level(),
             frequent_zipf=self._threshold_resolver.resolve().zipf,
         )
+
+    def base(self) -> KnowledgeBase:
+        """What the user knows apart from the frequent word threshold."""
+        return KnowledgeBase(vocabulary=self._vocabulary.snapshot(), user_level=self._level())
+
+    def _level(self) -> CEFRLevel:
+        level = self._settings_repo.get("cefr_level", DEFAULT_CEFR_LEVEL) or DEFAULT_CEFR_LEVEL
+        return CEFRLevel.from_str(level)

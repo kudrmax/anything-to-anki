@@ -58,6 +58,7 @@ def _use_case(
     use_case = EditCardPhraseUseCase(
         occurrence_repo=occurrences, candidate_repo=candidates, rewrite_phrase=rewrite,
         lock=lock or free_lock(),
+        unit_of_work=MagicMock(),
     )
     return use_case, occurrences
 

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,9 @@ class SetPhraseBoundaryUseCase:
         phrase_reader: PhraseReader,
         lock: SourceOperationLock,
         stamper: SectionStamper,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._document_repo = document_repo
@@ -53,6 +56,10 @@ class SetPhraseBoundaryUseCase:
         self._stamper = stamper
 
     def execute(self, occurrence_id: int, selection: SelectionDTO) -> str:
+        with self._unit_of_work.write():
+            return self._select(occurrence_id, selection)
+
+    def _select(self, occurrence_id: int, selection: SelectionDTO) -> str:
         occ = self._occurrences.get(occurrence_id)
         word = self._candidate_repo.get_by_id(occ.candidate_id) if occ is not None else None
         if occ is None or word is None:

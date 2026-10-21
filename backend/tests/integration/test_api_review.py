@@ -13,6 +13,9 @@ from sqlalchemy import StaticPool, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.integration.conftest import insert_source
+from tests.projection_support import rebuild_projection
+from tests.review_support import on_review
+from tests.review_window_support import open_review, review_contents, review_list
 from tests.word_support import insert_word
 
 pytestmark = pytest.mark.integration
@@ -35,6 +38,7 @@ def client() -> Generator[TestClient, None, None]:
         insert_word(session, 2, source_id=FINALE, lemma="relentless")
         insert_word(session, 3, source_id=OUTSIDE, lemma="lizard")
         session.commit()
+        rebuild_projection(session)
 
     def override_session() -> Generator[Session, None, None]:
         with factory() as session:
@@ -59,33 +63,41 @@ def _show(client: TestClient) -> str:
 
 def test_a_collection_reviews_the_cards_of_its_sources(client: TestClient) -> None:
     scope = _show(client)
-    review = client.get("/api/review", params={"scope": scope}).json()
-    assert (review["scope"], review["title"], review["busy"]) == (scope, "Show", False)
-    assert sorted(c["source"]["id"] for c in review["candidates"]) == [PILOT, FINALE]
-    candidates = client.get("/api/review/candidates", params={"scope": scope}).json()
-    assert sorted(c["lemma"] for c in candidates) == ["glare", "relentless"]
+    header = open_review(client, scope)["header"]
+    assert (header["scope"], header["title"], header["busy"]) == (scope, "Show", False)
+    cards = review_list(client, scope)
+    assert sorted(c["source"]["id"] for c in cards) == [PILOT, FINALE]
+    assert sorted(c["lemma"] for c in cards) == ["glare", "relentless"]
 
 
 def test_a_source_is_a_set_of_one(client: TestClient) -> None:
-    review = client.get("/api/review", params={"scope": f"source-{PILOT}"}).json()
-    assert review["scope"] == f"source-{PILOT}"
-    assert [c["lemma"] for c in review["candidates"]] == ["glare"]
+    assert open_review(client, f"source-{PILOT}")["header"]["scope"] == f"source-{PILOT}"
+    assert [c["lemma"] for c in review_list(client, f"source-{PILOT}")] == ["glare"]
 
 
-def test_all_sources_is_the_default(client: TestClient) -> None:
-    review = client.get("/api/review").json()
-    assert (review["scope"], review["title"]) == ("all", "All sources")
-    assert len(review["candidates"]) == 3
+def test_all_sources_is_a_set(client: TestClient) -> None:
+    header = open_review(client, "all")["header"]
+    assert (header["scope"], header["title"]) == ("all", "All sources")
+    assert len(review_list(client, "all")) == 3
 
 
 def test_review_scope_errors(client: TestClient) -> None:
-    assert client.get("/api/review", params={"scope": "unsorted"}).status_code == 400
-    assert client.get("/api/review", params={"scope": "garbage"}).status_code == 400
-    assert client.get("/api/review", params={"scope": "source-99"}).status_code == 404
-    assert client.get("/api/review", params={"scope": "99"}).status_code == 404
-    assert client.get("/api/review/candidates", params={"scope": "unsorted"}).status_code == 400
-    assert client.get("/api/review/documents", params={"scope": "unsorted"}).status_code == 400
-    assert client.get("/api/review/documents", params={"scope": "source-99"}).status_code == 404
+    assert client.post("/api/review", json={"scope": "unsorted"}).status_code == 400
+    assert client.post("/api/review", json={"scope": "garbage"}).status_code == 400
+    assert client.post("/api/review", json={"scope": "source-99"}).status_code == 404
+    assert client.post("/api/review", json={"scope": "99"}).status_code == 404
+
+    review = open_review(client, f"source-{PILOT}")
+    since = {"since": review["revision"]}
+    assert client.get("/api/review/r-gone/contents", params=since).status_code == 410
+    text = f"/api/review/{review['review_id']}/text"
+    assert client.get(f"{text}/99", params={**since, "block": 0}).status_code == 404
+    assert client.get(f"{text}/{PILOT}", params={**since, "block": -2}).status_code == 422
+
+
+def test_the_whole_list_read_is_gone(client: TestClient) -> None:
+    assert client.get("/api/review", params={"scope": "all"}).status_code == 405
+    assert client.get("/api/review/candidates", params={"scope": "all"}).status_code == 404
 
 
 def test_old_source_detail_is_gone(client: TestClient) -> None:
@@ -96,17 +108,20 @@ def test_old_source_detail_is_gone(client: TestClient) -> None:
 
 def test_review_page_path_is_left_to_the_web_app(client: TestClient) -> None:
     assert client.get("/review").status_code == 404
-    assert client.get("/api/review").status_code == 200
+    assert client.post("/api/review", json={"scope": "all"}).status_code == 200
 
 
 def test_sources_without_a_document_have_no_text(client: TestClient) -> None:
-    assert client.get("/api/review/documents", params={"scope": _show(client)}).json() == []
+    review = open_review(client, _show(client))
+    assert review_contents(client, review)["documents"] == []
 
 
 def test_download_video_of_a_set_without_links_is_400(client: TestClient) -> None:
     scope = _show(client)
-    assert client.post("/api/review/download-video", params={"scope": scope}).status_code == 400
-    assert client.post(
-        "/api/review/download-video", params={"scope": "unsorted"},
+    assert on_review(
+        client, "POST", "/api/review/download-video", params={"scope": scope},
+    ).status_code == 400
+    assert on_review(
+        client, "POST", "/api/review/download-video", params={"scope": "unsorted"},
     ).status_code == 400
     assert client.post(f"/sources/{PILOT}/download-video").status_code == 404

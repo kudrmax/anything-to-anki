@@ -46,6 +46,7 @@ def _use_case(
         cards=RequestedCards(candidate_repo, occurrence_repo, lock),
         occurrence_repo=occurrence_repo, source_repo=source_repo, job_repo=job_repo,
         stamper=_STAMPER,
+        unit_of_work=MagicMock(),
     )
     return use_case, occurrence_repo, job_repo
 

@@ -17,6 +17,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.review_support import REVIEW_PARAMS, RunningMutation
+
 if TYPE_CHECKING:
     from collections.abc import Generator
 
@@ -32,6 +34,7 @@ def client() -> Generator[TestClient, None, None]:
     test_session_factory = sessionmaker(bind=engine)
 
     mock_container = MagicMock()
+    mock_container.review_mutation.return_value = RunningMutation()
 
     def override_session() -> Generator[Session, None, None]:
         session = test_session_factory()
@@ -72,7 +75,7 @@ class TestGenerationOfAPhrase:
     def test_works_on_the_phrase(self, client: TestClient, path: str, use_case: str) -> None:
         called = getattr(_get_mock_container(), use_case).return_value
 
-        response = client.post(path)
+        response = client.post(path, params=REVIEW_PARAMS)
 
         assert response.status_code == 202
         called.execute.assert_called_once_with(7)
@@ -93,21 +96,23 @@ class TestGenerationOfAPhrase:
     ) -> None:
         getattr(_get_mock_container(), use_case).return_value.execute.side_effect = error
 
-        assert client.post(path).status_code == status
+        assert client.post(path, params=REVIEW_PARAMS).status_code == status
 
     def test_meaning_is_queued_for_the_phrase(self, client: TestClient) -> None:
         use_case = _get_mock_container().enqueue_phrase_meaning_use_case.return_value
 
-        response = client.post("/phrases/7/generate-meaning")
+        response = client.post("/phrases/7/generate-meaning", params=REVIEW_PARAMS)
 
         assert response.status_code == 202
+        assert response.json()["review_id"] == REVIEW_PARAMS["review_id"]
         use_case.execute.assert_called_once_with(7, None)
 
     def test_a_follow_up_is_queued_with_its_question(self, client: TestClient) -> None:
         use_case = _get_mock_container().enqueue_phrase_meaning_use_case.return_value
 
         response = client.post(
-            "/phrases/7/generate-meaning", json={"action": "free_question", "text": "Why?"},
+            "/phrases/7/generate-meaning", params=REVIEW_PARAMS,
+            json={"action": "free_question", "text": "Why?"},
         )
 
         assert response.status_code == 202
@@ -117,7 +122,9 @@ class TestGenerationOfAPhrase:
         use_case = _get_mock_container().enqueue_phrase_meaning_use_case.return_value
         use_case.execute.side_effect = BUSY
 
-        assert client.post("/phrases/7/generate-meaning").status_code == 409
+        assert client.post(
+            "/phrases/7/generate-meaning", params=REVIEW_PARAMS,
+        ).status_code == 409
 
     def test_the_old_card_paths_are_gone(self, client: TestClient) -> None:
         for path in (
@@ -133,7 +140,8 @@ def test_generation_of_a_busy_source_is_refused(client: TestClient) -> None:
     use_case.execute.side_effect = BUSY
 
     response = client.post(
-        "/api/review/generation/meaning", params={"scope": "source-1", "cards": "missing"},
+        "/api/review/generation/meaning",
+        params={"scope": "source-1", "cards": "missing", **REVIEW_PARAMS},
     )
 
     assert response.status_code == 409

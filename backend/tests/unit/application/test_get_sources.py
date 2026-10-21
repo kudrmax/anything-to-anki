@@ -14,6 +14,7 @@ from backend.domain.entities.source import Source
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.generated_parts import NOTHING_GENERATED
 from backend.domain.value_objects.held_operation import HeldOperation
 from backend.domain.value_objects.review_card import CardRow
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
@@ -23,8 +24,9 @@ from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
-from tests.candidate_sorter_support import candidate_sorter
+from tests.candidate_sorter_support import candidate_sorter, threshold_resolver
 from tests.phrase_support import phrase
+from tests.projection_support import LiveSectionTallies
 from tests.source_order_support import InMemorySettingsRepository
 
 
@@ -42,7 +44,7 @@ def _row(
         source_id=source_id, word_id=phrase_id, phrase_id=phrase_id, lemma=f"word{phrase_id}",
         pos="NOUN", zipf_frequency=4.0, word_status=status, skipped=False,
         phrase=phrase(f"a word{phrase_id}", f"word{phrase_id}"),
-        earned_section=CandidateSection.READY,
+        earned_section=CandidateSection.READY, generated=NOTHING_GENERATED,
     )
 
 
@@ -74,12 +76,13 @@ class TestGetSourcesUseCase:
         self.topic_target_repo.has_targets.return_value = False
         self.lock = MagicMock()
         self.lock.operations.return_value = {}
-        elsewhere = MagicMock()
-        elsewhere.of_lemmas.side_effect = lambda lemmas: dict.fromkeys(lemmas)
         sorter = candidate_sorter(self.settings_repo)
         self.order_settings = InMemorySettingsRepository()
         probe = TopicGenerationProbe(self.job_repo, self.topic_target_repo)
-        progress = ReviewProgress(self.card_query, sorter, elsewhere)
+        progress = ReviewProgress(
+            LiveSectionTallies(self.card_query.shown_cards, sorter),
+            threshold_resolver(self.settings_repo),
+        )
         self.use_case = GetSourcesUseCase(
             source_repo=self.source_repo,
             scope_resolver=SourceScopeResolver(

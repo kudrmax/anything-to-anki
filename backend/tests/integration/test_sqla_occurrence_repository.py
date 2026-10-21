@@ -21,6 +21,7 @@ from backend.domain.value_objects.phrase_origin_kind import ShownBy
 from backend.infrastructure.persistence.models import (
     JobModel,
 )
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
@@ -58,7 +59,7 @@ def repo(db_session: Session) -> SqlaOccurrenceRepository:
     insert_word(db_session, WORD, source_id=SOURCE, lemma="glare")
     insert_word(db_session, OTHER_WORD, source_id=OTHER_SOURCE, lemma="linger")
     db_session.flush()
-    return SqlaOccurrenceRepository(db_session)
+    return SqlaOccurrenceRepository(db_session, SessionChangeRecorder(db_session))
 
 
 def _words(session: Session, phrase_id: int) -> set[str]:
@@ -152,7 +153,7 @@ def test_a_write_that_keeps_the_shown_text_does_not_bump(
 
 
 def _job(session: Session, phrase_id: int, job_type: JobType, status: JobStatus) -> None:
-    SqlaJobRepository(session).enqueue([Job.queued(
+    SqlaJobRepository(session, SessionChangeRecorder(session)).enqueue([Job.queued(
         job_type, SOURCE, WORD, phrase_id=phrase_id, phrase_revision=0,
     )])
     session.execute(
@@ -222,7 +223,9 @@ def test_by_source_attaches_results_export_and_active_job(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
     phrase_id = _added(repo)
-    SqlaCandidateMeaningRepository(db_session).upsert_for_phrase(phrase_id, CandidateMeaning(
+    SqlaCandidateMeaningRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).upsert_for_phrase(phrase_id, CandidateMeaning(
         candidate_id=WORD, meaning="to look angrily", translation=None, synonyms=None,
         examples=None, ipa="/ɡleə/", generated_at=None,
     ))
@@ -255,7 +258,9 @@ def test_projection_is_light_and_marks_what_matters(
     repo: SqlaOccurrenceRepository, db_session: Session,
 ) -> None:
     phrase_id = _added(repo)
-    SqlaCandidateClozeRepository(db_session).upsert_for_phrase(phrase_id, CandidateCloze(
+    SqlaCandidateClozeRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).upsert_for_phrase(phrase_id, CandidateCloze(
         candidate_id=WORD, hidden_word_indices=(1,), hint_kind=ClozeHintKind.NONE,
         custom_hint=None, phrase="He glared at me.",
     ))

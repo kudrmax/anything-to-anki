@@ -14,6 +14,7 @@ from backend.domain.value_objects.card_choice import Press, Refusal
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.infrastructure.persistence.database import Base, create_session_factory
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -53,7 +54,7 @@ def _seed(factory: sessionmaker[Session]) -> int:
     with factory() as session:
         insert_source(session, 1)
         insert_word(session, WORD, lemma="glare", pos="VERB", phrase_text="He glared at me.")
-        second = SqlaOccurrenceRepository(session).add(Occurrence(
+        second = SqlaOccurrenceRepository(session, SessionChangeRecorder(session)).add(Occurrence(
             candidate_id=WORD, origin=OccurrenceOrigin.MANUAL,
             source_phrase=phrase("She glared back.", "glared"), phrase_position=None,
             key=None, fragment_score=None,

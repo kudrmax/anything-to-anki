@@ -19,15 +19,17 @@ from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
 from backend.application.use_cases.scope_operation import ScopeOperationUseCase
 from backend.application.utils.collected_phrases import CollectedPhrases
-from backend.application.utils.decided_elsewhere import DecidedElsewhere
-from backend.application.utils.review_progress import ReviewProgress
+from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
 from backend.domain.services.source_review_status import derive_review_status
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.infrastructure.persistence.database import Base, create_session_factory
 from backend.infrastructure.persistence.models import PhraseModel
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
+from backend.infrastructure.persistence.sqla_anki_sync_repository import SqlaAnkiSyncRepository
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -35,7 +37,6 @@ from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
-from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
 )
@@ -50,6 +51,9 @@ from backend.infrastructure.persistence.sqla_source_operation_lock import (
 )
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
+from backend.infrastructure.persistence.sqla_word_state_repository import (
+    SqlaWordStateRepository,
+)
 from sqlalchemy import select, text
 
 from tests.candidate_sorter_support import (
@@ -63,7 +67,10 @@ from tests.source_order_support import added_order
 from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+    from pathlib import Path
+
+    from backend.domain.value_objects.held_operation import HeldOperation
+    from sqlalchemy.orm import Session, sessionmaker
 
 SOURCE = 1
 LINES = (
@@ -142,20 +149,21 @@ class Bench:
             AnalyzeTextResponse(text="", words=self.analysis, total_tokens=0, unique_lemmas=0)
         )
         self.lock = SqlaSourceOperationLock(session)
-        self.occurrences = SqlaOccurrenceRepository(session)
-        self.media = SqlaCandidateMediaRepository(session)
-        self.jobs = SqlaJobRepository(session)
-        self.candidates = SqlaCandidateRepository(session)
-        self.sources = SqlaSourceRepository(session)
+        self.occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
+        self.media = SqlaCandidateMediaRepository(session, SessionChangeRecorder(session))
+        self.jobs = SqlaJobRepository(session, SessionChangeRecorder(session))
+        self.candidates = SqlaCandidateRepository(session, SessionChangeRecorder(session))
+        self.sources = SqlaSourceRepository(session, SessionChangeRecorder(session))
         self.vocabulary = user_vocabulary()
         self.media_files = RemovedMediaFiles()
 
     def rebuilder(self) -> SourceRebuilder:
-        settings = SqlaSettingsRepository(self.session)
+        settings = SqlaSettingsRepository(self.session, SessionChangeRecorder(self.session))
         return SourceRebuilder(
             source_repo=self.sources,
             document_repo=SqlaDocumentRepository(self.session),
             occurrence_repo=self.occurrences,
+            anki_sync=SqlaAnkiSyncRepository(self.session, SessionChangeRecorder(self.session)),
             job_repo=self.jobs,
             media_repo=self.media,
             media_files=self.media_files,
@@ -195,7 +203,9 @@ class Bench:
             source_repo=self.sources,
             collected_phrases=CollectedPhrases(
                 self.candidates, self.occurrences,
-                section_stamper(SqlaSettingsRepository(self.session)),
+                section_stamper(SqlaSettingsRepository(
+                    self.session, SessionChangeRecorder(self.session),
+                )),
             ),
             lock=self.lock,
             unit_of_work=SqlaUnitOfWork(self.session, self.vocabulary.scope),
@@ -231,7 +241,9 @@ class Bench:
     def give_meaning(self, phrase_id: int) -> None:
         word_id = self.session.get(PhraseModel, phrase_id)
         assert word_id is not None
-        SqlaCandidateMeaningRepository(self.session).upsert_for_phrase(phrase_id, CandidateMeaning(
+        SqlaCandidateMeaningRepository(
+            self.session, SessionChangeRecorder(self.session),
+        ).upsert_for_phrase(phrase_id, CandidateMeaning(
             candidate_id=word_id.candidate_id, meaning="to stare angrily", translation=None,
             synonyms=None, examples=None, ipa=None, generated_at=None,
         ))
@@ -245,11 +257,7 @@ class Bench:
         self.session.commit()
 
     def decide_learn(self, lemma: str, phrase_id: int) -> None:
-        word_ids = {w.lemma: w.id for w in self.occurrences.word_rows(SOURCE)}
-        self.session.execute(
-            text("UPDATE candidates SET status = 'learn' WHERE id = :id"),
-            {"id": word_ids[lemma]},
-        )
+        del lemma
         self.set_choice(phrase_id, "learn")
         self.session.commit()
 
@@ -258,7 +266,7 @@ class Bench:
             text("UPDATE phrases SET choice = :choice WHERE id = :id"),
             {"choice": choice, "id": phrase_id},
         )
-        self.session.expire_all()
+        self.session.commit()
 
     def times(self, phrase_id: int) -> tuple[int | None, int | None] | None:
         media = self.media.get_by_phrase_id(phrase_id)
@@ -275,9 +283,41 @@ class Bench:
         self.session.expire_all()
         source = self.sources.get_by_id(SOURCE)
         assert source is not None
-        progress = ReviewProgress(
-            card_query=SqlaCardQuery(self.session),
-            candidate_sorter=candidate_sorter(SqlaSettingsRepository(self.session)),
-            decided_elsewhere=DecidedElsewhere(self.vocabulary),
-        ).of_sources([SOURCE])[SOURCE]
+        cards = ReviewCards(
+            self.candidates, self.occurrences,
+            SqlaWordStateRepository(self.session, SessionChangeRecorder(self.session)),
+            self.vocabulary,
+        ).of_sources([SOURCE])
+        progress = candidate_sorter(SqlaSettingsRepository(
+            self.session, SessionChangeRecorder(self.session),
+        )).progress({SOURCE: cards})[SOURCE]
         return derive_review_status(source.status, progress).value
+
+
+class SharedBench:
+    """A bench on a database file, so another session sees only what the bench committed;
+    `seen` holds what it saw of the source's operation each time the analysis ran."""
+
+    def __init__(self, path: Path) -> None:
+        self._factory: sessionmaker[Session] = create_session_factory(
+            f"sqlite:///{path / 'shared.db'}",
+        )
+        Base.metadata.create_all(self._factory.kw["bind"])
+        self.bench = Bench(self._factory())
+        self.seen: list[HeldOperation | None] = []
+        analyse = self.bench.analyze_text.execute.side_effect
+
+        def look_then_analyse(document: Document, request: object) -> AnalyzeTextResponse:
+            self.seen.append(self.held_elsewhere())
+            response: AnalyzeTextResponse = analyse(document, request)
+            return response
+
+        self.bench.analyze_text.execute.side_effect = look_then_analyse
+
+    def held_elsewhere(self) -> HeldOperation | None:
+        with self._factory() as other:
+            return SqlaSourceOperationLock(other).operations().get(SOURCE)
+
+    def close(self) -> None:
+        self.bench.session.close()
+        self._factory.kw["bind"].dispose()

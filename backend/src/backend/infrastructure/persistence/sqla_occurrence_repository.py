@@ -8,6 +8,7 @@ from sqlalchemy import CursorResult, exists, or_, select, update
 
 from backend.domain.entities.occurrence import shown_phrase
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
+from backend.domain.value_objects.card_change import CardContentChanged, PhraseChanged
 from backend.domain.value_objects.card_choice import (
     Binding,
     CardChoice,
@@ -21,6 +22,7 @@ from backend.domain.value_objects.unsectioned_phrase import UnsectionedPhrase
 from backend.domain.value_objects.word_row import WordRow
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
+    WORD_DECISION_STATUS,
     AnkiSyncedCardModel,
     CandidateClozeModel,
     CandidateMeaningModel,
@@ -37,7 +39,7 @@ from backend.infrastructure.persistence.models import (
     load_phrase,
     load_position,
 )
-from backend.infrastructure.persistence.phrase_writes import queued_jobs_follow
+from backend.infrastructure.persistence.phrase_writes import chunks, queued_jobs_follow
 from backend.infrastructure.persistence.rebuild_plan_writer import RebuildPlanWriter
 
 if TYPE_CHECKING:
@@ -51,6 +53,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.candidate_media import CandidateMedia
     from backend.domain.entities.candidate_tts import CandidateTTS
     from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
+    from backend.domain.ports.change_recorder import ChangeRecorder
     from backend.domain.services.rebuild_plan import AppliedPlan, RebuildPlan, SectionChange
     from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.document_position import DocumentPosition
@@ -128,10 +131,11 @@ class PhraseResultsReader:
 class SqlaOccurrenceRepository(OccurrenceRepository):
     """SQLAlchemy implementation of OccurrenceRepository."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
         self._results = PhraseResultsReader(session)
-        self._plans = RebuildPlanWriter(session)
+        self._plans = RebuildPlanWriter(session, recorder)
 
     def by_source(self, source_id: int) -> list[Occurrence]:
         return self._occurrences(self._of_source(source_id))
@@ -209,6 +213,14 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         found = self._occurrences(PhraseModel.id == occurrence_id)
         return found[0] if found else None
 
+    def of_ids(self, occurrence_ids: Sequence[int]) -> list[Occurrence]:
+        found = [
+            occurrence
+            for chunk in chunks(sorted(set(occurrence_ids)))
+            for occurrence in self._occurrences(PhraseModel.id.in_(chunk))
+        ]
+        return sorted(found, key=lambda occurrence: occurrence.id or 0)
+
     def of_word(self, candidate_id: int) -> list[Occurrence]:
         return self._occurrences(PhraseModel.candidate_id == candidate_id)
 
@@ -227,6 +239,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         model = PhraseModel.from_entity(occurrence)
         self._session.add(model)
         self._session.flush()
+        self._recorder.record(PhraseChanged(model.id))
         return model.to_entity()
 
     def write_text(
@@ -244,6 +257,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         if model is None:
             return
         shown_before = _text_of(model.shown_text)
+        shows_before = _shows(model)
         model.source_phrase = _dumped(phrase)
         model.phrase_position = dump_position(position)
         model.polished_phrase = dump_phrase(polished)
@@ -255,6 +269,9 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         if edited_by_user:
             model.edited_by_user = True
         self._session.flush()
+        self._recorder.record(PhraseChanged(occurrence_id))
+        if _shows(model) != shows_before:
+            self._recorder.record(CardContentChanged(occurrence_id))
 
     def holds_revision(self, occurrence_id: int, revision: int) -> bool:
         # A write, not a read: it takes the database's write lock, so no Rebuild can change
@@ -281,6 +298,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             )
         )
         self._session.flush()
+        self._recorder.record(PhraseChanged(occurrence_id))
 
     def set_shown(self, ids: list[int], shown_by: ShownBy | None) -> None:
         if not ids:
@@ -291,6 +309,8 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             .values(shown_by=shown_by.value if shown_by is not None else None)
         )
         self._session.flush()
+        for occurrence_id in ids:
+            self._recorder.record(PhraseChanged(occurrence_id))
 
     def set_replaces_selection(self, occurrence_id: int, replaces: bool) -> None:
         self._session.execute(
@@ -299,22 +319,24 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             .values(replaces_selection=replaces)
         )
         self._session.flush()
+        self._recorder.record(PhraseChanged(occurrence_id))
 
     def word_rows(self, source_id: int) -> list[WordRow]:
-        words = self._session.scalars(
-            select(StoredCandidateModel)
+        """Each word with its decision status, read from its cards in the same query."""
+        words = self._session.execute(
+            select(StoredCandidateModel, WORD_DECISION_STATUS)
             .where(StoredCandidateModel.source_id == source_id)
             .order_by(StoredCandidateModel.id)
-        ).unique()
+        ).unique().all()
         return [
             WordRow(
                 id=word.id,
                 lemma=word.lemma,
                 is_phrasal_verb=word.is_phrasal_verb,
-                status=WordStatus(word.status),
+                status=WordStatus(status),
                 data=word.word_data(),
             )
-            for word in words
+            for word, status in words
         ]
 
     def apply_plan(self, plan: RebuildPlan) -> AppliedPlan:
@@ -420,3 +442,12 @@ def _dumped(phrase: Phrase) -> str:
     stored = dump_phrase(phrase)
     assert stored is not None
     return stored
+
+
+def _shows(model: PhraseModel) -> tuple[str | None, ...]:
+    """What the card of the phrase shows of it: its text, its place and its polish, as
+    stored."""
+    return (
+        model.source_phrase, model.phrase_position, model.polished_phrase,
+        str(model.polish_reverted),
+    )

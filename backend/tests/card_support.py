@@ -27,10 +27,10 @@ from backend.domain.value_objects.phrase_origin_kind import (
 )
 from backend.domain.value_objects.review_card import CardContext, ReviewCard
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 
 from tests.decision_support import NOW
 from tests.phrase_support import phrase
-from tests.source_order_support import added_order
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable
@@ -135,15 +135,11 @@ def card_views(session: Session) -> CardViews:
     """Real card views over the database; the user knows no words."""
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.review_cards import ReviewCards
-    from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.infrastructure.persistence.sqla_candidate_repository import (
         SqlaCandidateRepository,
     )
     from backend.infrastructure.persistence.sqla_card_report_repository import (
         SqlaCardReportRepository,
-    )
-    from backend.infrastructure.persistence.sqla_collection_repository import (
-        SqlaCollectionRepository,
     )
     from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
     from backend.infrastructure.persistence.sqla_occurrence_repository import (
@@ -163,16 +159,16 @@ def card_views(session: Session) -> CardViews:
     vocabulary = user_vocabulary()
     return CardViews(
         review_cards=ReviewCards(
-            SqlaCandidateRepository(session), SqlaOccurrenceRepository(session),
-            SqlaWordStateRepository(session), vocabulary,
+            SqlaCandidateRepository(session, SessionChangeRecorder(session)),
+            SqlaOccurrenceRepository(session, SessionChangeRecorder(session)),
+            SqlaWordStateRepository(session, SessionChangeRecorder(session)), vocabulary,
         ),
-        candidate_sorter=candidate_sorter(SqlaSettingsRepository(session)),
-        job_repo=SqlaJobRepository(session),
-        report_repo=SqlaCardReportRepository(session),
-        scope_resolver=SourceScopeResolver(
-            SqlaSourceRepository(session), SqlaCollectionRepository(session), added_order(),
-        ),
-        source_repo=SqlaSourceRepository(session),
+        candidate_sorter=candidate_sorter(SqlaSettingsRepository(
+            session, SessionChangeRecorder(session),
+        )),
+        job_repo=SqlaJobRepository(session, SessionChangeRecorder(session)),
+        report_repo=SqlaCardReportRepository(session, SessionChangeRecorder(session)),
+        source_repo=SqlaSourceRepository(session, SessionChangeRecorder(session)),
     )
 
 
@@ -215,6 +211,13 @@ class PhraseWordStates(WordStateRepository):
             context(w, *self._phrases(w.id)).word
             for w in self._words() if w.lemma.lower() == lemma.lower() and w.id is not None
         ]
+
+    def of_lemmas(self, lemmas: Collection[str]) -> dict[int, WordState]:
+        keys = {lemma.lower() for lemma in lemmas}
+        return {
+            w.id: context(w, *self._phrases(w.id)).word
+            for w in self._words() if w.lemma.lower() in keys and w.id is not None
+        }
 
     def save(self, word: WordState) -> None:
         raise AssertionError("these word states are read only")

@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, func, select, update
 
 from backend.domain.ports.word_state_repository import WordStateRepository
+from backend.domain.value_objects.card_change import DecisionChanged
 from backend.domain.value_objects.card_choice import (
     Binding,
     CardChoice,
     CardState,
     NoteKind,
     WordState,
-    decision_status,
 )
 from backend.infrastructure.persistence.models import (
     AnkiSyncedCardModel,
@@ -27,13 +27,16 @@ if TYPE_CHECKING:
     from sqlalchemy import ColumnElement
     from sqlalchemy.orm import Session
 
+    from backend.domain.ports.change_recorder import ChangeRecorder
+
 
 class SqlaWordStateRepository(WordStateRepository):
     """Words as the decision tables see them: one query over words, their phrases and the
     phrases' active bindings."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
         self._after_save: Callable[[], None] = self._expire
 
     def _expire(self) -> None:
@@ -64,6 +67,12 @@ class SqlaWordStateRepository(WordStateRepository):
     def of_lemma(self, lemma: str) -> list[WordState]:
         return list(self._read(func.lower(StoredCandidateModel.lemma) == lemma.lower()).values())
 
+    def of_lemmas(self, lemmas: Collection[str]) -> dict[int, WordState]:
+        found: dict[int, WordState] = {}
+        for chunk in chunks(sorted({lemma.lower() for lemma in lemmas})):
+            found.update(self._read(func.lower(StoredCandidateModel.lemma).in_(chunk)))
+        return found
+
     def save(self, word: WordState) -> None:
         # A card that stops being the decision is written first: the decision card is unique.
         for card in sorted(word.cards, key=lambda c: c.is_decision):
@@ -73,26 +82,8 @@ class SqlaWordStateRepository(WordStateRepository):
                 .values(choice=card.choice.value)
                 .execution_options(synchronize_session=False)
             )
-        self._session.execute(
-            update(AnkiSyncedCardModel)
-            .where(
-                AnkiSyncedCardModel.phrase_id.in_([card.card_id for card in word.cards]),
-                AnkiSyncedCardModel.released_at.is_(None),
-            )
-            .values(card_choice=(
-                select(PhraseModel.choice)
-                .where(PhraseModel.id == AnkiSyncedCardModel.phrase_id)
-                .scalar_subquery()
-            ))
-            .execution_options(synchronize_session=False)
-        )
-        self._session.execute(
-            update(StoredCandidateModel)
-            .where(StoredCandidateModel.id == word.word_id)
-            .values(status=decision_status(word).value)
-            .execution_options(synchronize_session=False)
-        )
         self._session.flush()
+        self._recorder.record(DecisionChanged(word.lemma))
         self._after_save()
 
     def _read(self, where: ColumnElement[bool]) -> dict[int, WordState]:

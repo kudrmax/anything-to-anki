@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING
 from backend.application.dto.media_dtos import CleanupMediaKind
 
 if TYPE_CHECKING:
-    from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.candidate_meaning_image_repository import (
         CandidateMeaningImageRepository,
     )
     from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,9 @@ class CleanupMediaUseCase:
         media_repo: CandidateMediaRepository,
         image_repo: CandidateMeaningImageRepository,
         media_root: str,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._candidate_repo = candidate_repo
         self._occurrence_repo = occurrence_repo
         self._media_repo = media_repo
@@ -40,27 +42,12 @@ class CleanupMediaUseCase:
         self._media_root = media_root
 
     def execute(self, source_id: int, kind: CleanupMediaKind) -> None:
-        clear_screenshot = kind in (CleanupMediaKind.ALL, CleanupMediaKind.IMAGES)
-        clear_audio = kind in (CleanupMediaKind.ALL, CleanupMediaKind.AUDIO)
-        removed_shot = 0
-        removed_audio = 0
-
-        if clear_screenshot:
-            for word in self._candidate_repo.get_by_source(source_id):
-                if word.id is not None and word.meaning_image is not None:
-                    removed_shot += self._remove_meaning_image(word)
-
-        for occurrence in self._occurrence_repo.by_source(source_id):
-            media = occurrence.media
-            if occurrence.id is None or media is None:
-                continue
-            if clear_screenshot and media.screenshot_path:
-                removed_shot += _remove(media.screenshot_path)
-            if clear_audio and media.audio_path:
-                removed_audio += _remove(media.audio_path)
-            self._media_repo.clear_phrase_paths(
-                occurrence.id, clear_screenshot=clear_screenshot, clear_audio=clear_audio,
-            )
+        """The paths are cleared in a write; the files are deleted after it is committed,
+        so none goes under the write lock or for a cleanup that was rolled back."""
+        with self._unit_of_work.write():
+            shots, audio = self._clear(source_id, kind)
+        removed_shot = sum(_remove(path) for path in shots)
+        removed_audio = sum(_remove(path) for path in audio)
 
         source_dir = os.path.join(self._media_root, str(source_id))
         if kind == CleanupMediaKind.ALL and os.path.isdir(source_dir):
@@ -75,11 +62,32 @@ class CleanupMediaUseCase:
             source_id, kind.value, removed_shot, removed_audio,
         )
 
-    def _remove_meaning_image(self, word: StoredCandidate) -> int:
-        assert word.id is not None and word.meaning_image is not None
-        removed = _remove(word.meaning_image.image_path)
-        self._image_repo.delete_by_candidate_id(word.id)
-        return removed
+    def _clear(self, source_id: int, kind: CleanupMediaKind) -> tuple[list[str], list[str]]:
+        """Clears the paths of the kind; returns the pictures and the audio files they
+        named."""
+        clear_screenshot = kind in (CleanupMediaKind.ALL, CleanupMediaKind.IMAGES)
+        clear_audio = kind in (CleanupMediaKind.ALL, CleanupMediaKind.AUDIO)
+        shots: list[str] = []
+        audio: list[str] = []
+
+        if clear_screenshot:
+            for word in self._candidate_repo.get_by_source(source_id):
+                if word.id is not None and word.meaning_image is not None:
+                    shots.append(word.meaning_image.image_path)
+                    self._image_repo.delete_by_candidate_id(word.id)
+
+        for occurrence in self._occurrence_repo.by_source(source_id):
+            media = occurrence.media
+            if occurrence.id is None or media is None:
+                continue
+            if clear_screenshot and media.screenshot_path:
+                shots.append(media.screenshot_path)
+            if clear_audio and media.audio_path:
+                audio.append(media.audio_path)
+            self._media_repo.clear_phrase_paths(
+                occurrence.id, clear_screenshot=clear_screenshot, clear_audio=clear_audio,
+            )
+        return shots, audio
 
 
 def _remove(path: str) -> int:

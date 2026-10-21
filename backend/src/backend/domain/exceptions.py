@@ -48,6 +48,15 @@ class KnownWordNotFoundError(DomainError):
         self.known_word_id = known_word_id
 
 
+class KnownRemovalLeftKnownError(DomainError):
+    """The Known removal ran before an Unknown mark and the lemma still reads Known: a rule
+    gap, not a state to mark over."""
+
+    def __init__(self, lemma: str) -> None:
+        super().__init__(f"Known removal left the lemma Known: {lemma}")
+        self.lemma = lemma
+
+
 class SourceIsProcessingError(DomainError):
     """Raised when trying to delete a source a long operation (processing, rebuild) holds."""
 
@@ -208,11 +217,14 @@ class UnsupportedUrlError(Exception):
 
 class CancelledByUserError(Exception):
     """Raised when finished work belongs to jobs no longer running: the user
-    cancelled them, or they already failed by timeout. Its result is dropped."""
+    cancelled them, or they already failed by timeout. Its result is dropped, except what
+    it wrote while they still ran: `wrote` tells whether there is any."""
 
-    def __init__(self, job_ids: list[int]) -> None:
+    def __init__(self, job_ids: list[int], wrote: bool = False) -> None:
         self.job_ids = job_ids
-        super().__init__(f"Jobs {job_ids} are no longer running, result dropped")
+        self.wrote = wrote
+        outcome = "what was written before that stays" if wrote else "result dropped"
+        super().__init__(f"Jobs {job_ids} are no longer running, {outcome}")
 
 
 class CollectionNotFoundError(DomainError):
@@ -264,6 +276,23 @@ class SourceHasNoDocumentError(DomainError):
     def __init__(self, source_id: int) -> None:
         super().__init__(f"Source {source_id} has no document")
         self.source_id = source_id
+
+
+class SourceDocumentExistsError(DomainError):
+    """Raised when a source's document would be written again: it is written once, with the
+    source, and never changes."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Source {source_id} already has a document")
+        self.source_id = source_id
+
+
+class TextBlockNotFoundError(DomainError):
+    """Raised when a block asked for is not in the document."""
+
+    def __init__(self, block: int) -> None:
+        super().__init__(f"No block {block} in the document")
+        self.block = block
 
 
 class InvalidSourceInputError(DomainError):
@@ -410,6 +439,15 @@ class PhraseNotFoundError(DomainError):
         self.phrase_id = phrase_id
 
 
+class ReviewNotFoundError(DomainError):
+    """Raised when an open review is not held: never opened, or let go since (a restart, or
+    newer reviews pushed it out)."""
+
+    def __init__(self, review_id: str) -> None:
+        super().__init__(f"Review {review_id} is not open")
+        self.review_id = review_id
+
+
 class ActionRefusedError(DomainError):
     """Raised when the decision table refuses a button on a card. `reason`: why, for the
     person who pressed it."""
@@ -450,3 +488,25 @@ class InvalidEarnedSectionError(DomainError):
     def __init__(self, section: object) -> None:
         super().__init__(f"A phrase cannot earn the section {section!r}")
         self.section = section
+
+
+class NestedWriteError(DomainError):
+    """Raised when a write transaction is opened inside another one of the same unit of work."""
+
+    def __init__(self) -> None:
+        super().__init__("A write transaction is already open: write() cannot be nested")
+
+
+class WriteInReadError(DomainError):
+    """Raised when something is written inside a read transaction, which only reads."""
+
+    def __init__(self) -> None:
+        super().__init__("A write was made inside read(): a read transaction only reads")
+
+
+class UncommittedWorkError(DomainError):
+    """Raised when a write transaction opens on a session that holds changes made outside
+    any write: they would be committed by a write that does not own them."""
+
+    def __init__(self) -> None:
+        super().__init__("Changes were made outside write(): the session has pending work")

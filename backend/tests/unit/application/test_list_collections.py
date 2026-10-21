@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
+from backend.application.utils.source_progress import SourceProgress
 from backend.application.utils.topic_generation import TopicGeneration
 from backend.domain.entities.collection import Collection
 from backend.domain.entities.source import Source
@@ -24,12 +25,12 @@ def _progress(by_source: dict[int, DecisionProgress] | None = None) -> MagicMock
     """Each source has as many cards as its progress counts, and that progress."""
     found = by_source or {}
     progress = MagicMock()
-    progress.cards.side_effect = lambda source_ids: {
-        source_id: [MagicMock()] * found[source_id].total
-        for source_id in source_ids if source_id in found
-    }
-    progress.progress_of.side_effect = lambda cards: {
-        source_id: found[source_id] for source_id in cards
+    progress.of_sources.side_effect = lambda source_ids: {
+        source_id: SourceProgress(
+            found.get(source_id, DecisionProgress()),
+            found.get(source_id, DecisionProgress()).total,
+        )
+        for source_id in source_ids
     }
     return progress
 

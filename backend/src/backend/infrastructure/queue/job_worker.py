@@ -20,7 +20,6 @@ from typing import IO, TYPE_CHECKING
 
 from backend.domain.exceptions import AIUnavailableError, CancelledByUserError, PermanentError
 from backend.domain.value_objects.job_type import JobType
-from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.queue.claimed_run import ClaimedRun
 
 if TYPE_CHECKING:
@@ -32,6 +31,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 POLL_DELAY: float = 0.1  # seconds between polls when queue is empty
+CARD_STATE_TICK_INTERVAL: float = 60.0  # seconds between time ticks of the card state
+# Failed time ticks in a row from which each one is logged as an error: one failure is a
+# busy database, several mean the card state is falling behind time.
+TICK_FAILURES_TO_ERROR = 3
 JOB_TIMEOUT: int = 600  # seconds per run (10 minutes)
 AI_BATCH_SIZE: int = 15
 RUN_LIMITS: Mapping[JobType, int] = {
@@ -52,6 +55,8 @@ class JobWorker:
 
     def __init__(self, container: Container) -> None:
         self._container = container
+        self._queue = container.job_queue()
+        self._work = container.session_work()
         self._shutdown = False
         self._tts_process: asyncio.subprocess.Process | None = None
         self._shutdown_requested = asyncio.Event()
@@ -65,12 +70,37 @@ class JobWorker:
         self._reconcile_on_startup()
         logger.info("JobWorker started, polling for jobs")
 
-        while not self._shutdown:
-            processed = await self._process_one_job()
-            if not processed:
-                await asyncio.sleep(POLL_DELAY)
+        ticking = asyncio.create_task(self._tick_card_states())
+        try:
+            while not self._shutdown:
+                processed = await self._process_one_job()
+                if not processed:
+                    await asyncio.sleep(POLL_DELAY)
+        finally:
+            ticking.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await ticking
 
         logger.info("JobWorker shutting down")
+
+    async def _tick_card_states(self) -> None:
+        """Writes what time changed in the card state, every `CARD_STATE_TICK_INTERVAL`, on
+        its own: the job loop can run one job for minutes. A failed tick is logged and the
+        next one tries again; from `TICK_FAILURES_TO_ERROR` failures in a row each is an
+        error with the count."""
+        failures = 0
+        while not self._shutdown:
+            try:
+                await asyncio.to_thread(self._container.tick_card_states)
+            except Exception:
+                failures += 1
+                level = logging.ERROR if failures >= TICK_FAILURES_TO_ERROR else logging.WARNING
+                logger.log(
+                    level, "Card state time tick failed (%d in a row)", failures, exc_info=True,
+                )
+            else:
+                failures = 0
+            await asyncio.sleep(CARD_STATE_TICK_INTERVAL)
 
     def _request_shutdown(self) -> None:
         logger.info("Shutdown signal received")
@@ -82,21 +112,17 @@ class JobWorker:
     def _reconcile_on_startup(self) -> None:
         """Put RUNNING jobs back in line: the worker that ran them is gone.
         Every handler is idempotent, so the work is simply redone."""
-        with self._container.session_scope() as session:
-            count = SqlaJobRepository(session).requeue_running()
+        count = self._queue.requeue_running()
         if count:
             logger.warning("Startup reconciliation: requeued %d interrupted jobs", count)
 
     async def _process_one_job(self) -> bool:
         """Claim and process the head of the queue. Returns True if a run was processed."""
-        with self._container.session_scope() as session:
-            jobs = SqlaJobRepository(session).claim_next_run(
-                RUN_LIMITS, mixed_source_types=MIXED_SOURCE_TYPES,
-            )
+        jobs = self._queue.claim_next_run(RUN_LIMITS, mixed_source_types=MIXED_SOURCE_TYPES)
         if not jobs:
             return False
 
-        run = ClaimedRun(self._container, jobs)
+        run = ClaimedRun(self._queue, jobs)
         head = run.head
         logger.info(
             "Processing %d job(s) from %d: type=%s candidate=%s phrase=%s source=%d",
@@ -111,8 +137,8 @@ class JobWorker:
             unanswered = await asyncio.wait_for(
                 asyncio.to_thread(self._execute, run), timeout=JOB_TIMEOUT,
             )
-        except CancelledByUserError:
-            logger.info("Run from job %d cancelled, result dropped", head.id)
+        except CancelledByUserError as cancelled:
+            logger.info("Run from job %d cancelled: %s", head.id, cancelled)
         except AIUnavailableError as exc:
             logger.warning("Run from job %d waits for the AI: %s", head.id, exc.detail)
             self._requeue(jobs, exc.detail)
@@ -146,37 +172,36 @@ class JobWorker:
         """Do the run's work. Returns the phrases left without a result."""
         head = run.head
         c = self._container
-        with run.session() as session:
-            match head.job_type:
-                case JobType.MEANING:
-                    return set(c.meaning_generation_use_case(session).execute_batch(
-                        run.phrases, run.still_wanted,
-                    ))
-                case JobType.MEANING_FOLLOW_UP:
-                    assert head.follow_up is not None
+        match head.job_type:
+            case JobType.MEANING:
+                with run.use_case(c.meaning_generation_use_case) as meaning:
+                    return set(meaning.execute_batch(run.phrases, run.still_wanted))
+            case JobType.MEANING_FOLLOW_UP:
+                assert head.follow_up is not None
+                with run.use_case(c.meaning_follow_up_use_case) as follow_up:
                     for phrase in run.phrases:
-                        c.meaning_follow_up_use_case(session).execute_follow_up(
-                            phrase.phrase_id, head.follow_up,
-                        )
-                case JobType.POLISH:
-                    return set(c.phrase_polish_use_case(session).execute_batch(
-                        run.phrases, run.still_wanted,
-                    ))
-                case JobType.MEDIA:
+                        follow_up.execute_follow_up(phrase.phrase_id, head.follow_up)
+            case JobType.POLISH:
+                with run.use_case(c.phrase_polish_use_case) as polish:
+                    return set(polish.execute_batch(run.phrases, run.still_wanted))
+            case JobType.MEDIA:
+                with run.use_case(c.media_extraction_use_case) as media:
                     for phrase in run.phrases:
-                        c.media_extraction_use_case(session).execute_one(phrase)
-                case JobType.PRONUNCIATION:
-                    assert head.candidate_id is not None
-                    c.download_pronunciation_use_case(session).execute_one(head.candidate_id)
-                case JobType.VIDEO_DOWNLOAD:
-                    c.download_video_use_case(session).execute(head.source_id)
-                case JobType.TOPIC_TARGETS:
-                    c.generate_topic_targets_use_case(session).execute(head.source_id)
-                case JobType.TTS:
-                    raise AssertionError("TTS runs in its own subprocess")
-        if head.job_type is JobType.MEDIA:
-            with c.session_scope() as session:
-                c.cleanup_youtube_video_use_case(session).execute(head.source_id)
+                        media.execute_one(phrase)
+                with self._work.open(c.cleanup_youtube_video_use_case) as cleanup:
+                    cleanup.execute(head.source_id)
+            case JobType.PRONUNCIATION:
+                assert head.candidate_id is not None
+                with run.use_case(c.download_pronunciation_use_case) as pronunciation:
+                    pronunciation.execute_one(head.candidate_id)
+            case JobType.VIDEO_DOWNLOAD:
+                with run.use_case(c.download_video_use_case) as video:
+                    video.execute(head.source_id)
+            case JobType.TOPIC_TARGETS:
+                with run.use_case(c.generate_topic_targets_use_case) as topic:
+                    topic.execute(head.source_id)
+            case JobType.TTS:
+                raise AssertionError("TTS runs in its own subprocess")
         return set()
 
     # ------------------------------------------------------------------
@@ -204,10 +229,7 @@ class JobWorker:
         logger.error("TTS subprocess exited with code %d", returncode)
         if self._shutdown:
             return  # interrupted on purpose; the next start requeues its job
-        with self._container.session_scope() as session:
-            SqlaJobRepository(session).fail_running(
-                JobType.TTS, TTS_CRASH_ERROR.format(code=returncode),
-            )
+        self._queue.fail_running(JobType.TTS, TTS_CRASH_ERROR.format(code=returncode))
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
@@ -217,19 +239,18 @@ class JobWorker:
         job_ids = [j.id for j in jobs if j.id is not None]
         if not job_ids:
             return
-        with self._container.session_scope() as session:
-            SqlaJobRepository(session).fail(job_ids, error)
+        self._queue.fail(job_ids, error)
 
     def _requeue(self, jobs: list[Job], reason: str) -> None:
         job_ids = [j.id for j in jobs if j.id is not None]
-        with self._container.session_scope() as session:
-            SqlaJobRepository(session).requeue(job_ids, reason)
+        if not job_ids:
+            return
+        self._queue.requeue(job_ids, reason)
 
     def _complete(self, jobs: list[Job]) -> None:
         if not jobs:
             return
-        with self._container.session_scope() as session:
-            SqlaJobRepository(session).complete(jobs)
+        self._queue.complete(jobs)
 
 
 def _acquire_single_worker_lock() -> IO[str]:
@@ -254,11 +275,13 @@ async def main() -> None:
     """Entry point for ``python -m backend.infrastructure.queue``."""
     from backend.infrastructure.container import Container
     from backend.infrastructure.logging_setup import configure_logging
+    from backend.infrastructure.startup_heap import freeze_startup_heap
 
     configure_logging("worker")
     lock = _acquire_single_worker_lock()
     try:
         worker = JobWorker(Container())
+        freeze_startup_heap()
         await worker.run()
     finally:
         lock.close()

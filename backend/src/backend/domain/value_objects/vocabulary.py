@@ -12,8 +12,8 @@ class Vocabulary:
     """What the user said they know and don't know, and what they are learning, word by word.
 
     A word is known as a whole: marking it in one part of speech covers every
-    other one. Priority: unknown > known > learning — the user's "I don't know it"
-    is never overridden, and a known word is not being learned.
+    other one. A known word is not being learned. A learned word is never marked
+    unknown, so the two never meet.
     """
 
     known: frozenset[str]
@@ -33,15 +33,14 @@ class Vocabulary:
         )
 
     def is_known(self, lemma: str) -> bool:
-        key = lemma.lower()
-        return key in self.known and key not in self.unknown
+        return lemma.lower() in self.known
 
     def is_unknown(self, lemma: str) -> bool:
         return lemma.lower() in self.unknown
 
     def is_learning(self, lemma: str) -> bool:
         key = lemma.lower()
-        return key in self.learning and key not in self.known and key not in self.unknown
+        return key in self.learning and key not in self.known
 
     def is_known_or_learning(self, lemma: str) -> bool:
         """Not a new candidate: the user knows it or already learns it."""

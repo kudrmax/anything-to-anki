@@ -6,6 +6,7 @@ import pytest
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
 )
@@ -49,7 +50,7 @@ def _cloze(
 @pytest.mark.unit
 class TestCandidateClozeRepository:
     def test_upsert_then_get_roundtrip(self, session: Session) -> None:
-        repo = SqlaCandidateClozeRepository(session)
+        repo = SqlaCandidateClozeRepository(session, SessionChangeRecorder(session))
         cloze = CandidateCloze(
             CANDIDATE_ID, (2, 3), ClozeHintKind.CUSTOM, "своя", "She gave up.",
         )
@@ -57,10 +58,12 @@ class TestCandidateClozeRepository:
         assert repo.get_by_phrase_id(PHRASE_ID) == cloze
 
     def test_get_returns_none_for_missing(self, session: Session) -> None:
-        assert SqlaCandidateClozeRepository(session).get_by_phrase_id(999) is None
+        assert SqlaCandidateClozeRepository(
+            session, SessionChangeRecorder(session),
+        ).get_by_phrase_id(999) is None
 
     def test_upsert_overwrites(self, session: Session) -> None:
-        repo = SqlaCandidateClozeRepository(session)
+        repo = SqlaCandidateClozeRepository(session, SessionChangeRecorder(session))
         repo.upsert_for_phrase(PHRASE_ID, _cloze((1,), ClozeHintKind.NONE))
         repo.upsert_for_phrase(PHRASE_ID, _cloze((0,), ClozeHintKind.FIRST_LETTER))
         stored = repo.get_by_phrase_id(PHRASE_ID)
@@ -69,10 +72,12 @@ class TestCandidateClozeRepository:
         assert stored.hint_kind == ClozeHintKind.FIRST_LETTER
 
     def test_delete(self, session: Session) -> None:
-        repo = SqlaCandidateClozeRepository(session)
+        repo = SqlaCandidateClozeRepository(session, SessionChangeRecorder(session))
         repo.upsert_for_phrase(PHRASE_ID, _cloze())
         repo.delete_by_phrase_id(PHRASE_ID)
         assert repo.get_by_phrase_id(PHRASE_ID) is None
 
     def test_delete_missing_is_noop(self, session: Session) -> None:
-        SqlaCandidateClozeRepository(session).delete_by_phrase_id(999)
+        SqlaCandidateClozeRepository(
+            session, SessionChangeRecorder(session),
+        ).delete_by_phrase_id(999)

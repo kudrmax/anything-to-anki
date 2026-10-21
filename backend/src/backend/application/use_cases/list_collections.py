@@ -71,8 +71,8 @@ class ListCollectionsUseCase:
             )
         }
         ids = [s.id for s in sources if s.id is not None]
-        cards = self._review_progress.cards(ids)
-        progress = self._review_progress.progress_of(cards)
+        of_sources = self._review_progress.of_sources(ids)
+        progress = {source_id: found.progress for source_id, found in of_sources.items()}
         learn_counts = self._card_query.learn_counts(ids)
         reviewed = {
             s.id for s in sources
@@ -107,7 +107,7 @@ class ListCollectionsUseCase:
                 review_fraction=review_fraction(status, decisions),
                 progress_caption=progress_caption(
                     status,
-                    sum(len(cards.get(i, [])) for i in selected_ids),
+                    sum(of_sources[i].cards for i in selected_ids),
                     decisions,
                     learn_count,
                     operation,

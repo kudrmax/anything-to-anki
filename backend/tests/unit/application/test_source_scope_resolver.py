@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.utils.source_ordering import SourceOrdering
+from backend.application.utils.source_progress import SourceProgress
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.application.utils.topic_generation import TopicGeneration
 from backend.domain.entities.collection import Collection
@@ -114,7 +115,9 @@ def ordered_resolver(
     grouping: SourceGrouping, sort: SourceSort,
 ) -> tuple[SourceScopeResolver, MagicMock]:
     progress = MagicMock()
-    progress.of_sources.side_effect = lambda ids: {i: PROGRESS[i] for i in ids}
+    progress.of_sources.side_effect = lambda ids: {
+        i: SourceProgress(PROGRESS[i], PROGRESS[i].total) for i in ids
+    }
     probe = MagicMock()
     probe.of.return_value = TopicGeneration()
     candidates = MagicMock()

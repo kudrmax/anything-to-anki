@@ -77,7 +77,7 @@ def _seed(client: TestClient, db_session: Session) -> int:
         if studied is not None:
             db_session.add(StoredCandidateModel(
                 source_id=source_id, lemma=f"word{source_id}", pos="NOUN", zipf_frequency=3.0,
-                is_sweet_spot=False, occurrences=1, status="pending", studied_at=studied,
+                is_sweet_spot=False, occurrences=1, studied_at=studied,
             ))
     db_session.commit()
     return int(collection)

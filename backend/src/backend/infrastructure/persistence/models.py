@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    CheckConstraint,
     Float,
     ForeignKey,
     Index,
@@ -14,10 +15,16 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    and_,
+    case,
+    event,
+    func,
+    literal_column,
     or_,
+    select,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, aliased, mapped_column, relationship
 
 from backend.domain.entities.ai_usage_record import AIUsageRecord
 from backend.domain.entities.bootstrap_index_meta import BootstrapIndexMeta
@@ -30,19 +37,22 @@ from backend.domain.entities.candidate_pronunciation import CandidatePronunciati
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.card_report import CardReport
 from backend.domain.entities.collection import Collection
-from backend.domain.entities.known_word import KnownWord
 from backend.domain.entities.occurrence import Occurrence, OccurrenceKey
 from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.entities.topic_target import TopicTarget
-from backend.domain.entities.unknown_word import UnknownWord
 from backend.domain.entities.word_decision import WordDecision
 from backend.domain.exceptions import PhraseSectionMissingError
 from backend.domain.services.card_view import CHOSEN_TO_LEARN
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.built_analysis import WordData
 from backend.domain.value_objects.candidate_section import CandidateSection
-from backend.domain.value_objects.card_choice import DECISION_CHOICES, CardChoice, DecisionStatus
+from backend.domain.value_objects.card_choice import (
+    CHOICE_OF_KIND,
+    DECISION_CHOICES,
+    CardChoice,
+    DecisionStatus,
+)
 from backend.domain.value_objects.cefr_breakdown import (
     CAMBRIDGE,
     CEFRPY,
@@ -67,14 +77,15 @@ from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.token_usage import TokenUsage
 from backend.domain.value_objects.usage_distribution import UsageDistribution
-from backend.domain.value_objects.word_status import WordStatus
+from backend.domain.value_objects.word_mark import WordMark
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.utc_datetime import UTCDateTime
 
 if TYPE_CHECKING:
-    from sqlalchemy import ColumnElement
+    from sqlalchemy import ColumnElement, Connection, Table
 
     from backend.domain.entities.job import Job
+    from backend.domain.value_objects.word_status import WordStatus
 
 
 def dump_position(position: DocumentPosition | None) -> str | None:
@@ -101,6 +112,15 @@ def load_position(stored: str | None) -> DocumentPosition | None:
         end_line=end_line,
         end_char=end_char,
     )
+
+
+def load_position_start(stored: str | None) -> tuple[int, int, int] | None:
+    """(block, start_line, start_char) of a stored position, read without a JSON parse: a
+    book's order reads one per card."""
+    if stored is None:
+        return None
+    block, start_line, start_char, _rest = stored[1:-1].split(",", 3)
+    return (int(block), int(start_line), int(start_char))
 
 
 def dump_phrase(phrase: Phrase | None) -> str | None:
@@ -370,6 +390,9 @@ class StoredCandidateModel(Base):
             "is_phrasal_verb",
             unique=True,
         ),
+        # A lemma's words in every source: what the card state projector reads at every
+        # change of the lemma.
+        Index("ix_candidates_lower_lemma", text("lower(lemma)")),
         {"sqlite_autoincrement": True},
     )
 
@@ -382,7 +405,6 @@ class StoredCandidateModel(Base):
     zipf_frequency: Mapped[float] = mapped_column(Float, nullable=False)
     is_sweet_spot: Mapped[bool] = mapped_column(nullable=False)
     occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     is_phrasal_verb: Mapped[bool] = mapped_column(nullable=False, default=False)
     usage_distribution_json: Mapped[str | None] = mapped_column(
         "usage_distribution", Text, nullable=True
@@ -393,27 +415,10 @@ class StoredCandidateModel(Base):
         "CEFRBreakdownModel", uselist=False, cascade="all, delete-orphan", lazy="joined"
     )
 
-    # The SQL forms of the card view's word predicates, over the stored decision status.
-
-    @classmethod
-    def chosen_to_learn(cls) -> ColumnElement[bool]:
-        """`card_view.chosen_to_learn`: Learn or Learning."""
-        return cls.status.in_([status.value for status in CHOSEN_TO_LEARN])
-
-    @classmethod
-    def learning_in_anki(cls) -> ColumnElement[bool]:
-        """`card_view.learning_in_anki`: Learning."""
-        return cls.status == DecisionStatus.LEARNING.value
-
-    @classmethod
-    def in_export_queue(cls) -> ColumnElement[bool]:
-        """`card_view.in_export_queue` as far as the stored decision says: a Learn not in
-        Anki yet. Whether its lemma was put in Known since (Q15) is knowledge, read in
-        `card_view.in_export_queue` with the request's knowledge scope."""
-        return cls.status == DecisionStatus.LEARN.value
-
-    def to_entity(self) -> StoredCandidate:
-        """The word, WITHOUT its pronunciation and picture — the repository attaches those."""
+    def to_entity(self, status: WordStatus) -> StoredCandidate:
+        """The word, WITHOUT its pronunciation and picture — the repository attaches those.
+        `status`: its decision, read with it by `WORD_DECISION_STATUS`, never kept on the
+        model, so a word held by the session never shows a decision made since."""
         data = self.word_data()
         return StoredCandidate(
             id=self.id,
@@ -424,7 +429,7 @@ class StoredCandidateModel(Base):
             zipf_frequency=data.zipf_frequency,
             occurrences=data.occurrence_count,
             is_phrasal_verb=self.is_phrasal_verb,
-            status=WordStatus(self.status),
+            status=status,
             cefr_breakdown=data.cefr_breakdown,
             usage_distribution=data.usage_distribution,
         )
@@ -474,7 +479,6 @@ class StoredCandidateModel(Base):
             is_sweet_spot=candidate.is_sweet_spot,
             occurrences=candidate.occurrences,
             is_phrasal_verb=candidate.is_phrasal_verb,
-            status=candidate.status.value,
         )
         if candidate.cefr_breakdown is not None:
             model.cefr_breakdown = _breakdown_to_model(candidate.cefr_breakdown)
@@ -482,6 +486,11 @@ class StoredCandidateModel(Base):
             dist = candidate.usage_distribution.to_dict()
             model.usage_distribution_json = json.dumps(dist) if dist else None
         return model
+
+
+# The choices of a decision card that goes to Anki, and the same in SQL.
+AWAITING_EXPORT: tuple[CardChoice, ...] = tuple(CHOICE_OF_KIND.values())
+AWAITING_EXPORT_CHOICES_SQL = "(" + ", ".join(f"'{c.value}'" for c in AWAITING_EXPORT) + ")"
 
 
 class PhraseModel(Base):
@@ -503,6 +512,13 @@ class PhraseModel(Base):
             "candidate_id",
             unique=True,
             sqlite_where=text("choice IN ('learn', 'cloze', 'known')"),
+        ),
+        # The Learn and Cloze decision cards: what the knowledge snapshot reads the words
+        # waiting for export from, at every write.
+        Index(
+            "ix_phrases_awaiting_export",
+            "candidate_id",
+            sqlite_where=text(f"choice IN {AWAITING_EXPORT_CHOICES_SQL}"),
         ),
         {"sqlite_autoincrement": True},
     )
@@ -552,6 +568,27 @@ class PhraseModel(Base):
     def is_skipped(cls) -> ColumnElement[bool]:
         """`card_choice.is_skipped`."""
         return cls.choice == CardChoice.SKIP.value
+
+    @classmethod
+    def decides_to_learn(cls) -> ColumnElement[bool]:
+        """The word's decision card is a Learn or a Cloze: `card_view.chosen_to_learn` of
+        its word. The choices are written out, not bound, so SQLite reads them by their
+        partial index."""
+        return cls.choice.in_([literal_column(f"'{kind.value}'") for kind in AWAITING_EXPORT])
+
+    @classmethod
+    def awaits_export(cls) -> ColumnElement[bool]:
+        """The word's decision card, a Learn or a Cloze, with no active binding: what
+        `card_view.in_export_queue` says of the decision, before what the user knows."""
+        return and_(
+            cls.decides_to_learn(),
+            ~select(AnkiSyncedCardModel.id)
+            .where(
+                AnkiSyncedCardModel.phrase_id == cls.id,
+                AnkiSyncedCardModel.released_at.is_(None),
+            )
+            .exists(),
+        )
 
     @property
     def shown_text(self) -> str:
@@ -689,42 +726,42 @@ class TopicTargetModel(Base):
         )
 
 
-class KnownWordModel(Base):
-    """SQLAlchemy model for known-word whitelist."""
+class WordMarkModel(Base):
+    """A lemma (lower-case) the user marked Known or Unknown: one mark per lemma."""
 
-    __tablename__ = "known_words"
+    __tablename__ = "word_marks"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    lemma: Mapped[str] = mapped_column(String(100), nullable=False)
-    pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lemma: Mapped[str] = mapped_column(Text, nullable=False)
+    mark: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
     )
 
-    __table_args__ = (UniqueConstraint("lemma", "pos", name="uq_known_word_lemma_pos"),)
-
-    def to_entity(self) -> KnownWord:
-        return KnownWord(
-            id=self.id,
-            lemma=self.lemma,
-            pos=self.pos,
-            created_at=self.created_at,
-        )
-
-
-class UnknownWordModel(Base):
-    """SQLAlchemy model for the words the user said they don't know."""
-
-    __tablename__ = "unknown_words"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    lemma: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
-    created_at: Mapped[datetime] = mapped_column(
-        UTCDateTime, nullable=False, default=lambda: datetime.now(tz=UTC)
+    __table_args__ = (
+        UniqueConstraint("lemma", name="uq_word_marks_lemma"),
+        CheckConstraint(
+            f"mark IN ('{WordMark.KNOWN}','{WordMark.UNKNOWN}')", name="ck_word_marks_mark",
+        ),
     )
 
-    def to_entity(self) -> UnknownWord:
-        return UnknownWord(id=self.id, lemma=self.lemma, created_at=self.created_at)
+
+class KnownPosModel(Base):
+    """A part of speech a Known lemma is known in; an empty pos means any and absorbs the
+    others."""
+
+    __tablename__ = "known_pos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lemma: Mapped[str] = mapped_column(
+        Text, ForeignKey("word_marks.lemma", ondelete="CASCADE"), nullable=False,
+    )
+    pos: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("lemma", "pos", name="uq_known_pos_lemma_pos"),
+        Index("uq_known_pos_any", "lemma", unique=True, sqlite_where=text("pos IS NULL")),
+    )
 
 
 class WordDecisionModel(Base):
@@ -834,9 +871,9 @@ class AnkiSyncedCardModel(Base):
     lemma: Mapped[str] = mapped_column(String(100), nullable=False)
     pos: Mapped[str | None] = mapped_column(String(10), nullable=True)
     note_kind: Mapped[str] = mapped_column(String(10), nullable=False)
-    # The choice of the bound card, kept by the card's writer: an orphan still tells a
-    # Known card's binding from a Learn one's.
-    card_choice: Mapped[str] = mapped_column(String(10), nullable=False)
+    # NULL while the card lives; written once, before the card or its source goes: an
+    # orphan still tells a Known card's binding from a Learn one's.
+    card_choice: Mapped[str | None] = mapped_column(String(10), nullable=True)
     learning_since: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     released_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
@@ -1227,3 +1264,173 @@ class AIUsageModel(Base):
             duration_ms=self.duration_ms,
             succeeded=self.succeeded,
         )
+
+
+# The projection's one revision counter row (migration 0056 seeds it the same way).
+PROJECTION_META_ID = 1
+FIRST_PROJECTION_REVISION = 0
+
+
+class CardStateModel(Base):
+    """A shown card as the review reads it, derived by the projector; a removed card stays
+    as a tombstone."""
+
+    __tablename__ = "card_states"
+
+    phrase_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    source_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    word_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    lemma: Mapped[str] = mapped_column(Text, nullable=False)
+    is_done: Mapped[bool] = mapped_column(nullable=False)
+    wants_generation: Mapped[bool] = mapped_column(nullable=False)
+    sections: Mapped[str] = mapped_column(Text, nullable=False)
+    open_sections: Mapped[str] = mapped_column(Text, nullable=False)
+    new_counts: Mapped[str] = mapped_column(Text, nullable=False)
+    polish_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    meaning_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    media_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    tts_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    pronunciation_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    media_timed: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    # What the queue holds for the card, per kind: a JobState.
+    polish_job: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    meaning_job: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    media_job: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    tts_job: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    pronunciation_job: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    changes_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    removed: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="0")
+
+    # The three covering indexes serve the screens' counts: read in their order, a source's
+    # rows group without sorting.
+    __table_args__ = (
+        Index("ix_card_states_source_removed_done", "source_id", "removed", "is_done"),
+        Index("ix_card_states_source_removed_sections", "source_id", "removed", "sections"),
+        Index(
+            "ix_card_states_generation",
+            "source_id", "removed", "wants_generation", "open_sections", "polish_done",
+            "meaning_done", "media_done", "tts_done", "pronunciation_done", "media_timed",
+            "polish_job", "meaning_job", "media_job", "tts_job", "pronunciation_job",
+        ),
+        Index(
+            "ix_card_states_words_in_play", "source_id", "removed", "wants_generation", "word_id",
+        ),
+        Index("ix_card_states_source_revision", "source_id", "revision"),
+        Index("ix_card_states_lemma", "lemma"),
+        Index("ix_card_states_word_id", "word_id"),
+        Index(
+            "ix_card_states_changes_at", "changes_at",
+            sqlite_where=text("changes_at IS NOT NULL"),
+        ),
+    )
+
+
+class WordStateModel(Base):
+    """A word of a source with its decision status, derived by the projector."""
+
+    __tablename__ = "word_states"
+
+    word_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    source_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    lemma: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        Index("ix_word_states_source_id", "source_id"),
+        Index("ix_word_states_lemma", "lemma"),
+    )
+
+    # The SQL forms of the card view's word predicates over the projected status, for the
+    # screens; the rules read the facts.
+
+    @classmethod
+    def chosen_to_learn(cls) -> ColumnElement[bool]:
+        """`card_view.chosen_to_learn`: Learn or Learning."""
+        return cls.status.in_([status.value for status in CHOSEN_TO_LEARN])
+
+    @classmethod
+    def learning_in_anki(cls) -> ColumnElement[bool]:
+        """`card_view.learning_in_anki`: Learning."""
+        return cls.status == DecisionStatus.LEARNING.value
+
+
+class PhraseWordModel(Base):
+    """A word of a shown phrase besides its target, with its newness, derived by the
+    projector."""
+
+    __tablename__ = "phrase_words"
+
+    lemma: Mapped[str] = mapped_column(Text, nullable=False)
+    phrase_lemma: Mapped[str] = mapped_column(Text, nullable=False)
+    phrase_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    position: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    zipf: Mapped[float] = mapped_column(Float, nullable=False)
+    content: Mapped[bool] = mapped_column(nullable=False)
+    level: Mapped[str] = mapped_column(Text, nullable=False)
+    newness: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        Index("ix_phrase_words_lemma", "lemma"),
+        {"sqlite_with_rowid": False},
+    )
+
+
+class ProjectionMetaModel(Base):
+    """The projection's revision counter and its last time tick: one row."""
+
+    __tablename__ = "projection_meta"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    # When the rows were last brought up to date with time: the rebuild or the time tick.
+    ticked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(f"id = {PROJECTION_META_ID}", name="ck_projection_meta_one_row"),
+    )
+
+
+def _decision_status_of_word() -> ColumnElement[str]:
+    """`decision_status(word)` in SQL: the choice on the word's decision card, Learning
+    while that card has an active binding, pending without a decision card. Its own aliases,
+    so a query that joins phrases or bindings itself does not correlate with them."""
+    card = aliased(PhraseModel)
+    binding = aliased(AnkiSyncedCardModel)
+    bound = (
+        select(binding.id)
+        .where(binding.phrase_id == card.id, binding.released_at.is_(None))
+        .correlate(card)
+        .exists()
+    )
+    decided = (
+        select(
+            case(
+                (card.choice == CardChoice.KNOWN.value, DecisionStatus.KNOWN.value),
+                (bound, DecisionStatus.LEARNING.value),
+                else_=DecisionStatus.LEARN.value,
+            ),
+        )
+        .where(card.candidate_id == StoredCandidateModel.id, card.is_decision())
+        .correlate(StoredCandidateModel)
+        .scalar_subquery()
+    )
+    return func.coalesce(decided, DecisionStatus.NEW.value)
+
+
+# The word's decision status as the facts say it, for the queries that select it.
+WORD_DECISION_STATUS = _decision_status_of_word()
+
+
+def _seed_projection_meta(target: Table, connection: Connection, **_kw: object) -> None:
+    """A table made from the models, not by the migrations, gets the row 0056 seeds."""
+    connection.execute(
+        target.insert().values(id=PROJECTION_META_ID, revision=FIRST_PROJECTION_REVISION),
+    )
+
+
+event.listen(
+    ProjectionMetaModel.metadata.tables[ProjectionMetaModel.__tablename__],
+    "after_create",
+    _seed_projection_meta,
+)

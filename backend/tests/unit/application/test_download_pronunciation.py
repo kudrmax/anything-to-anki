@@ -43,6 +43,7 @@ def _build_use_case(
         pronunciation_source=pronunciation_source,
         file_downloader=file_downloader,
         media_root=media_root,
+        unit_of_work=MagicMock(),
     )
 
 

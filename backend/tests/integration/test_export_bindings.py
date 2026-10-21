@@ -13,9 +13,10 @@ from backend.application.utils.export_queue import ExportQueue
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.services.cloze_builder import ClozeBuilder
-from backend.domain.value_objects.card_choice import Press
+from backend.domain.value_objects.card_choice import CardChoice, Press
 from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.source_scope import SourceScope
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -28,10 +29,11 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
 )
 from sqlalchemy import text
 
-from tests.decision_support import NOW, Decisions
+from tests.decision_support import NOW, Decisions, project_words
 from tests.integration.conftest import insert_source
 from tests.unit.application.scope_fakes import sources_scope_resolver
-from tests.word_support import insert_word, phrase_id_of
+from tests.word_marks_support import insert_known
+from tests.word_support import decision_status_of, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -70,13 +72,17 @@ class Bench:
 
     def _ready(self, phrase_id: int, word_id: int) -> None:
         """A meaning and audio: the card is ready to export."""
-        SqlaCandidateMeaningRepository(self.session).upsert_for_phrase(
+        SqlaCandidateMeaningRepository(
+            self.session, SessionChangeRecorder(self.session),
+        ).upsert_for_phrase(
             phrase_id, CandidateMeaning(
                 candidate_id=word_id, meaning="to look angrily", translation=None,
                 synonyms=None, examples=None, ipa=None, generated_at=None,
             ),
         )
-        SqlaCandidateTTSRepository(self.session).upsert_for_phrase(
+        SqlaCandidateTTSRepository(
+            self.session, SessionChangeRecorder(self.session),
+        ).upsert_for_phrase(
             phrase_id, CandidateTTS(
                 candidate_id=word_id, audio_path="/media/1/tts.mp3", generated_at=None,
             ),
@@ -96,7 +102,8 @@ class Bench:
 
     def queue(self) -> ExportQueue:
         return ExportQueue(
-            SqlaCandidateRepository(self.session), SqlaOccurrenceRepository(self.session),
+            SqlaCandidateRepository(self.session, SessionChangeRecorder(self.session)),
+            SqlaOccurrenceRepository(self.session, SessionChangeRecorder(self.session)),
             self.decisions.word_states, self.decisions.vocabulary,
         )
 
@@ -115,12 +122,12 @@ class Bench:
             scope_resolver=sources_scope_resolver(source_id),
             vocabulary=self.decisions.vocabulary,
             effects=self.decisions.effects(),
+            word_states=self.decisions.word_states,
+            unit_of_work=MagicMock(),
         ).execute(SourceScope.source(source_id), group)
 
     def status(self, word_id: int = WORD) -> str:
-        return str(self.session.execute(
-            text("SELECT status FROM candidates WHERE id = :id"), {"id": word_id},
-        ).scalar_one())
+        return decision_status_of(self.session, word_id)
 
     def rows(self) -> list[tuple[object, ...]]:
         """(phrase, note, kind, learning_since, active) of every binding, in order."""
@@ -152,6 +159,23 @@ def test_export_makes_the_word_learning_and_starts_its_timer_now(bench: Bench) -
     lemma = bench.session.execute(text("SELECT lemma, pos FROM anki_synced_cards")).one()
     assert tuple(lemma) == (LEMMA, "VERB")
     assert bench.queue().for_sources([SOURCE]).pending == []
+
+
+def test_a_decision_made_while_the_notes_go_to_anki_is_kept(bench: Bench) -> None:
+    bench.press(CARD, Press.LEARN)
+
+    def known_meanwhile(**_: object) -> list[int]:
+        bench.press(CARD, Press.KNOWN)
+        return [NOTE]
+
+    bench.connector.add_notes.side_effect = known_meanwhile
+
+    bench.export()
+
+    assert bench.rows() == []
+    assert bench.status() != "learning"
+    [word] = bench.decisions.word_states.of_words([WORD]).values()
+    assert word.card(CARD).choice is CardChoice.KNOWN
 
 
 def test_re_export_after_a_removal_binds_the_same_note_with_a_new_timer(bench: Bench) -> None:
@@ -222,9 +246,7 @@ def test_a_cloze_without_markup_is_incomplete(bench: Bench) -> None:
 def test_a_learn_put_in_known_after_it_leaves_the_queue(bench: Bench) -> None:
     """Q15: the later action wins."""
     bench.press(CARD, Press.LEARN)
-    bench.session.execute(text(
-        "INSERT INTO known_words (lemma, pos, created_at) VALUES ('glare', 'VERB', '2026-01-01')"
-    ))
+    insert_known(bench.session, "glare", "VERB")
     bench.later(days=0)
 
     bench.export()
@@ -245,6 +267,22 @@ def test_the_queue_reads_only_the_words_chosen_to_learn(bench: Bench) -> None:
         batch = bench.queue().for_all()
 
     assert [card.word_id for card in batch.pending] == [WORD]
+
+
+def test_the_export_reads_the_decision_from_the_cards_not_the_projection(
+    bench: Bench,
+) -> None:
+    """The export is a rule: it reads the facts. A projected status gone wrong does not
+    keep a Learn word out of it."""
+    bench.press(CARD, Press.LEARN)
+    project_words(bench.session)
+    bench.session.execute(
+        text("UPDATE word_states SET status = 'pending' WHERE word_id = :w"), {"w": WORD},
+    )
+
+    assert [card.word_id for card in bench.queue().for_sources([SOURCE]).pending] == [WORD]
+    bench.export()
+    assert bench.rows()
 
 
 def test_the_pending_count_is_the_queue_length(bench: Bench) -> None:

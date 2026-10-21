@@ -371,20 +371,70 @@ export interface CardSource {
   can_polish_phrases: boolean
 }
 
-/** Ревью набора источников: один источник, коллекция или все. Статус, прогресс и занятость — по набору. */
-export interface ReviewDetail {
-  /** Токен набора, как его принимает параметр scope. */
+/** Шапка открытого ревью: по всему набору. */
+export interface ReviewHeader {
   scope: string
   title: string
   status: SourceStatus
   progress: Progress
-  /** Слов на изучение (не карточек). */
   learn_count: number
-  candidates: StoredCandidate[]
-  /** How many candidates to show before "Show more"; null — show all. */
-  initially_shown_candidates: number | null
-  /** Какой-то источник набора занят операцией: его карточки ждут её. */
   busy: boolean
+}
+
+/** Строка видимого списка ревью: карточка или строка сворачиваемого раздела. */
+export interface ReviewRow {
+  index: number
+  kind: 'card' | 'section'
+  phrase_id: number | null
+  position: number | null
+  section: CandidateSection | null
+  count: number | null
+  open: boolean | null
+}
+
+/** Строки видимого списка. replace — список изменился: у клиента остаются только эти строки, остальные он подгрузит заново. */
+export interface ReviewLayout {
+  version: number
+  total_rows: number
+  total_cards: number
+  replace: boolean
+  rows: ReviewRow[]
+}
+
+/** Единственный ответ открытого ревью: что изменилось с `since` до `revision` и куда фокус. */
+export interface ReviewUpdate {
+  review_id: string
+  revision: number
+  header: ReviewHeader
+  layout: ReviewLayout | null
+  cards: StoredCandidate[]
+  removed: number[]
+  /** Разобрана ли каждая изменившаяся карточка набора. */
+  done: Record<number, boolean>
+  focus_id: number | null
+  /** Кусок текста источника, если запрос его просил. */
+  text: TextChunk | null
+  /** Подсветки отданных клиенту кусков, у которых они изменились: заменяют подсветки куска. */
+  highlights: ChunkHighlights[]
+  /** Версия оглавления набора: растёт, когда меняется состав его источников. */
+  contents_version: number
+}
+
+/** Что шлёт каждый запрос к открытому ревью: его id, ревизия клиента и показанная карточка. */
+export interface ReviewContext {
+  review_id: string
+  since: number
+  current: number | null
+}
+
+/** Ревью, которое открыть: набор, порядок, карточка, на которой открыть, и раскрытые клиентом разделы. */
+export interface OpenReviewRequest {
+  scope: string
+  sort: CandidateSortOrder
+  requested_id: number | null
+  open_sections: CandidateSection[]
+  /** Куски текста, что уже есть у клиента: ответ несёт их подсветки. */
+  text_chunks: TextChunkRef[]
 }
 
 export interface AnkiStatus {
@@ -662,6 +712,8 @@ export interface DocumentBlock {
   mode: 'flow' | 'lines' | null
   ordered: boolean | null
   depth: number | null
+  /** Номер пункта списка среди соседних; у ненумерованного — точка. */
+  number: number | null
 }
 
 export interface Highlight {
@@ -670,14 +722,52 @@ export interface Highlight {
   position: DocumentPosition
   cefr_level: string | null
   is_phrasal_verb: boolean
+  /** Карточка разобрана: слово решено или фраза пропущена. */
+  is_done: boolean
 }
 
-export interface SourceDocument {
+/** Блоки `first_block`…`end_block` документа источника с подсветками в них. Смещения в тексте документа
+ * и счётчики нужны только для высоты заглушек незагруженного текста. */
+export interface TextChunk {
   source_id: number
-  title: string
+  first_block: number
+  end_block: number
+  block_count: number
+  start_offset: number
+  end_offset: number
+  text_length: number
   blocks: DocumentBlock[]
   /** Target'ы, которые не пересекаются, в порядке чтения. */
   highlights: Highlight[]
+}
+
+/** Подсветки отданного клиенту куска, какие они сейчас. */
+export interface ChunkHighlights {
+  source_id: number
+  first_block: number
+  highlights: Highlight[]
+}
+
+/** Где в тексте источника взять кусок: блок (-1 — последний) или символ по смещению в тексте документа. */
+export type TextPlace = { block: number } | { at: number }
+
+/** Кусок текста, что есть у клиента: источник и первый блок куска. */
+export interface TextChunkRef {
+  source_id: number
+  first_block: number
+}
+
+/** Источник набора с документом; size_hint — только для высоты заглушки. */
+export interface ContentsEntry {
+  source_id: number
+  title: string
+  size_hint: number
+}
+
+/** Документы набора открытого ревью в порядке набора; version растёт, когда меняется состав источников. */
+export interface ReviewContents {
+  version: number
+  documents: ContentsEntry[]
 }
 
 export interface DetailItem {

@@ -13,7 +13,7 @@ from backend.domain.value_objects.source_status import SourceStatus
 class TestRenameSourceUseCase:
     def setup_method(self) -> None:
         self.source_repo = MagicMock()
-        self.use_case = RenameSourceUseCase(source_repo=self.source_repo)
+        self.use_case = RenameSourceUseCase(source_repo=self.source_repo, unit_of_work=MagicMock())
 
     def test_rename_success(self) -> None:
         self.source_repo.get_by_id.return_value = Source(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from backend.application.dto.add_source_dtos import (
@@ -42,6 +43,7 @@ from backend.infrastructure.adapters.regex_format_detector import RegexFormatDet
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
 from backend.infrastructure.adapters.video_path_resolver import VideoPathResolverImpl
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
 )
@@ -84,7 +86,7 @@ def add_source(db_session: Session, tmp_path: Path) -> AddSourceUseCase:
     tracks = FakeVideoTracks({0: srt((1, "From the video"))}, audio_tracks=2)
     youtube = FakeYouTube(srt((1, "Welcome back")))
     writer = SourceWriter(
-        SqlaSourceRepository(db_session),
+        SqlaSourceRepository(db_session, SessionChangeRecorder(db_session)),
         SqlaDocumentRepository(db_session),
         VideoPathResolverImpl(data_dir=str(tmp_path)),
     )
@@ -108,7 +110,8 @@ def add_source(db_session: Session, tmp_path: Path) -> AddSourceUseCase:
         normalizer=DocumentNormalizer(RegexTextCleaner(), SlangNormalizer()),
         file_reader=files,
         group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(db_session)),
-        settings_repo=SqlaSettingsRepository(db_session),
+        settings_repo=SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session)),
+        unit_of_work=MagicMock(),
     )
 
 
@@ -158,7 +161,9 @@ class TestText:
         created = _created(_add(add_source, PastedText("I wanna go.\n\nNow."), answers=TEXT))
 
         (source_id,) = created.source_ids
-        source = SqlaSourceRepository(db_session).get_by_id(source_id)
+        source = SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(source_id)
         assert source is not None
         assert (source.format, source.kind) == (Format.PLAIN, Kind.TEXT)
         assert source.title == "I want to go.\n\nNow."
@@ -172,7 +177,9 @@ class TestText:
     ) -> None:
         text = "[Chorus]\nHello darkness\n♪\nmy old friend"
         (source_id,) = _created(_add(add_source, PastedText(text), answers=SONG)).source_ids
-        source = SqlaSourceRepository(db_session).get_by_id(source_id)
+        source = SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(source_id)
         assert source is not None
         assert source.kind is Kind.SONG
         assert SqlaDocumentRepository(db_session).get(source_id) == Document((
@@ -181,7 +188,9 @@ class TestText:
 
     def test_own_title_wins(self, add_source: AddSourceUseCase, db_session: Session) -> None:
         result = _add(add_source, PastedText("Text."), title="  Mine ", answers=TEXT)
-        source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
+        source = SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(_created(result).source_ids[0])
         assert source is not None
         assert source.title == "Mine"
 
@@ -192,7 +201,9 @@ class TestText:
         path.write_text("# Notes\n\nText here.")
         result = _add(add_source, LocalFile(f"'{path}'"), answers=TEXT)
         (source_id,) = _created(result).source_ids
-        source = SqlaSourceRepository(db_session).get_by_id(source_id)
+        source = SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(source_id)
         assert source is not None
         assert (source.title, source.format) == ("notes", Format.MARKDOWN)
         document = SqlaDocumentRepository(db_session).get(source_id)
@@ -276,7 +287,9 @@ class TestBook:
 
         assert first.collection_id is not None
         assert again.default_collection == CollectionChoiceDTO(existing_id=first.collection_id)
-        sources = [SqlaSourceRepository(db_session).get_by_id(i) for i in first.source_ids]
+        sources = [SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(i) for i in first.source_ids]
         assert [(s.title, s.kind, s.format) for s in sources if s] == [
             ("Flourish ch1", Kind.BOOK, Format.EPUB),
             ("Flourish ch2", Kind.BOOK, Format.EPUB),
@@ -305,7 +318,9 @@ class TestBook:
         assert [b for b in document.blocks if isinstance(b, Heading)] == [
             Heading(1, "Chapter 1"), Heading(1, "Chapter 2"),
         ]
-        source = SqlaSourceRepository(db_session).get_by_id(source_id)
+        source = SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(source_id)
         assert source is not None
         assert source.title == "Mine"
 
@@ -324,7 +339,9 @@ class TestVideo:
         assert _asked(_add(add_source, video)) == ["video.audio_track"]
 
         result = _add(add_source, video, answers=Answers({"video.audio_track": "1"}))
-        source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
+        source = SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(_created(result).source_ids[0])
         assert source is not None
         assert (source.format, source.kind, source.title) == (
             Format.VIDEO_FILE, Kind.SUBTITLES, "Movie.mkv",
@@ -333,7 +350,9 @@ class TestVideo:
 
     def test_youtube_link(self, add_source: AddSourceUseCase, db_session: Session) -> None:
         result = _add(add_source, Url(YOUTUBE_URL))
-        source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
+        source = SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(_created(result).source_ids[0])
         assert source is not None
         assert (source.format, source.kind, source.title, source.source_url) == (
             Format.YOUTUBE, Kind.SUBTITLES, "A talk", YOUTUBE_URL,
@@ -347,14 +366,18 @@ class TestTitles:
     ) -> None:
         text = "word " * 40
         result = _add(add_source, PastedText(text), title="   ", answers=TEXT)
-        source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
+        source = SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(_created(result).source_ids[0])
         assert source is not None
         assert source.title == ("word " * 20)[:100]
 
     def test_default_rule_comes_from_the_setting(
         self, add_source: AddSourceUseCase, db_session: Session, tmp_path: Path,
     ) -> None:
-        SqlaSettingsRepository(db_session).set("naming_rule", "{{n}}. {{title}}")
+        SqlaSettingsRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).set("naming_rule", "{{n}}. {{title}}")
 
         naming = _naming(_add(add_source, LocalFile(_book(tmp_path, 2)), answers=SPLIT))
 
@@ -366,7 +389,9 @@ class TestTitles:
         path = tmp_path / "Article.html"
         path.write_text("<html><body><h1>News</h1><p>Text.</p></body></html>")
         result = _add(add_source, LocalFile(str(path)), answers=TEXT)
-        source = SqlaSourceRepository(db_session).get_by_id(_created(result).source_ids[0])
+        source = SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(_created(result).source_ids[0])
         assert source is not None
         assert (source.title, source.format, source.kind) == ("Article", Format.HTML, Kind.TEXT)
 
@@ -378,7 +403,7 @@ def test_youtube_without_subtitles_is_reported(db_session: Session, tmp_path: Pa
 
     youtube = _NoSubtitles()
     writer = SourceWriter(
-        SqlaSourceRepository(db_session),
+        SqlaSourceRepository(db_session, SessionChangeRecorder(db_session)),
         SqlaDocumentRepository(db_session),
         VideoPathResolverImpl(data_dir=str(tmp_path)),
     )
@@ -389,7 +414,8 @@ def test_youtube_without_subtitles_is_reported(db_session: Session, tmp_path: Pa
         normalizer=DocumentNormalizer(RegexTextCleaner(), SlangNormalizer()),
         file_reader=LocalFileReader(),
         group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(db_session)),
-        settings_repo=SqlaSettingsRepository(db_session),
+        settings_repo=SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session)),
+        unit_of_work=MagicMock(),
     )
     with pytest.raises(SubtitlesNotAvailableError):
         _add(use_case, Url(YOUTUBE_URL))
@@ -453,7 +479,9 @@ class TestBatch:
             _files(tmp_path, "a.txt", "b.txt"), answers=[TEXT, TEXT], naming=naming,
         ))
 
-        sources = [SqlaSourceRepository(db_session).get_by_id(i) for i in created.source_ids]
+        sources = [SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(i) for i in created.source_ids]
         assert [s.title for s in sources if s] == ["Part 1", "Intro"]
 
     def test_several_sources_ask_how_to_name_them(
@@ -485,7 +513,9 @@ class TestBatch:
 
         created = _created(add_source.execute(inputs, answers=[TEXT, TEXT], naming=naming))
 
-        sources = [SqlaSourceRepository(db_session).get_by_id(i) for i in created.source_ids]
+        sources = [SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(i) for i in created.source_ids]
         assert [s.title for s in sources if s] == ["Atomic Habits ch1", "Intro"]
         assert created.collection_id is not None
         assert {s.collection_id for s in sources if s} == {created.collection_id}
@@ -499,7 +529,9 @@ class TestBatch:
             _files(tmp_path, "a.txt", "b.txt"), answers=[TEXT, TEXT], naming=naming,
         ))
 
-        sources = [SqlaSourceRepository(db_session).get_by_id(i) for i in created.source_ids]
+        sources = [SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(i) for i in created.source_ids]
         assert [s.title for s in sources if s] == ["ch01", "ch02"]
 
     def test_naming_offers_number_formats_auto_first(
@@ -522,7 +554,9 @@ class TestBatch:
             _files(tmp_path, "a.txt", "b.txt"), answers=[TEXT, TEXT], naming=naming,
         ))
 
-        sources = [SqlaSourceRepository(db_session).get_by_id(i) for i in created.source_ids]
+        sources = [SqlaSourceRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_id(i) for i in created.source_ids]
         assert [(s.title, s.collection_id) for s in sources if s] == [("ch1", None), ("ch2", None)]
 
     def test_two_books_answer_separately(
@@ -554,4 +588,4 @@ class TestBatch:
 
         assert failed.value.label == "picture.txt"
         assert isinstance(failed.value.cause, NotATextFileError)
-        assert SqlaSourceRepository(db_session).list_all() == []
+        assert SqlaSourceRepository(db_session, SessionChangeRecorder(db_session)).list_all() == []

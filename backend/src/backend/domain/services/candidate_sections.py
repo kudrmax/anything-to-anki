@@ -9,13 +9,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from backend.domain.services.card_view import section, shown_section
+from backend.domain.services.card_view import Done, section, shown_section
+from backend.domain.value_objects.by_step import NewCountsByStep, SectionsByStep
 from backend.domain.value_objects.candidate_section import CandidateSection
+from backend.domain.value_objects.frequent_word_threshold import THRESHOLD_STEPS, is_frequent
+from backend.domain.value_objects.phrase_newness import NO_NEWNESS, PhraseNewness
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
     from backend.domain.value_objects.phrase import Phrase
-    from backend.domain.value_objects.user_knowledge import UserKnowledge
+    from backend.domain.value_objects.user_knowledge import KnowledgeBase, UserKnowledge
 
 _JUNK_POS: frozenset[str] = frozenset({"INTJ"})
 _MISSING_FROM_DICTIONARY_ZIPF: float = 0.0
@@ -47,9 +50,8 @@ class CardFacts(WordFacts, Protocol):
         ...
 
 
-class ShownCardFacts(CardFacts, Protocol):
-    @property
-    def is_done(self) -> bool: ...
+class OpenSectionFacts(WordFacts, Protocol):
+    """What tells the section a card would stand in open, besides the words of its phrase."""
 
     @property
     def earned_section(self) -> CandidateSection:
@@ -57,16 +59,32 @@ class ShownCardFacts(CardFacts, Protocol):
         ...
 
 
+class SectionFacts(OpenSectionFacts, Protocol):
+    """What tells a card's section besides the words of its phrase."""
+
+    @property
+    def is_done(self) -> bool: ...
+
+
+class ShownCardFacts(CardFacts, SectionFacts, Protocol):
+    """A shown card: its phrase and what tells its section."""
+
+
+def phrase_newness(phrase: Phrase, knowledge_base: KnowledgeBase | None) -> PhraseNewness:
+    """The newness of the words of the phrase besides the target; none without knowledge."""
+    if knowledge_base is None:
+        return NO_NEWNESS
+    return PhraseNewness.of(
+        (word.lemma, word.zipf, knowledge_base.newness(word)) for word in phrase.other_words()
+    )
+
+
 def new_words(phrase: Phrase, knowledge: UserKnowledge | None) -> list[str]:
     """Words of the phrase besides the target that are new to the user, once each.
     Words the user is learning count as new."""
     if knowledge is None:
         return []
-    found: list[str] = []
-    for word in phrase.other_words():
-        if word.lemma not in found and knowledge.is_new(word):
-            found.append(word.lemma)
-    return found
+    return phrase_newness(phrase, knowledge.base).new_lemmas(knowledge.frequent_zipf)
 
 
 def section_of(
@@ -75,11 +93,12 @@ def section_of(
     frequent_threshold: FrequentWordThreshold | None,
 ) -> CandidateSection:
     """The section the phrase earns, done or not."""
-    if is_junk(card) or is_probably_known(card, frequent_threshold):
-        return CandidateSection.PROBABLY_KNOWN
-    if new_words(card.phrase, knowledge):
-        return CandidateSection.EXTRA
-    return CandidateSection.READY
+    return _earned_section(
+        card,
+        phrase_newness(card.phrase, knowledge.base if knowledge is not None else None),
+        target_step=frequent_threshold.zipf if frequent_threshold is not None else None,
+        words_step=knowledge.frequent_zipf if knowledge is not None else None,
+    )
 
 
 def open_section(
@@ -98,6 +117,68 @@ def card_section(
 ) -> CandidateSection:
     """Where the card stands: Reviewed once done, else its open section."""
     return section(card, open_section(card, knowledge, frequent_threshold))
+
+
+def sections_by_step(
+    card: ShownCardFacts, knowledge_base: KnowledgeBase | None,
+) -> tuple[CandidateSection, ...]:
+    """`card_section` at every threshold of THRESHOLD_STEPS, in its order, the phrase read
+    once."""
+    newness = phrase_newness(card.phrase, knowledge_base)
+    return sections_at_steps(card, new_counts_at_steps(newness)).sections
+
+
+def sections_at_steps(card: SectionFacts, new_counts: NewCountsByStep) -> SectionsByStep:
+    """`card_section` at every threshold step, given how many other words of the card's
+    phrase are new at each."""
+    return done_sections(card, open_sections_at_steps(card, new_counts))
+
+
+def open_sections_at_steps(
+    card: OpenSectionFacts, new_counts: NewCountsByStep,
+) -> SectionsByStep:
+    """`open_section` at every threshold step, given how many other words of the card's
+    phrase are new at each."""
+    return SectionsByStep(tuple(
+        shown_section(
+            _earned_by_count(card, new_counts.at(step), target_step=step),
+            card.earned_section,
+        )
+        for step in THRESHOLD_STEPS
+    ))
+
+
+def done_sections(card: Done, open_sections: SectionsByStep) -> SectionsByStep:
+    """Where a card with these open sections stands at every step: Reviewed once done."""
+    return SectionsByStep(tuple(section(card, shown) for shown in open_sections.sections))
+
+
+def new_counts_at_steps(newness: PhraseNewness) -> NewCountsByStep:
+    """How many words besides the target are new at every threshold step."""
+    return NewCountsByStep(newness.counts(THRESHOLD_STEPS))
+
+
+def _earned_section(
+    card: WordFacts,
+    newness: PhraseNewness,
+    *,
+    target_step: float | None,
+    words_step: float | None,
+) -> CandidateSection:
+    """`target_step` tells whether the target is probably known, `words_step` — which other
+    words of the phrase are new."""
+    return _earned_by_count(card, newness.count(words_step), target_step=target_step)
+
+
+def _earned_by_count(
+    card: WordFacts, new_count: int, *, target_step: float | None,
+) -> CandidateSection:
+    """`new_count`: how many other words of the phrase are new."""
+    if is_junk(card) or is_frequent(card.zipf_frequency, target_step):
+        return CandidateSection.PROBABLY_KNOWN
+    if new_count:
+        return CandidateSection.EXTRA
+    return CandidateSection.READY
 
 
 @dataclass(frozen=True)
@@ -129,13 +210,6 @@ class SectionRule:
 
     def earned(self, phrase: Phrase, word: WordFacts) -> CandidateSection:
         return section_of(_PhraseOfWord(word, phrase), self.knowledge, self.frequent_threshold)
-
-
-def is_probably_known(
-    word: WordFacts,
-    frequent_threshold: FrequentWordThreshold | None,
-) -> bool:
-    return frequent_threshold is not None and frequent_threshold.covers(word.zipf_frequency)
 
 
 def is_junk(word: WordFacts) -> bool:

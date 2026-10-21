@@ -48,6 +48,8 @@ class BlockDTO(BaseModel):
     mode: str | None = None
     ordered: bool | None = None
     depth: int | None = None
+    # A list item's number among the items around it; an unordered one shows a bullet.
+    number: int | None = None
 
 
 class HighlightDTO(BaseModel):
@@ -58,13 +60,55 @@ class HighlightDTO(BaseModel):
     position: DocumentPositionDTO
     cefr_level: str | None
     is_phrasal_verb: bool
+    # The card is done: its word is decided, or its phrase skipped.
+    is_done: bool
 
 
-class SourceDocumentDTO(BaseModel):
-    """The text of one source of a review set, with the targets to mark in it."""
+class TextChunkDTO(BaseModel):
+    """Blocks `first_block` up to `end_block` of a source's document, with the targets to
+    mark in them. The offsets, in the document's text, and the counts only size the
+    placeholders of the text not loaded."""
 
     source_id: int
-    title: str
+    first_block: int
+    end_block: int
+    block_count: int
+    start_offset: int
+    end_offset: int
+    text_length: int
     blocks: list[BlockDTO]
     # Targets that don't overlap, in reading order
     highlights: list[HighlightDTO]
+
+
+class ContentsEntryDTO(BaseModel):
+    """A source of a review set that has a document; `size_hint` only sizes its placeholder."""
+
+    source_id: int
+    title: str
+    size_hint: int
+
+
+class ReviewContentsDTO(BaseModel):
+    """The documents of an open review's set in the set's order; `version` moves on when
+    the set's sources change."""
+
+    version: int
+    documents: list[ContentsEntryDTO]
+
+
+class ChunkHighlightsDTO(BaseModel):
+    """The targets to mark in a chunk of a source's text the client was sent, as they are
+    now: they replace the chunk's marks."""
+
+    source_id: int
+    first_block: int
+    highlights: list[HighlightDTO]
+
+
+class TextChunkRef(BaseModel):
+    """A chunk of a source's text the client holds: the source and the chunk's first
+    block."""
+
+    source_id: int
+    first_block: int

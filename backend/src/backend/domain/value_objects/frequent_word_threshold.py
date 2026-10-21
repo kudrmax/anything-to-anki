@@ -6,6 +6,20 @@ AUTO_KEY = "auto"
 OFF_KEY = "off"
 # Where an average learner probably knows a word; Auto starts here.
 FALLBACK_ZIPF: float = 4.5
+# Every zipf a threshold can take, the last one — no threshold: frequency is ignored.
+THRESHOLD_STEPS: tuple[float | None, ...] = (2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, None)
+
+
+def step_index(zipf: float | None) -> int:
+    """Position of the threshold `zipf` in THRESHOLD_STEPS."""
+    if zipf not in THRESHOLD_STEPS:
+        raise ValueError(f"Not a threshold step: {zipf!r}")
+    return THRESHOLD_STEPS.index(zipf)
+
+
+def is_frequent(zipf: float, step: float | None) -> bool:
+    """At least as frequent as the threshold `step`; nothing is frequent without one."""
+    return step is not None and zipf >= step
 
 
 @dataclass(frozen=True)
@@ -27,7 +41,7 @@ class FrequentWordThreshold:
         return self.key == AUTO_KEY
 
     def covers(self, zipf: float) -> bool:
-        return self.zipf is not None and zipf >= self.zipf
+        return is_frequent(zipf, self.zipf)
 
     def calibrated(self, zipf: float) -> FrequentWordThreshold:
         return replace(self, zipf=zipf)
@@ -40,12 +54,17 @@ class FrequentWordThreshold:
         raise ValueError(f"Unknown frequent word threshold: {key!r}")
 
 
+def _manual(zipf: float, examples: tuple[str, ...]) -> FrequentWordThreshold:
+    step_index(zipf)
+    return FrequentWordThreshold(str(zipf), zipf, examples)
+
+
 FREQUENT_WORD_THRESHOLDS: tuple[FrequentWordThreshold, ...] = (
     FrequentWordThreshold(AUTO_KEY, None, ()),
-    FrequentWordThreshold("4.0", 4.0, ("naked", "divorce", "awkward", "hilarious")),
-    FrequentWordThreshold("4.5", 4.5, ("concept", "classic", "assume", "weird")),
-    FrequentWordThreshold("5.0", 5.0, ("career", "issue", "available", "figure out")),
-    FrequentWordThreshold("5.5", 5.5, ("end up", "find out", "come in", "get out")),
+    _manual(4.0, ("naked", "divorce", "awkward", "hilarious")),
+    _manual(4.5, ("concept", "classic", "assume", "weird")),
+    _manual(5.0, ("career", "issue", "available", "figure out")),
+    _manual(5.5, ("end up", "find out", "come in", "get out")),
     FrequentWordThreshold(OFF_KEY, None, ()),
 )
 

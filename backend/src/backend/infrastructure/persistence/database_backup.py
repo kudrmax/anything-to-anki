@@ -5,6 +5,8 @@ import sqlite3
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from backend.infrastructure.persistence.database import open_query_only
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -36,7 +38,8 @@ class DatabaseBackup:
         self._dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(tz=UTC).strftime(BACKUP_TIME_FORMAT)
         target = self._dir / f"{BACKUP_PREFIX}{stamp}{BACKUP_SUFFIX}"
-        source = sqlite3.connect(self._db_path)
+        # Waits for a writer as every connection of the app does, and writes nothing.
+        source = open_query_only(str(self._db_path))
         try:
             copy = sqlite3.connect(target)
             try:

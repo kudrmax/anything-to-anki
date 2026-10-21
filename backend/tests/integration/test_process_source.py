@@ -3,27 +3,56 @@ and selection shows the best one of each word."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
+from backend.application.use_cases.process_sources import ProcessSourcesUseCase
 from backend.domain.exceptions import SourceOperationBusyError
 from backend.domain.value_objects.held_operation import HeldOperation
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import ShownBy
 from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
+from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
+from sqlalchemy import text
 
-from tests.source_rebuild_support import LINES, SOURCE, Bench, at, time_of_line, word
+from tests.source_rebuild_support import (
+    LINES,
+    SOURCE,
+    Bench,
+    SharedBench,
+    at,
+    time_of_line,
+    word,
+)
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from backend.domain.entities.stored_candidate import StoredCandidate
     from sqlalchemy.orm import Session
 
 pytestmark = pytest.mark.integration
 
+SECOND = SOURCE + 1
+
 
 @pytest.fixture
 def bench(db_session: Session) -> Bench:
     return Bench(db_session)
+
+
+def test_others_see_the_source_being_analysed_before_it_is_done(tmp_path: Path) -> None:
+    shared = SharedBench(tmp_path)
+    try:
+        shared.bench.processed(word("glare", at(0)))
+
+        assert shared.seen == [
+            HeldOperation(SourceOperationKind.PROCESS, ProcessingStage.ANALYZING_TEXT),
+        ]
+        assert shared.held_elsewhere() is None
+    finally:
+        shared.close()
 
 
 def test_every_occurrence_becomes_an_auto_phrase_with_its_key_and_score(bench: Bench) -> None:
@@ -75,6 +104,32 @@ def test_processing_takes_the_source(bench: Bench) -> None:
     assert bench.status() == "new"  # the status is an outcome; the lock shows the process
     with pytest.raises(SourceOperationBusyError):
         bench.process().start(SOURCE)
+
+
+def test_a_batch_start_that_fails_midway_takes_no_source(bench: Bench) -> None:
+    bench.session.execute(text(
+        "INSERT INTO sources (id, title, status, role, created_at)"
+        f" VALUES ({SECOND}, 'title', 'new', 'content', '2026-01-02 00:00:00')"
+    ))
+    bench.session.commit()
+    process = bench.process()
+    take = process.take
+
+    def take_then_break(source_id: int) -> None:
+        if source_id == SECOND:
+            raise RuntimeError("database went away")
+        take(source_id)
+
+    process.take = take_then_break  # type: ignore[method-assign]
+    batch = ProcessSourcesUseCase(
+        MagicMock(), MagicMock(), process, bench.lock,
+        SqlaUnitOfWork(bench.session, bench.vocabulary.scope),
+    )
+
+    with pytest.raises(RuntimeError):
+        batch.start([SOURCE, SECOND])
+
+    assert bench.lock.operations() == {}
 
 
 def test_the_stage_of_a_process_is_on_its_operation(bench: Bench) -> None:

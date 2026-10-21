@@ -11,12 +11,12 @@ from backend.application.dto.queue_dtos import (  # noqa: TC001
 )
 from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_type import JobType
-from backend.infrastructure.api.dependencies import get_container, get_db_session
+from backend.infrastructure.api.dependencies import use_case
+from backend.infrastructure.container import Container
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
-    from backend.infrastructure.container import Container
+    from backend.application.use_cases.get_queue_snapshot import GetQueueSnapshotUseCase
+    from backend.application.use_cases.manage_queue import ManageQueueUseCase
 
 router = APIRouter(prefix="/api/queue", tags=["queue"])
 
@@ -35,41 +35,35 @@ def _selection(body: QueueActionRequestDTO) -> JobSelection:
 def get_queue(
     source_id: int | None = None,
     queued_limit: int = 50,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    snapshot: GetQueueSnapshotUseCase = Depends(  # noqa: B008
+        use_case(Container.get_queue_snapshot_use_case),  # noqa: B008
+    ),
 ) -> QueueSnapshotDTO:
-    use_case = container.get_queue_snapshot_use_case(session)
-    return use_case.execute(source_id=source_id, queued_limit=queued_limit)
+    return snapshot.execute(source_id=source_id, queued_limit=queued_limit)
 
 
 @router.post("/cancel")
 def cancel(
     body: QueueActionRequestDTO,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    queue: ManageQueueUseCase = Depends(use_case(Container.manage_queue_use_case)),  # noqa: B008
 ) -> QueueActionResultDTO:
-    affected = container.manage_queue_use_case(session).cancel(_selection(body))
-    session.commit()
+    affected = queue.cancel(_selection(body))
     return QueueActionResultDTO(affected=affected)
 
 
 @router.post("/retry")
 def retry(
     body: QueueActionRequestDTO,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    queue: ManageQueueUseCase = Depends(use_case(Container.manage_queue_use_case)),  # noqa: B008
 ) -> QueueActionResultDTO:
-    affected = container.manage_queue_use_case(session).retry(_selection(body))
-    session.commit()
+    affected = queue.retry(_selection(body))
     return QueueActionResultDTO(affected=affected)
 
 
 @router.post("/dismiss")
 def dismiss(
     body: QueueActionRequestDTO,
-    session: Session = Depends(get_db_session),  # noqa: B008
-    container: Container = Depends(get_container),  # noqa: B008
+    queue: ManageQueueUseCase = Depends(use_case(Container.manage_queue_use_case)),  # noqa: B008
 ) -> QueueActionResultDTO:
-    affected = container.manage_queue_use_case(session).dismiss(_selection(body))
-    session.commit()
+    affected = queue.dismiss(_selection(body))
     return QueueActionResultDTO(affected=affected)

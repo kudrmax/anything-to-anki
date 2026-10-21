@@ -19,6 +19,11 @@ class LearningQuery(ABC):
     def active_since(self) -> Mapping[str, tuple[datetime, ...]]:
         """When each active binding of each lemma was exported, orphaned ones included."""
 
+    @abstractmethod
+    def timers_due_between(self, after: datetime | None, until: datetime) -> frozenset[str]:
+        """Lemmas with an active binding, orphaned ones included, whose timer came due after
+        `after` (at any time when None) and by `until`."""
+
     def in_anki(self) -> frozenset[str]:
         """Lemmas with an active binding."""
         return frozenset(self.active_since())

@@ -30,8 +30,9 @@ class RebuildSourceUseCase:
     """Updates or re-cuts a source by the current logic, level and knowledge without losing
     the user's work.
 
-    `start` takes the source for the operation and must be committed before `run` or
-    `run_preview`, which free it whatever happens; `execute` and `preview` do all of it.
+    `start` takes the source for the operation inside a write its caller opens, committed
+    before `run` or `run_preview`, which free it whatever happens; `execute` and `preview`
+    do all of it.
     """
 
     def __init__(
@@ -57,13 +58,13 @@ class RebuildSourceUseCase:
             raise SourceOperationBusyError(source_id, self._lock.held(source_id))
 
     def execute(self, source_id: int, mode: RebuildMode) -> RebuildSummaryDTO:
-        self.start(source_id, mode, REBUILD_OPERATION[mode])
-        self._unit_of_work.commit()
+        with self._unit_of_work.write():
+            self.start(source_id, mode, REBUILD_OPERATION[mode])
         return self.run(source_id, mode)
 
     def preview(self, source_id: int, mode: RebuildMode) -> RebuildPreviewDTO:
-        self.start(source_id, mode, SourceOperationKind.PREVIEW)
-        self._unit_of_work.commit()
+        with self._unit_of_work.write():
+            self.start(source_id, mode, SourceOperationKind.PREVIEW)
         return self.run_preview(source_id, mode)
 
     def run(self, source_id: int, mode: RebuildMode) -> RebuildSummaryDTO:
@@ -82,7 +83,6 @@ class RebuildSourceUseCase:
             self._release(source_id)
 
     def _release(self, source_id: int) -> None:
-        self._unit_of_work.rollback()
-        self._lock.release(source_id)
-        self._unit_of_work.commit()
+        with self._unit_of_work.write():
+            self._lock.release(source_id)
         logger.info("rebuild: source freed (source_id=%d)", source_id)

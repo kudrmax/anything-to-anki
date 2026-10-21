@@ -6,6 +6,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.domain.ports.candidate_media_repository import CandidateMediaRepository
+from backend.domain.value_objects.card_change import CardContentChanged
 from backend.infrastructure.persistence.models import (
     CandidateMediaModel,
     PhraseModel,
@@ -15,18 +16,20 @@ from backend.infrastructure.persistence.phrase_owners import word_ids_of
 from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterable, Mapping
 
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.candidate_media import CandidateMedia
+    from backend.domain.ports.change_recorder import ChangeRecorder
 
 
 class SqlaCandidateMediaRepository(CandidateMediaRepository):
     """SQLAlchemy implementation of CandidateMediaRepository: the media of phrases."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
 
     def get_by_phrase_id(self, phrase_id: int) -> CandidateMedia | None:
         return self.get_by_phrase_ids([phrase_id]).get(phrase_id)
@@ -51,13 +54,21 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
             existing.end_ms = media.end_ms
             existing.generated_at = media.generated_at
         self._session.flush()
+        self._recorder.record(CardContentChanged(phrase_id))
 
     def clear_missing_file(self, path: str) -> None:
+        touched = set(self._session.scalars(
+            select(CandidateMediaModel.phrase_id).where(
+                (CandidateMediaModel.screenshot_path == path)
+                | (CandidateMediaModel.audio_path == path)
+            )
+        ))
         for column in (CandidateMediaModel.screenshot_path, CandidateMediaModel.audio_path):
             self._session.execute(
                 update(CandidateMediaModel).where(column == path).values({column: None})
             )
         self._session.flush()
+        self._record(touched)
 
     def set_timecodes(self, times: Mapping[int, tuple[int, int] | None]) -> None:
         not_made = (
@@ -86,6 +97,7 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
                 .values(start_ms=None, end_ms=None)
             )
         self._session.flush()
+        self._record(times)
 
     def get_all_by_source_id(self, source_id: int) -> list[CandidateMedia]:
         """The media of every phrase of the source: all its files."""
@@ -113,3 +125,8 @@ class SqlaCandidateMediaRepository(CandidateMediaRepository):
             .values(**values)
         )
         self._session.flush()
+        self._record([phrase_id])
+
+    def _record(self, phrase_ids: Iterable[int]) -> None:
+        for phrase_id in sorted(phrase_ids):
+            self._recorder.record(CardContentChanged(phrase_id))

@@ -16,8 +16,10 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.card_choice import WordState
     from backend.domain.value_objects.elsewhere import ElsewhereStatus
     from backend.domain.value_objects.frequency_band import FrequencyBand
+    from backend.domain.value_objects.generated_parts import GeneratedParts
     from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
     from backend.domain.value_objects.phrase import Phrase
+    from backend.domain.value_objects.usage_distribution import UsageDistribution
     from backend.domain.value_objects.word_status import WordStatus
 
 
@@ -84,6 +86,34 @@ class ReviewCard:
         return self.word.frequency_band
 
     @property
+    def source_id(self) -> int:
+        return self.word.source_id
+
+    @property
+    def cefr_level(self) -> str | None:
+        return self.word.cefr_level
+
+    @property
+    def occurrences(self) -> int:
+        return self.word.occurrences
+
+    @property
+    def is_phrasal_verb(self) -> bool:
+        return self.word.is_phrasal_verb
+
+    @property
+    def usage_distribution(self) -> UsageDistribution | None:
+        return self.word.usage_distribution
+
+    @property
+    def place(self) -> tuple[int, int, int] | None:
+        """(block, start_line, start_char) of the phrase in its document."""
+        position = self.occurrence.phrase_position
+        if position is None:
+            return None
+        return (position.block, position.start_line, position.start_char)
+
+    @property
     def phrase(self) -> Phrase:
         """The phrase the card shows."""
         return self.occurrence.phrase
@@ -114,7 +144,8 @@ class ReviewCard:
 
 @dataclass(frozen=True)
 class CardRow:
-    """A card as the lists of sources need it: the word's facts and the shown text, light."""
+    """A card as the lists of sources need it: the word's facts, the shown text and what
+    generation made for it, light."""
 
     source_id: int
     word_id: int
@@ -126,8 +157,23 @@ class CardRow:
     skipped: bool
     phrase: Phrase
     earned_section: CandidateSection
+    generated: GeneratedParts
     elsewhere: ElsewhereStatus | None = None
 
     @property
     def is_done(self) -> bool:
         return card_is_done(self.word_status, self.skipped, self.elsewhere)
+
+
+@dataclass(frozen=True)
+class CardTargetRow:
+    """A shown card without its phrase: the facts of its word and the section its phrase
+    earned, what tells its section besides the phrase's other words."""
+
+    source_id: int
+    word_id: int
+    phrase_id: int
+    lemma: str
+    pos: str
+    zipf_frequency: float
+    earned_section: CandidateSection

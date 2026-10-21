@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tests.export_support import export_card
 from tests.phrase_support import phrase
+from tests.review_support import on_review
+from tests.word_support import insert_word
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -218,8 +220,8 @@ class TestSyncToAnkiAPI:
         post = _add_text(client, "burnout is exhausting")
         source_id = post.json()["source_ids"][0]
         burnout = _burnout(source_id)
+        _store_learned(client, burnout)
 
-        # Mark first candidate as learn via mock on candidate repo
         with (
             patch(
                 "backend.infrastructure.adapters.anki_connect_connector.AnkiConnectConnector.is_available",
@@ -293,6 +295,22 @@ def _burnout(source_id: int) -> ExportCard:
         ),
         phrase("burnout is exhausting", "burnout"),
     )
+
+
+def _store_learned(client: TestClient, card: ExportCard) -> None:
+    """The word of the card in the app's database, its card pressed Learn: the queue the
+    test stands in for read it from there, and the export binds what is stored."""
+    factory: sessionmaker[Session] = app.dependency_overrides[get_session_factory]()
+    with factory() as session:
+        insert_word(
+            session, card.word_id, source_id=card.word.source_id, lemma=card.word.lemma,
+            pos=card.word.pos, phrase_text=card.phrase.phrase.text,
+        )
+        session.commit()
+    decided = on_review(
+        client, "POST", f"/phrases/{card.phrase_id}/decision", json={"button": "learn"},
+    )
+    assert decided.status_code == 200
 
 
 def _add_text(client: TestClient, text: str) -> Response:

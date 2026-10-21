@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 from backend.application.use_cases.move_collection import MoveCollectionUseCase
 from backend.domain.entities.collection import Collection
@@ -18,7 +20,7 @@ class TestMoveCollection:
         ])
 
     def test_move_into_and_undo(self) -> None:
-        use_case = MoveCollectionUseCase(self.repo)
+        use_case = MoveCollectionUseCase(self.repo, MagicMock())
         moved = use_case.execute(3, 2, 0)
         assert (moved.previous_parent_id, moved.previous_position) == (None, 2)
         assert self.repo.items[3].parent_id == 2
@@ -29,4 +31,4 @@ class TestMoveCollection:
 
     def test_rejects_forbidden_move(self) -> None:
         with pytest.raises(CollectionMoveNotAllowedError):
-            MoveCollectionUseCase(self.repo).execute(1, 1, 0)
+            MoveCollectionUseCase(self.repo, MagicMock()).execute(1, 1, 0)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator  # noqa: TC003
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -79,10 +81,22 @@ class TestMediaExtractionUseCase:
         card: GenerationCard | None = None,
         source: MagicMock | None = None,
         holds: bool = True,
+        journal: list[str] | None = None,
     ) -> tuple[MediaExtractionUseCase, MagicMock, MagicMock]:
+        """`journal` gets the write's open and commit and the phrase check, in order."""
+        steps = journal if journal is not None else []
         job_phrases = MagicMock()
         job_phrases.card.return_value = card
-        job_phrases.holds.return_value = holds
+        job_phrases.holds.side_effect = lambda _card: steps.append("holds") or holds
+        unit_of_work = MagicMock()
+
+        @contextmanager
+        def write() -> Iterator[None]:
+            steps.append("write")
+            yield
+            steps.append("commit")
+
+        unit_of_work.write = write
         media_repo = MagicMock()
         source_repo = MagicMock()
         source_repo.get_by_id.return_value = source
@@ -103,8 +117,22 @@ class TestMediaExtractionUseCase:
             media_extractor=media_extractor,
             media_files=LocalMediaFiles(str(tmp_path / "media")),
             video_path_resolver=video_path_resolver,
+            unit_of_work=unit_of_work,
         )
         return uc, media_repo, media_extractor
+
+    def test_the_phrase_is_checked_inside_the_write_that_stores_the_media(
+        self, tmp_path: Path,
+    ) -> None:
+        journal: list[str] = []
+        uc, media_repo, _ = self._make_uc(
+            tmp_path, _card(_media()), _make_source(_video(tmp_path)), journal=journal,
+        )
+
+        uc.execute_one(REF)
+
+        assert journal == ["write", "holds", "commit"]
+        media_repo.upsert_for_phrase.assert_called_once()
 
     def test_execute_one_success(self, tmp_path: Path) -> None:
         video = _video(tmp_path)

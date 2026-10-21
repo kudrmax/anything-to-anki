@@ -22,6 +22,7 @@ from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.infrastructure.persistence.models import PhraseModel
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_word_state_repository import (
@@ -76,7 +77,9 @@ class Fixture:
         self.reader.read.side_effect = lambda text_, _spans: phrase(
             text_, new=BOUNDARY_NEW_WORDS,
         )
-        self.stamper = section_stamper(SqlaSettingsRepository(session))
+        self.stamper = section_stamper(SqlaSettingsRepository(
+            session, SessionChangeRecorder(session),
+        ))
         self.rewrite = RewritePhrase(self.reader, self.bench.occurrences, self.stamper)
 
     def stored(self) -> str | None:
@@ -94,6 +97,7 @@ class Fixture:
     def edit(self, new_text: str) -> None:
         EditCardPhraseUseCase(
             self.bench.occurrences, self.bench.candidates, self.rewrite, self.bench.lock,
+            MagicMock(),
         ).execute(self.phrase_id, new_text)
 
     def polish(self, answer: str) -> None:
@@ -101,7 +105,8 @@ class Fixture:
         ai_service.polish_phrases_batch.return_value = [PolishedPhrase(1, answer)]
         job_phrases = JobPhrases(
             self.bench.candidates, self.bench.occurrences,
-            SqlaWordStateRepository(self.session), self.bench.vocabulary,
+            SqlaWordStateRepository(self.session, SessionChangeRecorder(self.session)),
+            self.bench.vocabulary,
         )
         revision = self.bench.occurrences.get(self.phrase_id)
         assert revision is not None
@@ -116,18 +121,21 @@ class Fixture:
             prompts_config=POLISH_CONFIG,
             rewrite_phrase=self.rewrite,
             stamper=self.stamper,
+            unit_of_work=MagicMock(),
         ).execute_batch([PhraseRef(self.phrase_id, revision.revision)])
 
     def revert(self, *, reverted: bool) -> None:
         RevertPhrasePolishUseCase(
             self.bench.occurrences, self.bench.candidates, MagicMock(), self.bench.lock,
             self.stamper,
+            MagicMock(),
         ).execute(self.phrase_id, reverted=reverted)
 
     def enqueue_polish(self) -> None:
         EnqueuePhrasePolishUseCase(
             RequestedCards(self.bench.candidates, self.bench.occurrences, self.bench.lock),
             self.bench.occurrences, self.bench.sources, self.bench.jobs, self.stamper,
+            MagicMock(),
         ).execute(self.phrase_id)
 
     def discard_polish(self) -> None:
@@ -142,6 +150,7 @@ class Fixture:
         SetPhraseBoundaryUseCase(
             self.bench.occurrences, self.bench.candidates,
             SqlaDocumentRepository(self.session), self.reader, self.bench.lock, self.stamper,
+            MagicMock(),
         ).execute(self.phrase_id, SelectionDTO(
             start_block=0, start_line=LINE, start_char=0,
             end_block=0, end_line=LINE, end_char=len(LINES[LINE]),

@@ -18,3 +18,12 @@ class ShownPlace:
     is_phrasal_verb: bool
     source_phrase: Phrase
     position: DocumentPosition
+
+
+@dataclass(frozen=True)
+class PhraseBlock:
+    """The block of a phrase's place in its source's document — where its target starts —
+    None for a phrase that has no place there."""
+
+    source_id: int
+    block: int | None

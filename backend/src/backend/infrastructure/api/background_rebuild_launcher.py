@@ -10,7 +10,7 @@ from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.source_scope import SourceScope
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session, sessionmaker
+    from contextlib import AbstractContextManager
 
     from backend.application.use_cases.scope_operation import ScopeOperationUseCase
 
@@ -63,13 +63,11 @@ class BackgroundSourcesRebuildLauncher(SourcesRebuildLauncher):
 
     def __init__(
         self,
-        session_factory: sessionmaker[Session],
-        scope_operation: Callable[[Session], ScopeOperationUseCase],
+        scope_operations: Callable[[], AbstractContextManager[ScopeOperationUseCase]],
         spawn: Spawn = spawn_in_thread,
         passes: RebuildPasses = REBUILD_PASSES,
     ) -> None:
-        self._session_factory = session_factory
-        self._scope_operation = scope_operation
+        self._scope_operations = scope_operations
         self._spawn = spawn
         self._passes = passes
 
@@ -77,8 +75,8 @@ class BackgroundSourcesRebuildLauncher(SourcesRebuildLauncher):
         self._passes.request(self._spawn, self._rebuild_pass)
 
     def _rebuild_pass(self) -> None:
-        with self._session_factory() as session:
-            summary = self._scope_operation(session).rebuild(
+        with self._scope_operations() as scope_operation:
+            summary = scope_operation.rebuild(
                 SourceScope.all(), RebuildMode.UPDATE,
             )
         logger.info(

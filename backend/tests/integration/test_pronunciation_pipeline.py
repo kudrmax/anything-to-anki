@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_pronunciation_repository import (
     SqlaCandidatePronunciationRepository,
 )
@@ -52,8 +53,10 @@ class TestPronunciationPipeline:
             _insert_candidate(session, 2, "world")
             session.commit()
 
-            pron_repo = SqlaCandidatePronunciationRepository(session)
-            candidate_repo = SqlaCandidateRepository(session)
+            pron_repo = SqlaCandidatePronunciationRepository(
+                session, SessionChangeRecorder(session),
+            )
+            candidate_repo = SqlaCandidateRepository(session, SessionChangeRecorder(session))
 
             # Step 1: run download use case
             pron_source = MagicMock()
@@ -68,6 +71,7 @@ class TestPronunciationPipeline:
                 pronunciation_source=pron_source,
                 file_downloader=MagicMock(),
                 media_root=str(tmp_path),
+                unit_of_work=MagicMock(),
             )
 
             use_case.execute_one(1)
@@ -94,8 +98,10 @@ class TestPronunciationPipeline:
             _insert_candidate(session, 1, "xyznonexistent")
             session.commit()
 
-            pron_repo = SqlaCandidatePronunciationRepository(session)
-            candidate_repo = SqlaCandidateRepository(session)
+            pron_repo = SqlaCandidatePronunciationRepository(
+                session, SessionChangeRecorder(session),
+            )
+            candidate_repo = SqlaCandidateRepository(session, SessionChangeRecorder(session))
 
             pron_source = MagicMock()
             pron_source.get_audio_urls.return_value = (None, None)
@@ -106,6 +112,7 @@ class TestPronunciationPipeline:
                 pronunciation_source=pron_source,
                 file_downloader=MagicMock(),
                 media_root=str(tmp_path),
+                unit_of_work=MagicMock(),
             )
 
             use_case.execute_one(1)

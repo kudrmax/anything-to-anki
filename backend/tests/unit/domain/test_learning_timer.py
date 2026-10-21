@@ -64,12 +64,11 @@ class TestLemmaKnowledge:
         assert knowledge.is_known is True
         assert knowledge.timer_known is True
 
-    def test_unknown_is_never_known(self) -> None:
-        knowledge = _knowledge(known_marked=True, unknown=True, active_since=(DUE,))
-        assert knowledge.is_known is False
-        assert knowledge.timer_known is False
-        assert knowledge.is_learning is False
-        assert knowledge.is_learn is False
+    def test_unknown_masks_neither_the_timer_nor_a_learn(self) -> None:
+        """Spec §1: Unknown never meets a Learn or a note in Anki, so it hides neither."""
+        assert _knowledge(unknown=True, active_since=(DUE,)).timer_known is True
+        assert _knowledge(unknown=True, active_since=(FRESH,)).is_learning is True
+        assert _knowledge(unknown=True, learn_anywhere=True).is_learn is True
 
     def test_learning_while_the_timer_runs(self) -> None:
         knowledge = _knowledge(learn_anywhere=True, active_since=(FRESH,))

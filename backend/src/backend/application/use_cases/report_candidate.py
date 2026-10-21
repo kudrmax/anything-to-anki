@@ -16,12 +16,12 @@ if TYPE_CHECKING:
     from backend.application.dto.card_report_dtos import ReportCandidateRequest
     from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.user_knowledge_reader import UserKnowledgeReader
-    from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.card_report_repository import CardReportRepository
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.phrase import Phrase
 
 # The reason under which the user picks the words of the phrase they don't know.
@@ -44,6 +44,7 @@ class ReportCandidateUseCase:
     Words of the phrase the user marked as not known go to their unknown words:
     every card with them moves out of Ready. That removes their Known as any removal does
     (§2.7): every card of such a word that read Known, in every source, is new again.
+    A word the user learns stays as it is (`unknown_mark`).
     """
 
     def __init__(
@@ -53,17 +54,17 @@ class ReportCandidateUseCase:
         source_repo: SourceRepository,
         document_repo: DocumentRepository,
         report_repo: CardReportRepository,
-        vocabulary: UserVocabulary,
         knowledge: UserKnowledgeReader,
         effects: DecisionEffects,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._effects = effects
         self._candidate_repo = candidate_repo
         self._occurrences = occurrence_repo
         self._document_repo = document_repo
         self._source_repo = source_repo
         self._report_repo = report_repo
-        self._vocabulary = vocabulary
         self._knowledge = knowledge
 
     def execute(self, phrase_id: int, request: ReportCandidateRequest) -> CardReportDTO:
@@ -74,6 +75,13 @@ class ReportCandidateUseCase:
                 raise UnknownReportReasonError(reason)
         if not chosen and not comment_text and not request.unknown_words:
             raise EmptyReportCommentError()
+        with self._unit_of_work.write():
+            return self._report(phrase_id, request, chosen, comment_text)
+
+    def _report(
+        self, phrase_id: int, request: ReportCandidateRequest, chosen: tuple[str, ...],
+        comment_text: str,
+    ) -> CardReportDTO:
         occ = self._occurrences.get(phrase_id)
         word = self._candidate_repo.get_by_id(occ.candidate_id) if occ is not None else None
         if occ is None or word is None or word.id is None:
@@ -108,9 +116,7 @@ class ReportCandidateUseCase:
             phrase.words[i].lemma for i in indices if 0 <= i < len(phrase.words)
         ))
         for lemma in lemmas:
-            before = self._vocabulary.of(lemma)
-            self._vocabulary.mark_unknown(lemma)
-            self._effects.known_removed(lemma, before)
+            self._effects.mark_unknown(lemma)
 
     @staticmethod
     def reasons() -> list[ReportReasonDTO]:

@@ -62,6 +62,7 @@ class _Fixture:
                 picture_encoder=self.encoder,
                 media_root=self.media_root,
             ),
+            unit_of_work=MagicMock(),
         )
 
     def saved_image(self) -> CandidateMeaningImage:

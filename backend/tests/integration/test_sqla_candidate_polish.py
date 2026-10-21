@@ -8,6 +8,7 @@ from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -40,7 +41,7 @@ class TestPhrasePolishPersistence:
 
     def test_new_phrase_is_not_polished(self) -> None:
         with self._Session() as s:
-            occ = SqlaOccurrenceRepository(s).get(PHRASE_ID)
+            occ = SqlaOccurrenceRepository(s, SessionChangeRecorder(s)).get(PHRASE_ID)
             assert occ is not None
             assert occ.polished_phrase is None
             assert not occ.polish_reverted
@@ -48,7 +49,7 @@ class TestPhrasePolishPersistence:
     def test_polish_and_revert_round_trip(self) -> None:
         polished = phrase("The air was not fresh, stale.", "stale")
         with self._Session() as s:
-            occurrences = SqlaOccurrenceRepository(s)
+            occurrences = SqlaOccurrenceRepository(s, SessionChangeRecorder(s))
             occ = occurrences.get(PHRASE_ID)
             assert occ is not None
             occurrences.write_text(
@@ -57,7 +58,7 @@ class TestPhrasePolishPersistence:
             )
             s.commit()
         with self._Session() as s:
-            occ = SqlaOccurrenceRepository(s).get(PHRASE_ID)
+            occ = SqlaOccurrenceRepository(s, SessionChangeRecorder(s)).get(PHRASE_ID)
             assert occ is not None
             assert occ.polished_phrase == polished
             assert occ.polish_reverted
@@ -65,7 +66,7 @@ class TestPhrasePolishPersistence:
 
     def test_new_source_phrase_drops_polish(self) -> None:
         with self._Session() as s:
-            occurrences = SqlaOccurrenceRepository(s)
+            occurrences = SqlaOccurrenceRepository(s, SessionChangeRecorder(s))
             occ = occurrences.get(PHRASE_ID)
             assert occ is not None
             occurrences.write_text(
@@ -87,8 +88,8 @@ class TestPhrasePolishPersistence:
 
     def test_meaning_and_tts_can_be_dropped(self) -> None:
         with self._Session() as s:
-            meanings = SqlaCandidateMeaningRepository(s)
-            tts = SqlaCandidateTTSRepository(s)
+            meanings = SqlaCandidateMeaningRepository(s, SessionChangeRecorder(s))
+            tts = SqlaCandidateTTSRepository(s, SessionChangeRecorder(s))
             meanings.upsert_for_phrase(PHRASE_ID, CandidateMeaning(
                 candidate_id=1, meaning="m", translation=None, synonyms=None,
                 examples=None, ipa=None, generated_at=_NOW,

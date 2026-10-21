@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
     from backend.domain.ports.collection_repository import CollectionRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
 
 
 class PlaceSourcesUseCase:
@@ -19,11 +20,17 @@ class PlaceSourcesUseCase:
 
     def __init__(
         self, source_repo: SourceRepository, collection_repo: CollectionRepository,
+        unit_of_work: UnitOfWork,
     ) -> None:
+        self._unit_of_work = unit_of_work
         self._source_repo = source_repo
         self._collection_repo = collection_repo
 
     def execute(self, placements: Sequence[SourcePlacementDTO]) -> PlacedSourcesDTO:
+        with self._unit_of_work.write():
+            return self._place(placements)
+
+    def _place(self, placements: Sequence[SourcePlacementDTO]) -> PlacedSourcesDTO:
         tree = CollectionTree(self._collection_repo.list_all())
         for placement in placements:
             if placement.collection_id is not None:

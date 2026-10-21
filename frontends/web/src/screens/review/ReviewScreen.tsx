@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { backIn, backTo } from '@/lib/backLink'
 import { exportPath, parseSetScope } from '@/lib/scope'
@@ -19,10 +19,9 @@ import { sortItems, sortLabel } from './sortItems'
 import type { SelectedText, SelectionPoint } from './SourceText'
 import { SourceTexts } from './SourceTexts'
 import { audioUrlForCandidate, useReview } from './useReview'
-import { useShownCandidates } from './useShownCandidates'
 import { useSwipe } from './useSwipe'
-import { listItems, sectionToggleLabel, visibleCandidates, type ListItem } from './sections'
-import type { CandidateSection, DecisionButton, SetScope, SourceStatus } from '@/api/types'
+import { ReviewList } from './ReviewList'
+import type { DecisionButton, ReviewRow, SetScope, SourceStatus } from '@/api/types'
 import css from './review.module.css'
 
 const DECISION: Partial<Record<ReviewAction, DecisionButton>> = { learn: 'learn', cloze: 'cloze', known: 'known', skip: 'skip' }
@@ -55,7 +54,6 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
   const location = useLocation()
   const sourcesPath = backIn(location.state, SOURCES_PATH)
   const review = useReview(scope, requestedId)
-  const listRef = useRef<HTMLDivElement>(null)
   const [selection, setSelection] = useState<{ selected: SelectedText; point: SelectionPoint } | null>(null)
   const [sourceTextShown, setSourceTextShown] = useState(() => sourceTextShownPref.read())
   const toggleSourceText = () => {
@@ -68,47 +66,17 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
     setPhraseListShown(!phraseListShown)
   }
 
-  const { detail, candidates, currentId, counts, editing } = review
+  const { current, counts, editing } = review
+  const set = review.header
   // На телефоне карточка занимает экран, а текст источника и список открываются на её месте.
   const [phoneView, setPhoneView] = useState<PhoneView>('card')
   const togglePhoneView = (view: PhoneView) => setPhoneView(prev => (prev === view ? 'card' : view))
-  const current = candidates.find(c => c.phrase_id === currentId) ?? null
-  // Разделы есть во всех сортировках, кроме порядка текста; разделы под Ready, Reviewed последним, свёрнуты, пока их не открыли.
-  const sectioned = review.sortOrder !== 'chronological'
-  const [openedSections, setOpenedSections] = useState<ReadonlySet<CandidateSection>>(new Set())
-  // Карточка, открытая ссылкой или кликом по тексту, видна, даже если её раздел свёрнут.
-  const openSections = current?.section ? new Set([...openedSections, current.section]) : openedSections
-  const toggleSection = (section: CandidateSection) => setOpenedSections(prev => {
-    const next = new Set(prev)
-    if (openSections.has(section)) next.delete(section)
-    else next.add(section)
-    return next
-  })
-  const visible = sectioned ? visibleCandidates(candidates, openSections) : candidates
-  const list = useShownCandidates(
-    visible,
-    detail?.initially_shown_candidates ?? null,
-    currentId,
-    `${scope}:${review.sortOrder}`,
-  )
+  const hasCards = review.state.totalRows > 0
 
-  // Держим карточку в поле зрения: и когда список только появился (ревью открыли ссылкой на карточку),
-  // и когда фоновое обновление переставило её в списке.
-  const currentIndex = visible.findIndex(c => c.phrase_id === currentId)
-  const prevId = visible[currentIndex - 1]?.phrase_id ?? null
-  const nextId = currentIndex >= 0 ? visible[currentIndex + 1]?.phrase_id ?? null : null
   // На телефоне фразы листают свайпом по карточке: влево — следующая, вправо — предыдущая.
-  const swipe = useSwipe(direction => {
-    const target = direction === 'left' ? nextId : prevId
-    if (target !== null) review.setCurrentId(target)
-  })
-  const { loading } = review
-  useEffect(() => {
-    if (loading) return
-    listRef.current?.querySelector(`[data-candidate-id="${currentId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-  }, [currentId, currentIndex, loading, phraseListShown])
+  const swipe = useSwipe(direction => void review.step(direction === 'left' ? 1 : -1))
 
-  const { press, setCurrentId, cancelEditing, clozeEditing } = review
+  const { press, step, cancelEditing, clozeEditing } = review
   const toggleAudio = review.player.toggle
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -120,8 +88,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
       if (clozeEditing && !allowedInClozeMarkup(action)) return
       e.preventDefault()
       if (action === 'prev' || action === 'next') {
-        const target = action === 'next' ? nextId : prevId
-        if (target !== null) setCurrentId(target)
+        void step(action === 'next' ? 1 : -1)
         return
       }
       if (!current) return
@@ -135,7 +102,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [current, prevId, nextId, editing, selection, press, setCurrentId, cancelEditing, toggleAudio, clozeEditing])
+  }, [current, editing, selection, press, step, cancelEditing, toggleAudio, clozeEditing])
 
   const { pasteImage } = review
   useEffect(() => {
@@ -153,7 +120,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
   if (review.loading) {
     return <Page immersive header={<PageHeader title="Review" back={sourcesPath} />}><Empty><Spinner /></Empty></Page>
   }
-  if (!detail) {
+  if (review.gone || !set) {
     return <Page immersive header={<PageHeader title="Review" back={sourcesPath} />}><Empty>Nothing to review here.</Empty></Page>
   }
 
@@ -162,24 +129,19 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
     window.getSelection()?.removeAllRanges()
   }
 
-  const hasSourceText = review.documents.length > 0
+  const { hasSourceText } = review
 
   // Правка границ фразы идёт по тексту источника — на телефоне показываем его.
   const view: PhoneView = editing ? 'text' : phoneView
 
   const showCard = (id: number) => {
-    setCurrentId(id)
+    void review.goTo(id)
     setPhoneView('card')
   }
 
-  const items: ListItem[] = sectioned
-    ? listItems(candidates, list.shown, openSections)
-    : list.shown.map(candidate => ({ kind: 'candidate', candidate }))
-  const sectionToggle = (section: CandidateSection, count: number, open: boolean) => (
-    <div key={section} className={css.sectionToggle}>
-      <Button variant="link" onClick={() => toggleSection(section)}>{sectionToggleLabel(section, count, open)}</Button>
-    </div>
-  )
+  const toggleSection = (row: ReviewRow) => {
+    if (row.section !== null) void review.toggleSection(row.section, row.open ?? false)
+  }
 
   const goToExport = () => navigate(exportPath(scope), { state: backTo(location.pathname + location.search) })
   // На телефоне всё редкое — в одном меню, чтобы шапка уместилась в строку.
@@ -192,26 +154,26 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
 
   const header = (
     <PageHeader
-      title={detail.title}
+      title={set.title}
       back={sourcesPath}
       metaWithActions
       meta={counts.total > 0 && (
         <>
           {/* Десктоп: прогресс — линия по нижнему краю вкладок, на всю ширину окна; видна краем глаза. */}
           <span className={css.windowProgress} style={{ '--p': `${Math.round(counts.progress * 100)}%` } as CSSProperties} />
-          {detail.status === REVIEWED ? DONE : `${counts.reviewed} / ${counts.total}`}
+          {set.status === REVIEWED ? DONE : `${counts.reviewed} / ${counts.total}`}
         </>
       )}
     >
       <div className={`${css.headerTools} ${css.desktopOnly}`}>
-        {currentIndex >= 0 && (
+        {review.position !== null && (
           <div className={css.stepper}>
-            <span className={css.position}>{currentIndex + 1} / {visible.length}</span>
-            <IconButton icon={ChevronLeft} label="Previous phrase" disabled={prevId === null} onClick={() => prevId !== null && showCard(prevId)} />
-            <IconButton icon={ChevronRight} label="Next phrase" disabled={nextId === null} onClick={() => nextId !== null && showCard(nextId)} />
+            <span className={css.position}>{review.position} / {review.state.totalCards}</span>
+            <IconButton icon={ChevronLeft} label="Previous phrase" disabled={!review.canPrev} onClick={() => void step(-1)} />
+            <IconButton icon={ChevronRight} label="Next phrase" disabled={!review.canNext} onClick={() => void step(1)} />
           </div>
         )}
-        {candidates.length > 0 && (
+        {hasCards && (
           <>
             <SortMenu value={review.sortOrder} onChange={review.setSortOrder} />
             <GenerateMenu review={review} />
@@ -233,7 +195,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
       <Button className={`${css.export} ${css.desktopOnly}`} title="Export cards to Anki" onClick={goToExport}>
         <Icon as={Upload} size="s" />Export <span className={css.exportCount}>{counts.learn}</span>
       </Button>
-      {candidates.length > 0 && (
+      {hasCards && (
         <div className={`${css.headerTools} ${css.phoneOnly}`}>
           <IconButton icon={List} label="All phrases" active={view === 'list'} onClick={() => togglePhoneView('list')} />
           <Menu items={phoneMenu} trigger={<IconButton icon={Ellipsis} label="More" />} />
@@ -247,9 +209,11 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
 
   const sourceText = (onWordClick: (id: number) => void) => hasSourceText && (
     <SourceTexts
-      documents={review.documents}
-      candidates={candidates}
-      focusId={editing?.candidateId ?? currentId}
+      text={review.text}
+      done={review.state.done}
+      onLoad={review.loadText}
+      ensureBlock={review.ensureBlock}
+      focused={(editing ? review.state.cards.get(editing.candidateId) : current) ?? null}
       editingSourceId={editing?.sourceId ?? null}
       onWordClick={onWordClick}
       onTextSelected={(selected, point) => setSelection({ selected, point })}
@@ -257,40 +221,35 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
   )
 
   const aside = hasSourceText && (
-    <Aside>{sourceText(setCurrentId)}</Aside>
+    <Aside>{sourceText(id => void review.goTo(id))}</Aside>
   )
 
   return (
     <Page fit wide immersive header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={banner || undefined}>
-      <div ref={listRef} className={phraseListShown ? css.body : `${css.body} ${css.focus}`}>
-        {candidates.length === 0 && <Empty>No candidates found.</Empty>}
+      <div className={phraseListShown ? css.body : `${css.body} ${css.focus}`}>
+        {!hasCards && <Empty>No candidates found.</Empty>}
         {view === 'text' && hasSourceText && <div className={css.textPanel}>{sourceText(showCard)}</div>}
         {view === 'list' && (
-          <div className={css.listPanel}>
-            {items.map(item => item.kind === 'section'
-              ? sectionToggle(item.section, item.count, item.open)
-              : <PhraseRow key={item.candidate.phrase_id} candidate={item.candidate} current={item.candidate.phrase_id === currentId} onSelect={showCard} />)}
-            {list.hiddenCount > 0 && (
-              <Button variant="link" onClick={list.showMore}>Show {list.nextPageCount} more · {list.hiddenCount} left</Button>
-            )}
-          </div>
+          <ReviewList
+            className={css.listPanel}
+            state={review.state}
+            onLoad={review.loadRows}
+            onToggleSection={toggleSection}
+            renderCard={(card, isCurrent) => <PhraseRow key={card.phrase_id} candidate={card} current={isCurrent} onSelect={showCard} />}
+            followKey={view}
+          />
         )}
-        <div className={view === 'card' ? css.queue : `${css.queue} ${css.away}`} {...swipe}>
-          {items.map(item => {
-            if (item.kind === 'section') return sectionToggle(item.section, item.count, item.open)
-            const { candidate } = item
-            return candidate.phrase_id === currentId
-              ? <PhraseCard key={candidate.phrase_id} candidate={candidate} review={review} />
-              : <PhraseRow key={candidate.phrase_id} candidate={candidate} onSelect={setCurrentId} />
-          })}
-        </div>
-        {list.hiddenCount > 0 && (
-          <div className={css.showMore}>
-            <Button variant="link" onClick={list.showMore}>
-              Show {list.nextPageCount} more · {list.hiddenCount} left
-            </Button>
-          </div>
-        )}
+        <ReviewList
+          className={view === 'card' ? css.queue : `${css.queue} ${css.away}`}
+          {...swipe}
+          state={review.state}
+          onLoad={review.loadRows}
+          onToggleSection={toggleSection}
+          renderCard={(card, isCurrent) => isCurrent
+            ? <PhraseCard key={card.phrase_id} candidate={card} review={review} />
+            : <PhraseRow key={card.phrase_id} candidate={card} onSelect={id => void review.goTo(id)} />}
+          followKey={phraseListShown}
+        />
         {/* Телефон: решения — в панели под карточкой. В разметке cloze у панели свои Cancel и Save. */}
         {current && view === 'card' && !clozeEditing && (
           <div className={`${css.dock} ${css.phoneOnly}`}>

@@ -144,11 +144,6 @@ class TestReadsKnown:
         assert older_row_of_the_note.any_due is True
         assert reads_known(card, older_row_of_the_note, NOW) is False
 
-    def test_unknown_masks_the_timer_and_the_list(self) -> None:
-        card = _bound(CardChoice.LEARN, NoteKind.LEARN, DUE)
-        knowledge = _knowledge(known_marked=True, unknown=True, active_since=(DUE,))
-        assert reads_known(card, knowledge, NOW) is False
-
     @pytest.mark.parametrize(
         "card",
         [
@@ -179,11 +174,6 @@ class TestStatusOf:
     def test_learning_on_day_29_is_learning(self) -> None:
         word = _word(_bound(CardChoice.LEARN, NoteKind.LEARN, FRESH))
         assert status_of(word, _knowledge(active_since=(FRESH,)), NOW) is WordStatus.LEARNING
-
-    def test_learning_in_unknown_never_turns_known(self) -> None:
-        word = _word(_bound(CardChoice.LEARN, NoteKind.LEARN, DUE))
-        knowledge = _knowledge(unknown=True, active_since=(DUE,))
-        assert status_of(word, knowledge, NOW) is WordStatus.LEARNING
 
     def test_learn_before_export_stays_learn(self) -> None:
         word = _word(CardState(1, CardChoice.LEARN))

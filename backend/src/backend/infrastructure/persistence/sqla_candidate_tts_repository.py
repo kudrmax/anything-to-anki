@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 
 from backend.domain.ports.candidate_tts_repository import CandidateTTSRepository
+from backend.domain.value_objects.card_change import CardContentChanged
 from backend.infrastructure.persistence.models import CandidateTTSModel
 from backend.infrastructure.persistence.phrase_owners import word_ids_of
 
@@ -12,13 +13,15 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from backend.domain.entities.candidate_tts import CandidateTTS
+    from backend.domain.ports.change_recorder import ChangeRecorder
 
 
 class SqlaCandidateTTSRepository(CandidateTTSRepository):
     """SQLAlchemy implementation of CandidateTTSRepository: the speech of phrases."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, recorder: ChangeRecorder) -> None:
         self._session = session
+        self._recorder = recorder
 
     def get_by_phrase_id(self, phrase_id: int) -> CandidateTTS | None:
         return self.get_by_phrase_ids([phrase_id]).get(phrase_id)
@@ -40,9 +43,11 @@ class SqlaCandidateTTSRepository(CandidateTTSRepository):
             existing.audio_path = tts.audio_path
             existing.generated_at = tts.generated_at
         self._session.flush()
+        self._recorder.record(CardContentChanged(phrase_id))
 
     def delete_by_phrase_id(self, phrase_id: int) -> None:
         model = self._session.get(CandidateTTSModel, phrase_id)
         if model is not None:
             self._session.delete(model)
             self._session.flush()
+            self._recorder.record(CardContentChanged(phrase_id))

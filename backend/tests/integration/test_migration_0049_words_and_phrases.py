@@ -22,6 +22,7 @@ from tests.decision_support import Decisions
 from tests.migration_0049_checks import Before, app_export_queue, check_upgraded, read_before
 from tests.migration_support import upgrade_to_head_with_sections
 from tests.phrase_support import phrase
+from tests.word_support import DECISION_STATUSES_SQL
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Connection
@@ -410,8 +411,21 @@ def _phrase_of(db_url: str, word_id: int, text_start: str) -> dict[str, object]:
     raise AssertionError(f"No phrase {text_start!r} of word {word_id}")
 
 
+def _status_rows(db_url: str, word_id: int) -> list[dict[str, object]]:
+    """The word's decision status as the app reads it from its cards."""
+    return _rows(
+        db_url,
+        f"SELECT status FROM ({DECISION_STATUSES_SQL}) WHERE word_id = :w",  # noqa: S608
+        w=word_id,
+    )
+
+
 def test_one_word_per_lemma_and_every_card_is_a_phrase(db_url: str) -> None:
-    words = _rows(db_url, "SELECT id, lemma, status FROM candidates ORDER BY id")
+    words = _rows(
+        db_url,
+        "SELECT id, lemma, s.status FROM candidates"
+        f" JOIN ({DECISION_STATUSES_SQL}) s ON s.word_id = id ORDER BY id",  # noqa: S608
+    )
     assert [w["id"] for w in words if w["id"] < min(ROW_CARDS)] == [
         CARD_A, CARD_D, CARD_TOPIC, CARD_SPANNING, CARD_H, CARD_I, CARD_K, CARD_N, CARD_O,
         CARD_P, CARD_Q,
@@ -426,8 +440,8 @@ def test_undoing_a_migrated_known_takes_the_lemma_out_of_known(db_url: str) -> N
     with Session(engine) as session:
         Decisions(session).decide_phrase().press(phrase_id, Press.KNOWN)
         session.commit()
-    assert _rows(db_url, "SELECT lemma FROM known_words WHERE lemma = 'ponder'") == []
-    assert _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_O) == [
+    assert _rows(db_url, "SELECT lemma FROM word_marks WHERE lemma = 'ponder'") == []
+    assert _status_rows(db_url, CARD_O) == [
         {"status": "pending"},
     ]
 
@@ -477,6 +491,7 @@ def test_running_job_and_report_point_at_the_phrase_of_their_card(db_url: str) -
 
 
 def test_every_export_record_survives_with_its_phrase(db_url: str) -> None:
+    """At head: a binding whose card lives holds no card choice (0055)."""
     synced = _rows(
         db_url, "SELECT candidate_id, phrase_id, anki_note_id, lemma, pos, note_kind,"
         " card_choice, released_at IS NOT NULL AS released FROM anki_synced_cards"
@@ -488,20 +503,20 @@ def test_every_export_record_survives_with_its_phrase(db_url: str) -> None:
     a = _phrase_of(db_url, CARD_A, LINE_0)
     assert synced == [
         {"candidate_id": CARD_A, "phrase_id": a["id"], "anki_note_id": NOTE_A,
-         "lemma": "glare", "pos": "VERB", "note_kind": "cloze", "card_choice": "cloze",
+         "lemma": "glare", "pos": "VERB", "note_kind": "cloze", "card_choice": None,
          "released": 1},
         {"candidate_id": CARD_H, "phrase_id": g["id"], "anki_note_id": NOTE_G,
-         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "card_choice": "learn",
+         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "card_choice": None,
          "released": 1},
         {"candidate_id": CARD_H, "phrase_id": h["id"], "anki_note_id": NOTE_H,
-         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "card_choice": "learn",
+         "lemma": "linger", "pos": "VERB", "note_kind": "learn", "card_choice": None,
          "released": 1},
     ]
     assert (h["choice"], g["choice"]) == ("none", "none")
 
 
 def test_a_decision_beats_a_newer_undecided_duplicate(db_url: str) -> None:
-    words = _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_I)
+    words = _status_rows(db_url, CARD_I)
     assert words == [{"status": "learn"}]
     i = _phrase_of(db_url, CARD_I, "They wander")
     j = _phrase_of(db_url, CARD_I, "We wander")
@@ -515,7 +530,7 @@ def test_skipped_original_of_an_example_is_released(db_url: str) -> None:
     assert (c["origin"], c["choice"], c["shown_by"]) == ("auto", "none", None)
     assert (d["origin"], d["shown_by"], d["block"]) == ("example", "user", None)
     assert (c["replaces_selection"], d["replaces_selection"]) == (0, 1)
-    words = _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_D)
+    words = _status_rows(db_url, CARD_D)
     assert words == [{"status": "pending"}]
 
 
@@ -558,10 +573,12 @@ def test_a_stored_review_status_becomes_done_it_is_derived_on_read(db_url: str) 
 
 
 def test_known_words_keep_no_anki_progress_and_there_is_no_note_table(db_url: str) -> None:
+    """Known words live in word marks since 0054."""
     engine = inspect(create_engine(db_url))
-    assert {c["name"] for c in engine.get_columns("known_words")} == {
-        "id", "lemma", "pos", "created_at",
+    assert {c["name"] for c in engine.get_columns("word_marks")} == {
+        "id", "lemma", "mark", "created_at",
     }
+    assert {c["name"] for c in engine.get_columns("known_pos")} == {"id", "lemma", "pos"}
     assert "anki_notes" not in engine.get_table_names()
 
 
@@ -573,7 +590,7 @@ def test_a_binding_is_kept_with_no_card_or_word(db_url: str) -> None:
         "id", "candidate_id", "phrase_id", "anki_note_id", "lemma", "pos", "note_kind",
         "card_choice", "learning_since", "released_at",
     }
-    assert not columns["card_choice"]["nullable"]
+    assert columns["card_choice"]["nullable"], "NULL while the card lives (0055)"
     assert columns["candidate_id"]["nullable"] and columns["phrase_id"]["nullable"]
     keys = inspect(create_engine(db_url)).get_foreign_keys("anki_synced_cards")
     assert {(k["referred_table"], k["options"].get("ondelete")) for k in keys} == {
@@ -619,7 +636,11 @@ def test_new_tables_exist(db_url: str) -> None:
     names = set(inspect(create_engine(db_url)).get_table_names())
     assert {"phrases", "document_parses", "source_operations"} <= names
     assert "_card_phrase" not in names
-    assert "phrase_words" not in names
+    # 0049's write-only phrase_words is gone; the name is the card state projection's (0056).
+    phrase_word_columns = {
+        c["name"] for c in inspect(create_engine(db_url)).get_columns("phrase_words")
+    }
+    assert "newness" in phrase_word_columns
     candidate_columns = {
         c["name"] for c in inspect(create_engine(db_url)).get_columns("candidates")
     }
@@ -642,7 +663,7 @@ def test_an_exported_duplicate_beats_a_decision_and_the_dropped_decision_is_logg
     """§4 merge winner: an exported card first. Its export keeps its phrase; L's Learn is
     dropped, and the log names it."""
     db_url = migrated.url
-    words = _rows(db_url, "SELECT status FROM candidates WHERE id = :w", w=CARD_K)
+    words = _status_rows(db_url, CARD_K)
     assert words == [{"status": "pending"}]
     assert _rows(db_url, "SELECT id FROM candidates WHERE id = :w", w=CARD_L) == []
     decided = _phrase_of(db_url, CARD_K, "They drift")
@@ -688,8 +709,9 @@ def _card_row(db_url: str, card_id: int) -> tuple[object, object, list[tuple[obj
     [found] = [
         r for r in _rows(
             db_url,
-            "SELECT p.id, p.choice, c.status FROM phrases p JOIN candidates c"
-            " ON c.id = p.candidate_id WHERE c.source_id = :s", s=ROWS_SOURCE,
+            "SELECT p.id, p.choice, s.status FROM phrases p JOIN candidates c"
+            f" ON c.id = p.candidate_id JOIN ({DECISION_STATUSES_SQL}) s"  # noqa: S608
+            " ON s.word_id = c.id WHERE c.source_id = :s", s=ROWS_SOURCE,
         )
         if json.loads(str(_rows(
             db_url, "SELECT source_phrase FROM phrases WHERE id = :p", p=r["id"],

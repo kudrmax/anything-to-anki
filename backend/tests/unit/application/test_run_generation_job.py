@@ -81,6 +81,7 @@ class _Setup:
             meaning_repo=self.meaning_repo,
             ai_service=self.ai_service,
             prompts_config=_CONFIG,
+            unit_of_work=MagicMock(),
         )
 
     def written(self) -> dict[int, tuple[int, str | None]]:

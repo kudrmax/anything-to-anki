@@ -1,4 +1,4 @@
-"""Time budget of the sources board over a book: light projections of shown phrases."""
+"""Time budget of the sources board over a book: the stored projection's counts."""
 from __future__ import annotations
 
 import gc
@@ -12,7 +12,9 @@ from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.models import SourceModel, dump_phrase
 from sqlalchemy import text
 
+from tests.decision_support import project_words
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
 from tests.word_support import TEST_SECTION
 
 if TYPE_CHECKING:
@@ -36,13 +38,10 @@ def _seed_book(session: Session) -> None:
     session.execute(
         text(
             "INSERT INTO candidates (id, source_id, lemma, pos, zipf_frequency, is_sweet_spot,"
-            " occurrences, status, is_phrasal_verb)"
-            " VALUES (:id, 1, :lemma, 'NOUN', 3.0, 0, 3, :status, 0)"
+            " occurrences, is_phrasal_verb)"
+            " VALUES (:id, 1, :lemma, 'NOUN', 3.0, 0, 3, 0)"
         ),
-        [
-            {"id": i, "lemma": f"lemma{i}", "status": "learn" if i % 10 == 0 else "pending"}
-            for i in range(1, BOOK_WORDS + 1)
-        ],
+        [{"id": i, "lemma": f"lemma{i}"} for i in range(1, BOOK_WORDS + 1)],
     )
     rows = []
     for phrase_id in range(1, BOOK_PHRASES + 1):
@@ -64,11 +63,13 @@ def _seed_book(session: Session) -> None:
         ),
         rows,
     )
+    project_words(session)
     session.commit()
 
 
 def test_the_board_of_a_book_fits_the_budget(db_session: Session) -> None:
     _seed_book(db_session)
+    rebuild_projection(db_session)
     use_case = Container().get_sources_use_case(db_session)
     use_case.board(SourceScope.parse("all"))
 

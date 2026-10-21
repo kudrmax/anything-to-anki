@@ -1,18 +1,22 @@
-"""The source screen: the document with its marks, and phrases selected anew on it."""
+"""The source screen: the document with its marks, read in chunks through the open review,
+and phrases selected anew on it."""
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
+from backend.application.constants import SOURCE_GROUPING_SETTING, SOURCE_SORT_SETTING
 from backend.application.dto.candidate_dtos import SelectionDTO
-from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
+from backend.application.dto.review_dtos import OpenReviewRequest, ReviewContext
 from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
-from backend.application.utils.source_scope_resolver import SourceScopeResolver
+from backend.application.utils.source_texts import SourceTexts
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import InvalidPhraseError
+from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document import (
@@ -23,29 +27,29 @@ from backend.domain.value_objects.document import (
     ParagraphMode,
 )
 from backend.domain.value_objects.document_position import DocumentPosition
+from backend.domain.value_objects.source_order import SourceGrouping, SourceSort
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.api.dependencies import get_container
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.models import CollectionModel, SourceModel
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
-from backend.infrastructure.persistence.sqla_collection_repository import (
-    SqlaCollectionRepository,
-)
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
-from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 
 from tests.candidate_sorter_support import section_stamper
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase, shown_lemmas
-from tests.source_order_support import added_order
+from tests.projection_support import rebuild_projection
 from tests.word_support import CardSeed, store_cards
 
 if TYPE_CHECKING:
+    from backend.application.dto.document_dtos import BlockDTO, HighlightDTO
     from sqlalchemy.orm import Session
 
 pytestmark = pytest.mark.integration
@@ -77,13 +81,40 @@ def _candidate(source_id: int, lemma: str, target: str) -> CardSeed:
     )
 
 
-def _screen(session: Session) -> GetReviewDocumentsUseCase:
-    return GetReviewDocumentsUseCase(
-        SourceScopeResolver(
-            SqlaSourceRepository(session), SqlaCollectionRepository(session), added_order(),
-        ),
-        SqlaDocumentRepository(session), SqlaCardQuery(session),
-    )
+@dataclass(frozen=True)
+class _Screen:
+    """A source's text as the review screen reads it: every chunk, one after another."""
+
+    source_id: int
+    title: str
+    blocks: list[BlockDTO]
+    highlights: list[HighlightDTO]
+
+
+@pytest.fixture(autouse=True)
+def _no_text_laid_out_before(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(get_container(), "_source_texts", SourceTexts())
+
+
+def _screens(session: Session, scope: SourceScope) -> list[_Screen]:
+    """The texts of the set's sources, as an open review of it serves them."""
+    container = get_container()
+    opened = container.open_review_use_case(session).execute(OpenReviewRequest(scope=scope.token))
+    ctx = ReviewContext(review_id=opened.review_id, since=opened.revision, current=None)
+    window = container.review_window_use_case(session)
+    screens = []
+    for entry in window.contents(ctx).documents:
+        screen = _Screen(entry.source_id, entry.title, [], [])
+        block, count = 0, 1
+        while block < count:
+            chunk = window.text(ctx, entry.source_id, block).text
+            assert chunk is not None
+            assert chunk.first_block == block
+            screen.blocks.extend(chunk.blocks)
+            screen.highlights.extend(chunk.highlights)
+            block, count = chunk.end_block, chunk.block_count
+        screens.append(screen)
+    return screens
 
 
 COLLECTION, FIRST, SECOND, TOPIC = 7, 1, 2, 3
@@ -113,8 +144,14 @@ def test_documents_of_a_collection_in_set_order(db_session: Session) -> None:
     for source_id in (FIRST, SECOND):
         SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
         store_cards(db_session, [_candidate(source_id, "pursuit", "pursuit")])
+    # One flat list, newest added first.
+    settings = SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session))
+    settings.set(SOURCE_GROUPING_SETTING, SourceGrouping.NONE.value)
+    settings.set(SOURCE_SORT_SETTING, SourceSort.ADDED.value)
+    db_session.commit()
+    rebuild_projection(db_session)
 
-    docs = _screen(db_session).execute(SourceScope.collection(COLLECTION))
+    docs = _screens(db_session, SourceScope.collection(COLLECTION))
 
     assert [(d.source_id, d.title) for d in docs] == [(SECOND, "Episode 2"), (FIRST, "Pilot")]
     assert all(
@@ -130,8 +167,10 @@ def test_marks_that_would_overlap_keep_the_first(db_session: Session, source_id:
         _candidate(source_id, "give", "gave"),
         _candidate(source_id, "pursuit", "pursuit"),
     ])
+    db_session.commit()
+    rebuild_projection(db_session)
 
-    [screen] = _screen(db_session).execute(SourceScope.source(source_id))
+    [screen] = _screens(db_session, SourceScope.source(source_id))
 
     assert [b.type for b in screen.blocks] == ["heading", "paragraph"]
     assert [line.text for line in screen.blocks[1].lines] == [
@@ -152,7 +191,9 @@ def test_selected_phrase_replaces_the_old_one(db_session: Session, source_id: in
     ))
 
     assert text == "relentless pursuit of happiness."
-    updated = SqlaOccurrenceRepository(db_session).get(candidate.phrase_id)
+    updated = SqlaOccurrenceRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).get(candidate.phrase_id)
     assert updated is not None
     assert updated.source_phrase.text == text
     assert updated.source_phrase.target_text() == "pursuit"
@@ -172,16 +213,20 @@ def test_an_example_put_in_the_document_gets_its_key(db_session: Session, source
         start_block=1, start_line=0, start_char=14, end_block=1, end_line=1, end_char=13,
     ))
 
-    updated = SqlaOccurrenceRepository(db_session).get(candidate.phrase_id)
+    updated = SqlaOccurrenceRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).get(candidate.phrase_id)
     assert updated is not None
     assert updated.key == OccurrenceKey(block=1, line=0, char=PHRASE.index("pursuit"))
 
 
 def _set_boundary(db_session: Session) -> SetPhraseBoundaryUseCase:
     return SetPhraseBoundaryUseCase(
-        SqlaOccurrenceRepository(db_session), SqlaCandidateRepository(db_session),
+        SqlaOccurrenceRepository(db_session, SessionChangeRecorder(db_session)),
+        SqlaCandidateRepository(db_session, SessionChangeRecorder(db_session)),
         SqlaDocumentRepository(db_session), Container().phrase_reader, free_lock(),
-        section_stamper(SqlaSettingsRepository(db_session)),
+        section_stamper(SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session))),
+        MagicMock(),
     )
 
 
@@ -222,3 +267,25 @@ def test_a_mark_has_the_level_of_its_stored_breakdown(
     levels = {p.word_id: p.cefr_level for p in SqlaCardQuery(db_session).shown_places(source_id)}
 
     assert levels == {rated.word_id: "C1", unrated.word_id: None, unknown.word_id: None}
+
+
+def test_a_mark_says_whether_its_card_is_done(db_session: Session, source_id: int) -> None:
+    """Read from the stored projection: a pressed Known turns the mark of its card done."""
+    SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
+    give_up, pursuit = store_cards(db_session, [
+        _candidate(source_id, "give up", "gave up"),
+        _candidate(source_id, "pursuit", "pursuit"),
+    ])
+    db_session.commit()
+    rebuild_projection(db_session)
+    container = get_container()
+
+    def done_marks() -> dict[int, bool]:
+        [screen] = _screens(db_session, SourceScope.source(source_id))
+        return {h.phrase_id: h.is_done for h in screen.highlights}
+
+    assert done_marks() == {give_up.phrase_id: False, pursuit.phrase_id: False}
+
+    container.decide_phrase_use_case(db_session).decide(pursuit.phrase_id, Press.KNOWN)
+
+    assert done_marks() == {give_up.phrase_id: False, pursuit.phrase_id: True}

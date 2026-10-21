@@ -32,7 +32,7 @@ DUE = (NOW - LEARNING_KNOWN_AFTER,)
 
 def _known(*lemmas: str) -> MagicMock:
     repo = MagicMock()
-    repo.get_all_pairs.return_value = {(lemma, None) for lemma in lemmas}
+    repo.known_lemmas.return_value = set(lemmas)
     return repo
 
 
@@ -95,10 +95,7 @@ def test_a_word_open_here_is_done_by_what_another_source_holds(
 @pytest.mark.parametrize(
     "vocabulary",
     [
-        pytest.param(user_vocabulary(unknown_lemmas={LEMMA}, active_since={LEMMA: DUE}),
-                     id="unknown-wins-over-the-timer"),
-        pytest.param(user_vocabulary(unknown_lemmas={LEMMA}, learning_lemmas={LEMMA}),
-                     id="unknown-wins-over-learn"),
+        pytest.param(user_vocabulary(unknown_lemmas={LEMMA}), id="unknown"),
         pytest.param(user_vocabulary(), id="nothing-anywhere"),
     ],
 )

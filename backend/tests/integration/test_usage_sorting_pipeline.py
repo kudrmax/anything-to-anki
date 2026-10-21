@@ -14,6 +14,7 @@ from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import (
     StoredCandidateModel,
 )
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
 class TestUsageSortingPipeline:
     def test_usage_distribution_stored_and_sorted(self, db_session: Session) -> None:
         """Settings roundtrip for usage_group_order."""
-        settings_repo = SqlaSettingsRepository(db_session)
+        settings_repo = SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session))
         settings_uc = ManageSettingsUseCase(
             settings_repo, threshold_resolver(settings_repo), MagicMock(), MagicMock(),
         )
@@ -68,7 +69,7 @@ class TestUsageSortingPipeline:
         model = StoredCandidateModel.from_entity(candidate)
         assert model.usage_distribution_json is not None
 
-        restored = model.to_entity()
+        restored = model.to_entity(WordStatus.NEW)
         assert restored.usage_distribution is not None
         assert restored.usage_distribution.groups == {"neutral": 0.6, "informal": 0.4}
 
@@ -87,5 +88,5 @@ class TestUsageSortingPipeline:
         model = StoredCandidateModel.from_entity(candidate)
         assert model.usage_distribution_json is None
 
-        restored = model.to_entity()
+        restored = model.to_entity(WordStatus.NEW)
         assert restored.usage_distribution is None

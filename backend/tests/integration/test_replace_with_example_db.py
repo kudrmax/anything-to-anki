@@ -19,6 +19,7 @@ from backend.domain.value_objects.export_group import ExportGroup
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -39,6 +40,7 @@ from tests.card_support import card_views
 from tests.decision_support import Decisions
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase, shown_lemmas
+from tests.word_marks_support import insert_known
 from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -76,17 +78,20 @@ class Bench:
     def __init__(self, session: Session) -> None:
         self.session = session
         insert_word(session, WORD, lemma="run", pos="VERB", phrase_text="He ran to the store.")
-        self.occurrences = SqlaOccurrenceRepository(session)
+        session.commit()
+        self.occurrences = SqlaOccurrenceRepository(session, SessionChangeRecorder(session))
         reader = MagicMock()
         reader.read_for.side_effect = _read_for
         reader.read.side_effect = _read
         self.decisions = Decisions(session)
         self.use_case = ReplaceWithExampleUseCase(
             occurrence_repo=self.occurrences,
-            candidate_repo=SqlaCandidateRepository(session),
+            candidate_repo=SqlaCandidateRepository(session, SessionChangeRecorder(session)),
             phrase_reader=reader,
-            stamper=section_stamper(SqlaSettingsRepository(session)),
-            job_repo=SqlaJobRepository(session),
+            stamper=section_stamper(SqlaSettingsRepository(
+                session, SessionChangeRecorder(session),
+            )),
+            job_repo=SqlaJobRepository(session, SessionChangeRecorder(session)),
             lock=free_lock(),
             card_views=card_views(session),
             word_states=self.decisions.word_states,
@@ -108,12 +113,9 @@ class Bench:
         return found
 
     def decide(self, phrase_id: int, choice: str) -> None:
-        status = "known" if choice == "known" else "learn"
-        self.session.execute(text("UPDATE candidates SET status = :s WHERE id = :id"),
-                             {"s": status, "id": WORD})
         self.session.execute(text("UPDATE phrases SET choice = :c WHERE id = :id"),
                              {"c": choice, "id": phrase_id})
-        self.session.expire_all()
+        self.session.commit()
 
     def choice(self, phrase_id: int) -> str:
         return str(self.session.execute(
@@ -121,9 +123,10 @@ class Bench:
         ).scalar_one())
 
     def status(self) -> str:
-        return str(self.session.execute(
-            text("SELECT status FROM candidates WHERE id = :id"), {"id": WORD},
-        ).scalar_one())
+        words = SqlaCandidateRepository(self.session, SessionChangeRecorder(self.session))
+        word = words.get_by_id(WORD)
+        assert word is not None
+        return word.status.value
 
     def active_bindings(self) -> list[int | None]:
         return list(self.session.scalars(text(
@@ -131,18 +134,25 @@ class Bench:
         )))
 
     def give_meaning_and_audio(self, phrase_id: int) -> None:
-        SqlaCandidateMeaningRepository(self.session).upsert_for_phrase(phrase_id, CandidateMeaning(
+        SqlaCandidateMeaningRepository(
+            self.session, SessionChangeRecorder(self.session),
+        ).upsert_for_phrase(phrase_id, CandidateMeaning(
             candidate_id=WORD, meaning="to move fast", translation=None, synonyms=None,
             examples=None, ipa=None, generated_at=None,
         ))
-        SqlaCandidateTTSRepository(self.session).upsert_for_phrase(phrase_id, CandidateTTS(
+        SqlaCandidateTTSRepository(
+            self.session, SessionChangeRecorder(self.session),
+        ).upsert_for_phrase(phrase_id, CandidateTTS(
             candidate_id=WORD, audio_path="/media/1/tts.mp3", generated_at=None,
         ))
+        self.session.commit()
 
     def export_queue(self) -> ExportQueue:
         decisions = self.decisions.request()
         return ExportQueue(
-            SqlaCandidateRepository(self.session), self.occurrences, decisions.word_states,
+            SqlaCandidateRepository(self.session, SessionChangeRecorder(self.session)),
+            self.occurrences,
+            decisions.word_states,
             decisions.vocabulary,
         )
 
@@ -154,6 +164,7 @@ class Bench:
             earned_section=CandidateSection.READY, shown_by=ShownBy.USER,
         ))
         assert added.id is not None
+        self.session.commit()
         return added.id
 
 
@@ -202,7 +213,9 @@ def test_the_answer_is_the_example_card_when_the_word_shows_another_phrase(
 def test_the_example_gets_its_meaning_queued(bench: Bench) -> None:
     example = bench.replace(CARD)
 
-    jobs = SqlaJobRepository(bench.session).get_jobs_by_status([JobStatus.QUEUED])
+    jobs = SqlaJobRepository(
+        bench.session, SessionChangeRecorder(bench.session),
+    ).get_jobs_by_status([JobStatus.QUEUED])
     assert [(j.job_type, j.candidate_id, j.phrase_id, j.phrase_revision) for j in jobs] == [
         (JobType.MEANING, WORD, example.id, example.revision),
     ]
@@ -256,7 +269,6 @@ def test_m1_the_decision_moves_to_the_example_with_its_kind(bench: Bench, choice
 
 def test_m2_a_skipped_card_keeps_its_skip_and_the_example_is_open(bench: Bench) -> None:
     bench.decide(CARD, "skip")
-    bench.session.execute(text("UPDATE candidates SET status = 'pending'"))
 
     example = bench.replace(CARD)
 
@@ -266,10 +278,9 @@ def test_m2_a_skipped_card_keeps_its_skip_and_the_example_is_open(bench: Bench) 
 
 def test_m3a_a_known_card_in_anki_gives_its_known_to_the_example(bench: Bench) -> None:
     bench.decide(CARD, "known")
-    bench.session.execute(text(
-        "INSERT INTO known_words (lemma, pos, created_at) VALUES ('run', 'VERB', '2026-01-01')"
-    ))
+    insert_known(bench.session, "run", "VERB")
     bind(bench.session, WORD, CARD)
+    bench.session.commit()
 
     example = bench.replace(CARD)
 
@@ -284,6 +295,7 @@ def test_m3b_a_learning_card_gives_its_learn_to_the_example_back_in_the_queue(
 ) -> None:
     bench.decide(CARD, "learn")
     bind(bench.session, WORD, CARD)
+    bench.session.commit()
     assert bench.status() == "learning"
 
     example = bench.replace(CARD)

@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from backend.application.utils.export_queue import ExportQueue
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
@@ -39,6 +40,8 @@ TIMER_DAYS = 30
 KNOWN_REMOVED = "known removed after the export"
 NOT_DECIDED = "pending or skip"
 MERGE_LOSER = "merge loser"
+# From this revision on, a binding holds its card's choice only once the card is gone.
+CHOICE_ON_ORPHANS_ONLY = "0055"
 
 
 @dataclass(frozen=True)
@@ -177,7 +180,8 @@ def app_export_queue(db_path: Path) -> frozenset[int]:
         with Session(engine) as session:
             decisions = Decisions(session)
             queue = ExportQueue(
-                SqlaCandidateRepository(session), SqlaOccurrenceRepository(session),
+                SqlaCandidateRepository(session, SessionChangeRecorder(session)),
+                SqlaOccurrenceRepository(session, SessionChangeRecorder(session)),
                 decisions.word_states, decisions.vocabulary,
             )
             return frozenset(card.word_id for card in queue.for_all().pending)
@@ -192,12 +196,16 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
     """`export_queue`: what the app's ExportQueue exports (`app_export_queue`)."""
     report = Report()
     phrase_of = _phrase_of_card(conn, before)
+    stored_status = _has_stored_status(conn)
     words = {
-        row[0]: (row[1], row[2], row[3]) for row in conn.execute(
-            "SELECT id, lemma, pos, status FROM candidates"
+        row[0]: (row[1], row[2], row[3] if stored_status else _decision_status(conn, row[0]))
+        for row in conn.execute(
+            f"SELECT id, lemma, pos, {'status' if stored_status else 'NULL'} FROM candidates"  # noqa: S608
         )
     }
     choices = dict(conn.execute("SELECT id, choice FROM phrases").fetchall())
+    (version,) = conn.execute("SELECT version_num FROM alembic_version").fetchone()
+    orphans_only = version >= CHOICE_ON_ORPHANS_ONLY
     word_of_phrase = dict(conn.execute("SELECT id, candidate_id FROM phrases").fetchall())
     winners = before.winners()
 
@@ -226,7 +234,8 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
         f" WHERE choice IN {DECISION_CHOICES} GROUP BY candidate_id HAVING count(*) > 1)",
     ) == 0
 
-    # candidates.status == decision_status for every word; only the 4 values
+    # candidates.status (until 0057 drops it) == decision_status for every word; only the 4
+    # values
     statuses = {status for _, _, status in words.values()}
     assert statuses <= STATUSES, statuses
     for word_id, (_, _, status) in words.items():
@@ -260,9 +269,11 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
         winner = winners[card.group]
         assert phrase_id == phrase_of[card.id], old
         assert (note_kind == "cloze") is card.has_cloze, old
-        # the card's choice, so an orphan tells a Known card's binding from a Learn one's
+        # the card's choice, so an orphan tells a Known card's binding from a Learn one's;
+        # later, only once the card is gone
         decided = choices[phrase_id] in DECISION_CHOICES
-        assert card_choice == (choices[phrase_id] if decided else note_kind), old
+        copied = choices[phrase_id] if decided else note_kind
+        assert card_choice == (None if orphans_only else copied), old
         active = released_at is None
         should = card is winner and card.exported and choices[phrase_id] == "known"
         assert active is should, old
@@ -283,12 +294,7 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
         assert started - timedelta(seconds=1) <= moment <= finished + timedelta(seconds=1)
 
     # known_words, unknown_words, clozes, calibration unchanged
-    assert frozenset(conn.execute("SELECT lemma, pos FROM known_words").fetchall()) == (
-        before.known_words
-    )
-    assert frozenset(
-        str(row[0]).lower() for row in conn.execute("SELECT lemma FROM unknown_words")
-    ) == before.unknown_words
+    _check_lists_kept(conn, before)
     assert _count(conn, "SELECT count(*) FROM candidate_clozes") == before.clozes
     assert frozenset(conn.execute("SELECT * FROM word_decisions").fetchall()) == (
         before.calibration
@@ -336,7 +342,7 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
             assert lemma not in before.unknown_words, ("AK", phrase_id)
 
     # no word reads LEARNING; the timer makes nothing Known now or 30 days later
-    assert _count(conn, "SELECT count(*) FROM candidates WHERE status = 'learning'") == 0
+    assert not any(status == "learning" for _, _, status in words.values())
     assert _count(
         conn,
         "SELECT count(*) FROM anki_synced_cards a JOIN phrases p ON p.id = a.phrase_id"
@@ -369,13 +375,23 @@ def check_upgraded(  # noqa: C901, PLR0912, PLR0915 — one assert per §4.1 row
 
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
 
-    for source_id, decided, total in conn.execute(
-        "SELECT c.source_id, sum(p.choice != 'none' OR c.status != 'pending'), count(*)"
+    progress: dict[int, tuple[int, int]] = {}
+    for source_id, word_id, choice in conn.execute(
+        "SELECT c.source_id, c.id, p.choice"
         " FROM phrases p JOIN candidates c ON c.id = p.candidate_id"
-        " WHERE p.shown_by IS NOT NULL GROUP BY c.source_id"
+        " WHERE p.shown_by IS NOT NULL"
     ):
-        report.progress_after[source_id] = (int(decided), int(total))
+        decided, total = progress.get(source_id, (0, 0))
+        progress[source_id] = (
+            decided + (choice != "none" or words[word_id][2] != "pending"), total + 1,
+        )
+    report.progress_after.update(progress)
     return report
+
+
+def _has_stored_status(conn: sqlite3.Connection) -> bool:
+    """`candidates.status`, the stored copy of the decision status, until 0057 drops it."""
+    return "status" in {row[1] for row in conn.execute("PRAGMA table_info(candidates)")}
 
 
 def _expected_choice(card: OldCard, winner: OldCard, known: frozenset[str]) -> str:
@@ -443,3 +459,21 @@ def _phrase_of_card(conn: sqlite3.Connection, before: Before) -> dict[int, int]:
 
 def _count(conn: sqlite3.Connection, sql: str, params: tuple[object, ...] = ()) -> int:
     return int(conn.execute(sql, params).fetchone()[0])
+
+
+def _check_lists_kept(conn: sqlite3.Connection, before: Before) -> None:
+    """The Known and Unknown lists as they were; once 0054 merged them into word marks,
+    every lemma of either list is marked."""
+    tables = {str(row[0]) for row in conn.execute("SELECT name FROM sqlite_master")}
+    if "word_marks" in tables:
+        marked = frozenset(str(row[0]) for row in conn.execute("SELECT lemma FROM word_marks"))
+        assert marked == (
+            frozenset(lemma.lower() for lemma, _ in before.known_words) | before.unknown_words
+        )
+        return
+    assert frozenset(conn.execute("SELECT lemma, pos FROM known_words").fetchall()) == (
+        before.known_words
+    )
+    assert frozenset(
+        str(row[0]).lower() for row in conn.execute("SELECT lemma FROM unknown_words")
+    ) == before.unknown_words

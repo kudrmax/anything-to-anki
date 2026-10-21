@@ -15,6 +15,7 @@ from backend.domain.value_objects.card_choice import (
     NoteKind,
     decision_status,
 )
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
@@ -22,7 +23,7 @@ from sqlalchemy import text
 
 from tests.decision_support import NOW
 from tests.integration.conftest import insert_source
-from tests.word_support import CREATED_AT, bind, insert_word, phrase_id_of
+from tests.word_support import CREATED_AT, bind, decision_status_of, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -46,13 +47,11 @@ def repo(db_session: Session, source_id: int) -> SqlaWordStateRepository:
         ),
         {"id": SECOND, "first": FIRST},
     )
-    return SqlaWordStateRepository(db_session)
+    return SqlaWordStateRepository(db_session, SessionChangeRecorder(db_session))
 
 
 def _status(session: Session) -> str:
-    return str(session.execute(
-        text("SELECT status FROM candidates WHERE id = :id"), {"id": WORD},
-    ).scalar_one())
+    return decision_status_of(session, WORD)
 
 
 def test_a_word_reads_its_cards_and_their_active_bindings(
@@ -124,22 +123,21 @@ def test_a_bound_learn_is_stored_learning(
     assert binding.learning_since < NOW
 
 
-def test_save_writes_the_cards_choice_onto_its_active_binding_only(
+def test_saving_a_word_leaves_its_bindings_alone(
     repo: SqlaWordStateRepository, db_session: Session,
 ) -> None:
-    """An orphan must still tell a Known card's binding from a Learn one's."""
+    """The binding holds its card's choice only once the card is gone (`orphan`)."""
     db_session.execute(text("UPDATE phrases SET choice = 'learn' WHERE id = :id"), {"id": FIRST})
     bind(db_session, WORD, FIRST, released_at=CREATED_AT)
     bind(db_session, WORD, FIRST)
+    before = db_session.execute(text("SELECT * FROM anki_synced_cards ORDER BY id")).all()
     word = repo.of_word(WORD)
     assert word is not None
 
     repo.save(word.with_cards(CardState(FIRST, CardChoice.KNOWN, word.card(FIRST).binding)))
 
-    rows = db_session.execute(text(
-        "SELECT released_at IS NULL, card_choice FROM anki_synced_cards ORDER BY id"
-    )).all()
-    assert [tuple(row) for row in rows] == [(0, "learn"), (1, "known")]
+    after = db_session.execute(text("SELECT * FROM anki_synced_cards ORDER BY id")).all()
+    assert after == before
 
 
 def test_words_are_read_by_id(repo: SqlaWordStateRepository, db_session: Session) -> None:

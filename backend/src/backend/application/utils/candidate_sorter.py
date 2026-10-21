@@ -70,19 +70,10 @@ class CandidateSorter:
         """`source_order` is the order of the set's sources: text order follows it."""
         knowledge = self._knowledge.current()
         threshold = self._threshold_resolver.resolve()
-        if order == CandidateSortOrder.CHRONOLOGICAL:
-            ordered = candidate_sorting.sort_chronologically(cards, source_order)
-        elif order == CandidateSortOrder.KEY_WORDS:
-            ordered = candidate_sorting.sort_by_key_words(
-                cards, frequent_threshold=threshold, knowledge=knowledge,
-            )
-        else:
-            ordered = candidate_sorting.sort_by_relevance(
-                cards,
-                usage_order=self._usage_order(),
-                frequent_threshold=threshold,
-                knowledge=knowledge,
-            )
+        ordered = candidate_sorting.sort_cards(
+            cards, order, candidate_sorting.live_standing(knowledge, threshold),
+            usage_order=self.usage_order(), source_order=source_order,
+        )
         return ArrangedCards(
             cards=ordered,
             sections={c.phrase_id: card_section(c, knowledge, threshold) for c in ordered},
@@ -109,7 +100,8 @@ class CandidateSorter:
             for source_id, cards in cards_by_source.items()
         }
 
-    def _usage_order(self) -> list[str]:
+    def usage_order(self) -> list[str]:
+        """The order of usage groups the user set, the default one unless set."""
         raw = self._settings_repo.get(USAGE_GROUP_ORDER_SETTING)
         return json.loads(raw) if raw else DEFAULT_USAGE_GROUP_ORDER
 

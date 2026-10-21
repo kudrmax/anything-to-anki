@@ -151,6 +151,8 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
                 word_states=self, vocabulary=vocabulary, decision_repo=MagicMock(),
                 anki_sync=self, lock=free_lock(),
             ),
+            word_states=self,
+            unit_of_work=MagicMock(),
         )
 
     def bound_notes(self) -> list[tuple[int, str, str | None]]:
@@ -175,6 +177,12 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
     def of_lemma(self, lemma: str) -> list[WordState]:
         return [c.state for c in self._cards if c.word.lemma.lower() == lemma.lower()]
 
+    def of_lemmas(self, lemmas: Collection[str]) -> dict[int, WordState]:
+        keys = {lemma.lower() for lemma in lemmas}
+        return {
+            c.state.word_id: c.state for c in self._cards if c.word.lemma.lower() in keys
+        }
+
     def save(self, word: WordState) -> None:
         self.saved.append(word)
 
@@ -188,6 +196,12 @@ class ExportCards(WordStateRepository, AnkiSyncRepository):
 
     def release_rows(self, binding_ids: Iterable[int], at: datetime) -> None:
         raise AssertionError("an export releases nothing")
+
+    def orphan(self, phrase_ids: Iterable[int]) -> None:
+        raise AssertionError("an export deletes no card")
+
+    def orphan_source(self, source_id: int) -> None:
+        raise AssertionError("an export deletes no source")
 
     def orphans(self, lemma: str) -> list[BindingRef]:
         return []

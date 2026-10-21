@@ -25,6 +25,7 @@ from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.domain.value_objects.word_status import WordStatus
 from backend.infrastructure.persistence.models import PhraseModel
 from backend.infrastructure.persistence.phrase_writes import SQL_IN_CHUNK
+from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_meaning_repository import (
     SqlaCandidateMeaningRepository,
 )
@@ -57,7 +58,7 @@ def repo(db_session: Session) -> SqlaOccurrenceRepository:
     insert_source(db_session, SOURCE)
     insert_source(db_session, OTHER_SOURCE)
     db_session.flush()
-    return SqlaOccurrenceRepository(db_session)
+    return SqlaOccurrenceRepository(db_session, SessionChangeRecorder(db_session))
 
 
 UPDATE = RebuildMode.UPDATE
@@ -91,7 +92,9 @@ def _words_of(session: Session, phrase_id: int) -> set[str]:
 
 
 def _meaning(session: Session, phrase_id: int, word_id: int) -> None:
-    SqlaCandidateMeaningRepository(session).upsert_for_phrase(phrase_id, CandidateMeaning(
+    SqlaCandidateMeaningRepository(
+        session, SessionChangeRecorder(session),
+    ).upsert_for_phrase(phrase_id, CandidateMeaning(
         candidate_id=word_id, meaning="to stare angrily", translation=None, synonyms=None,
         examples=None, ipa=None, generated_at=None,
     ))
@@ -145,7 +148,9 @@ def test_a_recut_drops_polish_and_audio_of_the_old_text_and_keeps_the_meaning(
     _rebuild(repo, [built("glare", occ(0, 50.0))])
     [phrase] = _phrases(db_session).values()
     _meaning(db_session, phrase.id, phrase.candidate_id)
-    SqlaCandidateTTSRepository(db_session).upsert_for_phrase(phrase.id, CandidateTTS(
+    SqlaCandidateTTSRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).upsert_for_phrase(phrase.id, CandidateTTS(
         candidate_id=phrase.candidate_id, audio_path="/media/1/p1_tts.m4a", generated_at=None,
     ))
     db_session.execute(
@@ -165,7 +170,9 @@ def test_a_recut_drops_polish_and_audio_of_the_old_text_and_keeps_the_meaning(
     assert (stored.revision, stored.source_phrase.text) == (1, CHANGED)
     assert stored.meaning is not None
     assert stored.polished_phrase is None
-    assert SqlaCandidateTTSRepository(db_session).get_by_phrase_id(phrase.id) is None
+    assert SqlaCandidateTTSRepository(
+        db_session, SessionChangeRecorder(db_session),
+    ).get_by_phrase_id(phrase.id) is None
     assert _plan(repo, changed, RECUT).is_empty
 
 
@@ -176,9 +183,6 @@ def test_a_lost_word_goes_with_its_phrases_but_a_decided_one_stays(
     words = {w.lemma: w.id for w in repo.word_rows(SOURCE)}
     linger_phrase = next(
         p.id for p in _phrases(db_session).values() if p.candidate_id == words["linger"]
-    )
-    db_session.execute(
-        text("UPDATE candidates SET status = 'learn' WHERE id = :id"), {"id": words["linger"]},
     )
     db_session.execute(
         text("UPDATE phrases SET choice = 'learn' WHERE id = :id"), {"id": linger_phrase},
@@ -309,5 +313,7 @@ def test_a_phrase_found_again_where_its_key_moved_takes_the_key_with_its_results
 
         [after] = _phrases(db_session).values()
         assert (after.id, after.block, after.line, after.char) == (before.id, 0, 0, 3)
-        assert SqlaCandidateMeaningRepository(db_session).get_by_phrase_id(after.id) is not None
+        assert SqlaCandidateMeaningRepository(
+            db_session, SessionChangeRecorder(db_session),
+        ).get_by_phrase_id(after.id) is not None
     assert _plan(repo, [built("glare", moved)], RECUT).is_empty
