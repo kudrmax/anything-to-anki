@@ -47,12 +47,16 @@ describe('useReviewWindow', () => {
   let host: HTMLDivElement
   let root: Root
   let latest: ReviewWindow
+  let scrolls: string[]
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     vi.stubGlobal('matchMedia', () => ({ matches: false }))
-    Element.prototype.scrollIntoView = () => {}
+    scrolls = []
+    Element.prototype.scrollIntoView = function (this: Element, options?: boolean | ScrollIntoViewOptions) {
+      scrolls.push(`${(this as HTMLElement).dataset.candidateId}:${typeof options === 'object' ? options.behavior : ''}`)
+    }
     Element.prototype.scrollTo = () => {}
     vi.spyOn(api, 'openReview').mockResolvedValue(windowAround(41))
     vi.spyOn(api, 'reviewRows').mockResolvedValue(reviewUpdate())
@@ -158,6 +162,23 @@ describe('useReviewWindow', () => {
     await act(async () => { await latest.goTo(42) })
     await act(async () => { await Promise.all([latest.step(1), latest.step(1)]) })
     expect(latest.current?.phrase_id).toBe(44)
+  })
+
+  it('jumps to the card at once on opening and on a far jump, and loads no rows on the way', async () => {
+    vi.spyOn(api, 'reviewAround').mockResolvedValue(windowAround(90))
+    await render()
+    expect(scrolls).toEqual(['41:auto'])
+
+    await act(async () => { await latest.goTo(90) })
+    await flush()
+    expect(scrolls.at(-1)).toBe('90:auto')
+    expect(api.reviewRows).not.toHaveBeenCalled()
+  })
+
+  it('scrolls smoothly to a neighbour over loaded rows', async () => {
+    await render()
+    await act(async () => { await latest.step(1) })
+    expect(scrolls.at(-1)).toBe('42:smooth')
   })
 
   it('Review Focus 5: an expired review opens again on the current card and the press goes once more', async () => {

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react'
 import type { ReviewRow, StoredCandidate } from '@/api/types'
 import { Button } from '@/ui'
-import { fetchStart, isGap, listRows, rowIndexOf, type ReviewState } from './reviewState'
+import { fetchStart, isGap, listRows, rowIndexOf, rowsLoaded, type ReviewState } from './reviewState'
 import { sectionToggleLabel } from './sections'
 import { ROW_ESTIMATE_PX, ROWS_PER_FETCH } from './useReviewWindow'
 import css from './review.module.css'
@@ -9,6 +9,8 @@ import css from './review.module.css'
 /** Заглушку начинают грузить за экран до того, как она покажется. */
 const PREFETCH_MARGIN = '100% 0%'
 const GAP_SELECTOR = '[data-gap-start]'
+/** Дальше этого плавная прокрутка не идёт: переход к карточке — сразу. */
+const SMOOTH_SCROLL_ROWS = 2 * ROWS_PER_FETCH
 
 interface ReviewListProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onLoad'> {
   state: ReviewState
@@ -33,19 +35,24 @@ export function ReviewList({ state, onLoad, renderCard, onToggleSection, followK
   const ref = useRef<HTMLDivElement>(null)
   const items = useMemo(() => listRows(state), [state])
   const [settled, setSettled] = useState(0)
-  const { currentId, reviewId, cards } = state
+  const { currentId, reviewId, version, cards } = state
   const currentIndex = rowIndexOf(state, currentId)
 
-  // Текущая карточка в поле зрения, плавно, как раньше. Перестроенный список (раскрыли раздел)
-  // не прокручивается: взгляд остаётся там, где был.
-  const shown = useRef<{ reviewId: string | null; currentId: number | null; followKey: unknown } | null>(null)
+  // Текущая карточка в поле зрения. Плавно — только по загруженным строкам и недалеко: плавная прокрутка
+  // сквозь заглушку грузила бы окна по пути и останавливалась не там. Открытие и дальний переход — сразу.
+  // Перестроенный список (раскрыли раздел) не прокручивается: взгляд остаётся там, где был.
+  const shown = useRef<{ reviewId: string | null; version: number; currentId: number | null; index: number | undefined; followKey: unknown } | null>(null)
   useLayoutEffect(() => {
     const before = shown.current
     const target = ref.current?.querySelector(`[data-candidate-id="${currentId}"]`)
     if (!target) return
-    shown.current = { reviewId, currentId, followKey }
+    shown.current = { reviewId, version, currentId, index: currentIndex, followKey }
     if (before && before.reviewId === reviewId && before.currentId === currentId && before.followKey === followKey) return
-    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    const smooth = before !== null && before.reviewId === reviewId && before.version === version
+      && before.index !== undefined && currentIndex !== undefined
+      && Math.abs(before.index - currentIndex) <= SMOOTH_SCROLL_ROWS && rowsLoaded(state, before.index, currentIndex)
+    target.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- прокручиваем при смене текущей, а не при каждой загрузке строк
   }, [reviewId, currentId, currentIndex, followKey])
 
   useEffect(() => {

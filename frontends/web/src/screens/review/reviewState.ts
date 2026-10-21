@@ -139,6 +139,12 @@ export function rowIndexOf(state: ReviewState, phraseId: number | null): number 
   return index.get(phraseId)
 }
 
+/** Загружены ли все строки между двумя номерами (включительно). */
+export function rowsLoaded(state: ReviewState, from: number, to: number): boolean {
+  for (let i = Math.min(from, to); i <= Math.max(from, to); i++) if (!state.rows.has(i)) return false
+  return true
+}
+
 /** Строка текущей карточки: её позиция в видимом списке. */
 export const currentRow = (state: ReviewState): ReviewRow | null => {
   const index = rowIndexOf(state, state.currentId)
