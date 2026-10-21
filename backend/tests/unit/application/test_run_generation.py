@@ -54,6 +54,7 @@ from backend.domain.value_objects.source_operation_kind import SourceOperationKi
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.queue.in_memory_generation_stops import InMemoryGenerationStops
 
 from tests.card_support import PhraseWordStates
 from tests.decision_support import NOW as REQUEST_MOMENT
@@ -219,10 +220,14 @@ class _Setup:
             _vocabulary_holding(elsewhere or {}),
         )
         resolver = SourceScopeResolver(self.source_repo, MagicMock(), added_order())
+        self.stops = InMemoryGenerationStops()
         self.run = RunGenerationUseCase(
             scope_resolver=resolver, cards=generation_cards,
             job_repo=self.job_repo, candidate_sorter=sorter, targets=targets, lock=self.lock,
-            unit_of_work=MagicMock(),
+            unit_of_work=MagicMock(), stops=self.stops,
+        )
+        self.cancel = CancelGenerationUseCase(
+            self.job_repo, resolver, MagicMock(), self.stops,
         )
         self.status = LiveGenerationStatus(
             scope_resolver=resolver, cards=generation_cards,
@@ -394,6 +399,36 @@ class TestRunGeneration:
         setup.lock.held.side_effect = lambda _source_id: next(holds)
 
         assert setup.run.execute(SCOPE, GenerationKind.MEANING, GenerationScope.MISSING) == 2
+
+    def test_a_stop_between_chunks_queues_nothing_more_of_the_kind(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(run_generation, "GENERATION_RUN_CHUNK", 2)
+        setup = _Setup([_one(cid) for cid in range(1, 6)])
+        chunks: list[list[Job]] = []
+
+        def enqueue(jobs: list[Job]) -> list[Job]:
+            chunks.append(jobs)
+            if len(chunks) == 1:
+                setup.cancel.execute(SCOPE, GenerationKind.MEANING)
+            return jobs
+
+        setup.job_repo.enqueue.side_effect = enqueue
+
+        assert setup.run.execute(SCOPE, GenerationKind.MEANING, GenerationScope.MISSING) == 2
+        assert [len(chunk) for chunk in chunks] == [2, 0, 0]
+
+    def test_a_stop_of_another_kind_leaves_the_run_going(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(run_generation, "GENERATION_RUN_CHUNK", 2)
+        setup = _Setup([_one(cid) for cid in range(1, 6)])
+        setup.stops.stop(JobType.MEANING, None)
+        setup.job_repo.enqueue.side_effect = lambda jobs: (
+            setup.cancel.execute(SCOPE, GenerationKind.TTS), jobs,
+        )[1]
+
+        assert setup.run.execute(SCOPE, GenerationKind.MEANING, GenerationScope.MISSING) == 5
 
     def test_nothing_to_queue_creates_no_jobs(self) -> None:
         setup = _Setup([_one(1, meaning=True)])
@@ -653,7 +688,7 @@ def test_cancel_drops_queued_and_running_jobs_of_the_kind() -> None:
     source_repo.get_by_id.return_value = _source()
     cancelled = CancelGenerationUseCase(
         job_repo, SourceScopeResolver(source_repo, MagicMock(), added_order()),
-        MagicMock(),
+        MagicMock(), InMemoryGenerationStops(),
     ).execute(SCOPE, GenerationKind.TTS)
 
     assert cancelled == 3

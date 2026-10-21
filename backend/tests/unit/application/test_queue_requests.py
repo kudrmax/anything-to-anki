@@ -27,6 +27,7 @@ from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
+from backend.infrastructure.queue.in_memory_generation_stops import InMemoryGenerationStops
 
 from tests.phrase_support import make_occurrence
 from tests.source_order_support import added_order
@@ -194,7 +195,27 @@ def test_manage_queue_applies_the_action_to_the_selection(action: str) -> None:
     getattr(job_repo, action).return_value = 4
     selection = JobSelection(job_type=JobType.MEANING, source_id=SOURCE_ID)
 
-    affected = getattr(ManageQueueUseCase(job_repo, MagicMock()), action)(selection)
+    affected = getattr(
+        ManageQueueUseCase(job_repo, MagicMock(), InMemoryGenerationStops()), action,
+    )(selection)
 
     assert affected == 4
     getattr(job_repo, action).assert_called_once_with(selection)
+
+
+@pytest.mark.unit
+def test_cancelling_a_kind_or_a_source_stops_a_run_still_queueing_it() -> None:
+    stops = InMemoryGenerationStops()
+    queue = ManageQueueUseCase(MagicMock(), MagicMock(), stops)
+    mark = stops.mark()
+
+    queue.cancel(JobSelection(job_id=7))
+    assert stops.stopped_since(mark, JobType.MEANING, {SOURCE_ID, 2}) == set()
+
+    queue.cancel(JobSelection(job_type=JobType.MEANING, source_id=SOURCE_ID))
+    assert stops.stopped_since(mark, JobType.MEANING, {SOURCE_ID, 2}) == {SOURCE_ID}
+    assert stops.stopped_since(mark, JobType.TTS, {SOURCE_ID, 2}) == set()
+
+    queue.cancel(JobSelection(job_type=JobType.TTS))
+    assert stops.stopped_since(mark, JobType.TTS, {SOURCE_ID, 2}) == {SOURCE_ID, 2}
+    assert stops.stopped_since(stops.mark(), JobType.TTS, {SOURCE_ID, 2}) == set()
