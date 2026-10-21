@@ -144,6 +144,9 @@ class ReviewText:
             )
         touched = review.text.touched(now)
         rank = {source_id: at for at, source_id in enumerate(source_order)}
+        layouts = {
+            source_id: self._text(source_id).layout for source_id in {s for s, _ in touched}
+        }
         answer: list[ChunkHighlightsDTO] = []
         for source_id, first in sorted(touched, key=lambda ref: (rank.get(ref[0], -1), ref[1])):
             chunk = review.text.chunk_of(source_id, first)
@@ -152,7 +155,7 @@ class ReviewText:
             review.text.serve(source_id, chunk, places)
             answer.append(ChunkHighlightsDTO(
                 source_id=source_id, first_block=first,
-                highlights=self._highlights(self._text(source_id).layout, places),
+                highlights=self._highlights(layouts[source_id], places),
             ))
         return answer
 
@@ -161,25 +164,46 @@ class ReviewText:
     ) -> list[ChunkHighlightsDTO]:
         """The chunks a client of a review opened again holds from before: each one of a
         source of the set that has a document, which a chunk of it starts at, is served,
-        with its marks; any other is left out."""
-        answer: list[ChunkHighlightsDTO] = []
+        with its marks, in the order asked; any other is left out. One read of places per
+        source."""
+        texts: dict[int, SourceText | None] = {}
+        held: dict[ChunkRef, TextChunk] = {}
         for ref in refs:
             if ref.source_id not in review.source_ids:
                 continue
+            if ref.source_id not in texts:
+                try:
+                    texts[ref.source_id] = self._text(ref.source_id)
+                except SourceHasNoDocumentError:
+                    texts[ref.source_id] = None
+            text = texts[ref.source_id]
+            if text is None:
+                continue
             try:
-                text = self._text(ref.source_id)
                 chunk = chunk_with(text.chunks, ref.first_block)
-            except (SourceHasNoDocumentError, TextBlockNotFoundError):
+            except TextBlockNotFoundError:
                 continue
-            if chunk.first_block != ref.first_block:
-                continue
-            places = self._card_query.shown_places(
-                ref.source_id, range(chunk.first_block, chunk.end_block),
+            if chunk.first_block == ref.first_block:
+                held[ref.source_id, chunk.first_block] = chunk
+        places: dict[ChunkRef, list[ShownPlace]] = {}
+        for source_id in dict.fromkeys(s for s, _ in held):
+            chunks = sorted(
+                (c for (s, _), c in held.items() if s == source_id), key=lambda c: c.first_block,
             )
-            review.text.serve(ref.source_id, chunk, places)
+            places |= _by_chunk(
+                source_id, chunks,
+                self._card_query.shown_places_in(
+                    source_id, [range(c.first_block, c.end_block) for c in chunks],
+                ),
+            )
+        answer: list[ChunkHighlightsDTO] = []
+        for (source_id, first), chunk in held.items():
+            text = texts[source_id]
+            assert text is not None
+            review.text.serve(source_id, chunk, places[source_id, first])
             answer.append(ChunkHighlightsDTO(
-                source_id=ref.source_id, first_block=chunk.first_block,
-                highlights=self._highlights(text.layout, places),
+                source_id=source_id, first_block=first,
+                highlights=self._highlights(text.layout, places[source_id, first]),
             ))
         return answer
 

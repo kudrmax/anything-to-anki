@@ -42,10 +42,10 @@ class SqlaDocumentRepository(DocumentRepository):
         return load_document(model.document) if model else None
 
     def fingerprint(self, source_id: int) -> str | None:
-        """The moment its source was made, to the microsecond, and its length: read without
-        reading the document."""
+        """The moment its source was made, to the microsecond, and its size in bytes, which
+        SQLite reads from the record's header without reading the document."""
         stored = self._session.execute(
-            select(SourceModel.created_at, func.length(SourceDocumentModel.document))
+            select(SourceModel.created_at, func.octet_length(SourceDocumentModel.document))
             .join(SourceModel, SourceModel.id == SourceDocumentModel.source_id)
             .where(SourceDocumentModel.source_id == source_id)
         ).tuples().first()

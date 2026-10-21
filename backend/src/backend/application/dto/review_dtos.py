@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from backend.application.constants import TEXT_CHUNKS_HELD_MAX
 from backend.application.dto.document_dtos import (  # noqa: TC001 — pydantic field types
     ChunkHighlightsDTO,
     TextChunkDTO,
@@ -44,7 +45,9 @@ class OpenReviewRequest(BaseModel):
     requested_id: int | None = None
     open_sections: list[CandidateSection] = Field(default_factory=list)
     # The chunks of text the client holds from before: the answer brings their marks.
-    text_chunks: list[TextChunkRef] = Field(default_factory=list)
+    text_chunks: list[TextChunkRef] = Field(
+        default_factory=list, max_length=TEXT_CHUNKS_HELD_MAX,
+    )
 
 
 class SectionOpenRequest(BaseModel):

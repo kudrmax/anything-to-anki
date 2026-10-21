@@ -80,9 +80,11 @@ class ReviewUpdates:
         says and the current card is gone, the card next to it in the list."""
         with self._unit_of_work.read():
             scope = SourceScope.parse(review.scope_token)
-            source_ids = [
-                s.id for s in self._scope_resolver.reviewable_sources(scope) if s.id is not None
-            ]
+            made = {
+                s.id: s.created_at
+                for s in self._scope_resolver.reviewable_sources(scope) if s.id is not None
+            }
+            source_ids = list(made)
             changed = self._card_states.changed_since(source_ids, ctx.since)
             live = {c.row.phrase_id: c.row for c in changed if not c.removed}
             removed = [c.row.phrase_id for c in changed if c.removed]
@@ -97,11 +99,13 @@ class ReviewUpdates:
             for card in self._card_states.changed_since(sorted(current - held), 0):
                 if not card.removed:
                     live[card.row.phrase_id] = card.row
-            if current != held:
-                review.source_ids = current
+            if made != review.sources:
+                # A source under an id the set held, made since, is another source.
+                for source_id, at in review.sources.items():
+                    if made.get(source_id) != at:
+                        review.text.forget_source(source_id)
+                review.sources = made
                 review.contents_version += 1
-                for source_id in held - current:
-                    review.text.forget_source(source_id)
             version = review.layout_version
             review.current = ctx.current
             before = review.layout()

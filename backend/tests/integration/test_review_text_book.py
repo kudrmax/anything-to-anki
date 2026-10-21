@@ -3,6 +3,7 @@ laying out the document again, in at most CHUNK_READ_SECONDS."""
 from __future__ import annotations
 
 import time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
@@ -107,7 +108,7 @@ def _resolver(session: Session) -> SourceScopeResolver:
 
 def _review() -> OpenReview:
     return OpenReview(
-        scope_token=f"source-{BOOK}", source_ids=frozenset({BOOK}),
+        scope_token=f"source-{BOOK}", sources={BOOK: datetime(2026, 1, 1, tzinfo=UTC)},
         sort=CandidateSortOrder.RELEVANCE, step=None,
         order=ReviewOrder((), sectioned=False), opened=frozenset(), current=None,
     )

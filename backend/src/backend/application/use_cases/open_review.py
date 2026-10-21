@@ -59,7 +59,7 @@ class OpenReviewUseCase:
             )
             review = OpenReview(
                 scope_token=scope.token,
-                source_ids=frozenset(source_ids),
+                sources={s.id: s.created_at for s in sources if s.id is not None},
                 sort=request.sort,
                 step=step,
                 order=order,

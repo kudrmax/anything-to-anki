@@ -124,10 +124,3 @@ class ServedText:
     def forget_source(self, source_id: int) -> None:
         self._served.pop(source_id, None)
         self._firsts.pop(source_id, None)
-
-    def refs(self) -> list[ChunkRef]:
-        return [
-            (source_id, first)
-            for source_id in sorted(self._firsts)
-            for first in self._firsts[source_id]
-        ]

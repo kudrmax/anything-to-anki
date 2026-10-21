@@ -107,7 +107,6 @@ def test_a_chunk_served_again_is_held_as_served_then() -> None:
     text.serve(SOURCE, FIRST, [harder, PURSUIT])
 
     assert text.touched({(SOURCE, 0): [harder, PURSUIT]}) == set()
-    assert text.refs() == [(SOURCE, 0), (SOURCE, 5)]
 
 
 def test_a_forgotten_source_is_never_touched_again() -> None:
@@ -119,4 +118,4 @@ def test_a_forgotten_source_is_never_touched_again() -> None:
     assert text.sources() == frozenset({OTHER})
     assert text.candidates([(SOURCE, 1)], [SOURCE]) == {}
     assert text.touched({(SOURCE, 0): []}) == set()
-    assert text.refs() == [(OTHER, 0)]
+    assert text.chunk_of(OTHER, 1) == FIRST

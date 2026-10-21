@@ -8,8 +8,9 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from backend.application.constants import TEXT_CHUNKS_HELD_MAX
 from backend.application.dto.review_dtos import ReviewContext
-from backend.application.utils.source_texts import SourceTexts
+from backend.application.utils.source_texts import SourceText, SourceTexts
 from backend.domain.services import text_chunks
 from backend.domain.services.text_chunks import LAST_BLOCK
 from backend.domain.value_objects.document_position import DocumentPosition
@@ -51,7 +52,7 @@ from tests.review_window_support import open_review, review_text
 from tests.word_support import store_cards
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
     from backend.application.dto.document_dtos import TextChunkDTO
     from backend.domain.value_objects.document import Document
@@ -223,14 +224,16 @@ def test_learn_on_a_lemma_in_two_served_chunks_sends_no_marks_and_reads_no_docum
     review = open_review(client, SCOPE)
     assert ids[QUIET_PILOT] in _marked(review_text(client, review, PILOT, LAST_BLOCK)["text"])
     assert ids[QUIET_EPISODE] in _marked(review_text(client, review, EPISODE, 0)["text"])
-    reads: list[int] = []
-    read = SqlaDocumentRepository.get
+    reads: list[str] = []
+    for name in ("get", "fingerprint"):
+        monkeypatch.setattr(SqlaDocumentRepository, name, _counted(reads, name))
+    lay_out = SourceText.of
 
-    def counted(repo: SqlaDocumentRepository, source_id: int) -> Document | None:
-        reads.append(source_id)
-        return read(repo, source_id)
+    def laid_out(document: Document) -> SourceText:
+        reads.append("layout")
+        return lay_out(document)
 
-    monkeypatch.setattr(SqlaDocumentRepository, "get", counted)
+    monkeypatch.setattr(SourceText, "of", staticmethod(laid_out))
 
     answer = _ok(client.post(
         f"/phrases/{ids[QUIET_PILOT]}/decision", json={"button": "learn"},
@@ -241,6 +244,16 @@ def test_learn_on_a_lemma_in_two_served_chunks_sends_no_marks_and_reads_no_docum
     assert answer["done"][str(ids[QUIET_PILOT])] is True
     assert answer["done"][str(ids[QUIET_EPISODE])] is True
     assert reads == []
+
+
+def _counted(reads: list[str], name: str) -> Callable[..., object]:
+    method = getattr(SqlaDocumentRepository, name)
+
+    def counted(repo: SqlaDocumentRepository, source_id: int) -> object:
+        reads.append(name)
+        return method(repo, source_id)
+
+    return counted
 
 
 def test_a_review_opened_again_sends_the_marks_of_the_chunks_its_client_holds(
@@ -289,6 +302,41 @@ def test_a_source_that_left_the_set_gets_no_marks(
     ))
 
     assert answer["highlights"] == []
+
+
+def test_a_source_made_under_the_id_of_one_deleted_is_another_source(
+    client: TestClient, factory: sessionmaker[Session],
+) -> None:
+    """SQLite gives the id of a deleted source to the next new one: the review forgets the
+    text it served of the deleted one, and its contents move on."""
+    review = open_review(client, SCOPE)
+    review_text(client, review, EPISODE, 0)
+    with factory() as session:
+        session.execute(text("DELETE FROM sources WHERE id = :id"), {"id": EPISODE})
+        session.add(SourceModel(
+            id=EPISODE, title="Episode 2 again", status="done", collection_id=COLLECTION,
+            created_at=datetime(2026, 2, 1, tzinfo=UTC),
+        ))
+        session.flush()
+        SqlaDocumentRepository(session).save(EPISODE, EPISODE_DOCUMENT)
+        store_cards(session, [CARDS[HARBOUR]])
+        session.commit()
+        rebuild_projection(session)
+
+    answer = _ok(client.get(f"/api/review/{review['review_id']}/changes", params=_on(review)))
+
+    assert answer["contents_version"] == 1
+    assert answer["highlights"] == []
+    with get_container()._review_order_store.hold(review["review_id"]) as held:  # noqa: SLF001
+        assert held.text.sources() == frozenset()
+
+
+def test_a_review_opened_again_takes_a_bounded_number_of_chunks(client: TestClient) -> None:
+    held = [{"source_id": PILOT, "first_block": 0}] * (TEXT_CHUNKS_HELD_MAX + 1)
+
+    response = client.post("/api/review", json={"scope": SCOPE, "text_chunks": held})
+
+    assert response.status_code == 422
 
 
 # --- a Rebuild, on the processed corpus ----------------------------------------------------
