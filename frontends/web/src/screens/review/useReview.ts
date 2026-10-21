@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { api } from '@/api/client'
-import type { ButtonCommand, CandidateSection, CardButton, DecisionButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationScope, ImageSearchResult, ReportReason, ReviewUpdate, SaveClozeRequest, SetScope, StoredCandidate } from '@/api/types'
+import type { ButtonCommand, CandidateSection, CardButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationScope, ImageSearchResult, ReportReason, ReviewUpdate, SaveClozeRequest, SetScope, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { messageOf } from '@/lib/apiError'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
@@ -67,11 +67,11 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     }
   }, [goToCard, showToast])
 
-  /** Нажатие кнопки, которую backend сказал слать; ответ — изменения и следующая карточка. */
-  const mark = useCallback(async (candidateId: number, button: DecisionButton) => {
+  /** Нажатие кнопки, которую backend сказал слать: следующая карточка — сразу, ответ сверяет её и приносит изменения. */
+  const mark = useCallback(async (candidateId: number, button: CardButton) => {
     stop()
     try {
-      await mutate(ctx => api.decidePhrase(ctx, candidateId, button))
+      await mutate(ctx => api.decidePhrase(ctx, candidateId, button.button), { phraseId: candidateId, closes: button.closes })
     } catch (e) {
       showToast(messageOf(e))
     }
@@ -93,7 +93,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
       edit_cloze: async () => startCloze(candidateId),
       decide: async () => {
         setClozeEditingId(null)
-        await mark(candidateId, button.button)
+        await mark(candidateId, button)
       },
     }
     await run[button.command]()

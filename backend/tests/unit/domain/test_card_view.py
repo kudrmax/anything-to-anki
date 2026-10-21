@@ -12,6 +12,7 @@ from backend.domain.exceptions import ActionRefusedError, NoDecisionRuleError
 from backend.domain.services import card_view as card_view_module
 from backend.domain.services.card_view import (
     CardView,
+    Closes,
     Command,
     Shown,
     ShownTone,
@@ -35,6 +36,7 @@ from backend.domain.value_objects.card_choice import (
     Binding,
     CardChoice,
     CardState,
+    DecisionStatus,
     NoteKind,
     Press,
     WordState,
@@ -87,6 +89,26 @@ class TestButtonsFollowTheTable:
                     button.button is Press.CLOZE and outcome.word.card(ACTED).choice is C
                 )
                 assert (button.command is Command.EDIT_CLOZE) is cloze_editor
+
+    def test_closes_says_what_the_press_leaves_done(self) -> None:
+        for world in worlds():
+            view = _view_of(world)
+            for button in view.buttons:
+                if button.command is None:
+                    assert button.closes is None
+                    continue
+                outcome = press(
+                    world.word, ACTED, button.button, world.knowledge(), world.elsewhere(), NOW,
+                )
+                choice = outcome.word.card(ACTED).choice
+                decided = decision_status(outcome.word) is not DecisionStatus.NEW
+                if button.closes is Closes.LEMMA:
+                    assert decided
+                    assert choice in {L, C, K}
+                elif button.closes is Closes.CARD:
+                    assert choice is S
+                else:
+                    assert choice is N
 
     def test_on_decision_and_open_cards_pressed_means_pressing_unpresses(self) -> None:
         for world in worlds():

@@ -2,9 +2,11 @@ import type { CandidateSection, CardButton, CardState, DecisionButton, ReviewHea
 
 const BUTTONS: DecisionButton[] = ['learn', 'cloze', 'known', 'skip']
 
-/** Кнопки карточки, как их даёт backend: по умолчанию все решают, ни одна не нажата. */
+/** Кнопки карточки, как их даёт backend: по умолчанию все решают, ни одна не нажата; Skip закрывает карточку, остальные — лемму. */
 export const buttons = (changes: Partial<Record<DecisionButton, Partial<CardButton>>> = {}): CardButton[] =>
-  BUTTONS.map(button => ({ button, command: 'decide', pressed: false, refused: null, ...changes[button] }))
+  BUTTONS.map(button => ({
+    button, command: 'decide', pressed: false, refused: null, closes: button === 'skip' ? 'card' : 'lemma', ...changes[button],
+  }))
 
 export const state = (changes: Partial<CardState> = {}): CardState =>
   ({ buttons: buttons(), ...changes })

@@ -283,12 +283,19 @@ export type ButtonCommand = 'decide' | 'edit_cloze'
 /** Почему кнопка не работает: слово решено на другой фразе или в другом источнике. */
 export type Refusal = 'not_decision_card' | 'decided_elsewhere'
 
-/** Кнопка решения: что делает нажатие (null — кнопка неактивна, refused — почему), нажата ли она; решает backend. */
+/** Что нажатие оставит разобранным: все карточки леммы (решает слово) или только эту (пропускает фразу). */
+export type Closes = 'lemma' | 'card'
+
+/**
+ * Кнопка решения: что делает нажатие (null — кнопка неактивна, refused — почему), нажата ли она
+ * и что нажатие оставит разобранным (null — ничего); решает backend.
+ */
 export interface CardButton {
   button: DecisionButton
   command: ButtonCommand | null
   pressed: boolean
   refused: Refusal | null
+  closes: Closes | null
 }
 
 /** Выбор пользователя на карточке. */

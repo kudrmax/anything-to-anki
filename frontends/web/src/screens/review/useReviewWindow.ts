@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError, ReviewExpiredError } from '@/api/client'
-import type { CandidateSection, GenerationOverview, ReviewContext, ReviewUpdate, SetScope, StoredCandidate, TextPlace } from '@/api/types'
+import type { CandidateSection, Closes, GenerationOverview, ReviewContext, ReviewUpdate, SetScope, StoredCandidate, TextPlace } from '@/api/types'
 import type { SortOrder } from '@/lib/preferences'
 import {
   applyUpdate, currentRow, initialState, missesReplace, neighbour, reopened, rowIndexOf, withCurrent,
   type ApplyOptions, type ReviewState,
 } from './reviewState'
+import { pressAhead, undoAhead, type PressAhead } from './pressAhead'
 import { applyText, chunkHolding, chunkRefs, initialText, withContents, type TextState } from './textState'
 
 export const POLL_INTERVAL_MS = 3000
@@ -28,6 +29,12 @@ const isNotFound = (e: unknown): boolean => e instanceof ApiError && e.status ==
 
 const contextOf = (state: ReviewState): ReviewContext | null =>
   state.reviewId === null ? null : { review_id: state.reviewId, since: state.revision, current: state.currentId }
+
+/** Нажатие кнопки решения: экран переходит сразу, не дожидаясь ответа. */
+export interface Press {
+  phraseId: number
+  closes: Closes | null
+}
 
 interface PendingRows {
   start: number
@@ -114,18 +121,48 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     }
   }, [reopen])
 
+  /** Нажатия уходят на сервер по одному, в порядке нажатий: следующее — после ответа на предыдущее. */
+  const presses = useRef<Promise<unknown>>(Promise.resolve())
+
   /**
    * Единственный путь изменения на экране ревью: ответ ложится на состояние, фокус — куда сказал сервер.
+   * Нажатие (`press`) показывается сразу: отметки и переход — до ответа, сам запрос — в фоне, в очереди нажатий;
+   * ответ главный — если экран всё ещё там, куда перешёл, а сервер поставил фокус иначе, фокус ставит ответ.
+   * Отклонённое нажатие снимает свои отметки и возвращает экран на нажатую карточку.
    * Ошибку, кроме истёкшего ревью, получает вызывающий: он показывает её, как раньше.
    */
-  const mutate = useCallback(async (call: ReviewCall<ReviewUpdate>): Promise<ReviewUpdate> => {
-    const update = await send(call)
+  const mutate = useCallback(async (call: ReviewCall<ReviewUpdate>, press?: Press): Promise<ReviewUpdate> => {
+    let ahead: PressAhead | null = null
+    if (press) {
+      const shown = pressAhead(stateRef.current, press.phraseId, press.closes)
+      if (shown) {
+        ahead = shown.ahead
+        commit(() => shown.state)
+      }
+    }
+    let update: ReviewUpdate
+    try {
+      if (press) {
+        const turn = presses.current.catch(() => {}).then(() => send(call))
+        presses.current = turn
+        update = await turn
+      } else {
+        update = await send(call)
+      }
+    } catch (e) {
+      const undone = ahead
+      if (undone) commit(s => undoAhead(s, undone))
+      throw e
+    }
     const stale = update.revision < stateRef.current.revision
-    apply(update)
+    // Экран ушёл с места перехода — дальше ведёт он; остался — фокус ставит ответ.
+    const leftBehind = ahead !== null && stateRef.current.currentId !== ahead.landed
+    apply(update, { keepCurrent: ahead !== null })
+    const focus = update.focus_id
+    if (leftBehind || focus === null) return update
     // Опрос мог обогнать нажатие: устаревший ответ ничего не меняет, но фокус нажатия не теряется.
-    if (stale && update.focus_id !== null && rowIndexOf(stateRef.current, update.focus_id) !== undefined) {
-      const focus = update.focus_id
-      commit(s => withCurrent(s, focus))
+    if (ahead !== null || stale) {
+      if (!stale || rowIndexOf(stateRef.current, focus) !== undefined) commit(s => withCurrent(s, focus))
     }
     return update
   }, [send, apply, commit])
