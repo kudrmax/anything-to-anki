@@ -40,6 +40,7 @@ from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import text
 
 from tests.candidate_sorter_support import section_stamper, threshold_resolver
+from tests.document_support import put_document
 from tests.media_files_support import WEIGHT_UNKNOWN, RemovedMediaFiles
 from tests.phrase_support import phrase
 from tests.vocabulary_support import user_vocabulary
@@ -164,7 +165,7 @@ def _rebuilder(
 def _apply(factory: sessionmaker[Session], edition: int) -> tuple[float, _WorkerDuringApply]:
     session = factory()
     try:
-        SqlaDocumentRepository(session).save(SOURCE, _book(edition))
+        put_document(session, SOURCE, _book(edition))
         session.commit()
         worker = _WorkerDuringApply(SqlaOccurrenceRepository(
             session, SessionChangeRecorder(session),

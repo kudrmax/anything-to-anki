@@ -30,7 +30,7 @@ export const audioUrlForCandidate = candidateAudioUrl
 export function useReview(scope: SetScope, requestedId: number | null = null) {
   const [sortOrder, setSortOrderState] = useState<SortOrder>(() => sortOrderPref.read())
   const view = useReviewWindow(scope, sortOrder, requestedId)
-  const { state, mutate, cardOf, loadGeneration, loadDocuments, showAiBlocked } = view
+  const { state, mutate, cardOf, loadGeneration, showAiBlocked } = view
   const currentId = state.currentId
   const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
   const [regeneratingMediaIds, setRegeneratingMediaIds] = useState<Set<number>>(new Set())
@@ -250,8 +250,6 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
       return false
     }
     cancelEditing()
-    // Подсветки в тексте следуют за фразами: новая граница видна после перечитывания.
-    await loadDocuments()
     return true
   }
 
@@ -264,7 +262,6 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
       return false
     }
     window.getSelection()?.removeAllRanges()
-    await loadDocuments()
     return true
   }
 
@@ -330,9 +327,10 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   const progressReviewed = header?.progress.decided ?? 0
 
   return {
-    scope, header, state, documents: view.documents, loading: view.loading, gone: view.gone,
+    scope, header, state, loading: view.loading, gone: view.gone,
+    text: view.text, hasSourceText: view.hasSourceText, loadText: view.loadText, ensureBlock: view.ensureBlock,
     current: view.current, currentId, position: view.position, canPrev: view.canPrev, canNext: view.canNext,
-    goTo, step: view.step, loadRows: view.loadRows, toggleSection, done: view.done,
+    goTo, step: view.step, loadRows: view.loadRows, toggleSection,
     sortOrder, setSortOrder,
     counts: { reviewed: progressReviewed, total: progressTotal, learn: learnCount, progress: progressTotal > 0 ? progressReviewed / progressTotal : 0 },
     generation: view.generation, generationActions,

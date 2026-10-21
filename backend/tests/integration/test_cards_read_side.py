@@ -44,7 +44,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.phrase_support import phrase
 from tests.projection_support import rebuild_projection
 from tests.review_support import on_review
-from tests.review_window_support import open_review, review_list
+from tests.review_window_support import open_review, review_list, set_texts
 from tests.word_support import insert_word, phrase_id_of
 
 pytestmark = pytest.mark.integration
@@ -360,9 +360,7 @@ class TestPhraseLevelRoutes:
 
 class TestDocument:
     def test_marks_are_the_shown_phrases(self, client: TestClient, bench: Bench) -> None:
-        [document] = client.get(
-            "/api/review/documents", params={"scope": f"source-{SOURCE}"},
-        ).json()
+        [document] = set_texts(client, f"source-{SOURCE}")
         highlights = document["highlights"]
         assert sorted(h["phrase_id"] for h in highlights) == sorted(
             [GLARE_PHRASE, bench.second_glare, SPARK_PHRASE],

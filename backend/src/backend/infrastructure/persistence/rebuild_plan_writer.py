@@ -8,7 +8,12 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.domain.services.rebuild_plan import AppliedPlan
 from backend.domain.value_objects.built_analysis import WordKey
-from backend.domain.value_objects.card_change import PhraseChanged, WordsChanged
+from backend.domain.value_objects.card_change import (
+    CardContentChanged,
+    PhraseChanged,
+    WordContentChanged,
+    WordsChanged,
+)
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
 from backend.infrastructure.persistence.models import (
     PhraseModel,
@@ -73,6 +78,12 @@ class RebuildPlanWriter:
         self._session.flush()
         if lemmas:
             self._recorder.record(WordsChanged(plan.source_id, frozenset(lemmas)))
+        # A phrase cut again shows another text and a word's new data its level, whether
+        # the state of their cards changes or not.
+        for update_ in plan.occ_to_update_text:
+            self._recorder.record(CardContentChanged(update_.occurrence_id))
+        for word in plan.words_to_update:
+            self._recorder.record(WordContentChanged(word.word_id))
         self._record_phrases([
             *plan.occ_to_delete,
             *(r.occurrence_id for r in plan.occ_to_rekey),

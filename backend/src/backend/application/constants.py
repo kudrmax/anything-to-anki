@@ -30,6 +30,9 @@ GENERATION_RUN_CHUNK: int = 5_000
 REVIEW_WINDOW_AROUND: int = 30
 # The most rows one request on an open review gets.
 REVIEW_ROWS_MAX: int = 200
+# The most chunks of text a review opened again takes from its client: a client that read
+# a whole book of 14 million characters holds about 750 chunks of TEXT_CHUNK_CHARS.
+TEXT_CHUNKS_HELD_MAX: int = 2000
 
 # Which hint a new cloze card gets until the user picks another one.
 CLOZE_DEFAULT_HINT_SETTING: str = "cloze_default_hint"

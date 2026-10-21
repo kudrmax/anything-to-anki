@@ -272,7 +272,7 @@ def _occurrence_write_text(b: Bench) -> Expected:
         phrase_id, phrase("She glared back.", "glared"), None,
         earned_section=CandidateSection.EXTRA,
     )
-    return {PhraseChanged(phrase_id)}
+    return {PhraseChanged(phrase_id), CardContentChanged(phrase_id)}
 
 
 def _occurrence_set_key(b: Bench) -> Expected:
@@ -337,6 +337,8 @@ def _occurrence_apply_plan(b: Bench) -> Expected:
     (inserted,) = applied.inserted
     return {
         WordsChanged(SOURCE, frozenset({"doomed", "glare", "linger"})),
+        CardContentChanged(rewritten),
+        WordContentChanged(2),
         *(
             PhraseChanged(phrase_id)
             for phrase_id in (deleted, rewritten, rekeyed, rescored, unselected, restamped,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { cardRow, layout, reviewCard, reviewUpdate, sectionRow } from './reviewFixtures'
-import { applyUpdate, forgetDone, initialState, listRows, missesReplace, neighbour, reopened, withCurrent, type ReviewState } from './reviewState'
+import { applyUpdate, initialState, listRows, missesReplace, neighbour, reopened, withCurrent, type ReviewState } from './reviewState'
 
 const card = (id: number) => reviewCard({ phrase_id: id, word_id: id })
 const loadedIds = (state: ReviewState) => [...state.rows.values()].map(r => r.phrase_id ?? r.section)
@@ -119,13 +119,6 @@ describe('reopened', () => {
     }))
     expect(again).toMatchObject({ reviewId: 'r2', revision: 2, currentId: 41, totalRows: 1 })
     expect(again.done.get(41)?.done).toBe(true)
-  })
-})
-
-describe('forgetDone', () => {
-  it('drops the marks a text read at that revision already holds', () => {
-    const state = applyUpdate(applyUpdate(opened(), reviewUpdate({ revision: 6, done: { 1: true } })), reviewUpdate({ revision: 8, done: { 2: true } }))
-    expect([...forgetDone(state, 6).done.keys()]).toEqual([2])
   })
 })
 

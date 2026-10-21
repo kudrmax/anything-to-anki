@@ -276,6 +276,23 @@ class SourceHasNoDocumentError(DomainError):
         self.source_id = source_id
 
 
+class SourceDocumentExistsError(DomainError):
+    """Raised when a source's document would be written again: it is written once, with the
+    source, and never changes."""
+
+    def __init__(self, source_id: int) -> None:
+        super().__init__(f"Source {source_id} already has a document")
+        self.source_id = source_id
+
+
+class TextBlockNotFoundError(DomainError):
+    """Raised when a block asked for is not in the document."""
+
+    def __init__(self, block: int) -> None:
+        super().__init__(f"No block {block} in the document")
+        self.block = block
+
+
 class InvalidSourceInputError(DomainError):
     """Raised when an input can't become a source: nothing to read, or a wrong combination."""
 

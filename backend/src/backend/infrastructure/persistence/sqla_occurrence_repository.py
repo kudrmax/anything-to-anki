@@ -8,7 +8,7 @@ from sqlalchemy import CursorResult, exists, or_, select, update
 
 from backend.domain.entities.occurrence import shown_phrase
 from backend.domain.ports.occurrence_repository import OccurrenceRepository
-from backend.domain.value_objects.card_change import PhraseChanged
+from backend.domain.value_objects.card_change import CardContentChanged, PhraseChanged
 from backend.domain.value_objects.card_choice import (
     Binding,
     CardChoice,
@@ -257,6 +257,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         if model is None:
             return
         shown_before = _text_of(model.shown_text)
+        shows_before = _shows(model)
         model.source_phrase = _dumped(phrase)
         model.phrase_position = dump_position(position)
         model.polished_phrase = dump_phrase(polished)
@@ -269,6 +270,8 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
             model.edited_by_user = True
         self._session.flush()
         self._recorder.record(PhraseChanged(occurrence_id))
+        if _shows(model) != shows_before:
+            self._recorder.record(CardContentChanged(occurrence_id))
 
     def holds_revision(self, occurrence_id: int, revision: int) -> bool:
         # A write, not a read: it takes the database's write lock, so no Rebuild can change
@@ -439,3 +442,12 @@ def _dumped(phrase: Phrase) -> str:
     stored = dump_phrase(phrase)
     assert stored is not None
     return stored
+
+
+def _shows(model: PhraseModel) -> tuple[str | None, ...]:
+    """What the card of the phrase shows of it: its text, its place and its polish, as
+    stored."""
+    return (
+        model.source_phrase, model.phrase_position, model.polished_phrase,
+        str(model.polish_reverted),
+    )

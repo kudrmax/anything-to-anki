@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from backend.application.dto.review_dtos import OpenReviewRequest, ReviewUpdateDTO
     from backend.application.utils.review_answer import ReviewAnswer
     from backend.application.utils.review_ordering import ReviewOrdering
+    from backend.application.utils.review_text import ReviewText
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.domain.ports.review_order_store import ReviewOrderStore
     from backend.domain.ports.unit_of_work import UnitOfWork
@@ -21,7 +22,8 @@ if TYPE_CHECKING:
 class OpenReviewUseCase:
     """Opens the review of a set of sources: its order is computed once, from the stored card
     states, and held under a new review id. The answer lands on the card asked for, else the
-    first one not done, with the rows around it."""
+    first one not done, with the rows around it, and the marks of the chunks of text the
+    client holds from before."""
 
     def __init__(
         self,
@@ -29,12 +31,14 @@ class OpenReviewUseCase:
         ordering: ReviewOrdering,
         store: ReviewOrderStore[OpenReview],
         answer: ReviewAnswer,
+        text: ReviewText,
         unit_of_work: UnitOfWork,
     ) -> None:
         self._scope_resolver = scope_resolver
         self._ordering = ordering
         self._store = store
         self._answer = answer
+        self._text = text
         self._unit_of_work = unit_of_work
 
     def execute(self, request: OpenReviewRequest) -> ReviewUpdateDTO:
@@ -55,7 +59,7 @@ class OpenReviewUseCase:
             )
             review = OpenReview(
                 scope_token=scope.token,
-                source_ids=frozenset(source_ids),
+                sources={s.id: s.created_at for s in sources if s.id is not None},
                 sort=request.sort,
                 step=step,
                 order=order,
@@ -64,8 +68,10 @@ class OpenReviewUseCase:
             )
             # Answered from the review itself, not held back from the store: the store may
             # let it go before the answer, and no other request knows its id yet.
+            highlights = self._text.register(review, request.text_chunks)
             review_id = self._store.open(review)
             return self._answer.of(
                 review_id, review,
                 window=window_around(review.layout(), focus), replace=True, focus_id=focus,
+                highlights=highlights,
             )

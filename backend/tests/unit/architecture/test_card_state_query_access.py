@@ -19,12 +19,12 @@ READERS = {
     "infrastructure/persistence/sqla_card_state_query.py",
     "infrastructure/container.py",
     "application/utils/review_progress.py",
-    "application/use_cases/get_review_documents.py",
     "application/use_cases/get_generation_status.py",
     "application/utils/review_answer.py",
     "application/utils/review_ordering.py",
     "application/utils/review_updates.py",
     "application/use_cases/review_mutation.py",
+    "application/utils/review_text.py",
 }
 # What reads the projection, directly or as a screen built on it.
 PROJECTION_READERS = {
@@ -38,6 +38,7 @@ PROJECTION_READERS = {
     "backend.application.utils.review_ordering",
     "backend.application.utils.review_updates",
     "backend.application.use_cases.review_mutation",
+    "backend.application.utils.review_text",
 }
 # The rules, the projection's own computation, and the live references it is checked
 # against: none may reach a reader of the projection through any chain of imports.

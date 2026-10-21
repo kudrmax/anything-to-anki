@@ -4,11 +4,11 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Collection
+    from collections.abc import Collection, Sequence
 
     from backend.domain.value_objects.generated_parts import GeneratedParts
     from backend.domain.value_objects.review_card import CardRow, CardTargetRow
-    from backend.domain.value_objects.shown_place import ShownPlace
+    from backend.domain.value_objects.shown_place import PhraseBlock, ShownPlace
 
 
 class CardQuery(ABC):
@@ -48,5 +48,16 @@ class CardQuery(ABC):
         """Source id → how many of its words are to learn; a source without any is left out."""
 
     @abstractmethod
-    def shown_places(self, source_id: int) -> list[ShownPlace]:
-        """The shown phrases of the source that stand in its document."""
+    def shown_places(self, source_id: int, blocks: range | None = None) -> list[ShownPlace]:
+        """The shown phrases of the source that stand in its document; with `blocks`, those
+        whose place is in one of these blocks."""
+
+    @abstractmethod
+    def shown_places_in(self, source_id: int, chunks: Sequence[range]) -> list[ShownPlace]:
+        """The shown phrases of the source whose place is in one of these runs of blocks,
+        picked as `shown_places` picks them."""
+
+    @abstractmethod
+    def phrase_blocks(self, phrase_ids: Collection[int]) -> dict[int, PhraseBlock]:
+        """The block of each of these phrases, shown or not; a phrase no longer stored is
+        left out."""

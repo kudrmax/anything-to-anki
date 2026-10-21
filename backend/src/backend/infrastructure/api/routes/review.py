@@ -5,7 +5,9 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.application.dto.document_dtos import SourceDocumentDTO  # noqa: TC001
+from backend.application.dto.document_dtos import (
+    ReviewContentsDTO,  # noqa: TC001 — FastAPI serialises it at runtime
+)
 from backend.application.dto.generation_dtos import GenerationStatusDTO  # noqa: TC001
 from backend.application.dto.review_dtos import (
     OpenReviewRequest,  # noqa: TC001 — FastAPI parses it at runtime
@@ -20,11 +22,14 @@ from backend.domain.exceptions import (
     PhraseNotFoundError,
     ReviewNotFoundError,
     ScopeNotReviewableError,
+    SourceHasNoDocumentError,
     SourceHasNoUrlError,
     SourceNotFoundError,
     SourceOperationBusyError,
+    TextBlockNotFoundError,
     VideoAlreadyDownloadedError,
 )
+from backend.domain.services.text_chunks import LAST_BLOCK
 from backend.domain.value_objects.candidate_section import (
     CandidateSection,  # noqa: TC001 — FastAPI parses it at runtime
 )
@@ -49,7 +54,6 @@ if TYPE_CHECKING:
 
     from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
     from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
-    from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
     from backend.application.use_cases.open_review import OpenReviewUseCase
     from backend.application.use_cases.request_video_download import RequestVideoDownloadUseCase
     from backend.application.use_cases.review_mutation import ReviewMutation
@@ -80,12 +84,16 @@ def _scope_errors() -> Iterator[None]:
 @contextmanager
 def _review_errors() -> Iterator[None]:
     """A review no longer held is a 410 the client opens again on; a card it does not
-    hold, or a source or collection of its set that is gone since, a 404."""
+    hold, a source or collection of its set that is gone since, or text it does not have,
+    a 404."""
     try:
         yield
     except ReviewNotFoundError as e:
         raise HTTPException(status_code=410, detail=REVIEW_EXPIRED) from e
-    except (PhraseNotFoundError, SourceNotFoundError, CollectionNotFoundError) as e:
+    except (
+        PhraseNotFoundError, SourceNotFoundError, CollectionNotFoundError,
+        SourceHasNoDocumentError, TextBlockNotFoundError,
+    ) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
@@ -153,16 +161,34 @@ def review_changes(
         return window.changes(ctx)
 
 
-@router.get("/documents")
-def get_review_documents(
-    scope: str = "all",
-    documents: GetReviewDocumentsUseCase = Depends(  # noqa: B008
-        use_case(Container.get_review_documents_use_case),  # noqa: B008
+@router.get("/{review_id}/contents")
+def review_contents(
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    window: ReviewWindowUseCase = Depends(  # noqa: B008
+        use_case(Container.review_window_use_case),  # noqa: B008
     ),
-) -> list[SourceDocumentDTO]:
-    """The texts of the set's sources in the set's order, with the targets to mark."""
-    with _scope_errors():
-        return documents.execute(review_scope(scope))
+) -> ReviewContentsDTO:
+    """The documents of the set, in the set's order."""
+    with _review_errors():
+        return window.contents(ctx)
+
+
+@router.get("/{review_id}/text/{source_id}")
+def review_text(
+    source_id: int,
+    block: int | None = Query(None, ge=LAST_BLOCK),  # noqa: B008
+    at: int | None = Query(None, ge=0),  # noqa: B008
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    window: ReviewWindowUseCase = Depends(  # noqa: B008
+        use_case(Container.review_window_use_case),  # noqa: B008
+    ),
+) -> ReviewUpdateDTO:
+    """The chunk of the source's text that holds the block (-1 names the last chunk) or
+    the character at offset `at` of its text: exactly one of the two."""
+    if (block is None) == (at is None):
+        raise HTTPException(status_code=422, detail="Give either block or at")
+    with _review_errors():
+        return window.text(ctx, source_id, block, at)
 
 
 @router.get("/generation")

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from tests.integration.conftest import insert_source
 from tests.projection_support import rebuild_projection
 from tests.review_support import on_review
-from tests.review_window_support import open_review, review_list
+from tests.review_window_support import open_review, review_contents, review_list
 from tests.word_support import insert_word
 
 pytestmark = pytest.mark.integration
@@ -86,8 +86,13 @@ def test_review_scope_errors(client: TestClient) -> None:
     assert client.post("/api/review", json={"scope": "garbage"}).status_code == 400
     assert client.post("/api/review", json={"scope": "source-99"}).status_code == 404
     assert client.post("/api/review", json={"scope": "99"}).status_code == 404
-    assert client.get("/api/review/documents", params={"scope": "unsorted"}).status_code == 400
-    assert client.get("/api/review/documents", params={"scope": "source-99"}).status_code == 404
+
+    review = open_review(client, f"source-{PILOT}")
+    since = {"since": review["revision"]}
+    assert client.get("/api/review/r-gone/contents", params=since).status_code == 410
+    text = f"/api/review/{review['review_id']}/text"
+    assert client.get(f"{text}/99", params={**since, "block": 0}).status_code == 404
+    assert client.get(f"{text}/{PILOT}", params={**since, "block": -2}).status_code == 422
 
 
 def test_the_whole_list_read_is_gone(client: TestClient) -> None:
@@ -107,7 +112,8 @@ def test_review_page_path_is_left_to_the_web_app(client: TestClient) -> None:
 
 
 def test_sources_without_a_document_have_no_text(client: TestClient) -> None:
-    assert client.get("/api/review/documents", params={"scope": _show(client)}).json() == []
+    review = open_review(client, _show(client))
+    assert review_contents(client, review)["documents"] == []
 
 
 def test_download_video_of_a_set_without_links_is_400(client: TestClient) -> None:

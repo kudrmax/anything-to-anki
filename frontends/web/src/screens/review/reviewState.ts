@@ -1,6 +1,6 @@
 import type { ReviewHeader, ReviewRow, ReviewUpdate, StoredCandidate } from '@/api/types'
 
-/** «Разобрана» из ответа ревью и ревизия этого ответа: перечитанный позже текст её сменяет. */
+/** «Разобрана» из ответа ревью и ревизия этого ответа: подсветка куска новее по ревизии её сменяет. */
 export interface DoneMark {
   done: boolean
   revision: number
@@ -115,16 +115,6 @@ export const reopened = (state: ReviewState, update: ReviewUpdate): ReviewState 
 /** Текущая карточка — из загруженных строк. */
 export const withCurrent = (state: ReviewState, phraseId: number): ReviewState =>
   (state.currentId === phraseId ? state : { ...state, currentId: phraseId })
-
-/** Текст перечитан на ревизии `upTo` или позже: отметки ответов до неё он уже знает. */
-export function forgetDone(state: ReviewState, upTo: number): ReviewState {
-  const done = new Map([...state.done].filter(([, mark]) => mark.revision > upTo))
-  return done.size === state.done.size ? state : { ...state, done }
-}
-
-/** Отметки «разобрана» из ответов — поверх отметок текста. */
-export const doneMarks = (state: ReviewState): ReadonlyMap<number, boolean> =>
-  new Map([...state.done].map(([id, mark]) => [id, mark.done]))
 
 const indexCache = new WeakMap<ReadonlyMap<number, ReviewRow>, ReadonlyMap<number, number>>()
 

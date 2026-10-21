@@ -10,6 +10,7 @@ from backend.domain.value_objects.source_scope import SourceScope
 if TYPE_CHECKING:
     from collections.abc import Collection, Mapping, Sequence
 
+    from backend.application.dto.document_dtos import ChunkHighlightsDTO, TextChunkDTO
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.open_review import OpenReview
     from backend.application.utils.review_header import ReviewHeader
@@ -53,12 +54,14 @@ class ReviewAnswer:
         changed: Collection[int] = (),
         removed: Sequence[int] = (),
         done: Mapping[int, bool] | None = None,
+        text: TextChunkDTO | None = None,
+        highlights: Sequence[ChunkHighlightsDTO] = (),
     ) -> ReviewUpdateDTO:
         """`window`: the rows to send with their cards. `replace`: the visible list changed;
         the client drops every row it has and gets the rows around the current card instead,
         which are all the review counts as served from then on. `changed`: the cards whose
-        stored state changed, sent whole when they are served; `removed` and `done` go as
-        they are."""
+        stored state changed, sent whole when they are served; `removed`, `done`, the
+        chunk of `text` and the `highlights` of served chunks go as they are."""
         layout = review.layout()
         if replace:
             window = window_around(layout, review.current)
@@ -87,6 +90,9 @@ class ReviewAnswer:
             removed=list(removed),
             done=dict(done or {}),
             focus_id=focus_id,
+            text=text,
+            highlights=list(highlights),
+            contents_version=review.contents_version,
         )
 
 

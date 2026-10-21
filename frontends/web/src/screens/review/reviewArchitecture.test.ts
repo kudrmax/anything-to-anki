@@ -32,7 +32,12 @@ const DELETED = [
   'initialFocusId', 'initialFocus', 'FOLDED', 'FOLDED_SECTIONS', 'visibleCandidates', 'listItems', 'ListItem',
   'settle', 'loadCandidates', 'applyReview', 'getReview', 'ReviewDetail', 'initially_shown_candidates',
   'hasCandidateVpnErrors', 'isVpnError', 'isVpnErrorText', 'showMore',
+  // Текст целиком: теперь куски по оглавлению.
+  'getReviewDocuments', 'loadDocuments', 'forgetDone', 'listMarkers', 'SourceDocument',
 ]
+/** Чтения текста открытого ревью: только через send, чтобы истёкшее ревью открывалось заново. */
+const TEXT_READS = ['reviewText', 'reviewContents']
+const SEND = 'send'
 const SELECTING = new Set(['filter', 'find', 'findIndex', 'findLast', 'findLastIndex', 'some', 'every'])
 const CARD_STATE = new Set(['is_done', 'section'])
 
@@ -55,11 +60,22 @@ const calleeName = (call: ts.CallExpression): string | null => {
   return null
 }
 
-const insideWrapper = (node: ts.Node): boolean => {
+const insideWrapper = (node: ts.Node, wrapper = WRAPPER): boolean => {
   for (let parent = node.parent; parent; parent = parent.parent) {
-    if (ts.isCallExpression(parent) && calleeName(parent) === WRAPPER) return true
+    if (ts.isCallExpression(parent) && calleeName(parent) === wrapper) return true
   }
   return false
+}
+
+/** Обращения к api.<чтение текста> не ради вызова внутри send(...). */
+export function textReadsOutsideSend(text: string): string[] {
+  const found: string[] = []
+  walk(parse(text), node => {
+    if (!ts.isPropertyAccessExpression(node) || !isApi(node.expression) || !TEXT_READS.includes(node.name.text)) return
+    const called = ts.isCallExpression(node.parent) && node.parent.expression === node
+    if (!called || !insideWrapper(node.parent, SEND)) found.push(node.name.text)
+  })
+  return found
 }
 
 /** Вызовы api.<изменение>, которые не стоят внутри mutate(...). */
@@ -142,6 +158,15 @@ describe('review screen architecture', () => {
   it('sends every review change through mutate', () => {
     const offences = sourceFiles().flatMap(file => mutationsOutsideWrapper(file.text).map(name => `${file.path}: ${name}`))
     expect(offences).toEqual([])
+  })
+
+  it('reads the text of the review only through send', () => {
+    const offences = sourceFiles().flatMap(file => textReadsOutsideSend(file.text).map(name => `${file.path}: ${name}`))
+    expect(offences).toEqual([])
+    expect(sourceFiles().some(file => file.text.includes('api.reviewText('))).toBe(true)
+    expect(textReadsOutsideSend('const f = () => api.reviewText(ctx, 1, 0)')).toEqual(['reviewText'])
+    expect(textReadsOutsideSend('send(ctx => api.reviewContents(ctx))')).toEqual([])
+    expect(textReadsOutsideSend('const read = api.reviewContents')).toEqual(['reviewContents'])
   })
 
   it('every listed change takes the review context and answers with the review update', () => {

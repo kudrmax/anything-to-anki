@@ -6,23 +6,20 @@ focus; a card that goes hands the focus to the card under it. A press on a frequ
 sends whole only the cards the review served."""
 from __future__ import annotations
 
-import sqlite3
 from typing import TYPE_CHECKING
 
 import pytest
 from backend.application.dto.review_dtos import OpenReviewRequest, ReviewContext
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import Press
-from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.review_order import CardRow
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.infrastructure.persistence.database import Base
-from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
-from tests.decision_support import NOW, FixedClock
+from tests.document_support import put_document
 from tests.integration import test_card_state_projection_differential as corpus
 from tests.integration.conftest import insert_source
 from tests.projection_support import rebuild_projection
@@ -49,22 +46,8 @@ ADDED_LINE, ADDED_WORD = 1, 3
 @pytest.fixture(scope="module")
 def built() -> Iterator[corpus._Scenario]:  # noqa: SLF001
     """The differential test's corpus, processed once: each test gets a copy."""
-    clock = FixedClock(NOW)
-    anki, polisher = corpus._Anki(), corpus._Polisher()  # noqa: SLF001
-    container = corpus._ScenarioContainer(clock, anki, polisher)  # noqa: SLF001
-    engine = corpus._memory_engine()  # noqa: SLF001
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine)
-    container.use(factory)
-    corpus._process_corpus(container, factory)  # noqa: SLF001
-    copy = sqlite3.connect(":memory:", check_same_thread=False)
-    connection = engine.raw_connection()
-    try:
-        connection.driver_connection.backup(copy)  # type: ignore[union-attr]
-    finally:
-        connection.close()
-    yield corpus._Scenario(container, clock, anki, polisher, copy)  # noqa: SLF001
-    copy.close()
+    with corpus.processed_corpus() as processed:
+        yield processed
 
 
 class World:
@@ -112,9 +95,7 @@ class World:
     def source_one(self, *lines: str) -> None:
         """Source 1's text becomes `lines` and the source is rebuilt."""
         with self.factory() as session:
-            SqlaDocumentRepository(session).save(1, Document((Paragraph(
-                lines=tuple(Line(line) for line in lines), mode=ParagraphMode.FLOW,
-            ),)))
+            put_document(session, 1, corpus.corpus_document(lines))
             session.commit()
         with self.factory() as session:
             self.container.rebuild_source_use_case(session).execute(1, RebuildMode.UPDATE)
@@ -230,7 +211,7 @@ def test_a_card_that_goes_hands_the_focus_to_the_card_under_it(world: World) -> 
     gone = world.card_ids(
         "SELECT p.id FROM phrases p JOIN candidates c ON c.id = p.candidate_id"
         " WHERE c.source_id = 1 AND p.shown_by IS NOT NULL AND p.phrase_position LIKE :line"
-        " ORDER BY p.id", line=f"[0, {LAST_LINE},%",
+        " ORDER BY p.id", line=f"[{LAST_LINE}, 0,%",
     )
     assert gone
     current = gone[0]
@@ -276,7 +257,7 @@ def test_an_example_takes_the_place_and_the_focus_of_the_card_it_replaces(
 
 def test_an_added_word_takes_the_focus(world: World) -> None:
     opened = world.open()
-    selection = corpus._Projection._line(1, ADDED_LINE)  # noqa: SLF001
+    selection = corpus.line_selection(ADDED_LINE, corpus.SOURCES[1][ADDED_LINE])
 
     with world.factory() as session:
         add = world.container.add_manual_candidate_use_case(session)

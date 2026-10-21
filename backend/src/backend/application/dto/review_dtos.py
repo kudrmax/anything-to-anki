@@ -5,6 +5,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from backend.application.constants import TEXT_CHUNKS_HELD_MAX
+from backend.application.dto.document_dtos import (  # noqa: TC001 — pydantic field types
+    ChunkHighlightsDTO,
+    TextChunkDTO,
+    TextChunkRef,
+)
 from backend.application.dto.source_dtos import (  # noqa: TC001 — pydantic field types
     CardDTO,
     ProgressDTO,
@@ -38,6 +44,10 @@ class OpenReviewRequest(BaseModel):
     sort: CandidateSortOrder = CandidateSortOrder.RELEVANCE
     requested_id: int | None = None
     open_sections: list[CandidateSection] = Field(default_factory=list)
+    # The chunks of text the client holds from before: the answer brings their marks.
+    text_chunks: list[TextChunkRef] = Field(
+        default_factory=list, max_length=TEXT_CHUNKS_HELD_MAX,
+    )
 
 
 class SectionOpenRequest(BaseModel):
@@ -93,3 +103,10 @@ class ReviewUpdateDTO(BaseModel):
     # Whether each card of the set whose row changed since `since` is done.
     done: dict[int, bool] = Field(default_factory=dict)
     focus_id: int | None = None
+    # A chunk of a source's text, when the request asked for one.
+    text: TextChunkDTO | None = None
+    # The marks, as they are now, of the chunks of text the client was sent whose marks
+    # changed.
+    highlights: list[ChunkHighlightsDTO] = Field(default_factory=list)
+    # The version of the set's contents: it moves on when the set's sources change.
+    contents_version: int = 0

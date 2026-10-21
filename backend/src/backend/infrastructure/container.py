@@ -29,7 +29,6 @@ from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
-from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
@@ -78,12 +77,14 @@ from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_header import ReviewHeader
 from backend.application.utils.review_ordering import ReviewOrdering
 from backend.application.utils.review_progress import ReviewProgress
+from backend.application.utils.review_text import ReviewText
 from backend.application.utils.review_updates import ReviewUpdates
 from backend.application.utils.rewrite_phrase import RewritePhrase
 from backend.application.utils.section_stamper import SectionStamper
 from backend.application.utils.source_ordering import SourceOrdering
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
+from backend.application.utils.source_texts import SourceTexts
 from backend.application.utils.topic_generation import TopicGenerationProbe
 from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
 from backend.application.utils.user_knowledge_reader import UserKnowledgeReader
@@ -398,6 +399,8 @@ class Container:
         self._review_order_store: InMemoryReviewOrderStore[OpenReview] = (
             InMemoryReviewOrderStore()
         )
+        # The laid-out documents of the sources read last, for the life of the app.
+        self._source_texts = SourceTexts()
         # A run of generation learns of the user's stops made while it queues.
         self._generation_stops = InMemoryGenerationStops()
 
@@ -445,14 +448,6 @@ class Container:
             lock=SqlaSourceOperationLock(session),
             stamper=self._section_stamper(session),
             unit_of_work=self._unit_of_work(session),
-        )
-
-    def get_review_documents_use_case(self, session: Session) -> GetReviewDocumentsUseCase:
-        return GetReviewDocumentsUseCase(
-            scope_resolver=self._scope_resolver(session),
-            document_repo=SqlaDocumentRepository(session),
-            card_query=SqlaCardQuery(session),
-            card_state_query=self._card_state_query(session),
         )
 
     def add_saved_phrase_use_case(self, session: Session) -> AddSavedPhraseUseCase:
@@ -555,6 +550,7 @@ class Container:
             ordering=self._review_ordering(session),
             store=self._review_order_store,
             answer=self._review_answer(session),
+            text=self._review_text(session),
             unit_of_work=self._unit_of_work(session),
         )
 
@@ -563,7 +559,17 @@ class Container:
             store=self._review_order_store,
             answer=self._review_answer(session),
             updates=self._review_updates(session),
+            text=self._review_text(session),
             unit_of_work=self._unit_of_work(session),
+        )
+
+    def _review_text(self, session: Session) -> ReviewText:
+        return ReviewText(
+            scope_resolver=self._scope_resolver(session),
+            document_repo=SqlaDocumentRepository(session),
+            card_query=SqlaCardQuery(session),
+            card_state_query=self._card_state_query(session),
+            texts=self._source_texts,
         )
 
     def review_mutation(self, session: Session) -> ReviewMutation:
@@ -580,6 +586,7 @@ class Container:
             card_states=self._card_state_query(session),
             ordering=self._review_ordering(session),
             answer=self._review_answer(session),
+            text=self._review_text(session),
             unit_of_work=self._unit_of_work(session),
         )
 

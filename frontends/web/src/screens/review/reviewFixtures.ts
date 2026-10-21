@@ -51,5 +51,6 @@ export const layout = (rows: ReviewRow[], changes: Partial<ReviewLayout> = {}): 
 
 /** Ответ ревью: по умолчанию ничего не изменилось. */
 export const reviewUpdate = (changes: Partial<ReviewUpdate> = {}): ReviewUpdate => ({
-  review_id: REVIEW_ID, revision: 1, header: header(), layout: null, cards: [], removed: [], done: {}, focus_id: null, ...changes,
+  review_id: REVIEW_ID, revision: 1, header: header(), layout: null, cards: [], removed: [], done: {}, focus_id: null,
+  text: null, highlights: [], contents_version: 0, ...changes,
 })
