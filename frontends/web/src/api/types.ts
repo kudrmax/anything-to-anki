@@ -371,22 +371,6 @@ export interface CardSource {
   can_polish_phrases: boolean
 }
 
-/** Ревью набора источников: один источник, коллекция или все. Статус, прогресс и занятость — по набору. */
-export interface ReviewDetail {
-  /** Токен набора, как его принимает параметр scope. */
-  scope: string
-  title: string
-  status: SourceStatus
-  progress: Progress
-  /** Слов на изучение (не карточек). */
-  learn_count: number
-  candidates: StoredCandidate[]
-  /** How many candidates to show before "Show more"; null — show all. */
-  initially_shown_candidates: number | null
-  /** Какой-то источник набора занят операцией: его карточки ждут её. */
-  busy: boolean
-}
-
 /** Шапка открытого ревью: по всему набору. */
 export interface ReviewHeader {
   scope: string
@@ -410,7 +394,7 @@ export interface ReviewRow {
   open: boolean | null
 }
 
-/** Строки списка. replace — это все строки, которые есть у клиента, заново пронумерованные. */
+/** Строки видимого списка. replace — список изменился: у клиента остаются только эти строки, остальные он подгрузит заново. */
 export interface ReviewLayout {
   version: number
   total_rows: number
@@ -432,11 +416,19 @@ export interface ReviewUpdate {
   focus_id: number | null
 }
 
-/** Что шлёт каждый запрос к открытому ревью. */
-export interface ReviewQuery {
+/** Что шлёт каждый запрос к открытому ревью: его id, ревизия клиента и показанная карточка. */
+export interface ReviewContext {
   review_id: string
   since: number
   current: number | null
+}
+
+/** Ревью, которое открыть: набор, порядок, карточка, на которой открыть, и раскрытые клиентом разделы. */
+export interface OpenReviewRequest {
+  scope: string
+  sort: CandidateSortOrder
+  requested_id: number | null
+  open_sections: CandidateSection[]
 }
 
 export interface AnkiStatus {

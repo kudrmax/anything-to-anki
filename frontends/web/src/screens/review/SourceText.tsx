@@ -19,9 +19,10 @@ export interface SelectedText {
 
 interface SourceTextProps {
   document: SourceDocument
-  candidates: StoredCandidate[]
-  /** Кандидат, чья фраза подсвечена: текущая фраза или фраза в режиме правки. */
-  focusId: number | null
+  /** Разобрана ли карточка — из ответов ревью, поверх отметок самого текста. */
+  done: ReadonlyMap<number, boolean>
+  /** Карточка, чья фраза подсвечена: текущая или та, чью границу правят. */
+  focused: StoredCandidate | null
   onWordClick: (candidateId: number) => void
   /** Нет — выделение в этом тексте ничего не делает (правится граница фразы другого источника). */
   onTextSelected?: (selected: SelectedText, point: SelectionPoint) => void
@@ -81,15 +82,16 @@ function listMarkers(blocks: readonly DocumentBlock[]): (string | null)[] {
   })
 }
 
-export function SourceText({ document, candidates, focusId, onWordClick, onTextSelected }: SourceTextProps) {
+export function SourceText({ document, done, focused, onWordClick, onTextSelected }: SourceTextProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const marks = useMemo<LineMark[]>(
     () => document.highlights.map(h => ({ candidateId: h.phrase_id, position: h.position })),
     [document],
   )
   const markers = useMemo(() => listMarkers(document.blocks), [document])
-  const ratedIds = useMemo(() => new Set(candidates.filter(c => c.is_done).map(c => c.phrase_id)), [candidates])
-  const focused = candidates.find(c => c.phrase_id === focusId)
+  const markedDone = useMemo(() => new Map(document.highlights.map(h => [h.phrase_id, h.is_done])), [document])
+  const isDone = (id: number): boolean => done.get(id) ?? markedDone.get(id) ?? false
+  const focusId = focused?.phrase_id ?? null
   // Фрагмент фразы подсвечивается только в тексте её источника: позиции у каждого документа свои.
   const fragment = focused?.source.id === document.source_id ? focused.phrase_position : null
 
@@ -141,7 +143,7 @@ export function SourceText({ document, candidates, focusId, onWordClick, onTextS
         return <span key={segment.start} {...data} className={segment.inFragment ? css.fragment : undefined}>{segment.text}</span>
       }
       const id = segment.markId
-      const state = id === focusId ? css.markCurrent : ratedIds.has(id) ? css.markRated : css.markPending
+      const state = id === focusId ? css.markCurrent : isDone(id) ? css.markRated : css.markPending
       const classes = [css.mark, state, segment.inFragment && css.fragment].filter(Boolean).join(' ')
       return (
         <mark key={segment.start} {...data} data-mark-id={id} className={classes} onClick={() => onWordClick(id)}>

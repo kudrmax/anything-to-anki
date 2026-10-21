@@ -58,7 +58,7 @@
 /* Со списком окно прокручивается само: справка видна целиком, а не обрезается по высоте левой колонки. */
 .body:not(.focus) .cardRight { contain: none; overflow-y: visible; mask-image: none; }
 .queue { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.queue > .queueItem, .queue > .sectionToggle { display: var(--queue-row-display); }
+.queue > .queueItem, .queue > .sectionToggle, .queue > .placeholder { display: var(--queue-row-display); }
 .queue > .cardBlock { order: var(--current-card-order); margin: var(--wide-lead) 0; scroll-margin-bottom: var(--dock-reserve); }
 .queue > .cardBlock:first-child { margin-top: 0; }
 .cardBlock { display: flex; flex-direction: column; flex: var(--card-flex); min-height: var(--card-min-h); }
@@ -73,7 +73,7 @@
 .queue.away { display: var(--away-display); }
 
 /* десктоп без списка: только текущая карточка */
-.focus .queue > .queueItem, .focus .queue > .sectionToggle, .focus .showMore { display: none; }
+.focus .queue > .queueItem, .focus .queue > .sectionToggle, .focus .queue > .placeholder { display: none; }
 .sectionToggle { padding: var(--py) var(--card-pad) 0; }
 .textPanel { display: var(--phone-flex); flex-direction: column; flex: 1; min-height: 0; }
 .textPanel > .source { flex: 1; min-height: 0; max-height: none; }
@@ -104,7 +104,8 @@
 .markRated { color: inherit; }
 .mark.fragment { background: var(--ac-tint); }
 .markPending.fragment, .markRated.fragment { color: var(--tx); }
-.showMore { display: var(--show-more-display); padding: var(--py) var(--card-pad) 0; }
+/* незагруженные строки списка: держат место, пока их не подгрузят */
+.placeholder { flex: none; height: var(--placeholder-h); }
 
 
 /* попап выделения */
