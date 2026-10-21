@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
@@ -8,17 +10,26 @@ from sqlalchemy import select
 from backend.domain.ports.card_state_query import CardStateQuery
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.generation_tally import GenerationGroup, GenerationTally
+from backend.domain.value_objects.ordered_card import OrderedCard
 from backend.domain.value_objects.section_tally import SectionTally
+from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.infrastructure.persistence.card_state_codecs import (
+    DISTINCT_VALUES_KEPT,
     DONE_COLUMNS,
     TIMED_COLUMN,
+    NewCountsByStepCodec,
     SectionsByStepCodec,
 )
 from backend.infrastructure.persistence.models import (
     PROJECTION_META_ID,
     CardStateModel,
+    CEFRBreakdownModel,
     JobModel,
+    PhraseModel,
     ProjectionMetaModel,
+    StoredCandidateModel,
+    cefr_level_of,
+    load_position_start,
 )
 from backend.infrastructure.persistence.phrase_writes import chunks
 from backend.infrastructure.persistence.sqla_occurrence_repository import ACTIVE_JOB_STATUSES
@@ -32,6 +43,11 @@ if TYPE_CHECKING:
 
 _CARDS = CardStateModel.__tablename__
 _JOBS = JobModel.__tablename__
+_WORDS = StoredCandidateModel.__tablename__
+_PHRASES = PhraseModel.__tablename__
+_BREAKDOWNS = CEFRBreakdownModel.__tablename__
+# The votes `cefr_level_of` reads, in `_cefr_level`'s order.
+_VOTES = "b.oxford, b.cambridge, b.cefrpy, b.efllex_distribution, b.kelly"
 _META = ProjectionMetaModel.metadata.tables[ProjectionMetaModel.__tablename__]
 
 _KINDS: tuple[GenerationKind, ...] = tuple(DONE_COLUMNS)
@@ -111,6 +127,39 @@ class SqlaCardStateQuery(CardStateQuery):
                 " WHERE source_id IN ({marks}) AND removed = 0",
             )
         }
+
+    def order_rows(self, source_ids: Sequence[int]) -> list[OrderedCard]:
+        return [
+            OrderedCard(
+                phrase_id=phrase_id,
+                word_id=word_id,
+                source_id=source_id,
+                lemma=lemma,
+                pos=pos,
+                zipf_frequency=zipf,
+                cefr_level=_cefr_level(*votes) if has_breakdown else None,
+                occurrences=occurrences,
+                is_phrasal_verb=bool(phrasal),
+                usage_distribution=_usage(usage),
+                place=load_position_start(position),
+                is_done=bool(is_done),
+                sections=SectionsByStepCodec.decode(sections),
+                new_counts=NewCountsByStepCodec.decode(new_counts),
+            )
+            for (
+                phrase_id, word_id, source_id, lemma, pos, zipf, occurrences, phrasal, usage,
+                position, is_done, sections, new_counts, has_breakdown, *votes,
+            ) in self._each_chunk(
+                source_ids,
+                "SELECT cs.phrase_id, cs.word_id, cs.source_id, c.lemma, c.pos,"  # noqa: S608 — model names
+                " c.zipf_frequency, c.occurrences, c.is_phrasal_verb, c.usage_distribution,"
+                " p.phrase_position, cs.is_done, cs.sections, cs.new_counts, b.id IS NOT NULL,"
+                f" {_VOTES} FROM {_CARDS} cs JOIN {_WORDS} c ON c.id = cs.word_id"
+                f" JOIN {_PHRASES} p ON p.id = cs.phrase_id"
+                f" LEFT JOIN {_BREAKDOWNS} b ON b.candidate_id = cs.word_id"
+                " WHERE cs.source_id IN ({marks}) AND cs.removed = 0",
+            )
+        ]
 
     def generation_tallies(
         self, source_ids: Collection[int], ready: Callable[[SectionsByStep], bool],
@@ -228,6 +277,27 @@ class SqlaCardStateQuery(CardStateQuery):
                 yield from cursor.fetchall()
         finally:
             cursor.close()
+
+
+@lru_cache(maxsize=DISTINCT_VALUES_KEPT)
+def _cefr_level(
+    oxford: str | None,
+    cambridge: str | None,
+    cefrpy: str | None,
+    efllex_distribution: str | None,
+    kelly: str | None,
+) -> str | None:
+    """The level of a word with this stored breakdown: a book's words share a few thousand."""
+    return cefr_level_of(CEFRBreakdownModel(
+        oxford=oxford, cambridge=cambridge, cefrpy=cefrpy,
+        efllex_distribution=efllex_distribution, kelly=kelly,
+    ))
+
+
+@lru_cache(maxsize=DISTINCT_VALUES_KEPT)
+def _usage(stored: str | None) -> UsageDistribution | None:
+    """A word's stored usage groups: a book's words share about a hundred."""
+    return UsageDistribution(json.loads(stored)) if stored is not None else None
 
 
 def _facts(values: Sequence[Any]) -> _Facts:

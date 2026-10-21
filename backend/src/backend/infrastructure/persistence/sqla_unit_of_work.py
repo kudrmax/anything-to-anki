@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 # SQLite takes the write lock at the start of the transaction, not at its first write:
 # reads inside it see the state the writes are applied to.
 BEGIN_IMMEDIATE = "BEGIN IMMEDIATE"
+# A read transaction takes its snapshot at its first read and never the write lock.
+BEGIN_DEFERRED = "BEGIN DEFERRED"
 # Kept on the session, not the unit of work: every unit of work on a session sees it.
 WRITE_OPEN_KEY = "unit_of_work.write_open"
 COMMIT_CHECKS_KEY = "unit_of_work.commit_checks"
@@ -73,6 +75,23 @@ class SqlaUnitOfWork(UnitOfWork):
             raise
         finally:
             self._session.info[WRITE_OPEN_KEY] = False
+
+    @contextmanager
+    def read(self) -> Iterator[None]:
+        session = self._session
+        if session.new or session.dirty or session.deleted:
+            raise UncommittedWorkError
+        dbapi_connection = session.connection().connection.dbapi_connection
+        if session.info.get(WRITE_OPEN_KEY, False) or (
+            dbapi_connection is not None and dbapi_connection.in_transaction
+        ):
+            yield
+            return
+        session.connection().exec_driver_sql(BEGIN_DEFERRED)
+        try:
+            yield
+        finally:
+            session.rollback()
 
     def _has_pending_work(self) -> bool:
         """Changes not flushed yet, or already sent to SQLite: pysqlite opens a transaction

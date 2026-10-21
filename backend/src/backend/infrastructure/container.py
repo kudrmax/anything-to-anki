@@ -39,6 +39,7 @@ from backend.application.use_cases.manage_known_words import ManageKnownWordsUse
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.manage_unknown_words import ManageUnknownWordsUseCase
 from backend.application.use_cases.move_collection import MoveCollectionUseCase
+from backend.application.use_cases.open_review import OpenReviewUseCase
 from backend.application.use_cases.place_sources import PlaceSourcesUseCase
 from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
 from backend.application.use_cases.process_source import ProcessSourceUseCase
@@ -51,6 +52,7 @@ from backend.application.use_cases.render_names import RenderNamesUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
 from backend.application.use_cases.report_candidate import ReportCandidateUseCase
 from backend.application.use_cases.restore_collection import RestoreCollectionUseCase
+from backend.application.use_cases.review_window import ReviewWindowUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
 from backend.application.use_cases.scope_operation import ScopeOperationUseCase
@@ -72,6 +74,7 @@ from backend.application.utils.live_card_states import LiveCardStates
 from backend.application.utils.live_generation_status import LiveGenerationStatus
 from backend.application.utils.live_source_progress import LiveSourceProgress
 from backend.application.utils.phrase_reader import PhraseReader
+from backend.application.utils.review_answer import ReviewAnswer
 from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_header import ReviewHeader
 from backend.application.utils.review_progress import ReviewProgress
@@ -213,6 +216,7 @@ from backend.infrastructure.readers.plain_reader import PlainReader
 from backend.infrastructure.readers.srt_reader import SrtReader
 from backend.infrastructure.readers.video_file_reader import VideoFileReader
 from backend.infrastructure.readers.youtube_reader import YouTubeReader
+from backend.infrastructure.review.in_memory_review_order_store import InMemoryReviewOrderStore
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
@@ -254,6 +258,7 @@ if TYPE_CHECKING:
     from backend.application.utils.generation_targets import GenerationCards, GenerationTarget
     from backend.application.utils.job_phrases import JobPhrases
     from backend.application.utils.meaning_image_placer import MeaningImagePlacer
+    from backend.application.utils.open_review import OpenReview
     from backend.application.utils.phrase_enrichment_reset import PhraseEnrichmentReset
     from backend.application.utils.requested_cards import RequestedCards
     from backend.domain.ports.clock import Clock
@@ -384,6 +389,10 @@ class Container:
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
         self._clock: Clock = clock or SystemClock()
         self._session_factory: sessionmaker[Session] | None = session_factory
+        # The open reviews live as long as the app: a restart lets them go.
+        self._review_order_store: InMemoryReviewOrderStore[OpenReview] = (
+            InMemoryReviewOrderStore()
+        )
 
     def _get_session_factory(self) -> sessionmaker[Session]:
         """The app's one session factory unless the container was given another; taken on
@@ -536,6 +545,31 @@ class Container:
     def get_review_use_case(self, session: Session) -> GetReviewUseCase:
         return GetReviewUseCase(
             card_views=self._card_views(session), header=self.review_header(session),
+        )
+
+    def open_review_use_case(self, session: Session) -> OpenReviewUseCase:
+        return OpenReviewUseCase(
+            scope_resolver=self._scope_resolver(session),
+            card_states=self._card_state_query(session),
+            threshold_resolver=self._threshold_resolver(session),
+            candidate_sorter=self._candidate_sorter(session),
+            store=self._review_order_store,
+            answer=self._review_answer(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def review_window_use_case(self, session: Session) -> ReviewWindowUseCase:
+        return ReviewWindowUseCase(
+            store=self._review_order_store,
+            answer=self._review_answer(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def _review_answer(self, session: Session) -> ReviewAnswer:
+        return ReviewAnswer(
+            header=self.review_header(session),
+            card_states=self._card_state_query(session),
+            card_views=self._card_views(session),
         )
 
     def review_header(self, session: Session) -> ReviewHeader:

@@ -17,3 +17,9 @@ class UnitOfWork(ABC):
         knows is read again inside it, not taken from before it. Opening it inside another
         write on the same session, through any unit of work, raises NestedWriteError and
         leaves the open one as is."""
+
+    @abstractmethod
+    def read(self) -> AbstractContextManager[None]:
+        """One read transaction: every read inside it sees the database as it was at its
+        first read, whatever is written meanwhile. Inside an open transaction of the
+        session it reads in that one."""

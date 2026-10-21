@@ -58,6 +58,22 @@ class ReviewCards:
             return None
         return self.card(word, occurrence)
 
+    def of_phrases(self, phrase_ids: Sequence[int]) -> list[ReviewCard]:
+        """The cards of these phrases in the order given, whether or not they are shown now;
+        a phrase that is gone is left out. Read in one batch per kind of fact."""
+        occurrences = {o.id: o for o in self._occurrence_repo.of_ids(phrase_ids)}
+        word_ids = list(dict.fromkeys(o.candidate_id for o in occurrences.values()))
+        words = {w.id: w for w in self._candidate_repo.get_by_ids(word_ids)}
+        states = self._word_states.of_words(word_ids)
+        cards: list[ReviewCard] = []
+        for phrase_id in phrase_ids:
+            occurrence = occurrences.get(phrase_id)
+            if occurrence is None or occurrence.candidate_id not in words:
+                continue
+            word = words[occurrence.candidate_id]
+            cards.append(_card(word, occurrence, self._context(states[occurrence.candidate_id])))
+        return cards
+
     def card(self, word: StoredCandidate, occurrence: Occurrence) -> ReviewCard:
         assert word.id is not None
         state = self._word_states.of_word(word.id)

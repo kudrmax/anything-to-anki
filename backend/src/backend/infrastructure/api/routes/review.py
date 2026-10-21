@@ -3,20 +3,31 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.application.dto.document_dtos import SourceDocumentDTO  # noqa: TC001
 from backend.application.dto.generation_dtos import GenerationStatusDTO  # noqa: TC001
+from backend.application.dto.review_dtos import (
+    OpenReviewRequest,  # noqa: TC001 — FastAPI parses it at runtime
+    ReviewContext,
+    ReviewUpdateDTO,  # noqa: TC001 — FastAPI serialises it at runtime
+    SectionOpenRequest,  # noqa: TC001 — FastAPI parses it at runtime
+)
 from backend.application.dto.source_dtos import CardDTO, ReviewDTO  # noqa: TC001
 from backend.domain.exceptions import (
     CollectionNotFoundError,
     GenerationBlockedError,
     GenerationNotSupportedError,
+    PhraseNotFoundError,
+    ReviewNotFoundError,
     ScopeNotReviewableError,
     SourceHasNoUrlError,
     SourceNotFoundError,
     SourceOperationBusyError,
     VideoAlreadyDownloadedError,
+)
+from backend.domain.value_objects.candidate_section import (
+    CandidateSection,  # noqa: TC001 — FastAPI parses it at runtime
 )
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.generation_kind import (
@@ -37,12 +48,16 @@ if TYPE_CHECKING:
     from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
     from backend.application.use_cases.get_review import GetReviewUseCase
     from backend.application.use_cases.get_review_documents import GetReviewDocumentsUseCase
+    from backend.application.use_cases.open_review import OpenReviewUseCase
     from backend.application.use_cases.request_video_download import RequestVideoDownloadUseCase
+    from backend.application.use_cases.review_window import ReviewWindowUseCase
     from backend.application.use_cases.run_generation import RunGenerationUseCase
     from backend.domain.value_objects.source_scope import SourceScope
 
 # Under /api: /review is the web app's own page, which a reload must get, not this JSON.
 router = APIRouter(prefix="/api/review", tags=["review"])
+# The detail of a 410: the review is not held any more and the client opens it again.
+REVIEW_EXPIRED = "review_expired"
 
 
 def review_scope(raw: str) -> SourceScope:
@@ -69,6 +84,88 @@ def get_review(
 ) -> ReviewDTO:
     with _scope_errors():
         return review.execute(review_scope(scope), sort)
+
+
+@contextmanager
+def _review_errors() -> Iterator[None]:
+    """A review no longer held is a 410 the client opens again on; a card it does not
+    hold, a 404."""
+    try:
+        yield
+    except ReviewNotFoundError as e:
+        raise HTTPException(status_code=410, detail=REVIEW_EXPIRED) from e
+    except PhraseNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+def review_context(review_id: str, since: int, current: int | None = None) -> ReviewContext:
+    """What every request on an open review names: the review, the client's revision and
+    the card it shows."""
+    return ReviewContext(review_id=review_id, since=since, current=current)
+
+
+@router.post("")
+def open_review(
+    request: OpenReviewRequest,
+    review: OpenReviewUseCase = Depends(use_case(Container.open_review_use_case)),  # noqa: B008
+) -> ReviewUpdateDTO:
+    """Opens the review of a set: its order is held under the answer's review id."""
+    review_scope(request.scope)
+    with _scope_errors():
+        return review.execute(request)
+
+
+@router.get("/{review_id}/rows")
+def review_rows(
+    start: int = Query(ge=0),  # noqa: B008
+    count: int = Query(ge=1),  # noqa: B008
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    window: ReviewWindowUseCase = Depends(  # noqa: B008
+        use_case(Container.review_window_use_case),  # noqa: B008
+    ),
+) -> ReviewUpdateDTO:
+    """`count` rows of the visible list from `start`, at most REVIEW_ROWS_MAX."""
+    with _review_errors():
+        return window.rows(ctx, start, count)
+
+
+@router.get("/{review_id}/around/{phrase_id}")
+def review_around(
+    phrase_id: int,
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    window: ReviewWindowUseCase = Depends(  # noqa: B008
+        use_case(Container.review_window_use_case),  # noqa: B008
+    ),
+) -> ReviewUpdateDTO:
+    """The rows around a card, which becomes the current one."""
+    with _review_errors():
+        return window.around(ctx, phrase_id)
+
+
+@router.put("/{review_id}/sections/{section}")
+def set_review_section(
+    section: CandidateSection,
+    body: SectionOpenRequest,
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    window: ReviewWindowUseCase = Depends(  # noqa: B008
+        use_case(Container.review_window_use_case),  # noqa: B008
+    ),
+) -> ReviewUpdateDTO:
+    """A section opened or folded."""
+    with _review_errors():
+        return window.set_section(ctx, section, is_open=body.open)
+
+
+@router.get("/{review_id}/changes")
+def review_changes(
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    window: ReviewWindowUseCase = Depends(  # noqa: B008
+        use_case(Container.review_window_use_case),  # noqa: B008
+    ),
+) -> ReviewUpdateDTO:
+    """What changed in the open review since the client's revision."""
+    with _review_errors():
+        return window.changes(ctx)
 
 
 @router.get("/candidates")

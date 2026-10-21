@@ -8,6 +8,8 @@ from backend.domain.exceptions import PhraseNotFoundError, SourceNotFoundError
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
     from backend.application.dto.source_dtos import CardDTO
     from backend.application.utils.candidate_sorter import ArrangedCards, CandidateSorter
     from backend.application.utils.review_cards import ReviewCards
@@ -16,6 +18,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.card_report_repository import CardReportRepository
     from backend.domain.ports.job_repository import JobRepository
     from backend.domain.ports.source_repository import SourceRepository
+    from backend.domain.value_objects.candidate_section import CandidateSection
     from backend.domain.value_objects.decision_progress import DecisionProgress
     from backend.domain.value_objects.review_card import ReviewCard
     from backend.domain.value_objects.source_scope import SourceScope
@@ -83,6 +86,28 @@ class CardViews:
             reported=phrase_id in reported,
             section=self._candidate_sorter.section(card),
         )
+
+    def of_phrases(
+        self, phrase_ids: Sequence[int], sections: Mapping[int, CandidateSection],
+    ) -> list[CardDTO]:
+        """The cards of these phrases in the order given, each in the section `sections`
+        gives it; a phrase that is gone is left out. Read for exactly these phrases."""
+        cards = self._review_cards.of_phrases(phrase_ids)
+        sources: dict[int, CardSourceDTO] = {}
+        for source_id in dict.fromkeys(card.source_id for card in cards):
+            source = self._source_repo.get_by_id(source_id)
+            if source is None:
+                raise SourceNotFoundError(source_id)
+            sources[source_id] = CardSourceDTO.of(source)
+        jobs = self._jobs(cards)
+        reported = self._report_repo.reported_phrase_ids([c.phrase_id for c in cards])
+        return [
+            card_to_dto(
+                card, sources[card.source_id], jobs,
+                reported=card.phrase_id in reported, section=sections[card.phrase_id],
+            )
+            for card in cards
+        ]
 
     def _dtos(
         self, arranged: ArrangedCards, sources: dict[int, CardSourceDTO],

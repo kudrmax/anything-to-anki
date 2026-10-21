@@ -112,6 +112,15 @@ def load_position(stored: str | None) -> DocumentPosition | None:
     )
 
 
+def load_position_start(stored: str | None) -> tuple[int, int, int] | None:
+    """(block, start_line, start_char) of a stored position, read without a JSON parse: a
+    book's order reads one per card."""
+    if stored is None:
+        return None
+    block, start_line, start_char, _rest = stored[1:-1].split(",", 3)
+    return (int(block), int(start_line), int(start_char))
+
+
 def dump_phrase(phrase: Phrase | None) -> str | None:
     """Stored as `{"text", "words": [[start, end, lemma, level, zipf, content], …], "target"}`."""
     if phrase is None:

@@ -7,7 +7,8 @@ deletion and the clock crossing an Anki timer.
 
 After each step the stored rows equal `LiveCardStates` (statuses, done, wants generation,
 sections and new-word counts at every threshold step, word statuses, phrase words), and the
-review order of every sort order, computed from the stored rows, is today's order.
+review order of every sort order, computed from the stored rows, is today's order; so is the
+order an open review holds for every source and the collection, each card in today's section.
 
 Every write method of the owners of facts is reached by some step, or is named here with
 the reason it cannot change card state: a new write method without a scenario fails.
@@ -18,6 +19,8 @@ import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import timedelta
+from functools import cache
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, ClassVar, NoReturn
 from unittest.mock import MagicMock, patch
 
@@ -25,9 +28,13 @@ import pytest
 from backend.application.dto.candidate_dtos import SelectionDTO
 from backend.application.dto.card_report_dtos import ReportCandidateRequest
 from backend.application.dto.generation_dtos import GenerationKindStatusDTO, GenerationStatusDTO
+from backend.application.dto.review_dtos import OpenReviewRequest
 from backend.application.dto.source_dtos import ProgressDTO
+from backend.application.utils import candidate_sorter
+from backend.application.utils.candidate_sorter import CandidateSorter
 from backend.application.utils.card_state_differences import differences
 from backend.application.utils.live_generation_status import summed
+from backend.application.utils.review_answer import ReviewAnswer
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_meaning_image import CandidateMeaningImage
@@ -36,12 +43,14 @@ from backend.domain.entities.candidate_pronunciation import CandidatePronunciati
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.exceptions import DomainError
 from backend.domain.ports.card_state_query import CardStateQuery
+from backend.domain.services import candidate_sorting
 from backend.domain.services.candidate_sorting import CardStanding, sort_cards
 from backend.domain.services.source_review_status import (
     derive_review_status,
     stored_status_of_set,
 )
 from backend.domain.value_objects.ai_unavailable import AI_UNAVAILABLE_MARKER, is_ai_unavailable
+from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
@@ -56,6 +65,7 @@ from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.rebuild_mode import RebuildMode
+from backend.domain.value_objects.review_order import CardRow
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.infrastructure.api.background_rebuild_launcher import (
     BackgroundSourcesRebuildLauncher,
@@ -117,8 +127,11 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
     from backend.domain.entities.occurrence import Occurrence
+    from backend.domain.entities.source import Source
     from backend.domain.ports.ai_service import AIService
+    from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
     from backend.domain.value_objects.review_card import ReviewCard
+    from backend.domain.value_objects.user_knowledge import UserKnowledge
 
 pytestmark = pytest.mark.integration
 
@@ -806,12 +819,12 @@ class _Projection(RuleBasedStateMachine):
             live = self.container.live_card_states(session).compute()
         assert differences(stored, live) == []
         rows = {card.row.phrase_id: card.row for card in stored.cards if not card.removed}
-        with self.factory() as session:
+        with self.factory() as session, _live_standing_once():
             container = self.container
             sources = _source_ids(session)
             with _projection_unread():
                 cards = container._review_cards(session).of_sources(sources)  # noqa: SLF001
-            sorter = container._candidate_sorter(session)  # noqa: SLF001
+            sorter = _check_sorter(container, session)
             step = container._threshold_resolver(session).resolve().zipf  # noqa: SLF001
 
             def stored_standing(card: ReviewCard) -> CardStanding:
@@ -828,10 +841,58 @@ class _Projection(RuleBasedStateMachine):
                     usage_order=sorter.usage_order(), source_order=sources,
                 )
                 assert [c.phrase_id for c in projected] == [c.phrase_id for c in today], order
-            self._screens_equal_the_review(session, sources, cards)
+            with _projection_unread():
+                sets = {
+                    scope: container._live_scope_resolver(session).reviewable_sources(scope)  # noqa: SLF001
+                    for scope in (
+                        *(SourceScope.source(source_id) for source_id in sources),
+                        SourceScope.collection(COLLECTION),
+                    )
+                }
+            self._screens_equal_the_review(session, sources, cards, sets)
+            self._open_reviews_hold_todays_order(session, sorter, cards, sets)
+
+    def _open_reviews_hold_todays_order(
+        self,
+        session: Session,
+        sorter: CandidateSorter,
+        cards: list[ReviewCard],
+        sets: dict[SourceScope, list[Source]],
+    ) -> None:
+        """An open review of every set, in every order and with every section open, lists the
+        set's cards in today's order, each in today's section."""
+        for scope, members in sets.items():
+            ids = [s.id for s in members if s.id is not None]
+            of_set = [c for c in cards if c.word.source_id in ids]
+            for order in CandidateSortOrder:
+                with _projection_unread():
+                    today = sorter.arrange(of_set, order, source_order=ids)
+                assert self._opened(session, scope, order) == [
+                    (c.phrase_id, today.section(c)) for c in today.cards
+                ], (scope, order)
+
+    def _opened(
+        self, session: Session, scope: SourceScope, order: CandidateSortOrder,
+    ) -> list[tuple[int, CandidateSection]]:
+        """The card rows of the set's open review with every section open, each with its held
+        section. The answer's windows and cards are left out: the order is what is checked."""
+        with patch.object(ReviewAnswer, "of", lambda _answer, review_id, *_a, **_k: review_id):
+            review_id = self.container.open_review_use_case(session).execute(OpenReviewRequest(
+                scope=scope.token, sort=order, open_sections=list(CandidateSection),
+            ))
+        with self.container._review_order_store.hold(review_id) as review:  # type: ignore[arg-type]  # noqa: SLF001
+            held = {card.phrase_id: card.section for card in review.order.cards}
+            return [
+                (row.phrase_id, held[row.phrase_id])
+                for row in review.layout().rows if isinstance(row, CardRow)
+            ]
 
     def _screens_equal_the_review(
-        self, session: Session, sources: list[int], cards: list[ReviewCard],
+        self,
+        session: Session,
+        sources: list[int],
+        cards: list[ReviewCard],
+        sets: dict[SourceScope, list[Source]],
     ) -> None:
         """The header of every review set, each source's progress on the sources screen and
         the ✨ counts, read from the projection, are what the review computes live: the
@@ -851,12 +912,7 @@ class _Projection(RuleBasedStateMachine):
                 i: container.live_generation_status(session).execute(SourceScope.source(i))
                 for i in sources
             }
-        for scope in (
-            *(SourceScope.source(source_id) for source_id in sources),
-            SourceScope.collection(COLLECTION),
-        ):
-            with _projection_unread():
-                members = container._live_scope_resolver(session).reviewable_sources(scope)  # noqa: SLF001
+        for scope, members in sets.items():
             ids = [s.id for s in members if s.id is not None]
             expected = _summed_status([generation[i] for i in ids])
             progress = sum((live[i] for i in ids), DecisionProgress())
@@ -892,6 +948,57 @@ def _summed_status(of_sources: list[GenerationStatusDTO]) -> GenerationStatusDTO
         kinds=[summed(kinds) for kinds in per_kind.values() if kinds],
         in_progress=any(status.in_progress for status in of_sources),
     )
+
+
+def _check_sorter(container: Container, session: Session) -> CandidateSorter:
+    """Today's sorter with what the user knows, the threshold and the settings read once for
+    a whole check: nothing writes inside it."""
+    knowledge = container._user_knowledge(session).current()  # noqa: SLF001
+    threshold = container._threshold_resolver(session).resolve()  # noqa: SLF001
+    settings = SqlaSettingsRepository(session, SessionChangeRecorder(session))
+    return CandidateSorter(
+        settings_repo=SimpleNamespace(get=cache(settings.get)),  # type: ignore[arg-type]
+        threshold_resolver=SimpleNamespace(resolve=lambda: threshold),  # type: ignore[arg-type]
+        knowledge=SimpleNamespace(current=lambda: knowledge),  # type: ignore[arg-type]
+    )
+
+
+@contextmanager
+def _live_standing_once() -> Iterator[None]:
+    """Today's standing and section of a card computed by today's rules once per check and
+    shared by every `CandidateSorter` call in it, which still sorts as today: what the user
+    knows does not change inside one check."""
+    standing_rule = candidate_sorting.live_standing
+    section_rule = candidate_sorter.card_section
+    standings: dict[int, CardStanding] = {}
+    sections: dict[int, CandidateSection] = {}
+
+    def live_standing(
+        knowledge: UserKnowledge | None, threshold: FrequentWordThreshold | None,
+    ) -> Callable[[ReviewCard], CardStanding]:
+        standing = standing_rule(knowledge, threshold)
+
+        def once(card: ReviewCard) -> CardStanding:
+            if card.phrase_id not in standings:
+                standings[card.phrase_id] = standing(card)
+            return standings[card.phrase_id]
+
+        return once
+
+    def card_section(
+        card: ReviewCard,
+        knowledge: UserKnowledge | None,
+        threshold: FrequentWordThreshold | None,
+    ) -> CandidateSection:
+        if card.phrase_id not in sections:
+            sections[card.phrase_id] = section_rule(card, knowledge, threshold)
+        return sections[card.phrase_id]
+
+    with (
+        patch.object(candidate_sorting, "live_standing", live_standing),
+        patch.object(candidate_sorter, "card_section", card_section),
+    ):
+        yield
 
 
 @contextmanager

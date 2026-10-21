@@ -139,6 +139,7 @@ READ_ONLY: frozenset[tuple[str, str]] = frozenset({
     ("OccurrenceRepository", "by_source"),
     ("OccurrenceRepository", "projection"),
     ("OccurrenceRepository", "get"),
+    ("OccurrenceRepository", "of_ids"),
     ("OccurrenceRepository", "of_word"),
     ("OccurrenceRepository", "decision_phrases"),
     # Rewrites the revision with itself to take the write lock; nothing changes.

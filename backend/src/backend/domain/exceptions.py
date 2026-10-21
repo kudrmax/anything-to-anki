@@ -420,6 +420,15 @@ class PhraseNotFoundError(DomainError):
         self.phrase_id = phrase_id
 
 
+class ReviewNotFoundError(DomainError):
+    """Raised when an open review is not held: never opened, or let go since (a restart, or
+    newer reviews pushed it out)."""
+
+    def __init__(self, review_id: str) -> None:
+        super().__init__(f"Review {review_id} is not open")
+        self.review_id = review_id
+
+
 class ActionRefusedError(DomainError):
     """Raised when the decision table refuses a button on a card. `reason`: why, for the
     person who pressed it."""

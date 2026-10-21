@@ -39,7 +39,7 @@ from backend.infrastructure.persistence.models import (
     load_phrase,
     load_position,
 )
-from backend.infrastructure.persistence.phrase_writes import queued_jobs_follow
+from backend.infrastructure.persistence.phrase_writes import chunks, queued_jobs_follow
 from backend.infrastructure.persistence.rebuild_plan_writer import RebuildPlanWriter
 
 if TYPE_CHECKING:
@@ -212,6 +212,14 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
     def get(self, occurrence_id: int) -> Occurrence | None:
         found = self._occurrences(PhraseModel.id == occurrence_id)
         return found[0] if found else None
+
+    def of_ids(self, occurrence_ids: Sequence[int]) -> list[Occurrence]:
+        found = [
+            occurrence
+            for chunk in chunks(sorted(set(occurrence_ids)))
+            for occurrence in self._occurrences(PhraseModel.id.in_(chunk))
+        ]
+        return sorted(found, key=lambda occurrence: occurrence.id or 0)
 
     def of_word(self, candidate_id: int) -> list[Occurrence]:
         return self._occurrences(PhraseModel.candidate_id == candidate_id)

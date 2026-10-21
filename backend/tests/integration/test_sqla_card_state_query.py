@@ -12,7 +12,9 @@ from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.generated_parts import GeneratedParts
 from backend.domain.value_objects.generation_kind import GenerationKind
 from backend.domain.value_objects.generation_tally import GenerationGroup
+from backend.domain.value_objects.ordered_card import OrderedCard
 from backend.domain.value_objects.section_tally import SectionTally
+from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.infrastructure.persistence.sqla_card_state_query import SqlaCardStateQuery
 from backend.infrastructure.persistence.sqla_card_state_store import SqlaCardStateStore
 from sqlalchemy import text
@@ -136,3 +138,38 @@ def test_generation_counts_the_cards_in_play_by_result_and_job(
 def test_readiness_is_the_callers(query: SqlaCardStateQuery) -> None:
     tallies = query.generation_tallies([BOOK], lambda s: s.at(FIRST_STEP) is R)
     assert [group.ready for group in tallies[BOOK].of(GenerationKind.TTS)] == [0]
+
+
+def test_the_order_rows_are_the_live_cards_with_their_words_facts_and_place(
+    query: SqlaCardStateQuery, db_session: Session,
+) -> None:
+    db_session.execute(text(
+        "UPDATE candidates SET occurrences = 4, is_phrasal_verb = 1, zipf_frequency = 4.2,"
+        " usage_distribution = '{\"informal\": 0.5}' WHERE id = :id"
+    ), {"id": OPEN_MEANING})
+    db_session.execute(text(
+        "INSERT INTO cefr_breakdowns (candidate_id, decision_method, oxford) VALUES"
+        " (:id, 'priority', 'B2')"
+    ), {"id": OPEN_MEANING})
+    db_session.execute(text(
+        "UPDATE phrases SET phrase_position = '[3, 1, 17, 1, 40]', block = 9, line = 9, char = 9"
+        " WHERE id = :id"
+    ), {"id": phrase_id_of(OPEN_MEANING)})
+    db_session.commit()
+
+    rows = {row.phrase_id: row for row in query.order_rows([BOOK])}
+
+    assert set(rows) == {phrase_id_of(i) for i in (OPEN_MEANING, OPEN_FAILED, DONE)}
+    assert rows[phrase_id_of(OPEN_MEANING)] == OrderedCard(
+        phrase_id=phrase_id_of(OPEN_MEANING), word_id=OPEN_MEANING, source_id=BOOK,
+        lemma=f"word{OPEN_MEANING}", pos="NOUN", zipf_frequency=4.2, cefr_level="B2",
+        occurrences=4, is_phrasal_verb=True,
+        usage_distribution=UsageDistribution({"informal": 0.5}), place=(3, 1, 17),
+        is_done=False, sections=READY_FROM_THIRD_STEP, new_counts=NO_NEW_WORDS,
+    )
+    done = rows[phrase_id_of(DONE)]
+    assert (done.is_done, done.sections, done.place, done.cefr_level) == (
+        True, REVIEWED, None, None,
+    )
+    assert done.usage_distribution is None
+    assert [row.source_id for row in query.order_rows([ARTICLE, 99])] == [ARTICLE]

@@ -4,10 +4,11 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection
+    from collections.abc import Callable, Collection, Sequence
 
     from backend.domain.value_objects.by_step import SectionsByStep
     from backend.domain.value_objects.generation_tally import GenerationTally
+    from backend.domain.value_objects.ordered_card import OrderedCard
     from backend.domain.value_objects.section_tally import SectionTally
 
 
@@ -28,6 +29,11 @@ class CardStateQuery(ABC):
     @abstractmethod
     def done_of_sources(self, source_ids: Collection[int]) -> dict[int, bool]:
         """Phrase id → whether its card is done, for every card of these sources."""
+
+    @abstractmethod
+    def order_rows(self, source_ids: Sequence[int]) -> list[OrderedCard]:
+        """Every card of these sources with what the review order reads of it: its stored
+        standing, the facts of its word and the place of its phrase. In no given order."""
 
     @abstractmethod
     def generation_tallies(
