@@ -43,14 +43,29 @@ export interface ApplyOptions {
   window?: boolean
 }
 
-/** Ответ ревью поверх того, что клиент уже знает. Устаревший ответ (меньшая ревизия) ничего не меняет. */
+/**
+ * Раскладка новее той, что у клиента, но пришла без replace: ответ с replace потерялся
+ * (его обогнал опрос или он не дошёл). Клиент её примет как новую и запросит окно вокруг текущей.
+ */
+export const missesReplace = (state: ReviewState, update: ReviewUpdate): boolean =>
+  (state.reviewId === null || update.review_id === state.reviewId)
+  && update.layout !== null && !update.layout.replace && update.layout.version > state.version
+
+/**
+ * Ответ ревью поверх того, что клиент уже знает. Устаревший ответ (меньшая ревизия) ничего не меняет,
+ * кроме раскладки новой версии: её строки ложатся всегда, иначе номера строк двух раскладок смешаются.
+ */
 export function applyUpdate(state: ReviewState, update: ReviewUpdate, options: ApplyOptions = {}): ReviewState {
   if (state.reviewId !== null && update.review_id !== state.reviewId) return state
-  if (update.revision < state.revision) return state
-  const layout = update.layout !== null && update.layout.version >= state.version ? update.layout : null
-  const replace = layout?.replace ?? false
+  const stale = update.revision < state.revision
+  const incoming = update.layout
+  const newer = incoming !== null && incoming.version > state.version
+  const layout = incoming !== null && (newer || (!stale && incoming.version === state.version)) ? incoming : null
+  if (stale && layout === null) return state
+  // Раскладка новой версии без replace — значит, replace пропущен: прежние строки ей не принадлежат.
+  const replace = layout !== null && (layout.replace || newer)
 
-  const removed = new Set(update.removed)
+  const removed = new Set(stale ? [] : update.removed)
   // Без изменений карта остаётся той же: по ней кэшируются номера строк.
   let rows = state.rows
   if (layout !== null || removed.size > 0) {
@@ -62,12 +77,16 @@ export function applyUpdate(state: ReviewState, update: ReviewUpdate, options: A
   let cards = state.cards
   if (replace || update.cards.length > 0 || removed.size > 0) {
     const next = new Map(replace ? [] : state.cards)
-    for (const card of update.cards) next.set(card.phrase_id, card)
+    for (const card of update.cards) {
+      // У устаревшего ответа карточка старше той, что у клиента: берём его только за неимением своей.
+      const own = state.cards.get(card.phrase_id)
+      next.set(card.phrase_id, stale && own ? own : card)
+    }
     for (const id of removed) next.delete(id)
     cards = next
   }
 
-  const doneEntries = Object.entries(update.done)
+  const doneEntries = stale ? [] : Object.entries(update.done)
   let done = state.done
   if (doneEntries.length > 0) {
     const next = new Map(state.done)
@@ -77,15 +96,15 @@ export function applyUpdate(state: ReviewState, update: ReviewUpdate, options: A
 
   return {
     reviewId: update.review_id,
-    revision: options.window ? state.revision : update.revision,
-    header: update.header,
+    revision: options.window || stale ? state.revision : update.revision,
+    header: stale ? state.header : update.header,
     version: layout?.version ?? state.version,
     totalRows: layout?.total_rows ?? state.totalRows,
     totalCards: layout?.total_cards ?? state.totalCards,
     rows,
     cards,
     done,
-    currentId: update.focus_id ?? state.currentId,
+    currentId: stale ? state.currentId : update.focus_id ?? state.currentId,
   }
 }
 

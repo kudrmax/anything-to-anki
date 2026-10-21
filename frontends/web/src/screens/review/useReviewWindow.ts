@@ -3,7 +3,7 @@ import { api, ApiError, ReviewExpiredError } from '@/api/client'
 import type { CandidateSection, GenerationOverview, ReviewContext, ReviewUpdate, SetScope, SourceDocument, StoredCandidate } from '@/api/types'
 import type { SortOrder } from '@/lib/preferences'
 import {
-  applyUpdate, currentRow, doneMarks, forgetDone, initialState, neighbour, reopened, rowIndexOf, withCurrent,
+  applyUpdate, currentRow, doneMarks, forgetDone, initialState, missesReplace, neighbour, reopened, rowIndexOf, withCurrent,
   type ApplyOptions, type ReviewState,
 } from './reviewState'
 
@@ -12,6 +12,10 @@ export const POLL_INTERVAL_MS = 3000
 export const ROWS_PER_FETCH = 50
 /** Высота свёрнутой строки, пока её нет: заглушка держит место под незагруженные строки. */
 export const ROW_ESTIMATE_PX = 50
+/** Через сколько после перехода сервер узнаёт новую текущую: переход мгновенный, листание не шлёт запрос на каждый шаг. */
+const CURRENT_SYNC_DELAY_MS = 200
+/** Проверок соседа: до загрузки строк, после неё и после повторной, если ответ строк устарел. */
+const STEP_ATTEMPTS = 3
 const NOT_FOUND = 404
 const AI_UNAVAILABLE = 503
 
@@ -53,9 +57,14 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
   /** Разделы, которые раскрыл пользователь: ревью, открытое заново, раскрывает их же. */
   const openedSections = useRef<Set<CandidateSection>>(new Set())
 
+  /** Окно вокруг текущей: после пропущенного replace у клиента только строки новой раскладки из ответа. */
+  const recenter = useRef<() => void>(() => {})
   const apply = useCallback((update: ReviewUpdate, options: ApplyOptions = {}): boolean => {
+    const missed = missesReplace(stateRef.current, update)
+    const fresh = update.revision >= stateRef.current.revision
     const applied = commit(s => applyUpdate(s, update, options))
-    if (applied && update.header.ai_unavailable) setAiBlocked(true)
+    if (applied && fresh && update.header.ai_unavailable) setAiBlocked(true)
+    if (applied && missed) recenter.current()
     return applied
   }, [commit])
 
@@ -99,8 +108,10 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
    */
   const mutate = useCallback(async (call: ReviewCall<ReviewUpdate>): Promise<ReviewUpdate> => {
     const update = await send(call)
+    const stale = update.revision < stateRef.current.revision
+    apply(update)
     // Опрос мог обогнать нажатие: устаревший ответ ничего не меняет, но фокус нажатия не теряется.
-    if (!apply(update) && update.focus_id !== null && rowIndexOf(stateRef.current, update.focus_id) !== undefined) {
+    if (stale && update.focus_id !== null && rowIndexOf(stateRef.current, update.focus_id) !== undefined) {
       const focus = update.focus_id
       commit(s => withCurrent(s, focus))
     }
@@ -152,31 +163,63 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     return entry.done
   }, [send, apply])
 
+  useEffect(() => {
+    recenter.current = () => {
+      const id = stateRef.current.currentId
+      if (id === null) return
+      send(ctx => api.reviewAround(ctx, id))
+        .then(update => { apply(update, { window: true }) })
+        .catch(e => { if (isNotFound(e)) setGone(true) })
+    }
+  }, [send, apply])
+
+  // Сервер раскрывает раздел текущей карточки сам: ушли с неё — он узнаёт об этом сразу после перехода,
+  // а ответ сворачивает раздел, если список изменился. Переход не ждёт ответа.
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(syncTimer.current), [])
+  const moveTo = useCallback((phraseId: number) => {
+    if (!commit(s => withCurrent(s, phraseId))) return
+    clearTimeout(syncTimer.current)
+    syncTimer.current = setTimeout(() => {
+      send(ctx => api.reviewChanges(ctx))
+        .then(update => { apply(update) })
+        .catch(e => { if (isNotFound(e)) setGone(true) })
+    }, CURRENT_SYNC_DELAY_MS)
+  }, [commit, send, apply])
+
   /** К карточке: загруженная становится текущей сразу, дальняя приходит с окном вокруг неё. */
   const goTo = useCallback(async (phraseId: number) => {
     if (rowIndexOf(stateRef.current, phraseId) !== undefined) {
-      commit(s => withCurrent(s, phraseId))
+      moveTo(phraseId)
       return
     }
-    const around = () => send(ctx => api.reviewAround(ctx, phraseId))
+    const around = async () => { apply(await send(ctx => api.reviewAround(ctx, phraseId)), { window: true }) }
+    await around()
     // Ответ, который обогнало изменение, устарел: окно просим ещё раз.
-    if (!apply(await around(), { window: true })) apply(await around(), { window: true })
-  }, [send, apply, commit])
+    if (stateRef.current.currentId !== phraseId) await around()
+  }, [send, apply, moveTo])
 
-  /** Соседняя карточка видимого списка; строки рядом догружаются, если их ещё нет. */
-  const step = useCallback(async (delta: 1 | -1) => {
-    let target = neighbour(stateRef.current, delta)
-    if (target === undefined) {
+  /** Соседняя карточка видимого списка; строки рядом догружаются, если их ещё нет. Шаги идут по очереди. */
+  const stepping = useRef<Promise<void>>(Promise.resolve())
+  const stepOnce = useCallback(async (delta: 1 | -1) => {
+    for (let attempt = 0; attempt < STEP_ATTEMPTS; attempt++) {
+      const target = neighbour(stateRef.current, delta)
+      if (target === null) return
+      if (target !== undefined) {
+        moveTo(target)
+        return
+      }
       const index = rowIndexOf(stateRef.current, stateRef.current.currentId)
       if (index === undefined) return
       const start = delta > 0 ? index + 1 : Math.max(0, index - ROWS_PER_FETCH)
+      // Устаревший ответ строк не ложится: тогда просим их ещё раз.
       await loadRows(start, delta > 0 ? ROWS_PER_FETCH : index - start)
-      target = neighbour(stateRef.current, delta)
     }
-    if (target === null || target === undefined) return
-    const id = target
-    commit(s => withCurrent(s, id))
-  }, [loadRows, commit])
+  }, [loadRows, moveTo])
+  const step = useCallback((delta: 1 | -1): Promise<void> => {
+    stepping.current = stepping.current.catch(() => {}).then(() => stepOnce(delta))
+    return stepping.current
+  }, [stepOnce])
 
   const toggleSection = useCallback(async (section: CandidateSection, isOpen: boolean) => {
     const open = !isOpen

@@ -63,26 +63,75 @@ const insideWrapper = (node: ts.Node): boolean => {
 }
 
 /** Вызовы api.<изменение>, которые не стоят внутри mutate(...). */
+const isApi = (node: ts.Node): boolean => ts.isIdentifier(node) && node.text === 'api'
+
+/** Имя изменения, если узел — обращение к api.<изменение> или api['<изменение>']. */
+function mutationReferenced(node: ts.Node): string | null {
+  if (ts.isPropertyAccessExpression(node) && isApi(node.expression)) return MUTATIONS.includes(node.name.text) ? node.name.text : null
+  if (ts.isElementAccessExpression(node) && isApi(node.expression)) {
+    const key = node.argumentExpression
+    // Ключ, вычисленный на ходу, проверить нельзя: такой доступ к api запрещён целиком.
+    if (!ts.isStringLiteralLike(key)) return `api[${key.getText()}]`
+    return MUTATIONS.includes(key.text) ? key.text : null
+  }
+  return null
+}
+
+/**
+ * Изменения, отправленные не через mutate: вызов api.<изменение> вне mutate(...), любое обращение
+ * к нему не ради вызова (ссылка, сохранённая в переменную) и деструктуризация из api.
+ */
 export function mutationsOutsideWrapper(text: string): string[] {
   const found: string[] = []
   walk(parse(text), node => {
-    if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) return
-    const { expression: owner, name } = node.expression
-    if (ts.isIdentifier(owner) && owner.text === 'api' && MUTATIONS.includes(name.text) && !insideWrapper(node)) found.push(name.text)
+    const name = mutationReferenced(node)
+    if (name !== null) {
+      const called = ts.isCallExpression(node.parent) && node.parent.expression === node
+      const computed = name.startsWith('api[')
+      if (computed || !called || !insideWrapper(node.parent)) found.push(name)
+      return
+    }
+    if (ts.isVariableDeclaration(node) && node.initializer && isApi(node.initializer) && ts.isObjectBindingPattern(node.name)) {
+      for (const element of node.name.elements) {
+        const key = (element.propertyName ?? element.name).getText()
+        if (MUTATIONS.includes(key)) found.push(key)
+      }
+    }
   })
   return found
 }
 
-/** Отбор (filter, find, some…), чей предикат читает is_done или раздел карточки. */
+/** Читает ли код is_done или раздел карточки: через точку или деструктуризацией. */
+function readsCardState(node: ts.Node): boolean {
+  let reads = false
+  walk(node, inner => {
+    if (ts.isPropertyAccessExpression(inner) && CARD_STATE.has(inner.name.text)) reads = true
+    if (ts.isElementAccessExpression(inner) && ts.isStringLiteralLike(inner.argumentExpression) && CARD_STATE.has(inner.argumentExpression.text)) reads = true
+    if (ts.isBindingElement(inner) && CARD_STATE.has((inner.propertyName ?? inner.name).getText())) reads = true
+  })
+  return reads
+}
+
+const isLoop = (node: ts.Node): node is ts.IterationStatement =>
+  ts.isForStatement(node) || ts.isForOfStatement(node) || ts.isForInStatement(node) || ts.isWhileStatement(node) || ts.isDoStatement(node)
+
+/** Отбор карточек по is_done или разделу: предикат filter, find, some… или условие внутри цикла. */
 export function selectionsByCardState(text: string): string[] {
   const found: string[] = []
   walk(parse(text), node => {
-    if (!ts.isCallExpression(node) || !SELECTING.has(calleeName(node) ?? '')) return
-    const predicate = node.arguments[0]
-    if (!predicate || !(ts.isArrowFunction(predicate) || ts.isFunctionExpression(predicate))) return
-    walk(predicate.body, inner => {
-      if (ts.isPropertyAccessExpression(inner) && CARD_STATE.has(inner.name.text)) found.push(node.getText())
+    if (ts.isCallExpression(node) && SELECTING.has(calleeName(node) ?? '')) {
+      const predicate = node.arguments[0]
+      if (predicate && (ts.isArrowFunction(predicate) || ts.isFunctionExpression(predicate)) && readsCardState(predicate)) found.push(node.getText())
+      return
+    }
+    if (!isLoop(node)) return
+    if (ts.isForOfStatement(node) && ts.isVariableDeclarationList(node.initializer) && readsCardState(node.initializer)) found.push(node.getText())
+    walk(node.statement, inner => {
+      const condition = ts.isIfStatement(inner) ? inner.expression : ts.isConditionalExpression(inner) ? inner.condition : null
+      if (condition && readsCardState(condition)) found.push(inner.getText())
     })
+    const loopCondition = ts.isForStatement(node) ? node.condition : ts.isWhileStatement(node) || ts.isDoStatement(node) ? node.expression : undefined
+    if (loopCondition && readsCardState(loopCondition)) found.push(node.getText())
   })
   return found
 }
@@ -117,6 +166,18 @@ describe('review screen architecture', () => {
   it('catches a planted change outside mutate and a planted selection by card state', () => {
     expect(mutationsOutsideWrapper('const f = () => api.decidePhrase(ctx, 1, "learn")')).toEqual(['decidePhrase'])
     expect(mutationsOutsideWrapper('mutate(ctx => api.decidePhrase(ctx, 1, "learn"))')).toEqual([])
+    expect(mutationsOutsideWrapper('const { decidePhrase } = api')).toEqual(['decidePhrase'])
+    expect(mutationsOutsideWrapper('const { decidePhrase: decide } = api')).toEqual(['decidePhrase'])
+    expect(mutationsOutsideWrapper('mutate(ctx => api["decidePhrase"](ctx, 1, "learn")); api["editPhrase"](ctx, 1, "p")')).toEqual(['editPhrase'])
+    expect(mutationsOutsideWrapper('const send = api.decidePhrase; mutate(ctx => send(ctx, 1, "learn"))')).toEqual(['decidePhrase'])
+    expect(mutationsOutsideWrapper('mutate(ctx => api[name](ctx))')).toEqual(['api[name]'])
+    expect(selectionsByCardState('cards.filter(({ is_done }) => !is_done)')).toHaveLength(1)
+    expect(selectionsByCardState('cards.find(({ section: s }) => s === x)')).toHaveLength(1)
+    expect(selectionsByCardState('for (const c of cards) { if (c.is_done) continue; out.push(c) }')).toHaveLength(1)
+    expect(selectionsByCardState('for (const { section } of rows) out.push(section)')).toHaveLength(1)
+    expect(selectionsByCardState('while (rows[i].section !== s) i++')).toHaveLength(1)
+    expect(selectionsByCardState('for (const r of rows) out.push(r.is_done ? 1 : 0)')).toHaveLength(1)
+    expect(selectionsByCardState('for (const r of rows) if (r.phrase_id !== null) out.push(r)')).toEqual([])
     expect(selectionsByCardState('cards.filter(c => !c.is_done)')).toHaveLength(1)
     expect(selectionsByCardState('rows.some(function (r) { return r.section === s })')).toHaveLength(1)
     expect(selectionsByCardState('rows.find(r => r.index === 1)')).toEqual([])

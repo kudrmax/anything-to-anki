@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { cardRow, layout, reviewCard, reviewUpdate, sectionRow } from './reviewFixtures'
-import { applyUpdate, forgetDone, initialState, listRows, neighbour, reopened, withCurrent, type ReviewState } from './reviewState'
+import { applyUpdate, forgetDone, initialState, listRows, missesReplace, neighbour, reopened, withCurrent, type ReviewState } from './reviewState'
 
 const card = (id: number) => reviewCard({ phrase_id: id, word_id: id })
 const loadedIds = (state: ReviewState) => [...state.rows.values()].map(r => r.phrase_id ?? r.section)
@@ -51,6 +51,34 @@ describe('applyUpdate', () => {
     const late = applyUpdate(state, reviewUpdate({ revision: 6, layout: layout([cardRow(0, 99)], { version: 1, total_rows: 100 }) }))
     expect(loadedIds(late)).toEqual([41])
     expect(late.totalRows).toBe(10)
+  })
+
+  it('applies a newer layout even when the rest of its update is stale', () => {
+    const state = applyUpdate(opened(), reviewUpdate({ revision: 7, cards: [{ ...card(41), lemma: 'fresh' }] }))
+    const late = applyUpdate(state, reviewUpdate({
+      revision: 6,
+      layout: layout([cardRow(3, 41), cardRow(4, 9)], { version: 1, total_rows: 20, total_cards: 20, replace: true }),
+      cards: [{ ...card(41), lemma: 'old' }, card(9)],
+      done: { 41: true },
+      focus_id: 9,
+    }))
+    expect(loadedIds(late)).toEqual([41, 9])
+    expect(late).toMatchObject({ version: 1, totalRows: 20, revision: 7, currentId: 41 })
+    expect(late.cards.get(41)?.lemma).toBe('fresh')
+    expect(late.cards.has(9)).toBe(true)
+    expect(late.done.has(41)).toBe(false)
+  })
+
+  it('takes a newer layout that comes without replace as a replace it missed', () => {
+    const state = opened()
+    const update = reviewUpdate({
+      revision: 6, layout: layout([cardRow(7, 41)], { version: 1, total_rows: 30, total_cards: 30 }), cards: [card(41)],
+    })
+    expect(missesReplace(state, update)).toBe(true)
+    const next = applyUpdate(state, update)
+    expect(loadedIds(next)).toEqual([41])
+    expect([...next.cards.keys()]).toEqual([41])
+    expect(missesReplace(next, reviewUpdate({ revision: 6, layout: layout([cardRow(8, 42)], { version: 1, total_rows: 30 }) }))).toBe(false)
   })
 
   it('takes removed cards out of the rows and the cards', () => {

@@ -36,18 +36,16 @@ export function ReviewList({ state, onLoad, renderCard, onToggleSection, followK
   const { currentId, reviewId, cards } = state
   const currentIndex = rowIndexOf(state, currentId)
 
-  // Текущая карточка в поле зрения: после открытия — сразу, при переходе — плавно, если она рядом.
-  // Перестроенный список (раскрыли раздел) не прокручивается: взгляд остаётся там, где был.
-  const shown = useRef<{ reviewId: string | null; currentId: number | null; index: number | undefined; followKey: unknown } | null>(null)
+  // Текущая карточка в поле зрения, плавно, как раньше. Перестроенный список (раскрыли раздел)
+  // не прокручивается: взгляд остаётся там, где был.
+  const shown = useRef<{ reviewId: string | null; currentId: number | null; followKey: unknown } | null>(null)
   useLayoutEffect(() => {
     const before = shown.current
     const target = ref.current?.querySelector(`[data-candidate-id="${currentId}"]`)
     if (!target) return
-    shown.current = { reviewId, currentId, index: currentIndex, followKey }
+    shown.current = { reviewId, currentId, followKey }
     if (before && before.reviewId === reviewId && before.currentId === currentId && before.followKey === followKey) return
-    const near = before?.reviewId === reviewId && before.index !== undefined && currentIndex !== undefined
-      && Math.abs(before.index - currentIndex) <= ROWS_PER_FETCH
-    target.scrollIntoView({ block: 'nearest', behavior: near ? 'smooth' : 'auto' })
+    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [reviewId, currentId, currentIndex, followKey])
 
   useEffect(() => {

@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ReviewExpiredError } from '@/api/client'
 import type { GenerationOverview, ReviewContext, ReviewUpdate, SourceDocument } from '@/api/types'
-import { cardRow, header, layout, REVIEW_ID, reviewCard, reviewUpdate } from './reviewFixtures'
+import { cardRow, header, layout, REVIEW_ID, reviewCard, reviewUpdate, sectionRow } from './reviewFixtures'
 import { ReviewList } from './ReviewList'
 import { SourceTexts } from './SourceTexts'
 import { POLL_INTERVAL_MS, useReviewWindow, type ReviewWindow } from './useReviewWindow'
@@ -104,6 +104,60 @@ describe('useReviewWindow', () => {
     await act(async () => { await latest.goTo(42) })
     expect(latest.current?.phrase_id).toBe(42)
     expect(api.reviewAround).not.toHaveBeenCalled()
+  })
+
+  it('tells the server when the current card leaves a section it opened, and takes the folded list', async () => {
+    // 41 открыта ссылкой в свёрнутом Extra: сервер раскрыл раздел сам. 40 — последняя в Ready.
+    vi.mocked(api.openReview).mockResolvedValue(reviewUpdate({
+      layout: layout([cardRow(0, 40, 1), sectionRow(1, 'extra', 2, true), cardRow(2, 41, 2), cardRow(3, 42, 3)], { replace: true }),
+      cards: [card(40), card(41), card(42)],
+      focus_id: 41,
+    }))
+    vi.mocked(api.reviewChanges).mockResolvedValue(reviewUpdate({
+      revision: 2, layout: layout([cardRow(0, 40, 1), sectionRow(1, 'extra', 2, false)], { version: 1, replace: true }), cards: [card(40)],
+    }))
+    await render()
+
+    await act(async () => { await latest.goTo(40) })
+    expect(latest.current?.phrase_id).toBe(40)
+    expect(api.reviewChanges).not.toHaveBeenCalled()
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 300)) })
+
+    expect(vi.mocked(api.reviewChanges).mock.calls).toEqual([[{ review_id: REVIEW_ID, since: 1, current: 40 }]])
+    expect(host.textContent).toContain('Show 2 phrases with more new words')
+    expect(latest.state.totalRows).toBe(2)
+  })
+
+  it('a newer list that comes without replace asks for the window around the current card', async () => {
+    vi.spyOn(api, 'reviewAround').mockResolvedValue(windowAround(41, { revision: 2, layout: layout([cardRow(40, 40), cardRow(41, 41), cardRow(42, 42)], { version: 1, total_rows: TOTAL, total_cards: TOTAL }) }))
+    await render()
+    await act(async () => {
+      await latest.mutate(async () => reviewUpdate({ revision: 2, layout: layout([cardRow(41, 41)], { version: 1, total_rows: TOTAL, total_cards: TOTAL }), cards: [card(41)] }))
+    })
+    await flush()
+    expect(vi.mocked(api.reviewAround).mock.calls).toEqual([[{ review_id: REVIEW_ID, since: 2, current: 41 }, 41]])
+    expect([...latest.state.rows.keys()].sort()).toEqual([40, 41, 42])
+  })
+
+  it('a step asks for the rows once more when their first answer came stale', async () => {
+    await render()
+    await act(async () => { await latest.mutate(async () => reviewUpdate({ revision: 3, focus_id: 42 })) })
+    vi.mocked(api.reviewRows)
+      .mockResolvedValueOnce(reviewUpdate({ revision: 2, layout: layout([cardRow(43, 43)], { total_rows: TOTAL, total_cards: TOTAL }), cards: [card(43)] }))
+      .mockResolvedValueOnce(reviewUpdate({ revision: 3, layout: layout([cardRow(43, 43)], { total_rows: TOTAL, total_cards: TOTAL }), cards: [card(43)] }))
+    await act(async () => { await latest.step(1) })
+    expect(api.reviewRows).toHaveBeenCalledTimes(2)
+    expect(latest.current?.phrase_id).toBe(43)
+  })
+
+  it('steps pressed while rows load land one after another, not on the same card', async () => {
+    vi.mocked(api.reviewRows).mockImplementation(async () => reviewUpdate({
+      layout: layout([cardRow(43, 43), cardRow(44, 44)], { total_rows: TOTAL, total_cards: TOTAL }), cards: [card(43), card(44)],
+    }))
+    await render()
+    await act(async () => { await latest.goTo(42) })
+    await act(async () => { await Promise.all([latest.step(1), latest.step(1)]) })
+    expect(latest.current?.phrase_id).toBe(44)
   })
 
   it('Review Focus 5: an expired review opens again on the current card and the press goes once more', async () => {
