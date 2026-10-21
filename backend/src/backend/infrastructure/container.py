@@ -24,6 +24,7 @@ from backend.application.use_cases.delete_collection import DeleteCollectionUseC
 from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
 from backend.application.use_cases.describe_input import DescribeInputUseCase
+from backend.application.use_cases.favorite_collection import FavoriteCollectionUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
@@ -230,7 +231,8 @@ from backend.infrastructure.readers.plain_reader import PlainReader
 from backend.infrastructure.readers.srt_reader import SrtReader
 from backend.infrastructure.readers.video_file_reader import VideoFileReader
 from backend.infrastructure.readers.youtube_reader import YouTubeReader
-from backend.infrastructure.review.in_memory_review_order_store import InMemoryReviewOrderStore
+from backend.infrastructure.review.file_review_order_store import FileReviewOrderStore
+from backend.infrastructure.review.open_review_codec import OpenReviewCodec
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
 
 if TYPE_CHECKING:
@@ -281,6 +283,7 @@ if TYPE_CHECKING:
     from backend.application.utils.requested_cards import RequestedCards
     from backend.domain.ports.clock import Clock
     from backend.domain.ports.format_reader import FormatReader
+    from backend.domain.ports.review_order_store import ReviewOrderStore
     from backend.domain.ports.target_image_source import TargetImageSource
     from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
     from backend.domain.value_objects.prompts_config import PromptsConfig
@@ -291,6 +294,8 @@ logger = logging.getLogger(__name__)
 # Where a session keeps its knowledge scope (`Session.info`).
 KNOWLEDGE_SCOPE_KEY = "knowledge_scope"
 CHANGE_RECORDER_KEY = "change_recorder"
+# The folder under the data folder where the open reviews are written.
+OPEN_REVIEWS_DIR = "open_reviews"
 
 
 class Container:
@@ -417,9 +422,9 @@ class Container:
         self._write_gate: WriteGate = write_gate or RefuseDuringLevelChange()
         self._level_change_progress = LevelChangeProgress()
         self._session_factory: sessionmaker[Session] | None = session_factory
-        # The open reviews live as long as the app: a restart lets them go.
-        self._review_order_store: InMemoryReviewOrderStore[OpenReview] = (
-            InMemoryReviewOrderStore()
+        # The open reviews outlive a restart: the client goes on with the order it has.
+        self._review_order_store: ReviewOrderStore[OpenReview] = FileReviewOrderStore(
+            Path(data_dir) / OPEN_REVIEWS_DIR, OpenReviewCodec(),
         )
         # The laid-out documents of the sources read last, for the life of the app.
         self._source_texts = SourceTexts()
@@ -652,6 +657,12 @@ class Container:
 
     def rename_collection_use_case(self, session: Session) -> RenameCollectionUseCase:
         return RenameCollectionUseCase(
+            collection_repo=SqlaCollectionRepository(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def favorite_collection_use_case(self, session: Session) -> FavoriteCollectionUseCase:
+        return FavoriteCollectionUseCase(
             collection_repo=SqlaCollectionRepository(session),
             unit_of_work=self._unit_of_work(session),
         )

@@ -26,6 +26,7 @@ interface ScopeHeaderProps {
   onRename: () => void
   onNewSubcollection: () => void
   onMoveTo: () => void
+  onFavorite: () => void
   onDelete: () => void
   /** Группировка и сортировка списка: в том же меню, отдельной группой. */
   viewItems: MenuItem[]
@@ -91,9 +92,9 @@ function ScopeTitle({ title, ancestors, onOpen }: { title: string; ancestors: Co
 }
 
 /** Высота и места кнопок не зависят от области и глубины: при переключении ничего не прыгает. */
-export function ScopeHeader({ title, ancestors, counts, node, processing, onOpenAncestor, onProcessAll, onReview, onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onDelete, viewItems }: ScopeHeaderProps) {
+export function ScopeHeader({ title, ancestors, counts, node, processing, onOpenAncestor, onProcessAll, onReview, onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onFavorite, onDelete, viewItems }: ScopeHeaderProps) {
   const menuItems: MenuItem[] = (() => {
-    if (node) return collectionMenuItems(node, { onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onDelete, viewItems })
+    if (node) return collectionMenuItems(node, { onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onFavorite, onDelete, viewItems })
     return counts ? scopeMenuItems(counts, { onExport, onOperation, viewItems }) : []
   })()
   return (

@@ -6,13 +6,14 @@ import { MoveToModal } from './MoveToModal'
 
 const counts = { total: 1, reviewed: 0, pending: 1, progress: { decided: 0, total: 0 }, status: 'new' as const, can_process: true, can_review: false, review_fraction: 0, progress_caption: '', available_operations: [], can_start_operation: true, operation_hint: null, can_export: false }
 const node = (id: number, name: string, parentId: number | null, depth: number, moveTargets: (number | null)[], children: CollectionNode[] = []): CollectionNode => ({
-  id, name, parent_id: parentId, counts, depth, accepts_collections: true, move_targets: moveTargets, children,
+  id, name, parent_id: parentId, counts, depth, favorite: false, accepts_collections: true, move_targets: moveTargets, children,
 })
 // Friends › Season 1 › Episodes › Ep 1; Season 2; Podcasts. Цели переноса задаёт backend.
 const tree: CollectionTree = {
   all: counts,
   unsorted: counts,
   max_depth: 4,
+  favorites: [],
   collections: [
     node(1, 'Friends', null, 1, [null, 2], [
       node(11, 'Season 1', 1, 2, [null, 1, 12, 2], [

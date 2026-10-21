@@ -13,7 +13,12 @@ from backend.application.dto.cefr_dtos import (
 )
 from backend.application.dto.cloze_dtos import CandidateClozeDTO
 from backend.application.dto.document_dtos import DocumentPositionDTO
-from backend.domain.services.card_view import Command, ShownTone, Where  # noqa: TC001 — Pydantic
+from backend.domain.services.card_view import (  # noqa: TC001 — Pydantic
+    Closes,
+    Command,
+    ShownTone,
+    Where,
+)
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.services.meaning_action import (  # Pydantic needs it at runtime
     MeaningAction,
@@ -196,18 +201,20 @@ class PhraseDTO(BaseModel):
 class ButtonDTO(BaseModel):
     """A decision button of a card. `command`: what a press does — `decide` sends the
     button, `edit_cloze` opens the markup editor, whose Save is the press; null — the
-    button is off, and `refused` tells why. `pressed`: the button holds the card's decision."""
+    button is off, and `refused` tells why. `pressed`: the button holds the card's decision.
+    `closes`: what the press leaves done — the lemma's cards or this card; null — nothing."""
 
     button: Press
     command: Command | None
     pressed: bool
     refused: Refusal | None
+    closes: Closes | None
 
     @staticmethod
     def of(button: ButtonState) -> ButtonDTO:
         return ButtonDTO(
             button=button.button, command=button.command, pressed=button.pressed,
-            refused=button.refused,
+            refused=button.refused, closes=button.closes,
         )
 
 

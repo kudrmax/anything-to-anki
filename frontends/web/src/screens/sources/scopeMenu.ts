@@ -1,4 +1,4 @@
-import { FolderInput, FolderPlus, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { FolderInput, FolderPlus, Pencil, RefreshCw, Star, StarOff, Trash2, Upload } from 'lucide-react'
 import type { CollectionNode, SetOffer, SetOperation } from '@/api/types'
 import type { MenuItem } from '@/ui'
 
@@ -9,6 +9,7 @@ export interface ScopeMenuHandlers {
   onRename?: () => void
   onNewSubcollection?: () => void
   onMoveTo?: () => void
+  onFavorite?: () => void
   onDelete?: () => void
   /** Вид списка (группировка, сортировка): отдельной группой перед Delete. */
   viewItems?: MenuItem[]
@@ -21,13 +22,16 @@ const OPERATION_LABEL: Record<SetOperation, string> = {
 }
 
 /** Одно меню «…» для источника и набора: в строке источника, в шапке области и в дереве. */
-export function scopeMenuItems(offer: SetOffer, handlers: ScopeMenuHandlers): MenuItem[] {
-  const { onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onDelete, viewItems = [] } = handlers
+export function scopeMenuItems(offer: SetOffer, handlers: ScopeMenuHandlers, favorite = false): MenuItem[] {
+  const { onExport, onOperation, onRename, onNewSubcollection, onMoveTo, onFavorite, onDelete, viewItems = [] } = handlers
   return [
     ...(offer.can_export ? [{ label: 'Export', icon: Upload, onSelect: onExport }] : []),
     ...(onRename ? [{ label: 'Rename', icon: Pencil, onSelect: onRename }] : []),
     ...(onNewSubcollection ? [{ label: 'New subcollection', icon: FolderPlus, onSelect: onNewSubcollection }] : []),
     ...(onMoveTo ? [{ label: 'Move to…', icon: FolderInput, onSelect: onMoveTo }] : []),
+    ...(onFavorite ? [favorite
+      ? { label: 'Remove from favorites', icon: StarOff, onSelect: onFavorite }
+      : { label: 'Add to favorites', icon: Star, onSelect: onFavorite }] : []),
     ...offer.available_operations.map(operation => ({
       label: OPERATION_LABEL[operation],
       icon: RefreshCw,
@@ -45,5 +49,5 @@ export function collectionMenuItems(node: CollectionNode, handlers: Required<Omi
   return scopeMenuItems(node.counts, {
     ...handlers,
     onNewSubcollection: node.accepts_collections ? handlers.onNewSubcollection : undefined,
-  })
+  }, node.favorite)
 }

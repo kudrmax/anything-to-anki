@@ -217,6 +217,73 @@ describe('useReviewWindow', () => {
     expect(latest.current?.phrase_id).toBe(42)
   })
 
+  /** Ответ, который придёт, когда тест скажет. */
+  const deferred = () => {
+    let resolve: (update: ReviewUpdate) => void = () => {}
+    let reject: (e: Error) => void = () => {}
+    const promise = new Promise<ReviewUpdate>((ok, fail) => { resolve = ok; reject = fail })
+    return { promise, resolve, reject }
+  }
+
+  it('#18: a press moves to the next card before its answer; the presses go to the server one after another', async () => {
+    await render()
+    const first = deferred()
+    const second = deferred()
+    const calls: ReviewContext[] = []
+    let running: Promise<unknown> = Promise.resolve()
+    act(() => {
+      running = latest.mutate(ctx => { calls.push(ctx); return first.promise }, { phraseId: 41, closes: 'card' })
+    })
+    expect(latest.current?.phrase_id).toBe(42)
+    expect(latest.state.done.get(41)?.done).toBe(true)
+
+    let next: Promise<unknown> = Promise.resolve()
+    act(() => {
+      next = latest.mutate(ctx => { calls.push(ctx); return second.promise }, { phraseId: 42, closes: 'card' })
+    })
+    await flush()
+    expect(calls).toHaveLength(1)
+
+    await act(async () => {
+      first.resolve(reviewUpdate({ revision: 2, done: { 41: true }, focus_id: 42 }))
+      await running
+    })
+    await flush()
+    expect(calls).toHaveLength(2)
+    // Экран ушёл дальше: фокус первого ответа его не тянет назад.
+    expect(latest.state.currentId).toBe(42)
+    await act(async () => {
+      second.resolve(reviewUpdate({ revision: 3, done: { 42: true }, focus_id: 43 }))
+      await next
+    })
+    expect(latest.state.currentId).toBe(43)
+  })
+
+  it('#18: the answer moves the focus where the server put it when the screen guessed otherwise', async () => {
+    await render()
+    await act(async () => {
+      await latest.mutate(async () => reviewUpdate({
+        revision: 2, done: { 41: true, 42: true }, focus_id: 90,
+        layout: layout([cardRow(89, 90)], { total_rows: TOTAL, total_cards: TOTAL }), cards: [card(90)],
+      }), { phraseId: 41, closes: 'card' })
+    })
+    expect(latest.state.currentId).toBe(90)
+  })
+
+  it('#18: a refused press takes back its marks and returns to the pressed card', async () => {
+    await render()
+    const answer = deferred()
+    let running: Promise<unknown> = Promise.resolve()
+    act(() => { running = latest.mutate(() => answer.promise, { phraseId: 41, closes: 'card' }) })
+    expect(latest.state.currentId).toBe(42)
+    await act(async () => {
+      answer.reject(new Error('409: {"detail":"Already known"}'))
+      await running.catch(() => {})
+    })
+    expect(latest.state.currentId).toBe(41)
+    expect(latest.state.done.has(41)).toBe(false)
+  })
+
   it('steps to the next card, fetching the rows after the current one first when they are missing', async () => {
     vi.mocked(api.reviewRows).mockResolvedValue(reviewUpdate({
       layout: layout([cardRow(43, 43), cardRow(44, 44)], { total_rows: TOTAL, total_cards: TOTAL }), cards: [card(43), card(44)],

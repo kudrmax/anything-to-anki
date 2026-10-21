@@ -10,7 +10,7 @@ const counts: ScopeCounts = {
   available_operations: ['update'], can_start_operation: true, operation_hint: null, can_export: true,
 }
 const node = (id: number, name: string, depth: number): CollectionNode => ({
-  id, name, parent_id: depth === 1 ? null : id - 1, counts, depth, accepts_collections: true, move_targets: [null], children: [],
+  id, name, parent_id: depth === 1 ? null : id - 1, counts, depth, favorite: false, accepts_collections: true, move_targets: [null], children: [],
 })
 const [a, b, c, d] = [node(1, 'A', 1), node(2, 'B', 2), node(3, 'C', 3), node(4, 'D', 4)]
 
@@ -42,7 +42,7 @@ describe('ScopeHeader', () => {
     <ScopeHeader
       title={current?.name ?? 'All sources'} ancestors={ancestors} counts={shown} node={current} processing={processing}
       onOpenAncestor={onOpenAncestor} onProcessAll={noop} onReview={onReview} onExport={noop} onOperation={onOperation}
-      onRename={noop} onNewSubcollection={noop} onMoveTo={noop} onDelete={noop} viewItems={[]}
+      onRename={noop} onNewSubcollection={noop} onMoveTo={noop} onFavorite={noop} onDelete={noop} viewItems={[]}
     />,
   ))
   const title = () => host.querySelector('h1')!
@@ -149,7 +149,14 @@ describe('ScopeHeader', () => {
     render([], a)
     expect(buttons()).not.toContain('Export')
     openMenu()
-    expect(menuLabels()).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Find words again…', 'Delete'])
+    expect(menuLabels()).toEqual(['Export', 'Rename', 'New subcollection', 'Move to…', 'Add to favorites', 'Find words again…', 'Delete'])
+  })
+
+  it('offers to take a favorite collection out of favorites', () => {
+    render([], { ...a, favorite: true })
+    openMenu()
+    expect(menuLabels()).toContain('Remove from favorites')
+    expect(menuLabels()).not.toContain('Add to favorites')
   })
 
   it('offers All only Export and the operations, and runs them on the whole scope', () => {

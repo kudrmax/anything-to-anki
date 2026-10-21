@@ -14,9 +14,10 @@ const tree: CollectionTree = {
   all: counts,
   unsorted: counts,
   max_depth: 5,
+  favorites: [],
   collections: [{
-    id: 10, name: 'Friends', parent_id: null, counts, depth: 1, accepts_collections: true, move_targets: [null],
-    children: [{ id: 11, name: 'Season 1', parent_id: 10, counts, depth: 2, accepts_collections: true, move_targets: [null, 10], children: [] }],
+    id: 10, name: 'Friends', parent_id: null, counts, depth: 1, favorite: false, accepts_collections: true, move_targets: [null],
+    children: [{ id: 11, name: 'Season 1', parent_id: 10, counts, depth: 2, favorite: false, accepts_collections: true, move_targets: [null, 10], children: [] }],
   }],
 }
 

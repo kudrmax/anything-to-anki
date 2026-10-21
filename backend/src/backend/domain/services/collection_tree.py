@@ -48,6 +48,11 @@ class CollectionTree:
             key=lambda c: (c.position, c.id or 0),
         )
 
+    def favorites(self) -> list[Collection]:
+        """In the order they were added."""
+        chosen = [c for c in self._by_id.values() if c.favorited_at is not None]
+        return sorted(chosen, key=lambda c: (c.favorited_at, c.id or 0))
+
     def ancestors(self, collection_id: int) -> list[Collection]:
         """Root first, parent last."""
         chain: list[Collection] = []

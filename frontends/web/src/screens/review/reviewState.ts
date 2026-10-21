@@ -41,6 +41,8 @@ export interface ApplyOptions {
    * с since в нём нет, поэтому ревизия клиента остаётся прежней — их принесёт следующий ответ.
    */
   window?: boolean
+  /** Экран уже перешёл сам (нажатие показано до ответа): фокус ответа не ложится, его решает вызывающий. */
+  keepCurrent?: boolean
 }
 
 /**
@@ -104,7 +106,7 @@ export function applyUpdate(state: ReviewState, update: ReviewUpdate, options: A
     rows,
     cards,
     done,
-    currentId: stale ? state.currentId : update.focus_id ?? state.currentId,
+    currentId: stale || options.keepCurrent ? state.currentId : update.focus_id ?? state.currentId,
   }
 }
 

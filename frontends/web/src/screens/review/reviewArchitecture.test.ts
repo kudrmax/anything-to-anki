@@ -41,6 +41,12 @@ const SEND = 'send'
 const SELECTING = new Set(['filter', 'find', 'findIndex', 'findLast', 'findLastIndex', 'some', 'every'])
 const CARD_STATE = new Set(['is_done', 'section'])
 
+/**
+ * Нажатие показывается до ответа сервера (#18): экран сам переходит к следующей неразобранной карточке,
+ * ответ сервера сверяет. Отбор по is_done разрешён только здесь, решение Макса.
+ */
+const SELECTS_AHEAD = new Set(['pressAhead.ts'])
+
 const sourceFiles = (): { path: string; text: string }[] =>
   ts.sys.readDirectory(REVIEW_DIR, ['.ts', '.tsx'], undefined, undefined, 1)
     .filter(path => !/\.test\.tsx?$/.test(path))
@@ -184,7 +190,9 @@ describe('review screen architecture', () => {
   })
 
   it('selects no cards by is_done or section: it shows these values, it does not compute with them', () => {
-    const offences = sourceFiles().flatMap(file => selectionsByCardState(file.text).map(code => `${file.path}: ${code}`))
+    const offences = sourceFiles()
+      .filter(file => !SELECTS_AHEAD.has(file.path))
+      .flatMap(file => selectionsByCardState(file.text).map(code => `${file.path}: ${code}`))
     expect(offences).toEqual([])
   })
 

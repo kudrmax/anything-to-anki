@@ -4,6 +4,7 @@ import type { GenerationStatus, ProcessingStage, SetOperation, SourceSummary } f
 import { formatDate } from '@/lib/text/format'
 import { Button, Field, Icon, IconButton, Menu, Progress, Spinner, Text } from '@/ui'
 import { SOURCES_MIME } from './CollectionTree'
+import { setStackDragImage } from './dragStack'
 import { ReviewAction } from './ReviewAction'
 import { scopeMenuItems } from './scopeMenu'
 import css from './sources.module.css'
@@ -164,8 +165,10 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
     if (source.can_review && !editing) onReview(source.id)
   }
   const onDragStart = (e: DragEvent) => {
-    e.dataTransfer.setData(SOURCES_MIME, JSON.stringify(dragIds()))
+    const ids = dragIds()
+    e.dataTransfer.setData(SOURCES_MIME, JSON.stringify(ids))
     e.dataTransfer.effectAllowed = 'move'
+    if (ids.length > 1) setStackDragImage(e, e.currentTarget as HTMLElement, ids.length)
   }
 
   return (
