@@ -41,6 +41,17 @@ class InMemoryReviewOrderStore[R](ReviewOrderStore[R]):
             self._let_go()
         return review_id
 
+    def keep(self, review_id: str, review: R) -> None:
+        """Holds the review under an id it had before, unless one is held there already."""
+        with self._lock:
+            if review_id not in self._reviews:
+                self._reviews[review_id] = _Held(review)
+                self._let_go()
+
+    def holds(self, review_id: str) -> bool:
+        with self._lock:
+            return review_id in self._reviews
+
     @contextmanager
     def hold(self, review_id: str) -> Iterator[R]:
         held = self._used(review_id)

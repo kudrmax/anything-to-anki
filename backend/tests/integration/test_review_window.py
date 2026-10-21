@@ -21,7 +21,9 @@ from backend.infrastructure.api.dependencies import (
     get_session_factory,
 )
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
+from backend.infrastructure.review.file_review_order_store import FileReviewOrderStore
 from backend.infrastructure.review.in_memory_review_order_store import InMemoryReviewOrderStore
+from backend.infrastructure.review.open_review_codec import OpenReviewCodec
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
@@ -32,6 +34,7 @@ from tests.word_support import KNOWN, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
+    from pathlib import Path
 
     from backend.application.dto.review_dtos import ReviewUpdateDTO
     from backend.application.dto.source_dtos import CardDTO
@@ -97,15 +100,30 @@ def client(factory: sessionmaker[Session]) -> Iterator[TestClient]:
 
 
 @pytest.fixture()
-def restart() -> Iterator[Callable[[], None]]:
-    """Lets every open review go, as a restart does; the app's store comes back after."""
+def let_go() -> Iterator[Callable[[], None]]:
+    """Lets every open review go, written ones too; the app's store comes back after."""
     container = get_container()
     kept = container._review_order_store  # noqa: SLF001
 
-    def let_go() -> None:
+    def go() -> None:
         container._review_order_store = InMemoryReviewOrderStore()  # noqa: SLF001
 
-    yield let_go
+    yield go
+    container._review_order_store = kept  # noqa: SLF001
+
+
+@pytest.fixture()
+def restart(tmp_path: Path) -> Iterator[Callable[[], None]]:
+    """The app's store writes to a folder of its own, and a restart makes it anew there:
+    memory forgets every review; the app's store comes back after."""
+    container = get_container()
+    kept = container._review_order_store  # noqa: SLF001
+    container._review_order_store = FileReviewOrderStore(tmp_path, OpenReviewCodec())  # noqa: SLF001
+
+    def again() -> None:
+        container._review_order_store = FileReviewOrderStore(tmp_path, OpenReviewCodec())  # noqa: SLF001
+
+    yield again
     container._review_order_store = kept  # noqa: SLF001
 
 
@@ -198,7 +216,7 @@ def test_a_review_keeps_its_order_while_cards_are_decided(
 # --- Review Focus 5: a review the server let go opens again on the same card --------------
 
 def test_a_review_let_go_opens_again_on_its_card_with_its_sections(
-    client: TestClient, restart: Callable[[], None],
+    client: TestClient, let_go: Callable[[], None],
 ) -> None:
     opened = client.post("/api/review", json={
         "scope": SCOPE, "open_sections": ["reviewed"],
@@ -214,7 +232,7 @@ def test_a_review_let_go_opens_again_on_its_card_with_its_sections(
     assert around["layout"]["replace"] is True
     assert _section_rows(review_id) == {"probably_known": True, "reviewed": True}
 
-    restart()
+    let_go()
 
     for answer in (
         client.get(f"/api/review/{review_id}/rows", params={
@@ -235,6 +253,44 @@ def test_a_review_let_go_opens_again_on_its_card_with_its_sections(
     assert folded in {row["phrase_id"] for row in again["layout"]["rows"]}
     assert _held(again["review_id"]).opened == frozenset({CandidateSection.REVIEWED})
 
+
+
+def test_a_restart_goes_on_with_the_held_order_its_sections_and_what_was_served(
+    client: TestClient, restart: Callable[[], None],
+) -> None:
+    opened = client.post("/api/review", json={
+        "scope": SCOPE, "open_sections": ["reviewed"],
+    }).json()
+    review_id = opened["review_id"]
+    folded = next(
+        card.phrase_id for card in _held(review_id).order.cards
+        if card.section is CandidateSection.PROBABLY_KNOWN
+    )
+    around = client.get(f"/api/review/{review_id}/around/{folded}", params={
+        "since": opened["revision"], "current": opened["focus_id"],
+    }).json()
+    params = {"since": around["revision"], "current": folded}
+    before = client.get(f"/api/review/{review_id}/rows", params={
+        "start": 0, "count": REVIEW_ROWS_MAX, **params,
+    }).json()
+    held = _held(review_id)
+    served = set(held.served)
+
+    restart()
+
+    after = client.get(f"/api/review/{review_id}/rows", params={
+        "start": 0, "count": REVIEW_ROWS_MAX, **params,
+    })
+    assert after.status_code == 200
+    assert after.json()["layout"] == before["layout"]
+    again = _held(review_id)
+    assert again is not held
+    assert list(again.order.cards) == list(held.order.cards)
+    assert again.opened == frozenset({CandidateSection.REVIEWED})
+    assert again.served >= served
+    changes = client.get(f"/api/review/{review_id}/changes", params=params)
+    assert changes.status_code == 200
+    assert changes.json()["layout"] is None
 
 def _section_rows(review_id: str) -> dict[str, bool]:
     """The section rows of the review's visible list, open or not."""

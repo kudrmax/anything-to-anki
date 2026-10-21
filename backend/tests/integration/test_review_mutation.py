@@ -338,3 +338,37 @@ def test_a_press_on_a_frequent_lemma_sends_whole_only_the_served_cards(
     assert {card.phrase_id for card in update.cards} <= served
     assert served & set(frequent) <= {card.phrase_id for card in update.cards}
     assert {p for p, done in update.done.items() if done} >= set(frequent)
+
+
+
+def test_a_card_whose_phrase_changes_keeps_its_place_though_a_fresh_open_puts_it_elsewhere(
+    world: World,
+) -> None:
+    """The changed phrase gives the card another sort key: the held order does not move it,
+    only an order opened anew sorts it by that key."""
+    [card] = world.card_ids(
+        "SELECT p.id FROM phrases p JOIN candidates c ON c.id = p.candidate_id"
+        " WHERE c.source_id = 1 AND p.shown_by IS NOT NULL AND p.phrase_position LIKE :line"
+        " ORDER BY p.id LIMIT 1", line=f"[{ADDED_LINE}, 0,%",
+    )
+    opened = world.open(current=card)
+    before = _card_rows(world.held(opened.review_id))
+
+    with world.factory() as session:
+        select = world.container.set_phrase_boundary_use_case(session)
+        _, update = world.container.review_mutation(session).edit(
+            _ctx(opened, card),
+            lambda: select.execute(
+                card, corpus.line_selection(ADDED_LINE, corpus.SOURCES[1][ADDED_LINE]),
+            ),
+        )
+
+    assert update.removed == []
+    assert update.layout is None
+    assert _card_rows(world.held(opened.review_id)) == before
+    fresh = _card_rows(world.held(world.open(current=card).review_id))
+    assert fresh.index(card) != before.index(card)
+
+
+def _card_rows(review: OpenReview) -> list[int]:
+    return [row.phrase_id for row in review.layout().rows if isinstance(row, CardRow)]
