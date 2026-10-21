@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import Enum
 from itertools import takewhile
 from typing import TYPE_CHECKING
 
@@ -15,11 +16,16 @@ from backend.domain.value_objects.failed_job_group import FailedJobGroup
 from backend.domain.value_objects.job_selection import UNKNOWN_JOB_ERROR
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
-from backend.infrastructure.persistence.models import JobModel, PhraseModel
+from backend.infrastructure.persistence.models import (
+    JobModel,
+    PhraseModel,
+    SourceModel,
+    StoredCandidateModel,
+)
 from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Mapping
+    from collections.abc import Callable, Collection, Iterable, Mapping
 
     from sqlalchemy import ColumnElement, Delete, Update
     from sqlalchemy.orm import Session
@@ -30,6 +36,12 @@ if TYPE_CHECKING:
 
 _ACTIVE_STATUSES = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
 _QUEUE_ORDER = (JobModel.created_at.asc(), JobModel.id.asc())
+
+
+class _KeyedBy(Enum):
+    PHRASE = "phrase"
+    WORD = "word"
+    SOURCE = "source"
 
 
 @dataclass(frozen=True)
@@ -46,6 +58,15 @@ class _Key:
         job_type = job.job_type if isinstance(job, JobModel) else job.job_type.value
         return cls(job_type, job.source_id, job.candidate_id, job.phrase_id)
 
+    @property
+    def keyed_by(self) -> tuple[_KeyedBy, int]:
+        """What keys the job and its id there."""
+        if self.phrase_id is not None:
+            return _KeyedBy.PHRASE, self.phrase_id
+        if self.candidate_id is not None:
+            return _KeyedBy.WORD, self.candidate_id
+        return _KeyedBy.SOURCE, self.source_id
+
     def same(self) -> ColumnElement[bool]:
         if self.phrase_id is not None:
             return and_(JobModel.job_type == self.job_type, JobModel.phrase_id == self.phrase_id)
@@ -60,6 +81,25 @@ class _Key:
             JobModel.source_id == self.source_id,
             JobModel.candidate_id.is_(None),
         )
+
+
+def _by_column(keys: Iterable[_Key]) -> list[tuple[str, _KeyedBy, list[int]]]:
+    """The keys grouped by job type and what keys them, with their ids there."""
+    groups: dict[tuple[str, _KeyedBy], list[int]] = {}
+    for key in keys:
+        keyed_by, value = key.keyed_by
+        groups.setdefault((key.job_type, keyed_by), []).append(value)
+    return [(job_type, keyed_by, sorted(ids)) for (job_type, keyed_by), ids in groups.items()]
+
+
+def _keyed_in(keyed_by: _KeyedBy, ids: Collection[int]) -> ColumnElement[bool]:
+    """The jobs keyed by one of these ids: a word's job has no phrase, a source's job
+    neither a word."""
+    if keyed_by is _KeyedBy.PHRASE:
+        return JobModel.phrase_id.in_(ids)
+    if keyed_by is _KeyedBy.WORD:
+        return and_(JobModel.candidate_id.in_(ids), JobModel.phrase_id.is_(None))
+    return and_(JobModel.source_id.in_(ids), JobModel.candidate_id.is_(None))
 
 
 def _selected(selection: JobSelection) -> list[ColumnElement[bool]]:
@@ -90,17 +130,20 @@ class SqlaJobRepository(JobRepository):
     # ── Lifecycle ────────────────────────────────────────────────────
 
     def enqueue(self, jobs: list[Job]) -> list[Job]:
-        models: list[JobModel] = []
-        seen: set[_Key] = set()
+        """Set-based: the active keys, the failed jobs to supersede and the phrases, words
+        and sources still there are each read in chunks, whatever the number of jobs. A
+        job whose phrase, word or source is gone is left out."""
+        unique: dict[_Key, Job] = {}
         for job in jobs:
-            key = _Key.of(job)
-            if key in seen or self._is_active(key):
-                continue
-            seen.add(key)
-            self._session.execute(
-                delete(JobModel).where(key.same(), JobModel.status == JobStatus.FAILED.value)
-            )
-            model = JobModel.from_entity(job)
+            unique.setdefault(_Key.of(job), job)
+        present = self._present(unique)
+        keys = [key for key in unique if present(key)]
+        active = self._active(keys)
+        fresh = [key for key in keys if key not in active]
+        self._drop_failed(fresh)
+        models: list[JobModel] = []
+        for key in fresh:
+            model = JobModel.from_entity(unique[key])
             model.status = JobStatus.QUEUED.value
             model.error = None
             model.started_at = None
@@ -109,6 +152,66 @@ class SqlaJobRepository(JobRepository):
         self._session.flush()
         self._record_models(models)
         return [m.to_entity() for m in models]
+
+    def _present(self, unique: Mapping[_Key, Job]) -> Callable[[_Key], bool]:
+        """Whether the phrase, word and source of a key are still there."""
+        found = {
+            column: self._existing(model, [getattr(key, attribute) for key in unique])
+            for column, model, attribute in (
+                ("phrase", PhraseModel, "phrase_id"),
+                ("word", StoredCandidateModel, "candidate_id"),
+                ("source", SourceModel, "source_id"),
+            )
+        }
+        return lambda key: (
+            (key.phrase_id is None or key.phrase_id in found["phrase"])
+            and (key.candidate_id is None or key.candidate_id in found["word"])
+            and key.source_id in found["source"]
+        )
+
+    def _existing(
+        self, model: type[PhraseModel | StoredCandidateModel | SourceModel],
+        ids: Iterable[int | None],
+    ) -> set[int]:
+        wanted = sorted({i for i in ids if i is not None})
+        return {
+            found
+            for chunk in chunks(wanted)
+            for found in self._session.scalars(select(model.id).where(model.id.in_(chunk)))
+        }
+
+    def _active(self, keys: Collection[_Key]) -> set[_Key]:
+        """The keys a queued or running job already works on."""
+        return self._matching(keys, JobModel.status.in_(_ACTIVE_STATUSES))
+
+    def _drop_failed(self, keys: Collection[_Key]) -> None:
+        """The failed jobs of these keys go: a new job supersedes them."""
+        failed = self._matching(keys, JobModel.status == JobStatus.FAILED.value)
+        for job_type, keyed_by, ids in _by_column(failed):
+            for chunk in chunks(ids):
+                self._session.execute(delete(JobModel).where(
+                    JobModel.job_type == job_type, _keyed_in(keyed_by, chunk),
+                    JobModel.status == JobStatus.FAILED.value,
+                ))
+
+    def _matching(self, keys: Collection[_Key], status: ColumnElement[bool]) -> set[_Key]:
+        """The keys a job in `status` works on, read a chunk of ids at a time."""
+        wanted = {(key.job_type, *key.keyed_by): key for key in keys}
+        found: set[_Key] = set()
+        for job_type, keyed_by, ids in _by_column(keys):
+            for chunk in chunks(ids):
+                rows = self._session.execute(
+                    select(
+                        JobModel.job_type, JobModel.source_id, JobModel.candidate_id,
+                        JobModel.phrase_id,
+                    ).where(JobModel.job_type == job_type, _keyed_in(keyed_by, chunk), status),
+                )
+                for row in rows:
+                    stored = _Key(row.job_type, row.source_id, row.candidate_id, row.phrase_id)
+                    key = wanted.get((stored.job_type, *stored.keyed_by))
+                    if key is not None:
+                        found.add(key)
+        return found
 
     def claim_next_run(
         self,

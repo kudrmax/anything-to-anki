@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from backend.application.constants import GENERATION_RUN_CHUNK
 from backend.application.utils.generation_targets import CardJobs, ReadyCards, target_for
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.exceptions import (
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
         GenerationTarget,
     )
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
+    from backend.domain.entities.job import Job
     from backend.domain.entities.source import Source
     from backend.domain.exceptions import DomainError
     from backend.domain.ports.job_repository import JobRepository
@@ -70,17 +72,46 @@ class RunGenerationUseCase:
         cards: GenerationScope,
         sort_order: CandidateSortOrder = CandidateSortOrder.RELEVANCE,
     ) -> int:
-        """Returns how many cards were queued."""
-        with self._unit_of_work.write():
-            return self._run(scope, kind, cards, sort_order)
+        """Returns how many cards were queued. The cards are chosen in a read, and queued in
+        write transactions of at most GENERATION_RUN_CHUNK jobs each, so a book's run never
+        holds the writer for long: a press waits for one chunk at most. A source taken by an
+        operation since the choice sits the rest of the run out. A run that replaces what was
+        made discards it as it chooses, so it chooses and queues in one write."""
+        if replaces_results(cards):
+            with self._unit_of_work.write():
+                jobs, skipped = self._planned(scope, kind, cards, sort_order)
+                queued = len(self._job_repo.enqueue(jobs))
+        else:
+            with self._unit_of_work.read():
+                jobs, skipped = self._planned(scope, kind, cards, sort_order)
+            queued = sum(
+                self._queued(jobs[start:start + GENERATION_RUN_CHUNK])
+                for start in range(0, len(jobs), GENERATION_RUN_CHUNK)
+            )
+        logger.info(
+            "run_generation: queued (scope=%s, kind=%s, cards=%s, total=%d, skipped=%d,"
+            " sort_order=%s)",
+            scope.token, kind.value, cards.value, queued, skipped, sort_order.value,
+        )
+        return queued
 
-    def _run(
+    def _queued(self, jobs: list[Job]) -> int:
+        """One chunk queued in its own write, but for the sources an operation holds now."""
+        with self._unit_of_work.write():
+            busy = {
+                source_id for source_id in {job.source_id for job in jobs}
+                if self._lock.held(source_id) is not None
+            }
+            return len(self._job_repo.enqueue([j for j in jobs if j.source_id not in busy]))
+
+    def _planned(
         self,
         scope: SourceScope,
         kind: GenerationKind,
         cards: GenerationScope,
         sort_order: CandidateSortOrder,
-    ) -> int:
+    ) -> tuple[list[Job], int]:
+        """The jobs of the run in the order chosen, and how many sources sit it out."""
         sources = self._scope_resolver.reviewable_sources(scope)
         chosen: list[tuple[GenerationTarget, GenerationCard]] = []
         skipped: list[DomainError] = []
@@ -96,13 +127,7 @@ class RunGenerationUseCase:
         ordered = self._in_order(
             [card for _, card in chosen], sort_order, [s.id for s in sources if s.id is not None],
         )
-        queued = len(self._job_repo.enqueue([target_of[c.phrase_id].job(c) for c in ordered]))
-        logger.info(
-            "run_generation: queued (scope=%s, kind=%s, cards=%s, total=%d, skipped=%d,"
-            " sort_order=%s)",
-            scope.token, kind.value, cards.value, queued, len(skipped), sort_order.value,
-        )
-        return queued
+        return [target_of[c.phrase_id].job(c) for c in ordered], len(skipped)
 
     def _chosen(
         self, source: Source, kind: GenerationKind, scope: GenerationScope,

@@ -265,6 +265,38 @@ class TestSqlaJobRepository:
         failed = repo.get_jobs_by_status([JobStatus.FAILED])
         assert [j.candidate_id for j in failed] == [2]
 
+    def test_enqueue_leaves_out_a_job_whose_word_is_gone(self, db_session: Session) -> None:
+        self._setup_source_and_candidate(db_session)
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
+
+        queued = repo.enqueue([_make_job(candidate_id=1), _make_job(candidate_id=404)])
+
+        assert [j.candidate_id for j in queued] == [1]
+
+    def test_enqueue_reads_a_book_of_keys_in_chunks(self, db_session: Session) -> None:
+        """More keys than SQLite binds in one statement: active ones skipped, failed ones
+        superseded, the rest queued, in the order given."""
+        sources = range(1, SQLITE_MAX_VARIABLES + 101)
+        db_session.execute(text(
+            "INSERT INTO sources (id, status, created_at)"
+            " VALUES (:id, 'new', '2026-01-01 00:00:00')"
+        ), [{"id": source_id} for source_id in sources])
+        db_session.flush()
+        repo = SqlaJobRepository(db_session, SessionChangeRecorder(db_session))
+
+        def download(source_id: int, status: JobStatus = JobStatus.QUEUED) -> Job:
+            return _make_job(
+                job_type=JobType.VIDEO_DOWNLOAD, candidate_id=None, source_id=source_id,
+                status=status, error="boom" if status is JobStatus.FAILED else None,
+            )
+
+        _insert(db_session, [download(1), download(sources[-1], JobStatus.FAILED)])
+
+        queued = repo.enqueue([download(source_id) for source_id in sources])
+
+        assert [j.source_id for j in queued] == list(sources[1:])
+        assert repo.get_jobs_by_status([JobStatus.FAILED]) == []
+
     # --- still_claimed / complete / fail ---
 
     def test_still_claimed_drops_cancelled_and_failed(self, db_session: Session) -> None:

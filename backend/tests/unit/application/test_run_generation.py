@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.use_cases import run_generation
 from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
 from backend.application.use_cases.run_generation import RunGenerationUseCase
 from backend.application.utils.candidate_sorter import ArrangedCards
@@ -232,9 +233,11 @@ class _Setup:
         return next(k for k in self.status.execute(SCOPE).kinds if k.kind == kind)
 
     def queued(self) -> list[tuple[int | None, int | None, int | None]]:
+        """Every job handed to the queue, over all the chunks of the run."""
         return [
             (j.candidate_id, j.phrase_id, j.phrase_revision)
-            for j in self.job_repo.enqueue.call_args.args[0]
+            for call in self.job_repo.enqueue.call_args_list
+            for j in call.args[0]
         ]
 
     def queued_phrases(self) -> list[int | None]:
@@ -368,6 +371,29 @@ class TestRunGeneration:
         setup.run.execute(SCOPE, GenerationKind.POLISH, GenerationScope.ALL)
 
         assert setup.queued() == [(1, 10, 1)]
+
+    def test_a_run_queues_in_chunks_each_in_its_own_write_in_the_order_chosen(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(run_generation, "GENERATION_RUN_CHUNK", 2)
+        setup = _Setup([_one(cid) for cid in range(1, 6)])
+        writes = setup.run._unit_of_work.write  # noqa: SLF001
+
+        assert setup.run.execute(SCOPE, GenerationKind.MEANING, GenerationScope.MISSING) == 5
+
+        assert [len(call.args[0]) for call in setup.job_repo.enqueue.call_args_list] == [2, 2, 1]
+        assert [word for word, _, _ in setup.queued()] == [5, 4, 3, 2, 1]
+        assert writes.call_count == 3
+
+    def test_a_source_taken_since_the_choice_sits_the_rest_of_the_run_out(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(run_generation, "GENERATION_RUN_CHUNK", 2)
+        setup = _Setup([_one(cid) for cid in range(1, 6)])
+        holds = iter([None, None, SourceOperationKind.UPDATE, SourceOperationKind.UPDATE])
+        setup.lock.held.side_effect = lambda _source_id: next(holds)
+
+        assert setup.run.execute(SCOPE, GenerationKind.MEANING, GenerationScope.MISSING) == 2
 
     def test_nothing_to_queue_creates_no_jobs(self) -> None:
         setup = _Setup([_one(1, meaning=True)])
