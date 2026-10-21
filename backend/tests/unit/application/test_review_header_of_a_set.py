@@ -96,7 +96,6 @@ class TestReviewOfASet:
             user_vocabulary(),
         )
         sorter = candidate_sorter(self.settings_repo)
-        self.job_repo.has_failed_matching.return_value = False
         self.card_views = CardViews(
             review_cards=self.review_cards,
             candidate_sorter=sorter,
@@ -112,7 +111,6 @@ class TestReviewOfASet:
             ),
             card_query=self.card_query,
             lock=self.lock,
-            job_repo=self.job_repo,
         )
 
     def _one_source(self, source: Source) -> None:

@@ -21,12 +21,8 @@ const STEP_ATTEMPTS = 3
 export const FIRST_BLOCK = 0
 export const LAST_BLOCK = -1
 const NOT_FOUND = 404
-const AI_UNAVAILABLE = 503
 
 export type ReviewCall<T> = (ctx: ReviewContext) => Promise<T>
-
-/** Сбой AI-ручки потому, что AI недоступен отсюда (нужен VPN). */
-export const isAiUnavailable = (e: unknown): boolean => e instanceof ApiError && e.status === AI_UNAVAILABLE
 
 const isNotFound = (e: unknown): boolean => e instanceof ApiError && e.status === NOT_FOUND
 
@@ -64,7 +60,6 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     setText(next)
   }, [])
   const [generation, setGeneration] = useState<GenerationOverview | null>(null)
-  const [aiBlocked, setAiBlocked] = useState(false)
   /** Разделы, которые раскрыл пользователь: ревью, открытое заново, раскрывает их же. */
   const openedSections = useRef<Set<CandidateSection>>(new Set())
 
@@ -75,11 +70,9 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
   const refreshContents = useRef<() => void>(() => {})
   const apply = useCallback((update: ReviewUpdate, options: ApplyOptions = {}): boolean => {
     const missed = missesReplace(stateRef.current, update)
-    const fresh = update.revision >= stateRef.current.revision
     // Подсветки ложатся из каждого ответа, даже устаревшего: сервер не пришлёт их ещё раз.
     commitText(t => applyText(t, update))
     const applied = commit(s => applyUpdate(s, update, options))
-    if (applied && fresh && update.header.ai_unavailable) setAiBlocked(true)
     if (applied && missed) recenter.current()
     checkContents.current(update)
     return applied
@@ -96,7 +89,6 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
   const applyOpened = useCallback((update: ReviewUpdate) => {
     commitText(t => applyText(t, update))
     commit(s => reopened(s, update))
-    if (update.header.ai_unavailable) setAiBlocked(true)
     checkContents.current(update)
   }, [commit, commitText])
 
@@ -338,7 +330,6 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     current, position, canPrev: position !== null && position > 1, canNext: position !== null && position < state.totalCards,
     cardOf,
     text, hasSourceText: (text.contents?.documents.length ?? 0) > 0, loadText, ensureBlock,
-    aiBlocked, showAiBlocked: () => setAiBlocked(true), dismissAiBlocked: () => setAiBlocked(false),
     loadRows, goTo, step, toggleSection, mutate,
   }
 }

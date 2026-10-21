@@ -215,7 +215,11 @@ class GenerationTarget(ABC):
             jobs.by_word.get(card.word_id, {}) if self.of_word
             else jobs.by_phrase.get(card.phrase_id, {})
         )
-        return by_key.get(self.kind.job_type.value)
+        held = [
+            job for job in (by_key.get(t.value) for t in self.kind.shown_job_types)
+            if job is not None
+        ]
+        return next((job for job in held if job.status in _ACTIVE), held[0] if held else None)
 
     def state(self, card: GenerationCard, job: Job | None) -> CardGenerationState:
         """`job`: the card's job of the kind, an active one before a failed one."""

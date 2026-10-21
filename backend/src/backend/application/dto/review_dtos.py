@@ -32,8 +32,6 @@ class ReviewHeaderDTO(BaseModel):
     learn_count: int  # words to learn
     # Some source of the set is held by an operation: its cards wait for it.
     busy: bool
-    # A shown card's meaning failed because the AI is not available from here.
-    ai_unavailable: bool
 
 
 class OpenReviewRequest(BaseModel):

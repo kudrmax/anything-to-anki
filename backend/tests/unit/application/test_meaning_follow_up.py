@@ -5,7 +5,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
+from backend.application.use_cases.meaning_follow_up import MeaningFollowUpUseCase
 from backend.application.utils.requested_cards import RequestedCards
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.stored_candidate import StoredCandidate
@@ -15,6 +15,7 @@ from backend.domain.exceptions import (
     SourceOperationBusyError,
 )
 from backend.domain.value_objects.generation_result import GenerationResult
+from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
 from backend.domain.value_objects.prompts_config import PromptsConfig
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.word_status import WordStatus
@@ -41,7 +42,7 @@ def _use_case(
     phrase_found: bool = True,
     busy_with: SourceOperationKind | None = None,
     holds: bool = True,
-) -> GenerateMeaningUseCase:
+) -> MeaningFollowUpUseCase:
     """Word 1 with phrase 7 "Could you elaborate on that?"."""
     shown = replace(
         make_occurrence("Could you elaborate on that?", candidate_id=1), id=PHRASE_ID,
@@ -53,7 +54,7 @@ def _use_case(
     candidate_repo.get_by_id.return_value = _make_candidate()
     lock = MagicMock()
     lock.held.return_value = busy_with
-    return GenerateMeaningUseCase(
+    return MeaningFollowUpUseCase(
         cards=RequestedCards(candidate_repo, occurrence_repo, lock),
         occurrence_repo=occurrence_repo,
         meaning_repo=meaning_repo,
@@ -75,74 +76,6 @@ def _make_candidate(cid: int = 1) -> StoredCandidate:
         occurrences=1,
         is_phrasal_verb=False,
     )
-
-
-@pytest.mark.unit
-def test_generate_meaning_happy_path() -> None:
-    meaning_repo = MagicMock()
-    ai_service = MagicMock()
-
-    ai_service.generate_meaning.return_value = GenerationResult(
-        meaning="explain in detail",
-        translation="разъяснить",
-        synonyms="explain, clarify",
-        examples="Could you **elaborate** on that point?",
-        ipa="/ɪˈlæb.ə.reɪt/",
-        tokens_used=42,
-    )
-
-    result = _use_case(meaning_repo, ai_service).execute(PHRASE_ID)
-
-    assert result.meaning == "explain in detail"
-    assert result.translation == "разъяснить"
-    assert result.synonyms == "explain, clarify"
-    assert result.ipa == "/ɪˈlæb.ə.reɪt/"
-    assert result.tokens_used == 42
-
-    ai_service.generate_meaning.assert_called_once()
-    args, _ = ai_service.generate_meaning.call_args
-    assert args[0] == "SYSTEM PROMPT"
-    assert "elaborate" in args[1]
-    assert "(VERB)" in args[1]
-    assert "Could you elaborate on that?" in args[1]
-
-    meaning_repo.upsert_for_phrase.assert_called_once()
-    phrase_id, upserted = meaning_repo.upsert_for_phrase.call_args[0]
-    assert (phrase_id, upserted.candidate_id) == (PHRASE_ID, 1)
-    assert upserted.meaning == "explain in detail"
-    assert upserted.translation == "разъяснить"
-    assert upserted.synonyms == "explain, clarify"
-    assert isinstance(upserted.generated_at, datetime)
-
-
-@pytest.mark.unit
-def test_generate_meaning_phrase_not_found() -> None:
-    with pytest.raises(PhraseNotFoundError):
-        _use_case(MagicMock(), MagicMock(), phrase_found=False).execute(PHRASE_ID)
-
-
-@pytest.mark.unit
-def test_generate_meaning_is_refused_while_the_source_is_rebuilt() -> None:
-    ai_service = MagicMock()
-
-    with pytest.raises(SourceOperationBusyError):
-        _use_case(
-            MagicMock(), ai_service, busy_with=SourceOperationKind.UPDATE,
-        ).execute(PHRASE_ID)
-    ai_service.generate_meaning.assert_not_called()
-
-
-@pytest.mark.unit
-def test_a_meaning_for_a_phrase_changed_meanwhile_is_not_stored() -> None:
-    meaning_repo = MagicMock()
-    ai_service = MagicMock()
-    ai_service.generate_meaning.return_value = GenerationResult(
-        meaning="m", translation="t", synonyms="s", examples="e", ipa=None, tokens_used=1,
-    )
-
-    with pytest.raises(PhraseChangedError):
-        _use_case(meaning_repo, ai_service, holds=False).execute(PHRASE_ID)
-    meaning_repo.upsert_for_phrase.assert_not_called()
 
 
 def _existing_meaning(cid: int = 1) -> CandidateMeaning:
@@ -172,14 +105,18 @@ def test_follow_up_explain_detail_replaces_meaning() -> None:
         tokens_used=30,
     )
 
-    use_case = _use_case(meaning_repo, ai_service)
-    result = use_case.execute_follow_up(PHRASE_ID, "explain_detail", None)
+    _use_case(meaning_repo, ai_service).execute_follow_up(
+        PHRASE_ID, MeaningFollowUp("explain_detail"),
+    )
 
-    ai_service.generate_follow_up.assert_called_once()
-    ai_service.generate_meaning.assert_not_called()
-    assert result.meaning == "detailed explanation"
+    args, _ = ai_service.generate_follow_up.call_args
+    assert args[0] == "SYSTEM PROMPT"
+    assert "elaborate" in args[1]
+    assert "Could you elaborate on that?" in args[1]
     phrase_id, upserted = meaning_repo.upsert_for_phrase.call_args[0]
     assert (phrase_id, upserted.meaning) == (PHRASE_ID, "detailed explanation")
+    assert upserted.translation == "разъяснить"
+    assert isinstance(upserted.generated_at, datetime)
 
 
 @pytest.mark.unit
@@ -197,14 +134,14 @@ def test_follow_up_give_examples_appends_to_examples() -> None:
         tokens_used=20,
     )
 
-    use_case = _use_case(meaning_repo, ai_service)
-    result = use_case.execute_follow_up(PHRASE_ID, "give_examples", None)
+    _use_case(meaning_repo, ai_service).execute_follow_up(
+        PHRASE_ID, MeaningFollowUp("give_examples"),
+    )
 
-    # Original meaning preserved
-    assert result.meaning == "explain in detail"
-    # Examples appended
-    assert "Some example" in result.examples
-    assert "New example sentence" in result.examples
+    _, upserted = meaning_repo.upsert_for_phrase.call_args[0]
+    assert upserted.meaning == "explain in detail"
+    assert "Some example" in upserted.examples
+    assert "New example sentence" in upserted.examples
 
 
 @pytest.mark.unit
@@ -222,11 +159,13 @@ def test_follow_up_how_to_say_appends_to_meaning() -> None:
         tokens_used=15,
     )
 
-    use_case = _use_case(meaning_repo, ai_service)
-    result = use_case.execute_follow_up(PHRASE_ID, "how_to_say", None)
+    _use_case(meaning_repo, ai_service).execute_follow_up(
+        PHRASE_ID, MeaningFollowUp("how_to_say"),
+    )
 
-    assert "explain in detail" in result.meaning
-    assert "Let me elaborate" in result.meaning
+    _, upserted = meaning_repo.upsert_for_phrase.call_args[0]
+    assert "explain in detail" in upserted.meaning
+    assert "Let me elaborate" in upserted.meaning
 
 
 @pytest.mark.unit
@@ -234,4 +173,43 @@ def test_follow_up_free_question_without_text_raises() -> None:
     use_case = _use_case(MagicMock(), MagicMock())
 
     with pytest.raises(ValueError, match="requires text"):
-        use_case.execute_follow_up(PHRASE_ID, "free_question", None)
+        use_case.execute_follow_up(PHRASE_ID, MeaningFollowUp("free_question"))
+
+
+def _answer(meaning: str = "m") -> GenerationResult:
+    return GenerationResult(
+        meaning=meaning, translation="t", synonyms="s", examples="e", ipa=None, tokens_used=1,
+    )
+
+
+@pytest.mark.unit
+def test_follow_up_of_a_missing_phrase_raises() -> None:
+    with pytest.raises(PhraseNotFoundError):
+        _use_case(MagicMock(), MagicMock(), phrase_found=False).execute_follow_up(
+            PHRASE_ID, MeaningFollowUp("explain_simpler"),
+        )
+
+
+@pytest.mark.unit
+def test_follow_up_is_refused_while_the_source_is_rebuilt() -> None:
+    ai_service = MagicMock()
+
+    with pytest.raises(SourceOperationBusyError):
+        _use_case(MagicMock(), ai_service, busy_with=SourceOperationKind.UPDATE).execute_follow_up(
+            PHRASE_ID, MeaningFollowUp("explain_simpler"),
+        )
+    ai_service.generate_follow_up.assert_not_called()
+
+
+@pytest.mark.unit
+def test_a_follow_up_for_a_phrase_changed_meanwhile_is_not_stored() -> None:
+    meaning_repo = MagicMock()
+    meaning_repo.get_by_phrase_id.return_value = _existing_meaning()
+    ai_service = MagicMock()
+    ai_service.generate_follow_up.return_value = _answer()
+
+    with pytest.raises(PhraseChangedError):
+        _use_case(meaning_repo, ai_service, holds=False).execute_follow_up(
+            PHRASE_ID, MeaningFollowUp("explain_simpler"),
+        )
+    meaning_repo.upsert_for_phrase.assert_not_called()

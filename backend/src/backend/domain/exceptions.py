@@ -153,7 +153,9 @@ class AIServiceError(DomainError):
 
 
 class AIUnavailableError(AIServiceError):
-    """Raised when the AI is not offered where the host is: no request can succeed."""
+    """Raised when the AI can answer no request now (no login, proxy down, blocked country).
+
+    Nothing is wrong with the request itself: the same one succeeds once the AI is back."""
 
 
 class GenerationAlreadyRunningError(DomainError):

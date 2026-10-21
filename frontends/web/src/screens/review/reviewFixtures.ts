@@ -36,7 +36,7 @@ export const REVIEW_ID = 'r1'
 
 export const header = (changes: Partial<ReviewHeader> = {}): ReviewHeader => ({
   scope: 'source-7', title: 'Pilot', status: 'partially_reviewed', progress: { decided: 0, total: 0 },
-  learn_count: 0, busy: false, ai_unavailable: false, ...changes,
+  learn_count: 0, busy: false, ...changes,
 }) as ReviewHeader
 
 /** Строка карточки: позиция по умолчанию — номер строки + 1. */

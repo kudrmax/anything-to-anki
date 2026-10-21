@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { useStats } from '@/hooks/useStats'
+import { AIOutageBanner } from './AIOutageBanner'
 import css from './Page.module.css'
 
 interface PageProps {
@@ -19,11 +21,17 @@ interface PageProps {
 }
 
 export function Page({ header, aside, banner, asideHidden = false, wide = false, fit = false, fill = false, immersive = false, children }: PageProps) {
+  const aiUnavailable = useStats()?.ai_unavailable
   const classes = [css.page, !aside && css.solo, aside && asideHidden && css.asideHidden, wide && css.wide, fit && css.fit, fill && css.fill].filter(Boolean).join(' ')
   return (
     <div className={classes} data-immersive={immersive || undefined}>
       <div className={css.full}>{header}</div>
-      {banner && <div className={`${css.full} ${css.banner}`}>{banner}</div>}
+      {(aiUnavailable || banner) && (
+        <div className={`${css.full} ${css.banner}`}>
+          {aiUnavailable && <AIOutageBanner reason={aiUnavailable} />}
+          {banner}
+        </div>
+      )}
       <div className={css.content}>{children}</div>
       {aside && <aside className={css.aside} aria-hidden={asideHidden}><div className={css.asideInner}>{aside}</div></aside>}
     </div>

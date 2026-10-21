@@ -1,15 +1,13 @@
 """The review header of a set: progress, status and words to learn from the stored
-projection, and whether the AI is unavailable from here."""
+projection."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.domain.value_objects.ai_unavailable import AI_UNAVAILABLE_MARKER
 from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.infrastructure.api.dependencies import get_container
-from sqlalchemy import text
 
 from tests.projection_support import rebuild_projection
 from tests.word_support import insert_word, phrase_id_of
@@ -37,20 +35,11 @@ def _header(session: Session) -> ReviewHeaderDTO:
     return get_container().review_header(session).of(SCOPE)
 
 
-def _failed_meaning(session: Session, word_id: int, error: str) -> None:
-    session.execute(text(
-        "INSERT INTO jobs (job_type, candidate_id, source_id, status, error, created_at,"
-        " phrase_id, phrase_revision)"
-        " VALUES ('meaning', :word, 1, 'failed', :error, '2026-01-01 00:00:00', :phrase, 0)"
-    ), {"word": word_id, "error": error, "phrase": phrase_id_of(word_id)})
-    session.commit()
-
-
 def test_the_header_counts_the_set(cards: Session) -> None:
     header = _header(cards)
     assert (header.scope, header.status, header.learn_count) == ("source-1", "done", 0)
     assert (header.progress.decided, header.progress.total) == (0, 2)
-    assert (header.busy, header.ai_unavailable) == (False, False)
+    assert header.busy is False
 
     get_container().decide_phrase_use_case(cards).decide(phrase_id_of(GLARE), Press.LEARN)
 
@@ -58,21 +47,3 @@ def test_the_header_counts_the_set(cards: Session) -> None:
     assert (header.progress.decided, header.progress.total) == (1, 2)
     assert header.learn_count == 1
 
-
-def test_a_meaning_failed_for_the_blocked_ai_is_ai_unavailable(cards: Session) -> None:
-    _failed_meaning(cards, GLARE, f"AI proxy error: {AI_UNAVAILABLE_MARKER}")
-    assert _header(cards).ai_unavailable
-
-
-def test_a_phrase_no_longer_shown_does_not_count(cards: Session) -> None:
-    _failed_meaning(cards, GLARE, f"AI proxy error: {AI_UNAVAILABLE_MARKER}")
-    cards.execute(text("UPDATE phrases SET shown_by = NULL WHERE id = :id"), {
-        "id": phrase_id_of(GLARE),
-    })
-    cards.commit()
-    assert not _header(cards).ai_unavailable
-
-
-def test_another_error_is_not_ai_unavailable(cards: Session) -> None:
-    _failed_meaning(cards, GLARE, "AI proxy error: boom")
-    assert not _header(cards).ai_unavailable

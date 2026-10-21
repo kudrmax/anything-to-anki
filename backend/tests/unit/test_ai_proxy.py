@@ -1,4 +1,5 @@
-"""ai_proxy must reach the user's Claude login and report why the CLI failed."""
+"""ai_proxy must reach the user's Claude login, report why the CLI failed and tell an
+unavailable AI from a failed call."""
 from __future__ import annotations
 
 import subprocess
@@ -7,6 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 from claude_agent_sdk import AssistantMessage, ResultMessage
 from claude_agent_sdk.types import TextBlock
+from fastapi.testclient import TestClient
 
 import ai_proxy
 
@@ -52,6 +54,55 @@ async def test_error_names_the_real_cause(monkeypatch: pytest.MonkeyPatch) -> No
     message = str(exc_info.value)
     assert AUTH_FAILURE in message
     assert SDK_WRAPPER_ERROR not in message
+
+
+async def _broken_answer_query(**_: object) -> AsyncIterator[object]:
+    """A call that fails on its own: the AI answered, but not with the schema."""
+    yield ResultMessage(
+        subtype="error_max_structured_output_retries",
+        duration_ms=1,
+        duration_api_ms=0,
+        is_error=True,
+        num_turns=1,
+        session_id="s",
+        result="could not produce valid structured output",
+    )
+    raise Exception(SDK_WRAPPER_ERROR)  # noqa: TRY002 — mirrors the SDK's own bare Exception
+
+
+async def _blocked_country() -> str:
+    return "RU"
+
+
+_REQUEST = {"system_prompt": "s", "user_prompt": "u", "model": "sonnet"}
+
+
+def test_an_expired_login_makes_the_ai_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ai_proxy, "query", _expired_login_query)
+    monkeypatch.setattr(ai_proxy, "_get_country", _no_country)
+
+    response = TestClient(ai_proxy.app).post("/polish-phrases-batch", json=_REQUEST)
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == AUTH_FAILURE
+
+
+def test_a_blocked_country_makes_the_ai_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ai_proxy, "_get_country", _blocked_country)
+
+    response = TestClient(ai_proxy.app).post("/generate-meanings-batch", json=_REQUEST)
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Blocked country: RU. Turn on VPN."
+
+
+def test_a_failed_call_is_not_an_unavailable_ai(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ai_proxy, "query", _broken_answer_query)
+    monkeypatch.setattr(ai_proxy, "_get_country", _no_country)
+
+    response = TestClient(ai_proxy.app).post("/generate-topic-targets", json=_REQUEST)
+
+    assert response.status_code == 502
 
 
 def test_usage_names_the_model_an_alias_resolved_to() -> None:

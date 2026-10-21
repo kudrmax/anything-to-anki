@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.integration
 
-REVISION_BEFORE = "0052"
+REVISION_BEFORE = "0053"
 REVISION_UNDER_TEST = "0054"
 LOG_NAME = "migration-0054.log"
 

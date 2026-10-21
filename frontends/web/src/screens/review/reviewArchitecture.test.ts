@@ -31,7 +31,7 @@ const DELETED = [
   'useShownCandidates', 'shownCandidates', 'keepLayout', 'keptLayout', 'focusAfterPress', 'nextFocus',
   'initialFocusId', 'initialFocus', 'FOLDED', 'FOLDED_SECTIONS', 'visibleCandidates', 'listItems', 'ListItem',
   'settle', 'loadCandidates', 'applyReview', 'getReview', 'ReviewDetail', 'initially_shown_candidates',
-  'hasCandidateVpnErrors', 'isVpnError', 'isVpnErrorText', 'showMore',
+  'hasCandidateVpnErrors', 'isVpnError', 'isVpnErrorText', 'isAiUnavailable', 'aiBlocked', 'showAiBlocked', 'showMore',
   // Текст целиком: теперь куски по оглавлению.
   'getReviewDocuments', 'loadDocuments', 'forgetDone', 'listMarkers', 'SourceDocument',
 ]

@@ -7,8 +7,7 @@ from enum import Enum
 from itertools import takewhile
 from typing import TYPE_CHECKING
 
-from sqlalchemy import and_, delete, exists, func, or_, select, update
-from sqlalchemy.orm import aliased
+from sqlalchemy import and_, delete, func, or_, select, update
 
 from backend.domain.ports.job_repository import DEFAULT_RUN_LIMIT, JobRepository
 from backend.domain.value_objects.card_change import CardContentChanged, WordContentChanged
@@ -283,6 +282,23 @@ class SqlaJobRepository(JobRepository):
             .values(status=JobStatus.FAILED.value, error=error)
         )
 
+    def requeue(self, job_ids: list[int], reason: str) -> None:
+        if not job_ids:
+            return
+        self._affected(
+            update(JobModel)
+            .where(JobModel.id.in_(job_ids), JobModel.status == JobStatus.RUNNING.value)
+            .values(status=JobStatus.QUEUED.value, started_at=None, error=reason)
+        )
+
+    def waiting_reason(self) -> str | None:
+        return self._session.scalar(
+            select(JobModel.error)
+            .where(JobModel.status == JobStatus.QUEUED.value, JobModel.error.is_not(None))
+            .order_by(*_QUEUE_ORDER)
+            .limit(1)
+        )
+
     def requeue_running(self) -> int:
         return self._affected(
             update(JobModel)
@@ -368,32 +384,6 @@ class SqlaJobRepository(JobRepository):
                 .distinct()
             )
         }
-
-    def has_failed_matching(
-        self, source_ids: Collection[int], job_type: JobType, marker: str,
-    ) -> bool:
-        """The phrase's job of the type is the failed one: no job of it is on its way."""
-        active = aliased(JobModel)
-        return any(
-            self._session.execute(
-                select(JobModel.id)
-                .join(PhraseModel, PhraseModel.id == JobModel.phrase_id)
-                .where(
-                    JobModel.source_id.in_(chunk),
-                    JobModel.job_type == job_type.value,
-                    JobModel.status == JobStatus.FAILED.value,
-                    JobModel.error.contains(marker, autoescape=True),
-                    PhraseModel.shown_by.is_not(None),
-                    ~exists().where(
-                        active.phrase_id == JobModel.phrase_id,
-                        active.job_type == JobModel.job_type,
-                        active.status.in_(_ACTIVE_STATUSES),
-                    ),
-                )
-                .limit(1)
-            ).first() is not None
-            for chunk in chunks(sorted(source_ids))
-        )
 
     def has_active_jobs_for_source(
         self, source_id: int, job_types: frozenset[JobType] | None = None,

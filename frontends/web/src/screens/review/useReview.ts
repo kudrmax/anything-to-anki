@@ -8,7 +8,7 @@ import { mediaUrl } from '@/lib/text/meaning'
 import { useToast } from '@/ui'
 import { useAudioPlayer } from '@/lib/useAudioPlayer'
 import type { SelectedText } from './SourceText'
-import { isAiUnavailable, useReviewWindow } from './useReviewWindow'
+import { useReviewWindow } from './useReviewWindow'
 
 interface MediaRefs {
   screenshotUrl: string | null
@@ -30,7 +30,7 @@ export const audioUrlForCandidate = candidateAudioUrl
 export function useReview(scope: SetScope, requestedId: number | null = null) {
   const [sortOrder, setSortOrderState] = useState<SortOrder>(() => sortOrderPref.read())
   const view = useReviewWindow(scope, sortOrder, requestedId)
-  const { state, mutate, cardOf, loadGeneration, showAiBlocked } = view
+  const { state, mutate, cardOf, loadGeneration } = view
   const currentId = state.currentId
   const [generatingIds, setGeneratingIds] = useState<Set<number>>(new Set())
   const [regeneratingMediaIds, setRegeneratingMediaIds] = useState<Set<number>>(new Set())
@@ -128,20 +128,13 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   const generate = useCallback((candidateId: number, action?: FollowUpAction, text?: string) =>
     withBusy(setGeneratingIds, candidateId, async () => {
       try {
-        let tokens = 0
-        // Карточку с новым значением и тем, что она теперь предлагает, отдаёт backend.
-        await mutate(async ctx => {
-          const result = await api.generateMeaning(ctx, candidateId, action, text)
-          tokens = result.tokens_used
-          if (!result.update) throw new Error('The review got no update')
-          return result.update
-        })
-        showToast(`Tokens used: ${tokens}`)
+        // Задача в очереди: карточка показывает её статус, опрос подхватывает результат.
+        await mutate(ctx => api.generateMeaning(ctx, candidateId, action, text))
+        await loadGeneration()
       } catch (e) {
-        if (isAiUnavailable(e)) showAiBlocked()
-        else showToast(e instanceof Error ? e.message : action ? 'Follow-up failed' : 'Generation failed')
+        showToast(e instanceof Error ? e.message : action ? 'Follow-up failed' : 'Generation failed')
       }
-    }), [showToast, mutate, showAiBlocked])
+    }), [showToast, mutate, loadGeneration])
 
   const replaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
     try {
@@ -154,19 +147,18 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     }
   }, [mutate, loadGeneration, showToast])
 
-  const runBatch = async (change: () => Promise<ReviewUpdate>, fallback: string, options: { vpnAware?: boolean } = {}) => {
+  const runBatch = async (change: () => Promise<ReviewUpdate>, fallback: string) => {
     try {
       await change()
       await loadGeneration()
     } catch (e) {
-      if (options.vpnAware && isAiUnavailable(e)) showAiBlocked()
-      else showToast(e instanceof Error ? e.message : fallback)
+      showToast(e instanceof Error ? e.message : fallback)
     }
   }
 
   const generationActions = {
     run: (kind: GenerationKind, cards: GenerationScope) =>
-      runBatch(() => mutate(ctx => api.runReviewGeneration(ctx, scope, kind, cards, sortOrder)), 'Failed to start generation', { vpnAware: true }),
+      runBatch(() => mutate(ctx => api.runReviewGeneration(ctx, scope, kind, cards, sortOrder)), 'Failed to start generation'),
     cancel: (kind: GenerationKind) =>
       runBatch(() => mutate(ctx => api.cancelReviewGeneration(ctx, scope, kind)), 'Failed to cancel'),
     downloadVideo: () =>
@@ -337,7 +329,6 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     press, generate, replaceWithExample,
     clozeEditingId, clozeEditing: clozeEditingId !== null, startCloze, cancelCloze, saveCloze, generateTTS, regenerateMedia, findImages, applyImage, pasteImage, polishAgain, setPolishReverted, editPhrase,
     busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds, image: applyingImageIds },
-    vpnBlocked: view.aiBlocked, dismissVpn: view.dismissAiBlocked,
     editing, startEditing, cancelEditing, setBoundary, addWord,
     mediaFor, player, toast,
     reportReasons, report,

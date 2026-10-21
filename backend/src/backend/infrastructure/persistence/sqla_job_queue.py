@@ -43,6 +43,9 @@ class SqlaJobQueue:
     def fail(self, job_ids: list[int], error: str) -> None:
         self._work.write(lambda session: _jobs(session).fail(job_ids, error))
 
+    def requeue(self, job_ids: list[int], reason: str) -> None:
+        self._work.write(lambda session: _jobs(session).requeue(job_ids, reason))
+
     def fail_running(self, job_type: JobType, error: str) -> int:
         return self._work.write(
             lambda session: _jobs(session).fail_running(job_type, error),

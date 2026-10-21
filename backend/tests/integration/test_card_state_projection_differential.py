@@ -60,7 +60,6 @@ from backend.domain.services.source_review_status import (
     stored_status_of_set,
 )
 from backend.domain.services.text_chunks import LAST_BLOCK
-from backend.domain.value_objects.ai_unavailable import AI_UNAVAILABLE_MARKER, is_ai_unavailable
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.card_choice import Press
@@ -74,6 +73,7 @@ from backend.domain.value_objects.job_selection import JobSelection
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
+from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.rebuild_mode import RebuildMode
@@ -263,6 +263,8 @@ OWNERS: dict[str, type] = {
 QUEUE_ACTIONS = ("retry", "dismiss", "cancel")
 # How many jobs of the head of the queue the worker takes at a time here.
 RUN_SIZES = st.integers(min_value=1, max_value=4)
+# What the AI proxy says while the AI answers no request.
+AI_UNAVAILABLE_REASON = "Blocked country: RU. Turn on VPN."
 
 
 class _Polisher:
@@ -834,16 +836,30 @@ class _Projection(RuleBasedStateMachine):
 
     @rule(pick=PICK, blocked=st.booleans(), size=RUN_SIZES)
     def jobs_run_and_fail(self, pick: int, blocked: bool, size: int) -> None:
-        """The worker takes a run of queued jobs and some of them fail, with the AI blocked
-        here or another error."""
-        error = AI_UNAVAILABLE_MARKER if blocked else "AI proxy error: boom"
+        """The worker takes a run of queued jobs: with the AI unavailable the run goes back
+        in line with the reason; otherwise some of its jobs fail."""
 
         def run(s: Session) -> None:
             jobs = SqlaJobRepository(s, SessionChangeRecorder(s))
             taken = jobs.claim_next_run(dict.fromkeys(JobType, size), None, frozenset(JobType))
-            jobs.fail([j.id for j in taken if j.id is not None and j.id % 2 == pick % 2], error)
+            ids = [j.id for j in taken if j.id is not None]
+            if blocked:
+                jobs.requeue(ids, AI_UNAVAILABLE_REASON)
+            else:
+                jobs.fail([i for i in ids if i % 2 == pick % 2], "AI proxy error: boom")
 
         self.container.session_work().write(run)
+
+    @rule(pick=PICK, follow_up=st.booleans())
+    def queue_meaning(self, pick: int, follow_up: bool) -> None:
+        """The meaning of one card queued anew, its old one gone, or a follow-up about it."""
+        card = self._card(pick)
+        if card is not None and card.id is not None:
+            phrase_id = card.id
+            question = MeaningFollowUp("explain_simpler") if follow_up else None
+            self._refusable(lambda s: self.container.enqueue_phrase_meaning_use_case(
+                s,
+            ).execute(phrase_id, question))
 
     @rule(pick=PICK)
     def jobs_finish(self, pick: int) -> None:
@@ -1173,9 +1189,6 @@ class _Projection(RuleBasedStateMachine):
         of_source = {i: [c for c in cards if c.word.source_id == i] for i in sources}
         with _projection_unread():
             live = container._candidate_sorter(session).progress(of_source)  # noqa: SLF001
-            jobs = SqlaJobRepository(
-                session, SessionChangeRecorder(session),
-            ).get_jobs_for_phrases([c.phrase_id for c in cards])
         projected = container._review_progress(session).of_sources(sources)  # noqa: SLF001
         assert {i: p.progress for i, p in projected.items()} == live
         assert {i: p.cards for i, p in projected.items()} == {
@@ -1197,12 +1210,6 @@ class _Projection(RuleBasedStateMachine):
             ).value, scope
             assert header.learn_count == sum(
                 SqlaCardQuery(session).learn_counts(ids).values(),
-            ), scope
-            # The front's rule over the cards' meaning status, an active job before a failed.
-            assert header.ai_unavailable == any(
-                (job := jobs.get(card.phrase_id, {}).get(JobType.MEANING.value)) is not None
-                and job.status is JobStatus.FAILED and is_ai_unavailable(job.error)
-                for i in ids for card in of_source[i]
             ), scope
             assert container.get_generation_status_use_case(session).execute(scope) == (
                 expected
@@ -1354,7 +1361,7 @@ def _write_result(
         )
         return
     assert phrase_id is not None
-    if job_type == "meaning":
+    if job_type in ("meaning", "meaning_follow_up"):
         SqlaCandidateMeaningRepository(session, recorder).upsert_for_phrase(phrase_id, _meaning())
     elif job_type == "tts":
         SqlaCandidateTTSRepository(session, recorder).upsert_for_phrase(
@@ -1484,10 +1491,11 @@ def _shown_tour(machine: _Projection) -> None:
 
 
 def _generation_tour(machine: _Projection) -> None:
-    """✨ on the collection and on single sources queues jobs, the worker fails some with
-    the AI blocked and finishes others, the video comes and goes: the counts see running,
-    failed and done cards of every kind, clips only for timed cards, and the header the
-    blocked AI."""
+    """✨ on the collection and on single sources queues jobs, the worker puts a run back
+    in line while the AI is unavailable, fails some and finishes others, a single meaning
+    and a follow-up are queued, the video comes and goes: the counts see running, failed
+    and done cards of every kind, clips only for timed cards, and the stats why the queue
+    waits."""
     machine.start()
     scope = SourceScope.collection(COLLECTION)
     video = VIDEO_SOURCE - 1
@@ -1518,15 +1526,21 @@ def _generation_tour(machine: _Projection) -> None:
     machine.jobs_run_and_fail(0, blocked=True, size=2)
     machine.projection_equals_the_review()
     with machine.factory() as session:
+        assert machine.container.get_stats_use_case(session).execute().ai_unavailable == (
+            AI_UNAVAILABLE_REASON
+        )
+    machine.jobs_run_and_fail(0, blocked=False, size=2)
+    machine.projection_equals_the_review()
+    with machine.factory() as session:
         status = machine.container.get_generation_status_use_case(session).execute(scope)
-        header = machine.container.review_header(session).of(scope)
     kinds = {k.kind: k for k in status.kinds}
     assert kinds[GenerationKind.MEANING].running > 0
     assert kinds[GenerationKind.MEANING].failed > 0
     assert kinds[GenerationKind.POLISH].running > 0
     assert kinds[GenerationKind.MEDIA].running + kinds[GenerationKind.MEDIA].failed > 0
-    assert header.ai_unavailable
     for step in (
+        lambda: machine.queue_meaning(2, follow_up=True),
+        lambda: machine.queue_meaning(3, follow_up=False),
         lambda: machine.queue_generation(
             GenerationKind.MEDIA, GenerationScope.FAILED, False, video,
         ),

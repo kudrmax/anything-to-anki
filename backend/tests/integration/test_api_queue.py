@@ -231,6 +231,34 @@ class TestQueueSnapshot:
         assert queue["total_failed"] == 2
 
 
+# ── why the queue waits for the AI, in the stats every screen reads ───────
+
+
+@pytest.mark.integration
+class TestAIUnavailableInStats:
+    def test_nothing_while_no_job_waits_for_the_ai(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        _seed(db_session)
+
+        assert client.get("/stats").json()["ai_unavailable"] is None
+
+    def test_the_reason_the_first_waiting_job_went_back_in_line_with(
+        self, client: TestClient, db_session: Session,
+    ) -> None:
+        _insert_source(db_session, 1, "Alpha")
+        for cid in (1, 2):
+            _insert_candidate(db_session, cid, 1)
+        _insert_job(db_session, 1, 1, 1, job_type="polish", status="failed", error="timeout")
+        _insert_job(db_session, 2, 2, 1, job_type="polish",
+                    error="Blocked country: RU. Turn on VPN.")
+        db_session.commit()
+
+        assert client.get("/stats").json()["ai_unavailable"] == (
+            "Blocked country: RU. Turn on VPN."
+        )
+
+
 # ── actions ─────────────────────────────────────────────────────────────────
 
 

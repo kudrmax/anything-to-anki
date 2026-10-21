@@ -16,6 +16,7 @@ class TestGetStatsUseCase:
         self.export_queue.pending_count.return_value = 0
         self.job_repo = MagicMock()
         self.job_repo.get_queue_summary.return_value = {}
+        self.job_repo.waiting_reason.return_value = None
         self.use_case = GetStatsUseCase(
             candidate_repo=self.candidate_repo,
             vocabulary=user_vocabulary(self.known_word_repo),

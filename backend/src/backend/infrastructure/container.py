@@ -24,7 +24,6 @@ from backend.application.use_cases.delete_source import DeleteSourceUseCase
 from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
 from backend.application.use_cases.describe_input import DescribeInputUseCase
 from backend.application.use_cases.fix_sections import FixSectionsUseCase
-from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
@@ -35,6 +34,7 @@ from backend.application.use_cases.list_collections import ListCollectionsUseCas
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.manage_unknown_words import ManageUnknownWordsUseCase
+from backend.application.use_cases.meaning_follow_up import MeaningFollowUpUseCase
 from backend.application.use_cases.move_collection import MoveCollectionUseCase
 from backend.application.use_cases.open_review import OpenReviewUseCase
 from backend.application.use_cases.place_sources import PlaceSourcesUseCase
@@ -232,6 +232,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.download_pronunciation import DownloadPronunciationUseCase
     from backend.application.use_cases.download_video import DownloadVideoUseCase
     from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
+    from backend.application.use_cases.enqueue_phrase_meaning import EnqueuePhraseMeaningUseCase
     from backend.application.use_cases.enqueue_phrase_polish import EnqueuePhrasePolishUseCase
     from backend.application.use_cases.enqueue_phrase_tts import EnqueuePhraseTTSUseCase
     from backend.application.use_cases.enqueue_topic_generation import (
@@ -610,7 +611,6 @@ class Container:
             review_progress=self._review_progress(session),
             card_query=SqlaCardQuery(session),
             lock=SqlaSourceOperationLock(session),
-            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
         )
 
     def create_collection_use_case(self, session: Session) -> CreateCollectionUseCase:
@@ -1113,8 +1113,8 @@ class Container:
             vocabulary=self._user_vocabulary(session),
         )
 
-    def generate_meaning_use_case(self, session: Session) -> GenerateMeaningUseCase:
-        return GenerateMeaningUseCase(
+    def meaning_follow_up_use_case(self, session: Session) -> MeaningFollowUpUseCase:
+        return MeaningFollowUpUseCase(
             cards=self._requested_cards(session),
             occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
             meaning_repo=SqlaCandidateMeaningRepository(session, self._change_recorder(session)),
@@ -1522,6 +1522,17 @@ class Container:
         )
         return RequestVideoDownloadUseCase(
             scope_resolver=self._scope_resolver(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def enqueue_phrase_meaning_use_case(self, session: Session) -> EnqueuePhraseMeaningUseCase:
+        from backend.application.use_cases.enqueue_phrase_meaning import (
+            EnqueuePhraseMeaningUseCase,
+        )
+        return EnqueuePhraseMeaningUseCase(
+            cards=self._requested_cards(session),
+            meaning_repo=SqlaCandidateMeaningRepository(session, self._change_recorder(session)),
             job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             unit_of_work=self._unit_of_work(session),
         )

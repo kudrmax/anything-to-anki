@@ -25,6 +25,8 @@ from backend.domain.value_objects.card_choice import (  # Pydantic needs the enu
     Refusal,
     is_cloze,
 )
+from backend.domain.value_objects.generation_kind import GenerationKind
+from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind  # noqa: TC001
 from backend.domain.value_objects.word_status import WordStatus
@@ -332,6 +334,15 @@ class CardJobs:
     def of_phrase(self, phrase_id: int, job_type: JobType) -> Job | None:
         return self.of_phrases.get(phrase_id, {}).get(job_type.value)
 
+    def of_kind(self, phrase_id: int, kind: GenerationKind) -> Job | None:
+        """The phrase's job the card shows for the kind: an active one before a failed."""
+        held = [
+            job for job in (self.of_phrase(phrase_id, t) for t in kind.shown_job_types)
+            if job is not None
+        ]
+        active = (JobStatus.QUEUED, JobStatus.RUNNING)
+        return next((job for job in held if job.status in active), held[0] if held else None)
+
     def of_word(self, word_id: int, job_type: JobType) -> Job | None:
         return self.of_words.get(word_id, {}).get(job_type.value)
 
@@ -356,7 +367,7 @@ def card_to_dto(
     view = card.view
     phrase_id, word_id = card.phrase_id, card.word_id
     polished = occ.polished_phrase
-    meaning_job = jobs.of_phrase(phrase_id, JobType.MEANING)
+    meaning_job = jobs.of_kind(phrase_id, GenerationKind.MEANING)
     return CardDTO(
         phrase_id=phrase_id,
         word_id=word_id,

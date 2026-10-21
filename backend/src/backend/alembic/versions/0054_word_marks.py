@@ -3,7 +3,7 @@ in known_pos. Both keep an INTEGER PRIMARY KEY id, stable across VACUUM: the API
 the ids out as removal keys.
 
 Revision ID: 0054
-Revises: 0052
+Revises: 0053
 
 The two lists merge by lower(lemma); a merged mark is as old as its newest row. A lemma in
 both lists keeps the mark set later (Unknown on a tie). An empty pos means any part of speech
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from sqlalchemy.engine import Connection
 
 revision = "0054"
-down_revision = "0052"
+down_revision = "0053"
 branch_labels = None
 depends_on = None
 

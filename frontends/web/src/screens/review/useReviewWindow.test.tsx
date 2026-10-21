@@ -262,13 +262,6 @@ describe('useReviewWindow', () => {
     expect(api.reviewChanges).toHaveBeenCalledTimes(2)
   })
 
-  it('shows the AI-unavailable banner when an update says so', async () => {
-    await render()
-    expect(latest.aiBlocked).toBe(false)
-    await act(async () => { await latest.mutate(async () => reviewUpdate({ revision: 2, header: header({ ai_unavailable: true }) })) })
-    expect(latest.aiBlocked).toBe(true)
-  })
-
   it('a gone set shows nothing to review', async () => {
     vi.mocked(api.openReview).mockRejectedValue(new Error('404: gone'))
     await render()

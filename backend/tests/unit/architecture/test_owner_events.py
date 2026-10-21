@@ -193,7 +193,7 @@ READ_ONLY: frozenset[tuple[str, str]] = frozenset({
     ("JobRepository", "get"),
     ("JobRepository", "has_active_jobs_for_source"),
     ("JobRepository", "sources_with_active_jobs"),
-    ("JobRepository", "has_failed_matching"),
+    ("JobRepository", "waiting_reason"),
     ("JobRepository", "get_queue_summary"),
     ("JobRepository", "get_jobs_for_phrases"),
     ("JobRepository", "get_jobs_for_candidates"),
@@ -669,6 +669,14 @@ def _job_fail(b: Bench) -> Expected:
     return {CardContentChanged(phrase_id)}
 
 
+def _job_requeue(b: Bench) -> Expected:
+    phrase_id = b.word(1, "glare")
+    [job] = _running(b, _phrase_job(phrase_id))
+    assert job.id is not None
+    b.jobs.requeue([job.id], "Blocked country: RU. Turn on VPN.")
+    return {CardContentChanged(phrase_id)}
+
+
 def _job_requeue_running(b: Bench) -> Expected:
     phrase_id = b.word(1, "glare")
     _running(b, _phrase_job(phrase_id))
@@ -780,6 +788,7 @@ WRITE_CASES: dict[tuple[str, str], WriteCase] = {
     ("JobRepository", "claim_next_run"): WriteCase(_job_claim_next_run),
     ("JobRepository", "complete"): WriteCase(_job_complete),
     ("JobRepository", "fail"): WriteCase(_job_fail),
+    ("JobRepository", "requeue"): WriteCase(_job_requeue),
     ("JobRepository", "requeue_running"): WriteCase(_job_requeue_running),
     ("JobRepository", "fail_running"): WriteCase(_job_fail_running),
     ("JobRepository", "cancel"): WriteCase(_job_cancel),

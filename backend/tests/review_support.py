@@ -26,7 +26,7 @@ def empty_update(review_id: str) -> ReviewUpdateDTO:
         revision=0,
         header=ReviewHeaderDTO(
             scope="all", title="", status="", progress=ProgressDTO(decided=0, total=0),
-            learn_count=0, busy=False, ai_unavailable=False,
+            learn_count=0, busy=False,
         ),
     )
 

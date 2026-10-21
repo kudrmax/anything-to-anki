@@ -17,3 +17,11 @@ class GenerationKind(StrEnum):
     @property
     def job_type(self) -> JobType:
         return JobType(self.value)
+
+    @property
+    def shown_job_types(self) -> tuple[JobType, ...]:
+        """The jobs a card shows as this kind being made: a follow-up about the meaning
+        makes the meaning too."""
+        if self is GenerationKind.MEANING:
+            return (JobType.MEANING, JobType.MEANING_FOLLOW_UP)
+        return (self.job_type,)

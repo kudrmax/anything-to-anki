@@ -320,14 +320,16 @@ def _job_states(kinds: Sequence[GenerationKind], of: ColumnElement[bool]) -> Col
     place: an active job before a failed one, as `GenerationTarget.state` reads them."""
     digits = [
         func.coalesce(
-            func.max(case((JobModel.job_type == kind.job_type.value, _JOB_STATE))), 0,
+            func.max(case((
+                JobModel.job_type.in_([t.value for t in kind.shown_job_types]), _JOB_STATE,
+            ))), 0,
         ) * _STATES ** place
         for place, kind in enumerate(kinds)
     ]
     total = digits[0]
     for digit in digits[1:]:
         total = total + digit
-    types = [kind.job_type.value for kind in kinds]
+    types = [t.value for kind in kinds for t in kind.shown_job_types]
     return select(total).where(of, JobModel.job_type.in_(types)).scalar_subquery()
 
 

@@ -1,12 +1,10 @@
 """Actions on a card: a phrase of a word."""
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from backend.application.dto.ai_dtos import GenerateMeaningResponseDTO  # noqa: TC001
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
     DecidePhraseRequest,
     EditPhraseRequest,
@@ -29,8 +27,6 @@ from backend.application.dto.review_dtos import (  # noqa: TC001 — FastAPI's a
 )
 from backend.domain.exceptions import (
     ActionRefusedError,
-    AIServiceError,
-    AIUnavailableError,
     CandidateNotPolishedError,
     ClozeNotAllowedError,
     ClozePhraseChangedError,
@@ -45,6 +41,7 @@ from backend.domain.exceptions import (
     UnknownReportReasonError,
 )
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
+from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
 from backend.infrastructure.api.dependencies import use_case
 from backend.infrastructure.api.review_context import review_context, review_expired
 from backend.infrastructure.container import Container
@@ -52,9 +49,9 @@ from backend.infrastructure.container import Container
 if TYPE_CHECKING:
     from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
     from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
+    from backend.application.use_cases.enqueue_phrase_meaning import EnqueuePhraseMeaningUseCase
     from backend.application.use_cases.enqueue_phrase_polish import EnqueuePhrasePolishUseCase
     from backend.application.use_cases.enqueue_phrase_tts import EnqueuePhraseTTSUseCase
-    from backend.application.use_cases.generate_meaning import GenerateMeaningUseCase
     from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
     from backend.application.use_cases.regenerate_phrase_media import RegeneratePhraseMediaUseCase
     from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
@@ -318,33 +315,28 @@ def regenerate_phrase_media(
     return update
 
 
-@router.post("/{phrase_id}/generate-meaning")
-async def generate_meaning(
+@router.post("/{phrase_id}/generate-meaning", status_code=202)
+def generate_meaning(
     phrase_id: int,
     follow_up: FollowUpRequest | None = None,
-    meaning: GenerateMeaningUseCase = Depends(  # noqa: B008
-        use_case(Container.generate_meaning_use_case),  # noqa: B008
+    meaning: EnqueuePhraseMeaningUseCase = Depends(  # noqa: B008
+        use_case(Container.enqueue_phrase_meaning_use_case),  # noqa: B008
     ),
     ctx: ReviewContext = Depends(review_context),  # noqa: B008
     mutation: ReviewMutation = Depends(use_case(Container.review_mutation)),  # noqa: B008
-) -> GenerateMeaningResponseDTO:
-    """The card's meaning made, or followed up; the answer also says what changed."""
-    def generate() -> GenerateMeaningResponseDTO:
-        if follow_up is not None:
-            return meaning.execute_follow_up(phrase_id, follow_up.action, follow_up.text)
-        return meaning.execute(phrase_id)
-
+) -> ReviewUpdateDTO:
+    """Queue the phrase's meaning, or a follow-up about it; the worker calls the AI. The
+    answer is what changed in the open review."""
+    question = (
+        MeaningFollowUp(follow_up.action, follow_up.text) if follow_up is not None else None
+    )
     try:
         with review_expired():
-            result, update = await asyncio.to_thread(mutation.edit, ctx, generate)
-        return result.model_copy(update={"update": update})
+            _, update = mutation.edit(ctx, lambda: meaning.execute(phrase_id, question))
     except PhraseNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except REFUSED_GENERATION as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
-    except AIUnavailableError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-    except AIServiceError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    return update

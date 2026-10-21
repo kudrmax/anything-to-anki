@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
 import { ApiError } from '@/api/errors'
-import type { GenerateMeaningResult, GenerationOverview, SetScope, StoredCandidate } from '@/api/types'
+import type { GenerationOverview, SetScope, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref } from '@/lib/preferences'
 import { buttons, cardRow, layout, reviewCard, reviewUpdate, state } from './reviewFixtures'
 import { useReview, type Review } from './useReview'
@@ -75,17 +75,11 @@ describe('useReview', () => {
     expect(api.getReviewGeneration).toHaveBeenCalledWith(SCOPE)
   })
 
-  it('shows the AI-unavailable banner when making a meaning fails with 503, and toasts other failures', async () => {
-    vi.spyOn(api, 'generateMeaning').mockRejectedValue(new ApiError(503, '{"detail":"Blocked country"}'))
+  it('toasts a refused meaning request', async () => {
+    vi.spyOn(api, 'generateMeaning').mockRejectedValue(new ApiError(409, '{"detail":"Source is busy"}'))
     await render()
     await act(async () => { await latest.generate(1) })
-    expect(latest.vpnBlocked).toBe(true)
-
-    act(() => latest.dismissVpn())
-    vi.mocked(api.generateMeaning).mockRejectedValue(new ApiError(502, '{"detail":"Model is down"}'))
-    await act(async () => { await latest.generate(1) })
-    expect(latest.vpnBlocked).toBe(false)
-    expect(latest.toast).toContain('Model is down')
+    expect(latest.toast).toContain('Source is busy')
   })
 
   it('a boundary edit and an added word read no text again: their answers bring the highlights', async () => {
@@ -101,14 +95,16 @@ describe('useReview', () => {
     expect(api.reviewContents).toHaveBeenCalledTimes(contentsReads)
   })
 
-  it('applies the update a meaning brings and toasts the tokens', async () => {
-    vi.spyOn(api, 'generateMeaning').mockResolvedValue({
-      tokens_used: 12, update: reviewUpdate({ revision: 2, cards: [{ ...card(1), lemma: 'glare' }] }),
-    } as GenerateMeaningResult)
+  it('applies the update a queued meaning brings and reads the generation again', async () => {
+    vi.spyOn(api, 'generateMeaning').mockResolvedValue(
+      reviewUpdate({ revision: 2, cards: [{ ...card(1), lemma: 'glare' }] }),
+    )
     await render()
-    await act(async () => { await latest.generate(1) })
+    const generationReads = vi.mocked(api.getReviewGeneration).mock.calls.length
+    await act(async () => { await latest.generate(1, 'free_question', 'Why?') })
+    expect(api.generateMeaning).toHaveBeenCalledWith({ review_id: 'r1', since: 1, current: 1 }, 1, 'free_question', 'Why?')
     expect(latest.state.cards.get(1)?.lemma).toBe('glare')
-    expect(latest.toast).toBe('Tokens used: 12')
+    expect(vi.mocked(api.getReviewGeneration).mock.calls.length).toBeGreaterThan(generationReads)
   })
 
   it('toasts the reason of a refused press and of a refused cloze save, not the raw response', async () => {

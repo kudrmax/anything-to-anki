@@ -27,7 +27,6 @@ import type {
   ExportGroup,
   FollowUpAction,
   FrequentWordThresholdOption,
-  GenerateMeaningResult,
   GenerationKind,
   GenerationOverview,
   GenerationScope,
@@ -231,7 +230,7 @@ export const api = {
   deleteSource: (id: number) => reqVoid(`/sources/${id}`, { method: 'DELETE' }),
 
   generateMeaning: (ctx: ReviewContext, phraseId: number, followUpAction?: FollowUpAction, followUpText?: string) =>
-    req<GenerateMeaningResult>(onReview(`/phrases/${phraseId}/generate-meaning`, ctx), {
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/generate-meaning`, ctx), {
       method: 'POST',
       body: followUpAction
         ? JSON.stringify({ action: followUpAction, ...(followUpText ? { text: followUpText } : {}) })
