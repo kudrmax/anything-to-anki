@@ -157,6 +157,16 @@ def _board(client: TestClient) -> list[dict[str, object]]:
     return [summary for group in groups for summary in group["sources"]]
 
 
+def _button(
+    button: str, command: str | None, *, pressed: bool = False, refused: str | None = None,
+    closes: str | None = None,
+) -> dict[str, object]:
+    return {
+        "button": button, "command": command, "pressed": pressed, "refused": refused,
+        "closes": closes,
+    }
+
+
 def _card(client: TestClient, phrase_id: int) -> dict[str, object]:
     return next(c for c in _cards(client) if c["phrase_id"] == phrase_id)
 
@@ -218,19 +228,19 @@ class TestDecisionsOnCards:
         assert here["shown"]["where"] == "here"  # type: ignore[index]
         assert here["state"] == {
             "buttons": [
-                {"button": "learn", "command": "decide", "pressed": True, "refused": None},
-                {"button": "cloze", "command": "edit_cloze", "pressed": False, "refused": None},
-                {"button": "known", "command": "decide", "pressed": False, "refused": None},
-                {"button": "skip", "command": "decide", "pressed": False, "refused": None},
+                _button("learn", "decide", pressed=True, closes=None),
+                _button("cloze", "edit_cloze", closes="lemma"),
+                _button("known", "decide", closes="lemma"),
+                _button("skip", "decide", closes="card"),
             ],
         }
         refused = "not_decision_card"
         assert sibling["state"] == {
             "buttons": [
-                {"button": "learn", "command": None, "pressed": True, "refused": refused},
-                {"button": "cloze", "command": None, "pressed": False, "refused": refused},
-                {"button": "known", "command": None, "pressed": False, "refused": refused},
-                {"button": "skip", "command": None, "pressed": False, "refused": refused},
+                _button("learn", None, pressed=True, refused=refused),
+                _button("cloze", None, refused=refused),
+                _button("known", None, refused=refused),
+                _button("skip", None, refused=refused),
             ],
         }
         assert (here["is_done"], sibling["is_done"]) == (True, True)

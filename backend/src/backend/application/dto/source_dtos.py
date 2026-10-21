@@ -13,7 +13,12 @@ from backend.application.dto.cefr_dtos import (
 )
 from backend.application.dto.cloze_dtos import CandidateClozeDTO
 from backend.application.dto.document_dtos import DocumentPositionDTO
-from backend.domain.services.card_view import Closes, Command, ShownTone, Where  # noqa: TC001 — Pydantic
+from backend.domain.services.card_view import (  # noqa: TC001 — Pydantic
+    Closes,
+    Command,
+    ShownTone,
+    Where,
+)
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.services.meaning_action import (  # Pydantic needs it at runtime
     MeaningAction,

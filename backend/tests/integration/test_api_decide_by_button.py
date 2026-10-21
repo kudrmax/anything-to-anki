@@ -335,10 +335,14 @@ def test_the_card_tells_what_each_button_does(client: TestClient) -> None:
     }
     assert card["can_edit_cloze"] is False
     assert card["state"]["buttons"] == [
-        {"button": "learn", "command": "decide", "pressed": False, "refused": None},
-        {"button": "cloze", "command": "edit_cloze", "pressed": False, "refused": None},
-        {"button": "known", "command": "decide", "pressed": False, "refused": None},
-        {"button": "skip", "command": "decide", "pressed": False, "refused": None},
+        {"button": "learn", "command": "decide", "pressed": False, "refused": None,
+         "closes": "lemma"},
+        {"button": "cloze", "command": "edit_cloze", "pressed": False, "refused": None,
+         "closes": "lemma"},
+        {"button": "known", "command": "decide", "pressed": False, "refused": None,
+         "closes": "lemma"},
+        {"button": "skip", "command": "decide", "pressed": False, "refused": None,
+         "closes": "card"},
     ]
     for gone in ("status", "word_status", "phrase_skipped", "is_decision", "decision_kind",
                  "can_cloze"):
