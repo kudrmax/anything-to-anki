@@ -12,7 +12,8 @@ import css from './review.module.css'
 /** Заглушку начинают грузить за экран до того, как она покажется — как в списке. */
 const PREFETCH_MARGIN = '100% 0%'
 const GAP_SELECTOR = '[data-text-gap]'
-const BLOCK_SELECTOR = '[data-text-block]'
+/** Что держит место в колонке: блоки текста и заглушки, в порядке чтения. */
+const ANCHOR_SELECTOR = '[data-text-block], [data-text-gap]'
 
 interface SourceTextsProps {
   /** Оглавление, загруженные куски и их подсветки. */
@@ -56,9 +57,9 @@ function scrollToMark(container: HTMLElement, mark: HTMLElement, smooth: boolean
   container.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' })
 }
 
-/** Первый блок, что виден сверху колонки: по нему держится место, когда выше догружается текст. */
+/** Первый блок или заглушка, что видны сверху колонки: по ним держится место, когда выше догружается текст. */
 function topBlock(container: HTMLElement): HTMLElement | null {
-  const blocks = container.querySelectorAll<HTMLElement>(BLOCK_SELECTOR)
+  const blocks = container.querySelectorAll<HTMLElement>(ANCHOR_SELECTOR)
   const top = container.getBoundingClientRect().top
   let low = 0
   let high = blocks.length
@@ -182,7 +183,8 @@ export function SourceTexts({ text, done, focused, editingSourceId, onLoad, ensu
         const sourceId = Number(gap.sourceId)
         const start = Number(gap.gapStart)
         const end = gap.gapEnd === undefined ? null : Number(gap.gapEnd)
-        const view = entry.rootBounds ?? container.getBoundingClientRect()
+        // Край — относительно самой колонки, а не поля подгрузки вокруг неё.
+        const view = container.getBoundingClientRect()
         const above = entry.boundingClientRect.top < view.top && entry.boundingClientRect.bottom <= view.bottom
         void onLoad(sourceId, above ? (end === null ? LAST_BLOCK : end - 1) : start)
       }
