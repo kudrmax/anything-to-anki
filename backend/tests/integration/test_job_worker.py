@@ -126,6 +126,8 @@ def _unit_of_work(session: Session) -> SqlaUnitOfWork:
 
 
 SHORT_TIMEOUT_S = 0.2
+BLOCKED_CLAIM_S = 0.5
+LOOP_TICKS = 5
 RUN_PAST_TIMEOUT_S = 0.6
 
 
@@ -441,6 +443,34 @@ class TestLevelChangeWait:
 
         assert _jobs(container) == []
         assert _title(container) == WRITTEN_TITLE
+
+
+@pytest.mark.integration
+class TestLoopStaysFree:
+    async def test_a_claim_waiting_out_a_level_change_does_not_block_the_loop(
+        self, container: _Container,
+    ) -> None:
+        """Signals and the card state tick keep running while the claim waits."""
+        worker = JobWorker(container)  # type: ignore[arg-type]
+
+        ticks = 0
+        ticks_while_waiting: list[int] = []
+
+        def waiting_claim(*_args: object, **_kwargs: object) -> list[object]:
+            time.sleep(BLOCKED_CLAIM_S)
+            ticks_while_waiting.append(ticks)
+            return []
+
+        async def ticking() -> None:
+            nonlocal ticks
+            while ticks < LOOP_TICKS:
+                await asyncio.sleep(BLOCKED_CLAIM_S / (LOOP_TICKS * 2))
+                ticks += 1
+
+        with patch.object(worker._queue, "claim_next_run", waiting_claim):
+            await asyncio.gather(worker._process_one_job(), ticking())
+
+        assert ticks_while_waiting == [LOOP_TICKS]
 
 
 @pytest.mark.integration

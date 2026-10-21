@@ -90,7 +90,19 @@ class SqlaUnitOfWork(UnitOfWork):
             self._session.info[WRITE_OPEN_KEY] = False
 
     def _begin_through_gate(self) -> None:
+        """The lock is looked at before BEGIN IMMEDIATE too: the level change holds the
+        database for its one write longer than SQLite's busy timeout, and a write that
+        waited for it there would fail instead of meeting the gate. The look inside the
+        transaction is the one that counts; the change takes its lock minutes before its
+        write, so a write that saw no lock is long done by then."""
         while True:
+            try:
+                admitted = self._gate.admit(self._session)
+            finally:
+                self._session.rollback()
+            if not admitted:
+                self._gate.wait()
+                continue
             self._session.connection().exec_driver_sql(BEGIN_IMMEDIATE)
             try:
                 admitted = self._gate.admit(self._session)

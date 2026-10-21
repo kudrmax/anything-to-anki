@@ -11,6 +11,7 @@ from backend.domain.services.level_change_progress import LevelChangeStage
 from backend.domain.services.source_operations import REBUILD_OPERATION, available_operations
 from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.source_scope import SourceScope
+from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
     from backend.application.dto.settings_dtos import UpdateSettingsRequest
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MODE = RebuildMode.UPDATE
+RELEASE_ATTEMPTS = 3
 
 
 class ChangeLevelUseCase:
@@ -74,7 +76,7 @@ class ChangeLevelUseCase:
             self._release()
             self._progress.fail(str(e))
             return
-        self._media_files.remove(dropped_files)
+        self._remove(dropped_files)
         self._progress.succeed()
         logger.info("level change: done (sources=%d)", len(analysed))
 
@@ -86,10 +88,13 @@ class ChangeLevelUseCase:
         )
 
     def _targets(self) -> list[int]:
+        """Sources that failed processing are left out: their analysis fails every time,
+        and would keep the level from ever changing. Their Update applies the new level."""
         offered = REBUILD_OPERATION[MODE]
         return [
             source.id for source in self._scope_resolver.sources(SourceScope.all())
-            if source.id is not None and offered in available_operations(source)
+            if source.id is not None and source.status is not SourceStatus.ERROR
+            and offered in available_operations(source)
         ]
 
     def _analyse_all(self, values: AnalysisValues) -> list[AnalysedSource]:
@@ -115,10 +120,23 @@ class ChangeLevelUseCase:
             self._lock.release()
         return dropped_files
 
+    def _remove(self, dropped_files: list[str]) -> None:
+        """The change is committed: files left behind only take room, they undo nothing."""
+        try:
+            self._media_files.remove(dropped_files)
+        except OSError:
+            logger.exception("level change: files of dropped phrases left behind")
+
     def _release(self) -> None:
         """A lock left behind would keep every write out until the app restarts."""
-        try:
-            with self._unit_of_work.write():
-                self._lock.release()
-        except Exception:
-            logger.exception("level change: its lock could not be dropped; a restart drops it")
+        for attempt in range(1, RELEASE_ATTEMPTS + 1):
+            try:
+                with self._unit_of_work.write():
+                    self._lock.release()
+            except Exception:
+                logger.exception(
+                    "level change: its lock could not be dropped (attempt %d of %d)",
+                    attempt, RELEASE_ATTEMPTS,
+                )
+            else:
+                return

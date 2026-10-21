@@ -31,11 +31,13 @@ class BackgroundLevelChangeLauncher(LevelChangeLauncher):
         self,
         start: StartLevelChangeUseCase,
         run: LevelChangeRun,
+        release: Callable[[], None],
         progress: LevelChangeProgress,
         spawn: Callable[[Callable[[], None]], None] = in_thread,
     ) -> None:
         self._start = start
         self._run = run
+        self._release = release
         self._progress = progress
         self._spawn = spawn
 
@@ -51,9 +53,13 @@ class BackgroundLevelChangeLauncher(LevelChangeLauncher):
 
     def _run_logged(self, request: UpdateSettingsRequest) -> None:
         """The change ends itself in every case; this only keeps a crash before it began
-        from leaving the progress running."""
+        from leaving the lock held and the progress running."""
         try:
             self._run(request)
         except Exception as e:
-            logger.exception("level change: could not run; a restart drops its lock")
+            logger.exception("level change: could not run")
+            try:
+                self._release()
+            except Exception:
+                logger.exception("level change: its lock could not be dropped")
             self._progress.fail(str(e))

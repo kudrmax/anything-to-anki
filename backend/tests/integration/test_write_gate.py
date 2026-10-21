@@ -12,6 +12,7 @@ from backend.domain.entities.ai_usage_record import AIUsageRecord
 from backend.domain.exceptions import LevelChangeInProgressError
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.token_usage import TokenUsage
+from backend.infrastructure.persistence import database
 from backend.infrastructure.persistence.database import Base, create_session_factory
 from backend.infrastructure.persistence.models import AIUsageModel, SettingModel
 from backend.infrastructure.persistence.session_ai_usage_recorder import SessionAIUsageRecorder
@@ -151,3 +152,50 @@ def test_ai_usage_record_waits_out_the_lock(factory: sessionmaker[Session]) -> N
     assert elapsed >= LOCK_HELD_S
     with factory() as session:
         assert session.scalar(select(func.count()).select_from(AIUsageModel)) == 1
+
+
+SHORT_BUSY_TIMEOUT_MS = 200
+STAGE_TWO_S = 1.0
+
+
+@pytest.fixture()
+def short_busy_factory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> sessionmaker[Session]:
+    """A database whose busy timeout is far shorter than the level change's one write, as
+    30 s is on a whole book."""
+    monkeypatch.setattr(database, "SQLITE_BUSY_TIMEOUT_MS", SHORT_BUSY_TIMEOUT_MS)
+    made = create_session_factory(f"sqlite:///{tmp_path / 'app.db'}")
+    Base.metadata.create_all(made.kw["bind"])
+    return made
+
+
+def _stage_two(factory: sessionmaker[Session], inside: threading.Event) -> None:
+    """The level change's one write: held past the busy timeout, dropping the lock at its
+    commit."""
+    with factory() as session, _unit_of_work(session, OwnLevelChange()).write():
+        inside.set()
+        time.sleep(STAGE_TWO_S)
+        SqlaLevelChangeLock(session).release()
+
+
+@pytest.mark.parametrize("gate", [WaitOutLevelChange(), RefuseDuringLevelChange()])
+def test_a_write_during_the_long_write_meets_the_gate_not_the_busy_timeout(
+    short_busy_factory: sessionmaker[Session], gate: WriteGate,
+) -> None:
+    _lock(short_busy_factory)
+    inside = threading.Event()
+    change = threading.Thread(target=_stage_two, args=(short_busy_factory, inside))
+    change.start()
+    inside.wait()
+
+    try:
+        with short_busy_factory() as session:
+            _write(session, gate, "after")
+    except LevelChangeInProgressError:
+        assert isinstance(gate, RefuseDuringLevelChange)
+    else:
+        assert isinstance(gate, WaitOutLevelChange)
+        assert _stored(short_busy_factory) == "after"
+    finally:
+        change.join()

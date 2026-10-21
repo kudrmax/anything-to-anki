@@ -36,3 +36,12 @@ class TestLevelChangeProgress:
         before = progress.status()
         assert not progress.try_start()
         assert progress.status() == before
+
+    def test_each_started_change_has_a_new_id(self) -> None:
+        progress = LevelChangeProgress()
+        first = progress.status().change_id
+        progress.try_start()
+        progress.succeed()
+        assert progress.status().change_id == first + 1
+        progress.try_start()
+        assert progress.status().change_id == first + 2

@@ -1098,9 +1098,17 @@ class Container:
                 unit_of_work=self._unit_of_work(session),
             ),
             run=self._level_change_run(),
+            release=self._release_level_change_lock,
             progress=self._level_change_progress,
             spawn=self._spawn_level_change,
         )
+
+    def _release_level_change_lock(self) -> None:
+        with (
+            self._get_session_factory()() as session,
+            self._level_change_unit_of_work(session).write(),
+        ):
+            SqlaLevelChangeLock(session).release()
 
     def _spawn_level_change(self, run: Callable[[], None]) -> None:
         in_thread(run)

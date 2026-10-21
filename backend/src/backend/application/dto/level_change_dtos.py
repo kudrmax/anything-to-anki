@@ -12,8 +12,10 @@ class LevelChangeOutcome(Enum):
 
 
 class LevelChangeStatusDTO(BaseModel):
-    """Whether the level is being changed and how far; once it ends, how it ended."""
+    """Whether the level is being changed and how far; once it ends, how it ended.
+    `change_id` grows with each change started, so a new outcome tells from an old one."""
 
+    change_id: int
     running: bool
     percent: int
     cancellable: bool

@@ -18,19 +18,25 @@ interface LevelChange {
 /**
  * Состояние смены уровня от backend: читается при открытии, по сигналу (423 на запись,
  * сохранение настроек), при возврате на вкладку и раз в секунду, пока смена идёт.
- * Закончилась успешно или отменена — страница перечитывается целиком.
+ * Закончилась успешно или отменена — страница перечитывается целиком; итог смены, которую
+ * страница не застала идущей (она прошла между двумя ответами), тоже считается.
  */
 export function useLevelChange(reload: () => void = reloadPage): LevelChange {
   const [status, setStatus] = useState<LevelChangeStatus | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const wasRunning = useRef(false)
+  /** Последняя смена, о которой страница уже знает; до первого ответа — никакой. */
+  const seenChange = useRef<number | null>(null)
 
   const apply = useCallback((next: LevelChangeStatus) => {
     setStatus(next)
-    if (wasRunning.current && !next.running) {
+    const known = seenChange.current
+    const unseen = known !== null && next.change_id !== known
+    if (!next.running && next.outcome !== null && (wasRunning.current || unseen)) {
       if (next.outcome === 'failed') setFailure(next.error ?? 'Level change failed')
       else reload()
     }
+    seenChange.current = next.change_id
     wasRunning.current = next.running
   }, [reload])
 

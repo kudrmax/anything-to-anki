@@ -17,6 +17,7 @@ class LevelChangeProgress:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        self._change_id = 0
         self._running = False
         self._stage = LevelChangeStage.ANALYSE
         self._done = 0
@@ -30,6 +31,7 @@ class LevelChangeProgress:
         with self._lock:
             if self._running:
                 return False
+            self._change_id += 1
             self._running = True
             self._stage = LevelChangeStage.ANALYSE
             self._done = self._total = 0
@@ -81,6 +83,7 @@ class LevelChangeProgress:
         with self._lock:
             done = self._outcome is LevelChangeOutcome.SUCCEEDED
             return LevelChangeStatusDTO(
+                change_id=self._change_id,
                 running=self._running,
                 percent=DONE_PERCENT if done else percent(self._stage, self._done, self._total),
                 cancellable=self._cancellable(),

@@ -254,3 +254,43 @@ def test_source_without_text_has_sections_moved_only(db_session: Session) -> Non
 
     bench.analyze_text.execute.assert_not_called()
     assert progress.status().outcome is LevelChangeOutcome.SUCCEEDED
+
+
+def test_a_source_that_failed_processing_is_left_out(world: World) -> None:
+    """Its analysis fails every time; the change goes on without it, as Find words again
+    of all sources did. Update of that source applies the new level once it is fixed."""
+    world.session.execute(text("UPDATE sources SET status = 'error' WHERE id = :id"), {
+        "id": OTHER_SOURCE,
+    })
+    world.session.execute(text("DELETE FROM source_documents WHERE source_id = :id"), {
+        "id": OTHER_SOURCE,
+    })
+    world.session.commit()
+
+    world.change()
+
+    assert world.progress.status().outcome is LevelChangeOutcome.SUCCEEDED
+    assert world.setting("cefr_level") == NEW_LEVEL
+
+
+def test_a_done_source_without_its_document_fails_the_whole_change(world: World) -> None:
+    world.session.execute(text("DELETE FROM source_documents WHERE source_id = :id"), {
+        "id": OTHER_SOURCE,
+    })
+    world.session.commit()
+
+    world.change()
+
+    assert world.unchanged()
+    assert world.progress.status().outcome is LevelChangeOutcome.FAILED
+
+
+def test_files_that_cannot_be_removed_do_not_undo_a_committed_change(world: World) -> None:
+    def refuse(_paths: object) -> None:
+        raise PermissionError("media folder is read-only")
+
+    with patch.object(world.bench.media_files, "remove", refuse):
+        world.change()
+
+    assert world.progress.status().outcome is LevelChangeOutcome.SUCCEEDED
+    assert world.setting("cefr_level") == NEW_LEVEL
