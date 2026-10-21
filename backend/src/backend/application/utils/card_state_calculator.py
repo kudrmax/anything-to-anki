@@ -11,6 +11,7 @@ from backend.domain.services.card_state_rules import changes_at, phrase_word_row
 from backend.domain.services.card_view import card_status, open_elsewhere
 from backend.domain.value_objects.card_choice import decision_status
 from backend.domain.value_objects.card_state_rows import CardStateRow, WordStateRow
+from backend.domain.value_objects.user_knowledge import RememberedNewness
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -98,11 +99,15 @@ class CardStateCalculator:
             changes_at=changes_at(lemma, self._now),
         )
 
+    @cached_property
+    def _newness(self) -> RememberedNewness:
+        return RememberedNewness(self._base)
+
     def phrase_words(self, card: CardRow) -> tuple[PhraseWordRow, ...]:
-        return phrase_word_rows(card.phrase_id, card.phrase, self._base)
+        return phrase_word_rows(card.phrase_id, card.phrase, self._newness)
 
     def newness(self, word: NewnessFacts) -> Newness:
-        return self._base.newness(word)
+        return self._newness.newness(word)
 
     @staticmethod
     def card(

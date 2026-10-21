@@ -18,6 +18,7 @@ from sqlalchemy import (
     case,
     event,
     func,
+    literal_column,
     or_,
     select,
     text,
@@ -45,7 +46,12 @@ from backend.domain.services.card_view import CHOSEN_TO_LEARN
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.built_analysis import WordData
 from backend.domain.value_objects.candidate_section import CandidateSection
-from backend.domain.value_objects.card_choice import DECISION_CHOICES, CardChoice, DecisionStatus
+from backend.domain.value_objects.card_choice import (
+    CHOICE_OF_KIND,
+    DECISION_CHOICES,
+    CardChoice,
+    DecisionStatus,
+)
 from backend.domain.value_objects.cefr_breakdown import (
     CAMBRIDGE,
     CEFRPY,
@@ -480,6 +486,11 @@ class StoredCandidateModel(Base):
         return model
 
 
+# The choices of a decision card that goes to Anki, and the same in SQL.
+AWAITING_EXPORT: tuple[CardChoice, ...] = tuple(CHOICE_OF_KIND.values())
+AWAITING_EXPORT_CHOICES_SQL = "(" + ", ".join(f"'{c.value}'" for c in AWAITING_EXPORT) + ")"
+
+
 class PhraseModel(Base):
     """SQLAlchemy model for the phrases of a word: an occurrence of it in the text."""
 
@@ -499,6 +510,13 @@ class PhraseModel(Base):
             "candidate_id",
             unique=True,
             sqlite_where=text("choice IN ('learn', 'cloze', 'known')"),
+        ),
+        # The Learn and Cloze decision cards: what the knowledge snapshot reads the words
+        # waiting for export from, at every write.
+        Index(
+            "ix_phrases_awaiting_export",
+            "candidate_id",
+            sqlite_where=text(f"choice IN {AWAITING_EXPORT_CHOICES_SQL}"),
         ),
         {"sqlite_autoincrement": True},
     )
@@ -552,10 +570,10 @@ class PhraseModel(Base):
     @classmethod
     def awaits_export(cls) -> ColumnElement[bool]:
         """The word's decision card, a Learn or a Cloze, with no active binding: what
-        `card_view.in_export_queue` says of the decision, before what the user knows."""
+        `card_view.in_export_queue` says of the decision, before what the user knows. The
+        choices are written out, not bound, so SQLite reads them by their partial index."""
         return and_(
-            cls.is_decision(),
-            cls.choice != CardChoice.KNOWN.value,
+            cls.choice.in_([literal_column(f"'{kind.value}'") for kind in AWAITING_EXPORT]),
             ~select(AnkiSyncedCardModel.id)
             .where(
                 AnkiSyncedCardModel.phrase_id == cls.id,

@@ -13,11 +13,11 @@ if TYPE_CHECKING:
 
     from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
     from backend.domain.value_objects.phrase import Phrase
-    from backend.domain.value_objects.user_knowledge import KnowledgeBase
+    from backend.domain.value_objects.user_knowledge import NewnessRule
 
 
 def phrase_word_rows(
-    phrase_id: int, phrase: Phrase, knowledge_base: KnowledgeBase,
+    phrase_id: int, phrase: Phrase, knowledge_base: NewnessRule,
 ) -> tuple[PhraseWordRow, ...]:
     """The words of the phrase besides its target, in phrase order, each with its newness."""
     target = set(phrase.target)

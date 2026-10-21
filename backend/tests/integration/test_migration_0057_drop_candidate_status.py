@@ -9,7 +9,8 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from backend.infrastructure.persistence import database
-from sqlalchemy import create_engine, inspect, text
+from backend.infrastructure.persistence.models import PhraseModel, StoredCandidateModel
+from sqlalchemy import create_engine, func, inspect, select, text
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
@@ -79,6 +80,26 @@ def test_the_lemma_index_is_on_the_lower_case_lemma_alone(db_url: str) -> None:
     assert "lower(lemma)" in sql
     assert "status" not in sql
     assert "ix_candidates_lower_lemma" in plan
+
+
+def test_the_words_waiting_for_export_are_read_by_their_own_index(db_url: str) -> None:
+    """The knowledge snapshot reads them at every write: by the partial index of Learn and
+    Cloze cards, not a scan of every word."""
+    engine = _migrated(db_url, DROP_STATUS)
+    query = select(func.lower(StoredCandidateModel.lemma)).join(
+        PhraseModel, PhraseModel.candidate_id == StoredCandidateModel.id,
+    ).where(PhraseModel.awaits_export())
+
+    with engine.connect() as conn:
+        sql = conn.execute(text(
+            "SELECT sql FROM sqlite_master WHERE name = 'ix_phrases_awaiting_export'",
+        )).scalar_one()
+        compiled = str(query.compile(engine, compile_kwargs={"literal_binds": True}))
+        plan = " ".join(
+            str(row[-1]) for row in conn.exec_driver_sql(f"EXPLAIN QUERY PLAN {compiled}")
+        )
+    assert sql.endswith("WHERE choice IN ('learn', 'cloze')")
+    assert "ix_phrases_awaiting_export" in plan
 
 
 def test_the_drop_cannot_be_undone(db_url: str) -> None:

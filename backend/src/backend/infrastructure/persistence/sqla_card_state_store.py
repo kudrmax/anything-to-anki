@@ -73,11 +73,37 @@ class SqlaCardStateStore(CardStateStore):
         self.write_cards(states.cards, revision)
         session.execute(delete(_WORDS))
         self._insert_many(_WORDS, _WORD_COLUMNS, [_word_values(row) for row in states.words])
-        session.execute(delete(_PHRASE_WORDS))
-        self._insert_many(
-            _PHRASE_WORDS, _PHRASE_WORD_COLUMNS,
-            [_phrase_word_values(row) for row in states.phrase_words],
+        self._replace_all_phrase_words(states.phrase_words)
+
+    def _replace_all_phrase_words(self, rows: Collection[PhraseWordRow]) -> None:
+        """Only the rows that differ are written: after a restart nearly all are as stored,
+        and rewriting a book's million rows and their index took a quarter of the rebuild.
+        The table is read in its key order, so the rows of a rebuild, in that order too,
+        match it as a list unless something changed."""
+        wanted = sorted(
+            (_phrase_word_values(row) for row in rows), key=lambda values: values[2:4],
         )
+        cursor = self._session.connection().connection.cursor()
+        try:
+            cursor.execute(
+                f"SELECT {', '.join(_PHRASE_WORD_COLUMNS)} FROM {_PHRASE_WORDS.name}"  # noqa: S608 — model names
+                " ORDER BY phrase_id, position",
+            )
+            stored = list(cursor.fetchall())
+        finally:
+            cursor.close()
+        if stored == wanted:
+            return
+        by_key = {values[2:4]: values for values in wanted}
+        kept = {values[2:4]: values for values in stored}
+        gone = [key for key in kept if key not in by_key]
+        changed = [values for key, values in by_key.items() if kept.get(key) != values]
+        if gone:
+            self._session.connection().exec_driver_sql(
+                f"DELETE FROM {_PHRASE_WORDS.name} WHERE phrase_id = ? AND position = ?",  # noqa: S608 — model names
+                gone,
+            )
+        self._insert_many(_PHRASE_WORDS, _PHRASE_WORD_COLUMNS, changed, replace=True)
 
     def _insert_many(
         self, table: Table, columns: tuple[str, ...], rows: list[tuple[object, ...]],

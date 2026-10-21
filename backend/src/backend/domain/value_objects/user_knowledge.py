@@ -50,6 +50,28 @@ def is_new_at(word_newness: Newness, zipf: float, frequent_zipf: float | None) -
     return word_newness is Newness.ALWAYS
 
 
+class NewnessRule(Protocol):
+    """What tells the newness of a word."""
+
+    def newness(self, word: NewnessFacts) -> Newness: ...
+
+
+class RememberedNewness:
+    """`KnowledgeBase.newness`, each kind of word (lemma, content, level) worked out once: a
+    book's phrases hold a million words of a few thousand kinds."""
+
+    def __init__(self, base: KnowledgeBase) -> None:
+        self._base = base
+        self._found: dict[tuple[str, bool, CEFRLevel], Newness] = {}
+
+    def newness(self, word: NewnessFacts) -> Newness:
+        key = (word.lemma, word.content, word.level)
+        found = self._found.get(key)
+        if found is None:
+            found = self._found[key] = self._base.newness(word)
+        return found
+
+
 @dataclass(frozen=True)
 class KnowledgeBase:
     """What the user knows apart from the frequent word threshold."""
