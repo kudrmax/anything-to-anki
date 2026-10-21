@@ -6,6 +6,7 @@ from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.decision_progress import DecisionProgress
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.elsewhere import ElsewhereStatus
+from backend.domain.value_objects.generated_parts import NOTHING_GENERATED
 from backend.domain.value_objects.review_card import CardRow, ReviewCard
 from backend.domain.value_objects.word_status import WordStatus
 
@@ -137,5 +138,6 @@ def _row(
     return CardRow(
         source_id=7, word_id=word_id, phrase_id=word_id, lemma=lemma, pos="NOUN",
         zipf_frequency=zipf, word_status=WordStatus.NEW, skipped=skipped,
-        phrase=phrase(text, lemma, new=new), earned_section=earned, elsewhere=elsewhere,
+        phrase=phrase(text, lemma, new=new), earned_section=earned,
+        generated=NOTHING_GENERATED, elsewhere=elsewhere,
     )

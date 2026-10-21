@@ -2,7 +2,7 @@
 its order: the user may switch the threshold, and nothing is computed again."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from backend.domain.value_objects.frequent_word_threshold import THRESHOLD_STEPS, step_index
@@ -19,12 +19,18 @@ def _check_length(values: tuple[object, ...], name: str) -> None:
 
 @dataclass(frozen=True)
 class SectionsByStep:
-    """The section a card stands in at each threshold step."""
+    """The section a card stands in at each threshold step. Its hash is kept: the screens
+    count a book's cards by it, and each of its sections hashes in Python."""
 
     sections: tuple[CandidateSection, ...]
+    _hash: int = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         _check_length(self.sections, type(self).__name__)
+        object.__setattr__(self, "_hash", hash(self.sections))
+
+    def __hash__(self) -> int:
+        return self._hash
 
     def at(self, step: float | None) -> CandidateSection:
         return self.sections[step_index(step)]

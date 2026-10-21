@@ -8,6 +8,8 @@ import pytest
 from backend.application.use_cases.get_review import GetReviewUseCase
 from backend.application.utils.card_views import CardViews
 from backend.application.utils.review_cards import ReviewCards
+from backend.application.utils.review_header import ReviewHeader
+from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.source_ordering import SourceOrdering
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.collection import Collection
@@ -25,8 +27,9 @@ from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
-from tests.candidate_sorter_support import candidate_sorter
+from tests.candidate_sorter_support import candidate_sorter, threshold_resolver
 from tests.card_support import PhraseWordStates, occurrence, word
+from tests.projection_support import LiveSectionTallies, review_cards_by_source
 from tests.source_order_support import order_settings
 from tests.vocabulary_support import user_vocabulary
 
@@ -73,27 +76,37 @@ class TestGetReviewUseCase:
                 self.order_settings, MagicMock(), MagicMock(), self.candidate_repo,
             ),
         )
+        review_cards = ReviewCards(
+            self.candidate_repo, self.occurrence_repo,
+            PhraseWordStates(
+                lambda: [w for ws in self.words.values() for w in ws],
+                lambda word_id: self.occurrence_repo.shown_by_word.return_value.get(
+                    word_id, [],
+                ),
+            ),
+            user_vocabulary(),
+        )
+        sorter = candidate_sorter(self.settings_repo)
+        self.job_repo.has_failed_matching.return_value = False
         self.use_case = GetReviewUseCase(
             card_views=CardViews(
-                review_cards=ReviewCards(
-                    self.candidate_repo, self.occurrence_repo,
-                    PhraseWordStates(
-                        lambda: [w for ws in self.words.values() for w in ws],
-                        lambda word_id: self.occurrence_repo.shown_by_word.return_value.get(
-                            word_id, [],
-                        ),
-                    ),
-                    user_vocabulary(),
-                ),
-                candidate_sorter=candidate_sorter(self.settings_repo),
+                review_cards=review_cards,
+                candidate_sorter=sorter,
                 job_repo=self.job_repo,
                 report_repo=self.report_repo,
                 scope_resolver=resolver,
                 source_repo=self.source_repo,
             ),
-            scope_resolver=resolver,
-            card_query=self.card_query,
-            lock=self.lock,
+            header=ReviewHeader(
+                scope_resolver=resolver,
+                review_progress=ReviewProgress(
+                    LiveSectionTallies(review_cards_by_source(review_cards.of_sources), sorter),
+                    threshold_resolver(self.settings_repo),
+                ),
+                card_query=self.card_query,
+                lock=self.lock,
+                job_repo=self.job_repo,
+            ),
         )
 
     def _one_source(self, source: Source) -> None:

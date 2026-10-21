@@ -14,6 +14,7 @@ from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import InvalidPhraseError
+from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown, SourceVote
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document import (
@@ -26,11 +27,13 @@ from backend.domain.value_objects.document import (
 from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.api.dependencies import get_container
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.models import CollectionModel, SourceModel
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
 from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
+from backend.infrastructure.persistence.sqla_card_state_query import SqlaCardStateQuery
 from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
 )
@@ -44,6 +47,7 @@ from backend.infrastructure.persistence.sqla_source_repository import SqlaSource
 from tests.candidate_sorter_support import section_stamper
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase, shown_lemmas
+from tests.projection_support import rebuild_projection
 from tests.source_order_support import added_order
 from tests.word_support import CardSeed, store_cards
 
@@ -86,7 +90,7 @@ def _screen(session: Session) -> GetReviewDocumentsUseCase:
             SqlaCollectionRepository(session),
             added_order(),
         ),
-        SqlaDocumentRepository(session), SqlaCardQuery(session),
+        SqlaDocumentRepository(session), SqlaCardQuery(session), SqlaCardStateQuery(session),
     )
 
 
@@ -232,3 +236,27 @@ def test_a_mark_has_the_level_of_its_stored_breakdown(
     levels = {p.word_id: p.cefr_level for p in SqlaCardQuery(db_session).shown_places(source_id)}
 
     assert levels == {rated.word_id: "C1", unrated.word_id: None, unknown.word_id: None}
+
+
+def test_a_mark_says_whether_its_card_is_done(db_session: Session, source_id: int) -> None:
+    """Read from the stored projection: a pressed Known turns the mark of its card done."""
+    SqlaDocumentRepository(db_session).save(source_id, DOCUMENT)
+    give_up, pursuit = store_cards(db_session, [
+        _candidate(source_id, "give up", "gave up"),
+        _candidate(source_id, "pursuit", "pursuit"),
+    ])
+    db_session.commit()
+    rebuild_projection(db_session)
+    container = get_container()
+
+    def done_marks() -> dict[int, bool]:
+        [screen] = container.get_review_documents_use_case(db_session).execute(
+            SourceScope.source(source_id),
+        )
+        return {h.phrase_id: h.is_done for h in screen.highlights}
+
+    assert done_marks() == {give_up.phrase_id: False, pursuit.phrase_id: False}
+
+    container.decide_phrase_use_case(db_session).decide(pursuit.phrase_id, Press.KNOWN)
+
+    assert done_marks() == {give_up.phrase_id: False, pursuit.phrase_id: True}

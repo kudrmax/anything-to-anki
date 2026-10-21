@@ -62,7 +62,6 @@ from backend.application.utils.candidate_sorter import CandidateSorter
 from backend.application.utils.card_state_projector import CardStateProjector
 from backend.application.utils.card_views import CardViews
 from backend.application.utils.collected_phrases import CollectedPhrases
-from backend.application.utils.decided_elsewhere import DecidedElsewhere
 from backend.application.utils.decision_effects import DecisionEffects
 from backend.application.utils.export_queue import ExportQueue
 from backend.application.utils.frequent_word_threshold_resolver import (
@@ -70,8 +69,10 @@ from backend.application.utils.frequent_word_threshold_resolver import (
 )
 from backend.application.utils.knowledge_scope import KnowledgeScope
 from backend.application.utils.live_card_states import LiveCardStates
+from backend.application.utils.live_generation_status import LiveGenerationStatus
 from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.review_cards import ReviewCards
+from backend.application.utils.review_header import ReviewHeader
 from backend.application.utils.review_progress import ReviewProgress
 from backend.application.utils.rewrite_phrase import RewritePhrase
 from backend.application.utils.section_stamper import SectionStamper
@@ -168,6 +169,7 @@ from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_card_report_repository import (
     SqlaCardReportRepository,
 )
+from backend.infrastructure.persistence.sqla_card_state_query import SqlaCardStateQuery
 from backend.infrastructure.persistence.sqla_card_state_store import SqlaCardStateStore
 from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
@@ -433,6 +435,7 @@ class Container:
             scope_resolver=self._scope_resolver(session),
             document_repo=SqlaDocumentRepository(session),
             card_query=SqlaCardQuery(session),
+            card_state_query=self._card_state_query(session),
         )
 
     def add_saved_phrase_use_case(self, session: Session) -> AddSavedPhraseUseCase:
@@ -531,10 +534,16 @@ class Container:
 
     def get_review_use_case(self, session: Session) -> GetReviewUseCase:
         return GetReviewUseCase(
-            card_views=self._card_views(session),
+            card_views=self._card_views(session), header=self.review_header(session),
+        )
+
+    def review_header(self, session: Session) -> ReviewHeader:
+        return ReviewHeader(
             scope_resolver=self._scope_resolver(session),
+            review_progress=self._review_progress(session),
             card_query=SqlaCardQuery(session),
             lock=SqlaSourceOperationLock(session),
+            job_repo=SqlaJobRepository(session),
         )
 
     def create_collection_use_case(self, session: Session) -> CreateCollectionUseCase:
@@ -844,9 +853,8 @@ class Container:
 
     def _review_progress(self, session: Session) -> ReviewProgress:
         return ReviewProgress(
-            card_query=SqlaCardQuery(session),
-            candidate_sorter=self._candidate_sorter(session),
-            decided_elsewhere=DecidedElsewhere(self._user_vocabulary(session)),
+            card_states=self._card_state_query(session),
+            threshold_resolver=self._threshold_resolver(session),
         )
 
     def _card_views(self, session: Session) -> CardViews:
@@ -892,6 +900,9 @@ class Container:
         """What time changed in the projection, written in one write transaction."""
         self.session_work().write(lambda session: self.card_state_projector(session).tick())
 
+    def _card_state_query(self, session: Session) -> SqlaCardStateQuery:
+        return SqlaCardStateQuery(session)
+
     def live_card_states(self, session: Session) -> LiveCardStates:
         return LiveCardStates(
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
@@ -899,6 +910,7 @@ class Container:
             candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
             knowledge=self._user_knowledge(session),
             vocabulary=self._user_vocabulary(session),
+            targets=self._generation_targets(session),
         )
 
     def _user_vocabulary(self, session: Session) -> UserVocabulary:
@@ -1368,6 +1380,16 @@ class Container:
             GetGenerationStatusUseCase,
         )
         return GetGenerationStatusUseCase(
+            scope_resolver=self._scope_resolver(session),
+            card_states=self._card_state_query(session),
+            job_repo=SqlaJobRepository(session),
+            threshold_resolver=self._threshold_resolver(session),
+            targets=self._generation_targets(session),
+        )
+
+    def live_generation_status(self, session: Session) -> LiveGenerationStatus:
+        """The ✨ counts from the loaded cards: the reference of the stored projection's."""
+        return LiveGenerationStatus(
             scope_resolver=self._scope_resolver(session),
             cards=self._generation_cards(session),
             job_repo=SqlaJobRepository(session),

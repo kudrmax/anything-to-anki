@@ -1,3 +1,5 @@
+"""The ✨ counts from every card of a set loaded whole: the reference of the counts read
+from the stored projection."""
 from __future__ import annotations
 
 from collections import Counter
@@ -26,9 +28,9 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.source_scope import SourceScope
 
 
-class GetGenerationStatusUseCase:
-    """How far every kind of background generation got for the cards of a set of sources:
-    the counts of each kind summed over the sources it applies to."""
+class LiveGenerationStatus:
+    """The ✨ counts computed from the loaded cards, the way the menu computed them before
+    the stored projection: the reference `GetGenerationStatusUseCase` is checked against."""
 
     def __init__(
         self,
@@ -55,7 +57,7 @@ class GetGenerationStatusUseCase:
             for kind in of_source.kinds:
                 per_kind[kind.kind].append(kind)
         return GenerationStatusDTO(
-            kinds=[_summed(kinds) for kinds in per_kind.values() if kinds],
+            kinds=[summed(kinds) for kinds in per_kind.values() if kinds],
             in_progress=any(of_source.in_progress for of_source in of_sources),
         )
 
@@ -110,7 +112,7 @@ class GetGenerationStatusUseCase:
         )
 
 
-def _summed(kinds: list[GenerationKindStatusDTO]) -> GenerationKindStatusDTO:
+def summed(kinds: list[GenerationKindStatusDTO]) -> GenerationKindStatusDTO:
     """One kind over several sources: counts add up, the videos to download too; it is held
     back only when every source holds it back."""
     return GenerationKindStatusDTO(

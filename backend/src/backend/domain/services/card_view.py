@@ -356,11 +356,19 @@ def wants_ready_generation(wants_generation: bool, section: CandidateSection) ->
 
 def progress(sections: Iterable[CandidateSection]) -> DecisionProgress:
     """Reviewed / (Reviewed + open Ready)."""
-    listed = list(sections)
-    reviewed = listed.count(CandidateSection.REVIEWED)
-    return DecisionProgress(
-        decided=reviewed, total=reviewed + listed.count(CandidateSection.READY),
-    )
+    return counted_progress((section, 1) for section in sections)
+
+
+def counted_progress(counts: Iterable[tuple[CandidateSection, int]]) -> DecisionProgress:
+    """`progress` of cards counted by section: each pair is a section and how many cards
+    stand in it."""
+    reviewed = ready = 0
+    for section, count in counts:
+        if section is CandidateSection.REVIEWED:
+            reviewed += count
+        elif section is CandidateSection.READY:
+            ready += count
+    return DecisionProgress(decided=reviewed, total=reviewed + ready)
 
 
 _REACH: Mapping[tuple[bool, bool], ReviewReach] = MappingProxyType(

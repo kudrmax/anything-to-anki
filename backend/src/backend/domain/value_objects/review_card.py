@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.card_choice import WordState
     from backend.domain.value_objects.elsewhere import ElsewhereStatus
     from backend.domain.value_objects.frequency_band import FrequencyBand
+    from backend.domain.value_objects.generated_parts import GeneratedParts
     from backend.domain.value_objects.lemma_knowledge import LemmaKnowledge
     from backend.domain.value_objects.phrase import Phrase
     from backend.domain.value_objects.word_status import WordStatus
@@ -114,7 +115,8 @@ class ReviewCard:
 
 @dataclass(frozen=True)
 class CardRow:
-    """A card as the lists of sources need it: the word's facts and the shown text, light."""
+    """A card as the lists of sources need it: the word's facts, the shown text and what
+    generation made for it, light."""
 
     source_id: int
     word_id: int
@@ -126,6 +128,7 @@ class CardRow:
     skipped: bool
     phrase: Phrase
     earned_section: CandidateSection
+    generated: GeneratedParts
     elsewhere: ElsewhereStatus | None = None
 
     @property

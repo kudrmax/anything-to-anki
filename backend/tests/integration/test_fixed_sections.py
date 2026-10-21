@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
 from tests.word_support import bind, insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -77,6 +78,7 @@ def factory() -> Generator[sessionmaker[Session], None, None]:
         insert_word(session, SPARK, source_id=OTHER_SOURCE, lemma="spark")
         _store_phrase(session, SPARK_PHRASE, phrase("a spark quill", "spark"), "ready")
         session.commit()
+        rebuild_projection(session)
     yield made
     engine.dispose()
 
@@ -138,6 +140,7 @@ def _commit(factory: sessionmaker[Session], change: Callable[[Session], None]) -
     with factory() as session:
         change(session)
         session.commit()
+        rebuild_projection(session)
 
 
 def test_an_extra_card_stays_extra_when_the_other_word_becomes_known(

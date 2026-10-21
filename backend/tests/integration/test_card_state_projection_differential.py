@@ -15,7 +15,7 @@ the reason it cannot change card state: a new write method without a scenario fa
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import timedelta
 from typing import TYPE_CHECKING, ClassVar
 from unittest.mock import MagicMock
@@ -23,6 +23,7 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.dto.candidate_dtos import SelectionDTO
 from backend.application.dto.card_report_dtos import ReportCandidateRequest
+from backend.application.dto.source_dtos import ProgressDTO
 from backend.application.utils.card_state_differences import differences
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
@@ -32,11 +33,18 @@ from backend.domain.entities.candidate_pronunciation import CandidatePronunciati
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.exceptions import DomainError
 from backend.domain.services.candidate_sorting import CardStanding, sort_cards
+from backend.domain.services.source_review_status import (
+    derive_review_status,
+    stored_status_of_set,
+)
+from backend.domain.value_objects.ai_unavailable import AI_UNAVAILABLE_MARKER, is_ai_unavailable
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.export_group import ExportGroup
+from backend.domain.value_objects.generation_kind import GenerationKind
+from backend.domain.value_objects.generation_scope import GenerationScope
 from backend.domain.value_objects.learning_timer import LEARNING_KNOWN_AFTER
 from backend.domain.value_objects.phrase_ref import PhraseRef
 from backend.domain.value_objects.polished_phrase import PolishedPhrase
@@ -69,6 +77,7 @@ from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCan
 from backend.infrastructure.persistence.sqla_candidate_tts_repository import (
     SqlaCandidateTTSRepository,
 )
+from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
@@ -139,8 +148,14 @@ TWO_KNOWN_LEMMA = "tide"
 ORPHAN_LEMMA = "old"
 TWO_KNOWN_POS = ("NOUN", "VERB")
 SHARED_FILE = "/media/shared.mp3"
+IPA = "/ɡleə/"
 # A whole card is picked by its rank among the live cards, any number wrapping around.
 PICK = st.integers(min_value=0, max_value=10_000)
+
+# Sources 1 and 2 stand in it; source 3 is unsorted.
+COLLECTION = 1
+GENERATED_KINDS = (GenerationKind.MEANING, GenerationKind.TTS, GenerationKind.PRONUNCIATION)
+GENERATION_SCOPES = (GenerationScope.MISSING, GenerationScope.READY_ALL, GenerationScope.ALL)
 
 MAX_EXAMPLES = 8
 STEPS_PER_EXAMPLE = 15
@@ -295,6 +310,13 @@ def _process_corpus(container: _ScenarioContainer, factory: sessionmaker[Session
             SqlaDocumentRepository(session).save(source_id, Document((Paragraph(
                 lines=tuple(Line(line) for line in lines), mode=ParagraphMode.FLOW,
             ),)))
+        session.execute(text(
+            "INSERT INTO collections (id, name, position, created_at)"
+            " VALUES (:id, 'Shared', 0, '2026-01-01 00:00:00')"
+        ), {"id": COLLECTION})
+        session.execute(text(
+            "UPDATE sources SET collection_id = :collection WHERE id IN (1, 2)"
+        ), {"collection": COLLECTION})
         session.commit()
     for source_id in SOURCES:
         with factory() as session:
@@ -524,6 +546,20 @@ class _Projection(RuleBasedStateMachine):
                 lambda s: [_write_content(s, kind, phrase_id, word_id) for kind in kinds],
             )
 
+    @rule(pick=PICK)
+    def meaning_with_ipa(self, pick: int) -> None:
+        """A meaning that brings the word's IPA: a word without recordings gets a row holding
+        only the IPA, which is no pronunciation."""
+        card = self._card(pick)
+        if card is not None and card.id is not None:
+            phrase_id, word_id = card.id, card.candidate_id
+            self.container.session_work().write(
+                lambda s: SqlaCandidateMeaningRepository(
+                    s, SessionChangeRecorder(s),
+                ).upsert_for_phrase(phrase_id, replace(_meaning(), candidate_id=word_id,
+                                                       ipa=IPA)),
+            )
+
     @rule(pick=PICK, text_pick=PICK)
     def polish(self, pick: int, text_pick: int) -> None:
         card = self._card(pick)
@@ -595,6 +631,36 @@ class _Projection(RuleBasedStateMachine):
         source_id = sources[source_pick % len(sources)]
         self._refusable(lambda s: self.container.delete_source_use_case(s).execute(source_id))
 
+    @rule(
+        kind=st.sampled_from(GENERATED_KINDS), cards=st.sampled_from(GENERATION_SCOPES),
+        collection=st.booleans(),
+    )
+    def queue_generation(
+        self, kind: GenerationKind, cards: GenerationScope, collection: bool,
+    ) -> None:
+        """✨ on a source or the collection: jobs queued, results of ALL scopes dropped."""
+        scope = SourceScope.collection(COLLECTION) if collection else SourceScope.source(
+            self._sources()[0],
+        )
+        self._refusable(
+            lambda s: self.container.run_generation_use_case(s).execute(scope, kind, cards),
+        )
+
+    @rule(pick=PICK, blocked=st.booleans())
+    def jobs_run_and_fail(self, pick: int, blocked: bool) -> None:
+        """The worker takes some queued jobs and some of them fail, with the AI blocked here
+        or another error."""
+        error = AI_UNAVAILABLE_MARKER if blocked else "AI proxy error: boom"
+        with self.factory() as session:
+            session.execute(text(
+                "UPDATE jobs SET status = 'running' WHERE status = 'queued' AND id % 3 = :pick"
+            ), {"pick": pick % 3})
+            session.execute(text(
+                "UPDATE jobs SET status = 'failed', error = :error"
+                " WHERE status = 'running' AND id % 2 = :pick"
+            ), {"error": error, "pick": pick % 2})
+            session.commit()
+
     @rule(step=st.sampled_from(CLOCK_STEPS))
     def time_passes(self, step: timedelta) -> None:
         self.scenario.clock.moment += step
@@ -655,6 +721,47 @@ class _Projection(RuleBasedStateMachine):
                     usage_order=sorter.usage_order(), source_order=sources,
                 )
                 assert [c.phrase_id for c in projected] == [c.phrase_id for c in today], order
+        self._screens_equal_the_review()
+
+    def _screens_equal_the_review(self) -> None:
+        """The header of every review set, each source's progress on the sources screen and
+        the ✨ counts, read from the projection, are what the review computes live."""
+        container = self.container
+        with self.factory() as session:
+            sources = _source_ids(session)
+            scopes = [
+                *(SourceScope.source(source_id) for source_id in sources),
+                SourceScope.collection(COLLECTION),
+            ]
+            cards = container._review_cards(session).of_sources(sources)  # noqa: SLF001
+            live = container._candidate_sorter(session).progress({  # noqa: SLF001
+                source_id: [c for c in cards if c.word.source_id == source_id]
+                for source_id in sources
+            })
+            projected = container._review_progress(session).of_sources(sources)  # noqa: SLF001
+            assert {i: p.progress for i, p in projected.items()} == live
+            assert {i: p.cards for i, p in projected.items()} == {
+                i: sum(1 for c in cards if c.word.source_id == i) for i in sources
+            }
+            for scope in scopes:
+                listing = container._card_views(session).listed(scope)  # noqa: SLF001
+                ids = [s.id for s in listing.sources if s.id is not None]
+                header = container.review_header(session).of(scope)
+                assert header.progress == ProgressDTO.of(listing.progress), scope
+                assert header.status == derive_review_status(
+                    stored_status_of_set(s.status for s in listing.sources), listing.progress,
+                ).value, scope
+                assert header.learn_count == sum(
+                    SqlaCardQuery(session).learn_counts(ids).values(),
+                ), scope
+                assert header.ai_unavailable == any(
+                    card.meaning is not None and card.meaning.status == "failed"
+                    and is_ai_unavailable(card.meaning.error)
+                    for card in listing.cards
+                ), scope
+                assert container.get_generation_status_use_case(session).execute(scope) == (
+                    container.live_generation_status(session).execute(scope)
+                ), scope
 
 
 def _source_ids(session: Session) -> list[int]:
@@ -715,6 +822,7 @@ def test_the_projection_equals_the_review_after_every_step(
     _tour(_Projection())
     _timer_tour(_Projection())
     _orphan_tour(_Projection())
+    _generation_tour(_Projection())
 
     run_state_machine_as_test(_Projection, settings=settings(
         derandomize=True,
@@ -744,6 +852,37 @@ def _timer_tour(machine: _Projection) -> None:
     ):
         step()
         machine.projection_equals_the_review()
+
+
+def _generation_tour(machine: _Projection) -> None:
+    """✨ on the collection queues jobs, the worker fails some with the AI blocked: the
+    counts see running and failed cards, the header the blocked AI."""
+    machine.start()
+    scope = SourceScope.collection(COLLECTION)
+    for step in (
+        lambda: machine.press(0, Press.LEARN),
+        lambda: machine.queue_generation(GenerationKind.MEANING, GenerationScope.ALL, True),
+        lambda: machine.queue_generation(GenerationKind.PRONUNCIATION, GenerationScope.MISSING,
+                                         False),
+    ):
+        step()
+        machine.projection_equals_the_review()
+    with machine.factory() as session:
+        session.execute(text(
+            "UPDATE jobs SET status = 'running' WHERE id IN (SELECT min(id) FROM jobs"
+            " WHERE job_type = 'meaning' UNION SELECT max(id) FROM jobs WHERE"
+            " job_type = 'meaning')"
+        ))
+        session.commit()
+    machine.jobs_run_and_fail(0, blocked=True)
+    machine.projection_equals_the_review()
+    with machine.factory() as session:
+        status = machine.container.get_generation_status_use_case(session).execute(scope)
+        header = machine.container.review_header(session).of(scope)
+    meaning = next(k for k in status.kinds if k.kind is GenerationKind.MEANING)
+    assert meaning.running > 0
+    assert meaning.failed > 0
+    assert header.ai_unavailable
 
 
 def _orphan_tour(machine: _Projection) -> None:
@@ -788,6 +927,7 @@ def _tour(machine: _Projection) -> None:
         lambda: machine.list_known(4, 2),
         lambda: machine.unlist_known(0),
         lambda: machine.unlist_known(0),
+        lambda: machine.meaning_with_ipa(7),
         lambda: machine.content(5, list(CONTENT_KINDS)),
         lambda: machine.polish(6, 0),
         lambda: machine.revert_polish(6, True),

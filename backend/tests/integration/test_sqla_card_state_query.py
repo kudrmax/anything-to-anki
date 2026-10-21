@@ -1,0 +1,138 @@
+"""The screens' reads of the stored projection: counts by stored sections, done marks, the
+revision and the ✨ counts, live rows only."""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+import pytest
+from backend.domain.value_objects.by_step import NewCountsByStep, SectionsByStep
+from backend.domain.value_objects.candidate_section import CandidateSection
+from backend.domain.value_objects.card_state_rows import CardStateRow
+from backend.domain.value_objects.decision_progress import DecisionProgress
+from backend.domain.value_objects.generated_parts import GeneratedParts
+from backend.domain.value_objects.generation_kind import GenerationKind
+from backend.domain.value_objects.generation_tally import GenerationGroup
+from backend.domain.value_objects.section_tally import SectionTally
+from backend.infrastructure.persistence.sqla_card_state_query import SqlaCardStateQuery
+from backend.infrastructure.persistence.sqla_card_state_store import SqlaCardStateStore
+from sqlalchemy import text
+
+from tests.integration.conftest import insert_source
+from tests.word_support import insert_word, phrase_id_of
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+pytestmark = pytest.mark.integration
+
+R = CandidateSection.READY
+E = CandidateSection.EXTRA
+P = CandidateSection.PROBABLY_KNOWN
+V = CandidateSection.REVIEWED
+READY_FROM_THIRD_STEP = SectionsByStep((P, P, R, R, R, R, R, R))
+ALL_READY = SectionsByStep((R,) * 8)
+ALL_EXTRA = SectionsByStep((E,) * 8)
+REVIEWED = SectionsByStep((V,) * 8)
+NO_NEW_WORDS = NewCountsByStep((0,) * 8)
+THIRD_STEP = 3.5
+FIRST_STEP = 2.5
+BOOK, ARTICLE = 1, 2
+# Book: two open cards, one done, one removed; article: one open card.
+OPEN_MEANING, OPEN_FAILED, DONE, GONE, ARTICLE_CARD = 1, 2, 3, 4, 5
+
+
+def _row(
+    word_id: int, source_id: int, sections: SectionsByStep, *, is_done: bool = False,
+    done: frozenset[GenerationKind] = frozenset(),
+) -> CardStateRow:
+    return CardStateRow(
+        phrase_id=phrase_id_of(word_id), source_id=source_id, word_id=word_id,
+        lemma=f"word{word_id}", is_done=is_done, wants_generation=not is_done,
+        sections=REVIEWED if is_done else sections, open_sections=sections,
+        new_counts=NO_NEW_WORDS,
+        generated=GeneratedParts(done, frozenset({GenerationKind.MEDIA})),
+        changes_at=None,
+    )
+
+
+@pytest.fixture()
+def query(db_session: Session) -> SqlaCardStateQuery:
+    insert_source(db_session, BOOK)
+    insert_source(db_session, ARTICLE)
+    for word_id in (OPEN_MEANING, OPEN_FAILED, DONE, GONE):
+        insert_word(db_session, word_id, source_id=BOOK)
+    insert_word(db_session, ARTICLE_CARD, source_id=ARTICLE)
+    db_session.execute(text(
+        "INSERT INTO jobs (job_type, candidate_id, source_id, status, error, created_at,"
+        " phrase_id, phrase_revision)"
+        " VALUES ('meaning', :word, 1, 'failed', 'boom', '2026-01-01 00:00:00', :phrase, 0)"
+    ), {"word": OPEN_FAILED, "phrase": phrase_id_of(OPEN_FAILED)})
+    store = SqlaCardStateStore(db_session)
+    revision = store.next_revision()
+    store.write_cards([
+        _row(OPEN_MEANING, BOOK, READY_FROM_THIRD_STEP, done=frozenset({GenerationKind.MEANING})),
+        _row(OPEN_FAILED, BOOK, READY_FROM_THIRD_STEP),
+        _row(DONE, BOOK, ALL_READY, is_done=True),
+        _row(GONE, BOOK, ALL_EXTRA),
+        _row(ARTICLE_CARD, ARTICLE, ALL_READY),
+    ], revision)
+    store.remove_cards([phrase_id_of(GONE)], store.next_revision())
+    db_session.commit()
+    return SqlaCardStateQuery(db_session)
+
+
+def test_tallies_count_the_live_cards_by_their_sections(query: SqlaCardStateQuery) -> None:
+    assert query.section_tallies([BOOK, ARTICLE, 99]) == {
+        BOOK: SectionTally({READY_FROM_THIRD_STEP: 2, REVIEWED: 1}),
+        ARTICLE: SectionTally({ALL_READY: 1}),
+    }
+
+
+def test_the_progress_of_a_tally_follows_the_step(query: SqlaCardStateQuery) -> None:
+    book = query.section_tallies([BOOK])[BOOK]
+    assert book.progress(FIRST_STEP) == DecisionProgress(decided=1, total=1)
+    assert book.progress(THIRD_STEP) == DecisionProgress(decided=1, total=3)
+    assert book.cards == 3
+
+
+def test_done_marks_are_of_the_live_cards(query: SqlaCardStateQuery) -> None:
+    assert query.done_of_sources([BOOK]) == {
+        phrase_id_of(OPEN_MEANING): False,
+        phrase_id_of(OPEN_FAILED): False,
+        phrase_id_of(DONE): True,
+    }
+
+
+def test_the_revision_is_the_projections(
+    query: SqlaCardStateQuery, db_session: Session,
+) -> None:
+    before = query.revision()
+    assert SqlaCardStateStore(db_session).next_revision() == before + 1
+    assert query.revision() == before + 1
+
+
+def test_generation_counts_the_cards_in_play_by_result_and_job(
+    query: SqlaCardStateQuery,
+) -> None:
+    tallies = query.generation_tallies([BOOK, ARTICLE], lambda s: s.at(THIRD_STEP) is R)
+
+    book = tallies[BOOK]
+    assert sorted(book.of(GenerationKind.MEANING), key=repr) == sorted([
+        GenerationGroup(done=True, active_job=False, failed_job=False, cards=1, ready=1),
+        GenerationGroup(done=False, active_job=False, failed_job=True, cards=1, ready=1),
+    ], key=repr)
+    assert book.of(GenerationKind.TTS) == (
+        GenerationGroup(done=False, active_job=False, failed_job=False, cards=2, ready=2),
+    )
+    assert book.of(GenerationKind.PRONUNCIATION) == (
+        GenerationGroup(done=False, active_job=False, failed_job=False, cards=2, ready=2),
+    )
+    assert book.of(GenerationKind.MEDIA) == ()
+    assert tallies[ARTICLE].of(GenerationKind.MEANING) == (
+        GenerationGroup(done=False, active_job=False, failed_job=False, cards=1, ready=1),
+    )
+
+
+def test_readiness_is_the_callers(query: SqlaCardStateQuery) -> None:
+    tallies = query.generation_tallies([BOOK], lambda s: s.at(FIRST_STEP) is R)
+    assert [group.ready for group in tallies[BOOK].of(GenerationKind.TTS)] == [0]

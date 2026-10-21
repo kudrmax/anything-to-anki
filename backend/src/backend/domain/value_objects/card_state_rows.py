@@ -11,12 +11,15 @@ if TYPE_CHECKING:
     from backend.domain.value_objects.by_step import NewCountsByStep, SectionsByStep
     from backend.domain.value_objects.card_choice import DecisionStatus
     from backend.domain.value_objects.cefr_level import CEFRLevel
+    from backend.domain.value_objects.generated_parts import GeneratedParts
     from backend.domain.value_objects.user_knowledge import Newness
 
 
 @dataclass(frozen=True)
 class CardStateRow:
-    """A shown phrase of a word. `lemma` is lower-case. `changes_at`: the first moment the
+    """A shown phrase of a word. `lemma` is lower-case. `sections`: where the card stands,
+    Reviewed once done; `open_sections`: where it would stand were it open, done or not.
+    `generated`: what background generation made for it. `changes_at`: the first moment the
     card's state changes by itself (its lemma's Anki timer), None when nothing is due."""
 
     phrase_id: int
@@ -26,7 +29,9 @@ class CardStateRow:
     is_done: bool
     wants_generation: bool
     sections: SectionsByStep
+    open_sections: SectionsByStep
     new_counts: NewCountsByStep
+    generated: GeneratedParts
     changes_at: datetime | None
 
 

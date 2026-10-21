@@ -79,7 +79,7 @@ class SourceOrdering:
         progress = self._review_progress.of_sources([_id(s) for s in sources])
         return {
             _id(s): source_stage(
-                s.status, progress[_id(s)],
+                s.status, progress[_id(s)].progress,
                 awaiting_generation=self._generation_probe.of(s).awaiting,
             )
             for s in sources

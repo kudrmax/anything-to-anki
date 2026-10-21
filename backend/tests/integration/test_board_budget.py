@@ -1,4 +1,4 @@
-"""Time budget of the sources board over a book: light projections of shown phrases."""
+"""Time budget of the sources board over a book: the stored projection's counts."""
 from __future__ import annotations
 
 import gc
@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from tests.decision_support import project_words
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
 from tests.word_support import TEST_SECTION
 
 if TYPE_CHECKING:
@@ -68,6 +69,7 @@ def _seed_book(session: Session) -> None:
 
 def test_the_board_of_a_book_fits_the_budget(db_session: Session) -> None:
     _seed_book(db_session)
+    rebuild_projection(db_session)
     use_case = Container().get_sources_use_case(db_session)
     use_case.board(SourceScope.parse("all"))
 

@@ -6,18 +6,19 @@ from datetime import UTC, datetime
 from itertools import takewhile
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CursorResult, and_, delete, func, or_, select, update
+from sqlalchemy import CursorResult, and_, delete, exists, func, or_, select, update
+from sqlalchemy.orm import aliased
 
 from backend.domain.ports.job_repository import DEFAULT_RUN_LIMIT, JobRepository
 from backend.domain.value_objects.failed_job_group import FailedJobGroup
 from backend.domain.value_objects.job_selection import UNKNOWN_JOB_ERROR
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
-from backend.infrastructure.persistence.models import JobModel
+from backend.infrastructure.persistence.models import JobModel, PhraseModel
 from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Collection, Mapping
 
     from sqlalchemy import ColumnElement, Delete, Update
     from sqlalchemy.orm import Session
@@ -239,6 +240,49 @@ class SqlaJobRepository(JobRepository):
     def get(self, job_id: int) -> Job | None:
         model = self._session.get(JobModel, job_id)
         return model.to_entity() if model is not None else None
+
+    def sources_with_active_jobs(
+        self, source_ids: Collection[int], job_types: frozenset[JobType],
+    ) -> set[int]:
+        return {
+            source_id
+            for chunk in chunks(sorted(source_ids))
+            for source_id in self._session.scalars(
+                select(JobModel.source_id)
+                .where(
+                    JobModel.source_id.in_(chunk),
+                    JobModel.status.in_(_ACTIVE_STATUSES),
+                    JobModel.job_type.in_([job_type.value for job_type in job_types]),
+                )
+                .distinct()
+            )
+        }
+
+    def has_failed_matching(
+        self, source_ids: Collection[int], job_type: JobType, marker: str,
+    ) -> bool:
+        """The phrase's job of the type is the failed one: no job of it is on its way."""
+        active = aliased(JobModel)
+        return any(
+            self._session.execute(
+                select(JobModel.id)
+                .join(PhraseModel, PhraseModel.id == JobModel.phrase_id)
+                .where(
+                    JobModel.source_id.in_(chunk),
+                    JobModel.job_type == job_type.value,
+                    JobModel.status == JobStatus.FAILED.value,
+                    JobModel.error.contains(marker, autoescape=True),
+                    PhraseModel.shown_by.is_not(None),
+                    ~exists().where(
+                        active.phrase_id == JobModel.phrase_id,
+                        active.job_type == JobModel.job_type,
+                        active.status.in_(_ACTIVE_STATUSES),
+                    ),
+                )
+                .limit(1)
+            ).first() is not None
+            for chunk in chunks(sorted(source_ids))
+        )
 
     def has_active_jobs_for_source(
         self, source_id: int, job_types: frozenset[JobType] | None = None,

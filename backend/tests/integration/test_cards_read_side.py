@@ -42,6 +42,7 @@ from sqlalchemy import StaticPool, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
 from tests.word_support import insert_word, phrase_id_of
 
 pytestmark = pytest.mark.integration
@@ -111,7 +112,7 @@ class Bench:
         )
         self.second_glare = self.add(GLARE, "She glared back.", "glared", ShownBy.USER)
         self.hidden_spark = self.add(SPARK, "A spark flew.", "spark", None)
-        session.commit()
+        rebuild_projection(session)
 
     def add(
         self, word_id: int, text: str, target: str, shown_by: ShownBy | None,
@@ -182,7 +183,7 @@ class TestCardsArePhrases:
         self, client: TestClient, bench: Bench, session: Session, sort: str,
     ) -> None:
         bench.add(SPARK, "She glared back.", "glared", ShownBy.USER)
-        session.commit()
+        rebuild_projection(session)
         words = [c["word_id"] for c in _cards(client, sort)]
         assert words in ([GLARE, GLARE, SPARK, SPARK], [SPARK, SPARK, GLARE, GLARE])
 
@@ -259,7 +260,7 @@ class TestDecisionsOnCards:
         self, client: TestClient, bench: Bench, session: Session,
     ) -> None:
         SqlaWordMarkRepository(session, SessionChangeRecorder(session)).mark_known("spark", None)
-        session.commit()
+        rebuild_projection(session)
         card = _card(client, SPARK_PHRASE)
         assert card["shown"]["where"] == "other_source"  # type: ignore[index]
         assert card["shown"]["status"] == "known"  # type: ignore[index]
@@ -285,7 +286,7 @@ class TestWhatEachCardCarries:
             Job.queued(JobType.MEANING, SOURCE, GLARE, phrase_id=bench.second_glare,
                        phrase_revision=0),
         ])
-        session.commit()
+        rebuild_projection(session)
         assert _card(client, bench.second_glare)["polish_status"] == "queued"
         assert _card(client, bench.second_glare)["meaning"]["status"] == "queued"  # type: ignore[index]
         assert _card(client, GLARE_PHRASE)["polish_status"] is None
@@ -302,7 +303,7 @@ class TestWhatEachCardCarries:
             SPARK, "The spark of genius.", "spark", ShownBy.USER,
             origin=OccurrenceOrigin.COLLECTED, collected_from=PhraseOrigin.from_source("Book"),
         )
-        session.commit()
+        rebuild_projection(session)
         assert _card(client, generated)["origin"] == {"kind": "generated", "source_title": None}
         assert _card(client, real)["origin"] == {"kind": "source", "source_title": "Book"}
         assert _card(client, SPARK_PHRASE)["origin"] is None
@@ -397,7 +398,7 @@ class TestBusySource:
         lock = SqlaSourceOperationLock(session)
         lock.acquire(SOURCE, SourceOperationKind.PROCESS)
         lock.set_stage(SOURCE, ProcessingStage.ANALYZING_TEXT)
-        session.commit()
+        rebuild_projection(session)
         [summary] = client.get("/sources").json()
         assert summary["status"] == "processing"
         assert summary["processing_stage"] == "analyzing_text"
@@ -409,7 +410,7 @@ class TestBusySource:
         self, client: TestClient, bench: Bench, session: Session,
     ) -> None:
         SqlaSourceOperationLock(session).acquire(SOURCE, SourceOperationKind.UPDATE)
-        session.commit()
+        rebuild_projection(session)
         [summary] = client.get("/sources").json()
         assert summary["status"] == "done"
         assert summary["busy_with"] == "update"
@@ -443,7 +444,7 @@ class TestCleanupMedia:
                 candidate_id=GLARE, screenshot_path=str(shot), audio_path=None,
                 start_ms=0, end_ms=1000, generated_at=datetime.now(tz=UTC),
             ))
-        session.commit()
+        rebuild_projection(session)
         response = client.post(
             "/api/settings/media-cleanup", json={"source_id": SOURCE, "kind": "images"},
         )

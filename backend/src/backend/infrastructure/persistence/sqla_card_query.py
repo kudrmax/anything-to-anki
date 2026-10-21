@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select
 
@@ -8,8 +9,16 @@ from backend.domain.ports.card_query import CardQuery
 from backend.domain.value_objects.review_card import CardRow, CardTargetRow
 from backend.domain.value_objects.shown_place import ShownPlace
 from backend.domain.value_objects.word_status import WordStatus
+from backend.infrastructure.persistence.card_state_codecs import (
+    GENERATED_COLUMNS,
+    GeneratedPartsCodec,
+)
 from backend.infrastructure.persistence.models import (
     WORD_DECISION_STATUS,
+    CandidateMeaningModel,
+    CandidateMediaModel,
+    CandidatePronunciationModel,
+    CandidateTTSModel,
     CEFRBreakdownModel,
     PhraseModel,
     StoredCandidateModel,
@@ -22,11 +31,12 @@ from backend.infrastructure.persistence.models import (
 from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
-    from collections.abc import Collection
+    from collections.abc import Collection, Mapping
 
-    from sqlalchemy import ColumnElement
+    from sqlalchemy import ColumnElement, Select
     from sqlalchemy.orm import Session
 
+    from backend.domain.value_objects.generated_parts import GeneratedParts
     from backend.domain.value_objects.phrase import Phrase
 
 
@@ -67,25 +77,46 @@ class SqlaCardQuery(CardQuery):
             for card in self._targets(StoredCandidateModel.id.in_(chunk))
         ]
 
+    def generated_parts(self, phrase_ids: Collection[int]) -> dict[int, GeneratedParts]:
+        found: dict[int, GeneratedParts] = {}
+        for chunk in chunks(sorted(phrase_ids)):
+            rows = self._session.execute(
+                _with_generated(
+                    select(PhraseModel.id, *_GENERATED_COLUMNS)
+                    .join(
+                        StoredCandidateModel,
+                        StoredCandidateModel.id == PhraseModel.candidate_id,
+                    )
+                    .where(PhraseModel.id.in_(chunk), PhraseModel.shown_by.is_not(None)),
+                ),
+            ).all()
+            found.update(
+                {phrase_id: GeneratedPartsCodec.decode(facts) for phrase_id, *facts in rows},
+            )
+        return found
+
     def _cards(self, where: ColumnElement[bool]) -> list[CardRow]:
         rows = self._session.execute(
-            select(
-                StoredCandidateModel.source_id,
-                StoredCandidateModel.id,
-                StoredCandidateModel.lemma,
-                StoredCandidateModel.pos,
-                StoredCandidateModel.zipf_frequency,
-                WORD_DECISION_STATUS,
-                PhraseModel.id,
-                PhraseModel.is_skipped(),
-                PhraseModel.source_phrase,
-                PhraseModel.polished_phrase,
-                PhraseModel.polish_reverted,
-                PhraseModel.earned_section,
-            )
-            .join(PhraseModel, PhraseModel.candidate_id == StoredCandidateModel.id)
-            .where(where, PhraseModel.shown_by.is_not(None))
-            .order_by(PhraseModel.id)
+            _with_generated(
+                select(
+                    StoredCandidateModel.source_id,
+                    StoredCandidateModel.id,
+                    StoredCandidateModel.lemma,
+                    StoredCandidateModel.pos,
+                    StoredCandidateModel.zipf_frequency,
+                    WORD_DECISION_STATUS,
+                    PhraseModel.id,
+                    PhraseModel.is_skipped(),
+                    PhraseModel.source_phrase,
+                    PhraseModel.polished_phrase,
+                    PhraseModel.polish_reverted,
+                    PhraseModel.earned_section,
+                    *_GENERATED_COLUMNS,
+                )
+                .join(PhraseModel, PhraseModel.candidate_id == StoredCandidateModel.id)
+                .where(where, PhraseModel.shown_by.is_not(None))
+                .order_by(PhraseModel.id),
+            ),
         ).all()
         return [
             CardRow(
@@ -101,10 +132,11 @@ class SqlaCardQuery(CardQuery):
                     polished if polished is not None and not reverted else source_phrase,
                 ),
                 earned_section=earned_section_of(earned, phrase_id),
+                generated=GeneratedPartsCodec.decode(generated),
             )
             for (
                 source_id, word_id, lemma, pos, zipf, status, phrase_id, skipped,
-                source_phrase, polished, reverted, earned,
+                source_phrase, polished, reverted, earned, *generated,
             ) in rows
         ]
 
@@ -178,6 +210,39 @@ class SqlaCardQuery(CardQuery):
                 position=position,
             ))
         return places
+
+
+# What generation made for a shown phrase, as `GenerationTarget.is_done` and `covers` read
+# it from the loaded entities, in GENERATED_COLUMNS order.
+_GENERATED: Mapping[str, ColumnElement[bool]] = MappingProxyType({
+    "polish_done": PhraseModel.polished_phrase.is_not(None),
+    "meaning_done": CandidateMeaningModel.meaning.is_not(None),
+    "media_done": CandidateMediaModel.screenshot_path.is_not(None),
+    "tts_done": CandidateTTSModel.audio_path.is_not(None),
+    "pronunciation_done": (
+        CandidatePronunciationModel.candidate_id.is_not(None)
+        & CandidatePronunciationModel.is_generated()
+    ),
+    "media_timed": (
+        CandidateMediaModel.start_ms.is_not(None) & CandidateMediaModel.end_ms.is_not(None)
+    ),
+})
+_GENERATED_COLUMNS = tuple(_GENERATED[name] for name in GENERATED_COLUMNS)
+
+
+# Any: each caller selects its own columns; the joins are the same for all of them.
+def _with_generated[T: Select[Any]](query: T) -> T:
+    """The query over phrases and their words, joined with what was made for them."""
+    return (
+        query
+        .outerjoin(CandidateMeaningModel, CandidateMeaningModel.phrase_id == PhraseModel.id)
+        .outerjoin(CandidateMediaModel, CandidateMediaModel.phrase_id == PhraseModel.id)
+        .outerjoin(CandidateTTSModel, CandidateTTSModel.phrase_id == PhraseModel.id)
+        .outerjoin(
+            CandidatePronunciationModel,
+            CandidatePronunciationModel.candidate_id == StoredCandidateModel.id,
+        )
+    )
 
 
 def _required(stored: str) -> Phrase:

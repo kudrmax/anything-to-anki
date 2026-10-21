@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tests.integration.conftest import insert_source
 from tests.phrase_support import phrase
+from tests.projection_support import rebuild_projection
 from tests.word_support import (
     DECISION_STATUSES_SQL,
     PHRASE_ID_OFFSET,
@@ -80,6 +81,7 @@ def client() -> Generator[TestClient, None, None]:
         ),
     ])
     session.commit()
+    rebuild_projection(session)
     session.close()
 
     def override_session() -> Generator[Session, None, None]:

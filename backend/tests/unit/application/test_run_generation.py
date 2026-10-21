@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.cancel_generation import CancelGenerationUseCase
-from backend.application.use_cases.get_generation_status import GetGenerationStatusUseCase
 from backend.application.use_cases.run_generation import RunGenerationUseCase
 from backend.application.utils.candidate_sorter import ArrangedCards
 from backend.application.utils.generation_targets import (
@@ -18,6 +17,7 @@ from backend.application.utils.generation_targets import (
     PronunciationTarget,
     TTSTarget,
 )
+from backend.application.utils.live_generation_status import LiveGenerationStatus
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_media import CandidateMedia
@@ -223,7 +223,7 @@ class _Setup:
             job_repo=self.job_repo, candidate_sorter=sorter, targets=targets, lock=self.lock,
             unit_of_work=MagicMock(),
         )
-        self.status = GetGenerationStatusUseCase(
+        self.status = LiveGenerationStatus(
             scope_resolver=resolver, cards=generation_cards,
             job_repo=self.job_repo, candidate_sorter=sorter, targets=targets,
         )
@@ -583,7 +583,7 @@ class TestGetGenerationStatus:
         cards.of_source.return_value = []
         job_repo = MagicMock()
         job_repo.has_active_jobs_for_source.side_effect = lambda source_id, _types: source_id == 4
-        use_case = GetGenerationStatusUseCase(
+        use_case = LiveGenerationStatus(
             scope_resolver=SourceScopeResolver(
                 InMemorySourceRepository(sources),
                 InMemoryCollectionRepository([Collection(id=1, name="Friends")]),

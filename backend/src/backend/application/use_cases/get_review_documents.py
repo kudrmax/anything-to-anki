@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.domain.entities.source import Source
     from backend.domain.ports.card_query import CardQuery
+    from backend.domain.ports.card_state_query import CardStateQuery
     from backend.domain.ports.document_repository import DocumentRepository
     from backend.domain.value_objects.document import Block, Line
     from backend.domain.value_objects.document_position import DocumentPosition
@@ -37,10 +38,12 @@ class GetReviewDocumentsUseCase:
         scope_resolver: SourceScopeResolver,
         document_repo: DocumentRepository,
         card_query: CardQuery,
+        card_state_query: CardStateQuery,
     ) -> None:
         self._scope_resolver = scope_resolver
         self._document_repo = document_repo
         self._card_query = card_query
+        self._card_state_query = card_state_query
 
     def execute(self, scope: SourceScope) -> list[SourceDocumentDTO]:
         documents = (
@@ -55,6 +58,7 @@ class GetReviewDocumentsUseCase:
         if document is None:
             return None
         layout = DocumentLayout(document)
+        done = self._card_state_query.done_of_sources([source_id])
         placed = sorted(
             (
                 (_target_span(layout, place), place)
@@ -67,7 +71,9 @@ class GetReviewDocumentsUseCase:
         for (start, end), place in placed:
             if start < taken_until:
                 continue
-            highlights.append(_highlight(place, layout.position(start, end)))
+            highlights.append(_highlight(
+                place, layout.position(start, end), is_done=done.get(place.phrase_id, False),
+            ))
             taken_until = end
         return SourceDocumentDTO(
             source_id=source_id,
@@ -84,13 +90,18 @@ def _target_span(layout: DocumentLayout, place: ShownPlace) -> tuple[int, int]:
     return start + words[0].start, start + words[-1].end
 
 
-def _highlight(place: ShownPlace, position: DocumentPosition) -> HighlightDTO:
+def _highlight(
+    place: ShownPlace, position: DocumentPosition, *, is_done: bool,
+) -> HighlightDTO:
+    """`is_done`: as the stored projection has the card; a card it has no live row of is
+    open."""
     return HighlightDTO(
         phrase_id=place.phrase_id,
         word_id=place.word_id,
         position=DocumentPositionDTO.from_position(position),
         cefr_level=place.cefr_level,
         is_phrasal_verb=place.is_phrasal_verb,
+        is_done=is_done,
     )
 
 

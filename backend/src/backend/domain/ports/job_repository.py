@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Collection, Mapping
 
     from backend.domain.entities.job import Job
     from backend.domain.value_objects.failed_job_group import FailedJobGroup
@@ -106,6 +106,19 @@ class JobRepository(ABC):
     ) -> bool:
         """True if source has any QUEUED or RUNNING jobs.
         Optionally filter by job types."""
+
+    @abstractmethod
+    def sources_with_active_jobs(
+        self, source_ids: Collection[int], job_types: frozenset[JobType],
+    ) -> set[int]:
+        """The sources among these with a QUEUED or RUNNING job of one of the types."""
+
+    @abstractmethod
+    def has_failed_matching(
+        self, source_ids: Collection[int], job_type: JobType, marker: str,
+    ) -> bool:
+        """A failed job of the type for a shown phrase of these sources has `marker` in its
+        error."""
 
     @abstractmethod
     def get_queue_summary(

@@ -19,8 +19,7 @@ from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
 from backend.application.use_cases.scope_operation import ScopeOperationUseCase
 from backend.application.utils.collected_phrases import CollectedPhrases
-from backend.application.utils.decided_elsewhere import DecidedElsewhere
-from backend.application.utils.review_progress import ReviewProgress
+from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.candidate_meaning import CandidateMeaning
@@ -38,7 +37,6 @@ from backend.infrastructure.persistence.sqla_candidate_media_repository import (
     SqlaCandidateMediaRepository,
 )
 from backend.infrastructure.persistence.sqla_candidate_repository import SqlaCandidateRepository
-from backend.infrastructure.persistence.sqla_card_query import SqlaCardQuery
 from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
 )
@@ -53,6 +51,9 @@ from backend.infrastructure.persistence.sqla_source_operation_lock import (
 )
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
+from backend.infrastructure.persistence.sqla_word_state_repository import (
+    SqlaWordStateRepository,
+)
 from sqlalchemy import select, text
 
 from tests.candidate_sorter_support import (
@@ -282,13 +283,14 @@ class Bench:
         self.session.expire_all()
         source = self.sources.get_by_id(SOURCE)
         assert source is not None
-        progress = ReviewProgress(
-            card_query=SqlaCardQuery(self.session),
-            candidate_sorter=candidate_sorter(SqlaSettingsRepository(
-                self.session, SessionChangeRecorder(self.session),
-            )),
-            decided_elsewhere=DecidedElsewhere(self.vocabulary),
-        ).of_sources([SOURCE])[SOURCE]
+        cards = ReviewCards(
+            self.candidates, self.occurrences,
+            SqlaWordStateRepository(self.session, SessionChangeRecorder(self.session)),
+            self.vocabulary,
+        ).of_sources([SOURCE])
+        progress = candidate_sorter(SqlaSettingsRepository(
+            self.session, SessionChangeRecorder(self.session),
+        )).progress({SOURCE: cards})[SOURCE]
         return derive_review_status(source.status, progress).value
 
 

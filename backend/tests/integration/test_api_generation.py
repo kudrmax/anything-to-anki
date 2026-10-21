@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.projection_support import rebuild_projection
 from tests.word_support import insert_word, phrase_id_of
 
 if TYPE_CHECKING:
@@ -119,6 +120,7 @@ def seeded(db_session: Session) -> None:
     _insert_job(db_session, 30, 3, 1, "queued")
     _insert_job(db_session, 40, 4, 1, "failed")
     db_session.commit()
+    rebuild_projection(db_session)
 
 
 SECOND_PHRASE = phrase_id_of(2)
@@ -149,6 +151,7 @@ def in_collection(db_session: Session) -> None:
         text("UPDATE sources SET collection_id = :c WHERE id IN (1, 2)"), {"c": COLLECTION},
     )
     db_session.commit()
+    rebuild_projection(db_session)
 
 
 def _hold(session: Session, source_id: int, kind: str) -> None:

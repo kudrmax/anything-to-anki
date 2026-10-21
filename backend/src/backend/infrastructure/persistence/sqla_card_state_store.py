@@ -20,6 +20,8 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_newness import PhraseNewness
 from backend.domain.value_objects.user_knowledge import Newness
 from backend.infrastructure.persistence.card_state_codecs import (
+    GENERATED_COLUMNS,
+    GeneratedPartsCodec,
     NewCountsByStepCodec,
     SectionsByStepCodec,
 )
@@ -272,7 +274,9 @@ class SqlaCardStateStore(CardStateStore):
                     (
                         row.phrase_id, row.source_id, row.word_id, row.lemma, row.is_done,
                         row.wants_generation, SectionsByStepCodec.encode(row.sections),
-                        NewCountsByStepCodec.encode(row.new_counts), moment(row.changes_at),
+                        SectionsByStepCodec.encode(row.open_sections),
+                        NewCountsByStepCodec.encode(row.new_counts),
+                        *GeneratedPartsCodec.encode(row.generated), moment(row.changes_at),
                         revision, False,
                     )
                     for row in rows
@@ -283,11 +287,12 @@ class SqlaCardStateStore(CardStateStore):
         """Only the columns that changed: the other ones are indexed."""
         if rows:
             self._session.connection().exec_driver_sql(
-                f"UPDATE {_CARDS.name} SET sections = ?, new_counts = ?, revision = ?"  # noqa: S608 — model names
-                " WHERE phrase_id = ?",
+                f"UPDATE {_CARDS.name} SET sections = ?, open_sections = ?, new_counts = ?,"  # noqa: S608 — model names
+                " revision = ? WHERE phrase_id = ?",
                 [
                     (
                         SectionsByStepCodec.encode(row.sections),
+                        SectionsByStepCodec.encode(row.open_sections),
                         NewCountsByStepCodec.encode(row.new_counts), revision, row.phrase_id,
                     )
                     for row in rows
@@ -357,9 +362,11 @@ def _phrase_word_values(row: PhraseWordRow) -> tuple[object, ...]:
 
 _CARD_COLUMNS = (
     "phrase_id", "source_id", "word_id", "lemma", "is_done", "wants_generation", "sections",
-    "new_counts", "changes_at", "revision", "removed",
+    "open_sections", "new_counts", *GENERATED_COLUMNS, "changes_at", "revision", "removed",
 )
 _CARD_NAMES = ", ".join(_CARD_COLUMNS)
+_GENERATED_AT = _CARD_COLUMNS.index(GENERATED_COLUMNS[0])
+_GENERATED_END = _GENERATED_AT + len(GENERATED_COLUMNS)
 _UPSERT_CARD = (
     f"INSERT INTO {_CARDS.name} ({_CARD_NAMES})"  # noqa: S608 — model names
     f" VALUES ({', '.join('?' for _ in _CARD_COLUMNS)})"
@@ -373,9 +380,11 @@ def _plain_stored_card(values: tuple[Any, ...]) -> StoredCardState:
     """A row of _CARD_COLUMNS as the driver gives it: `changes_at` as the UTC text the
     column type stores."""
     (
-        phrase_id, source_id, word_id, lemma, is_done, wants_generation, sections, new_counts,
-        changes_at, revision, removed,
-    ) = values
+        phrase_id, source_id, word_id, lemma, is_done, wants_generation, sections, open_sections,
+        new_counts,
+    ) = values[:_GENERATED_AT]
+    generated = values[_GENERATED_AT:_GENERATED_END]
+    changes_at, revision, removed = values[_GENERATED_END:]
     return StoredCardState(
         row=CardStateRow(
             phrase_id=phrase_id,
@@ -385,7 +394,9 @@ def _plain_stored_card(values: tuple[Any, ...]) -> StoredCardState:
             is_done=bool(is_done),
             wants_generation=bool(wants_generation),
             sections=SectionsByStepCodec.decode(sections),
+            open_sections=SectionsByStepCodec.decode(open_sections),
             new_counts=NewCountsByStepCodec.decode(new_counts),
+            generated=GeneratedPartsCodec.decode(generated),
             changes_at=(
                 datetime.fromisoformat(changes_at).replace(tzinfo=UTC)
                 if changes_at is not None else None
@@ -407,7 +418,11 @@ def _stored_card(row: Row[tuple[object, ...]]) -> StoredCardState:
             is_done=m[_CARDS.c.is_done],
             wants_generation=m[_CARDS.c.wants_generation],
             sections=SectionsByStepCodec.decode(m[_CARDS.c.sections]),
+            open_sections=SectionsByStepCodec.decode(m[_CARDS.c.open_sections]),
             new_counts=NewCountsByStepCodec.decode(m[_CARDS.c.new_counts]),
+            generated=GeneratedPartsCodec.decode(
+                [m[_CARDS.c[name]] for name in GENERATED_COLUMNS],
+            ),
             changes_at=m[_CARDS.c.changes_at],
         ),
         revision=m[_CARDS.c.revision],

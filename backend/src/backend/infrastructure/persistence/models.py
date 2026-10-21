@@ -1269,13 +1269,31 @@ class CardStateModel(Base):
     is_done: Mapped[bool] = mapped_column(nullable=False)
     wants_generation: Mapped[bool] = mapped_column(nullable=False)
     sections: Mapped[str] = mapped_column(Text, nullable=False)
+    open_sections: Mapped[str] = mapped_column(Text, nullable=False)
     new_counts: Mapped[str] = mapped_column(Text, nullable=False)
+    polish_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    meaning_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    media_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    tts_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    pronunciation_done: Mapped[bool] = mapped_column(nullable=False, server_default="0")
+    media_timed: Mapped[bool] = mapped_column(nullable=False, server_default="0")
     changes_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
     removed: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="0")
 
+    # The three covering indexes serve the screens' counts: read in their order, a source's
+    # rows group without sorting.
     __table_args__ = (
         Index("ix_card_states_source_removed_done", "source_id", "removed", "is_done"),
+        Index("ix_card_states_source_removed_sections", "source_id", "removed", "sections"),
+        Index(
+            "ix_card_states_generation",
+            "source_id", "removed", "wants_generation", "open_sections", "polish_done",
+            "meaning_done", "media_done", "tts_done", "pronunciation_done", "media_timed",
+        ),
+        Index(
+            "ix_card_states_words_in_play", "source_id", "removed", "wants_generation", "word_id",
+        ),
         Index("ix_card_states_source_revision", "source_id", "revision"),
         Index("ix_card_states_lemma", "lemma"),
         Index("ix_card_states_word_id", "word_id"),

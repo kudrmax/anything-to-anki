@@ -678,6 +678,8 @@ export interface Highlight {
   position: DocumentPosition
   cefr_level: string | null
   is_phrasal_verb: boolean
+  /** Карточка разобрана: слово решено или фраза пропущена. */
+  is_done: boolean
 }
 
 export interface SourceDocument {
