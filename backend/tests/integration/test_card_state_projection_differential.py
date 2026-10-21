@@ -137,6 +137,7 @@ from sqlalchemy import Engine, StaticPool, create_engine, event, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.decision_support import NOW, FixedClock
+from tests.document_support import put_document
 from tests.unit.architecture.test_owner_events import WRITE_CASES
 
 if TYPE_CHECKING:
@@ -219,9 +220,16 @@ GENERATION_SCOPES = (GenerationScope.MISSING, GenerationScope.READY_ALL, Generat
 
 # Every this many cards of the order of today are taken out and placed back.
 TAKEN_EVERY = 3
-# About two lines of the corpus to a chunk: each source's text has a middle chunk or none,
-# which the held review is never sent.
-CHUNK_CHARS = 120
+# Every line of the corpus its own chunk, whatever a rewrite makes of its length: the held
+# review is never sent the middle ones.
+CHUNK_CHARS = 1
+# How a step cuts a card's phrase anew around its target: the target alone, from the target
+# to the end of its line, from the start of its line to the target.
+PARTS = ("target", "from target", "to target")
+# What a rewrite adds at the end of a line: an easy word, which changes the text of the
+# phrases a Re-cut cuts there and not their state, or a clause that meets "relentless" again
+# (in sources 1 and 2), which changes its word's count of occurrences.
+REWRITES = ("again", "and the old relentless winds of the north would never cease to howl")
 MAX_EXAMPLES = 8
 STEPS_PER_EXAMPLE = 15
 
@@ -414,6 +422,14 @@ def corpus_document(lines: Iterable[str]) -> Document:
     ))
 
 
+def line_selection(block: int, line: str) -> SelectionDTO:
+    """The whole line of a corpus source: its block."""
+    return SelectionDTO(
+        start_block=block, start_line=0, start_char=0,
+        end_block=block, end_line=0, end_char=len(line),
+    )
+
+
 def _video(session: Session) -> None:
     """Source 4 becomes a downloaded video file, its first cards with clips as VIDEO_MEDIA
     says."""
@@ -497,6 +513,7 @@ class _Projection(RuleBasedStateMachine):
         self.held = _HeldReview(opened.review_id, opened.revision)
         self.held.took(opened.cards, {}, (), opened.revision)
         self.text = _HeldText()
+        self.lines = {source_id: list(lines) for source_id, lines in SOURCES.items()}
         self._text_of_joined_sources()
         self.shown = self._shown_cards()
 
@@ -717,6 +734,47 @@ class _Projection(RuleBasedStateMachine):
                 phrase_id, selection,
             ))
 
+    @rule(pick=PICK, part=st.sampled_from(PARTS))
+    def edit_boundary_part(self, pick: int, part: str) -> None:
+        """The card's phrase becomes a part of its line that holds its target."""
+        card = self._card(pick)
+        if card is None or card.id is None or card.phrase_position is None:
+            return
+        phrase_id, position = card.id, card.phrase_position
+        words = card.phrase.words
+        start = position.start_char + words[card.phrase.target[0]].start
+        end = position.start_char + words[card.phrase.target[-1]].end
+        line = self.lines[self._source_of(card)][position.block]
+        first, last = {
+            "target": (start, end), "from target": (start, len(line)), "to target": (0, end),
+        }[part]
+        selection = SelectionDTO(
+            start_block=position.block, start_line=0, start_char=first,
+            end_block=position.block, end_line=0, end_char=last,
+        )
+        self._refusable(lambda s: self.container.set_phrase_boundary_use_case(s).execute(
+            phrase_id, selection,
+        ))
+
+    @rule(pick=PICK, added=st.sampled_from(REWRITES), mode=st.sampled_from(REBUILD_MODES))
+    def rewrite_line_then_rebuild(self, pick: int, added: str, mode: RebuildMode) -> None:
+        """The line of a card gets another word at its end, and its source is rebuilt. The
+        app never rewrites a stored text: this stands for a source whose text the analysis
+        reads otherwise — an Update gives its words their new data, a Re-cut its phrases
+        their new text."""
+        card = self._card(pick)
+        if card is None or card.phrase_position is None:
+            return
+        source_id, block = self._source_of(card), card.phrase_position.block
+        lines = self.lines[source_id]
+        lines[block] = f"{lines[block].rstrip('.')} {added}."
+        with self.factory() as session:
+            put_document(session, source_id, corpus_document(lines))
+            session.commit()
+        self._refusable(
+            lambda s: self.container.rebuild_source_use_case(s).execute(source_id, mode),
+        )
+
     @rule(pick=PICK, text_pick=PICK)
     def replace_with_example(self, pick: int, text_pick: int) -> None:
         card = self._card(pick)
@@ -731,7 +789,7 @@ class _Projection(RuleBasedStateMachine):
     def add_word_from_text(self, source_pick: int, line: int, word: int) -> None:
         sources = self._sources()
         source_id = sources[source_pick % len(sources)]
-        selection = self._line(source_id, line % len(SOURCES[source_id]))
+        selection = self._line(source_id, line % len(self.lines[source_id]))
         self._refusable(lambda s: self.container.add_manual_candidate_use_case(s).execute(
             source_id, [word], selection,
         ))
@@ -916,12 +974,8 @@ class _Projection(RuleBasedStateMachine):
         assert word is not None
         return word.source_id
 
-    @staticmethod
-    def _line(source_id: int, line: int) -> SelectionDTO:
-        return SelectionDTO(
-            start_block=line, start_line=0, start_char=0,
-            end_block=line, end_line=0, end_char=len(SOURCES[source_id][line]),
-        )
+    def _line(self, source_id: int, line: int) -> SelectionDTO:
+        return line_selection(line, self.lines[source_id][line])
 
     # --- the check -----------------------------------------------------------------------
 
@@ -1369,6 +1423,7 @@ def test_the_projection_equals_the_review_after_every_step(
     monkeypatch.setattr(text_chunks, "TEXT_CHUNK_CHARS", CHUNK_CHARS)
     monkeypatch.setattr(scenario.container, "_source_texts", SourceTexts())
     _Projection.scenario = scenario
+    _text_tour(_Projection())
     _tour(_Projection())
     _timer_tour(_Projection())
     _orphan_tour(_Projection())
@@ -1559,6 +1614,35 @@ def _tour(machine: _Projection) -> None:
         lambda: machine.change_level("C1"),
         lambda: machine.time_passes(CLOCK_STEPS[-1]),
         lambda: machine.delete_source(2),
+    ]
+    for step in steps:
+        step()
+        machine.projection_equals_the_review()
+
+
+def _text_tour(machine: _Projection) -> None:
+    """Changes to what a card shows that keep its state: its phrase cut anew around its
+    target, its line's text read otherwise, its word met once more."""
+    machine.start()
+
+    def pick(lemma: str) -> int:
+        cards = sorted(machine._live_cards(), key=lambda o: o.id or 0)  # noqa: SLF001
+        return next(
+            at for at, card in enumerate(cards)
+            if machine._source_of(card) == 1 and machine._lemma_of(card) == lemma  # noqa: SLF001
+        )
+
+    steps: list[Callable[[], None]] = [
+        # "lighthouse" loses only "The" before it: its state stays.
+        lambda: machine.edit_boundary_part(pick("lighthouse"), "from target"),
+        lambda: machine.edit_boundary_part(pick("ominous"), "target"),
+        lambda: machine.edit_boundary_part(pick("brood"), "to target"),
+        # "relentless" met again on its line: its word's count changes, not its state.
+        lambda: machine.rewrite_line_then_rebuild(pick("fret"), REWRITES[1], RebuildMode.UPDATE),
+        # "gleam" without speech: a Re-cut drops nothing it shows and "again" is no new
+        # word, so only its phrase's text changes.
+        lambda: machine.content(pick("gleam"), ["no speech"]),
+        lambda: machine.rewrite_line_then_rebuild(pick("gleam"), "again", RebuildMode.RECUT),
     ]
     for step in steps:
         step()

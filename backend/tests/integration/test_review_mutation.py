@@ -257,7 +257,7 @@ def test_an_example_takes_the_place_and_the_focus_of_the_card_it_replaces(
 
 def test_an_added_word_takes_the_focus(world: World) -> None:
     opened = world.open()
-    selection = corpus._Projection._line(1, ADDED_LINE)  # noqa: SLF001
+    selection = corpus.line_selection(ADDED_LINE, corpus.SOURCES[1][ADDED_LINE])
 
     with world.factory() as session:
         add = world.container.add_manual_candidate_use_case(session)
