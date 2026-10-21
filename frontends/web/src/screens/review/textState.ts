@@ -22,10 +22,14 @@ export const initialText: TextState = { contents: null, reviewId: null, chunks: 
 
 const keyOf = (sourceId: number, firstBlock: number): string => `${sourceId}:${firstBlock}`
 
-/** Незагруженные блоки [start, end) и их размер в символах; end null — конец документа, чьих кусков ещё нет. */
+/**
+ * Незагруженные блоки [start, end) и их размер в символах; end null — конец документа, чьих кусков ещё нет.
+ * start_offset — где они начинаются в тексте документа: конец куска перед ними или 0.
+ */
 export interface TextGap {
   start: number
   end: number | null
+  start_offset: number
   chars: number
 }
 
@@ -88,19 +92,23 @@ export function textItems(state: TextState, sourceId: number): TextItem[] {
   const chunks = state.chunks.get(sourceId) ?? []
   if (chunks.length === 0) {
     const hint = state.contents?.documents.find(d => d.source_id === sourceId)?.size_hint ?? 0
-    return [{ gap: { start: 0, end: null, chars: hint } }]
+    return [{ gap: { start: 0, end: null, start_offset: 0, chars: hint } }]
   }
   const items: TextItem[] = []
   let block = 0
   let offset = 0
   for (const chunk of chunks) {
-    if (chunk.first_block > block) items.push({ gap: { start: block, end: chunk.first_block, chars: chunk.start_offset - offset } })
+    if (chunk.first_block > block) {
+      items.push({ gap: { start: block, end: chunk.first_block, start_offset: offset, chars: chunk.start_offset - offset } })
+    }
     items.push({ chunk })
     block = chunk.end_block
     offset = chunk.end_offset
   }
   const last = chunks[chunks.length - 1]
-  if (block < last.block_count) items.push({ gap: { start: block, end: last.block_count, chars: last.text_length - offset } })
+  if (block < last.block_count) {
+    items.push({ gap: { start: block, end: last.block_count, start_offset: offset, chars: last.text_length - offset } })
+  }
   return items
 }
 

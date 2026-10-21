@@ -282,7 +282,7 @@ describe('useReviewWindow', () => {
     it('opens, then reads the contents, then exactly one chunk: the one at the current card', async () => {
       await render()
       expect(vi.mocked(api.reviewContents).mock.calls).toEqual([[{ review_id: REVIEW_ID, since: 1, current: 41 }]])
-      expect(vi.mocked(api.reviewText).mock.calls).toEqual([[{ review_id: REVIEW_ID, since: 1, current: 41 }, 1, TEXT_BLOCK]])
+      expect(vi.mocked(api.reviewText).mock.calls).toEqual([[{ review_id: REVIEW_ID, since: 1, current: 41 }, 1, { block: TEXT_BLOCK }]])
       expect(latest.hasSourceText).toBe(true)
       expect(marks()).toEqual(['41:Current', '90:Pending'])
     })
@@ -290,7 +290,7 @@ describe('useReviewWindow', () => {
     it('without a current card opens the first chunk of the first document', async () => {
       vi.mocked(api.openReview).mockResolvedValue(reviewUpdate({ layout: layout([], { replace: true }) }))
       await render()
-      expect(vi.mocked(api.reviewText).mock.calls.map(([, sourceId, block]) => [sourceId, block])).toEqual([[1, 0]])
+      expect(vi.mocked(api.reviewText).mock.calls.map(([, sourceId, block]) => [sourceId, block])).toEqual([[1, { block: 0 }]])
     })
 
     it('a reopen after 410 sends every loaded chunk and takes their returned highlights', async () => {
@@ -350,6 +350,12 @@ describe('useReviewWindow', () => {
       })
       expect(latest.state.revision).toBe(5)
       expect(marks()).toEqual(['90:Pending'])
+    })
+
+    it('asks once for a chunk by character offset while the same one is in flight', async () => {
+      await render()
+      await act(async () => { await Promise.all([latest.loadText(1, { at: 12_345 }), latest.loadText(1, { at: 12_345 })]) })
+      expect(vi.mocked(api.reviewText).mock.calls.slice(1).map(([, sourceId, place]) => [sourceId, place])).toEqual([[1, { at: 12_345 }]])
     })
 
     it('has no whole-documents read', () => {

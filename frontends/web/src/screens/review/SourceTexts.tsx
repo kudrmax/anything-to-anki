@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import type { StoredCandidate } from '@/api/types'
+import type { StoredCandidate, TextPlace } from '@/api/types'
 import { Icon } from '@/ui'
 import { findMark } from './findMark'
 import type { DoneMark } from './reviewState'
 import { SourceText, type SelectedText, type SelectionPoint } from './SourceText'
+import { gapPlace } from './textPlaceholders'
 import { chunkHolding, textItems, type TextState } from './textState'
-import { FIRST_BLOCK, LAST_BLOCK } from './useReviewWindow'
+import { FIRST_BLOCK } from './useReviewWindow'
 import css from './review.module.css'
 
 /** Заглушку начинают грузить за экран до того, как она покажется — как в списке. */
@@ -24,8 +25,8 @@ interface SourceTextsProps {
   focused: StoredCandidate | null
   /** Источник фразы, чью границу правят: выделение принимает только его текст. */
   editingSourceId: number | null
-  /** Кусок источника, где лежит блок (-1 — последний); true — ответ пришёл. */
-  onLoad: (sourceId: number, block: number) => Promise<boolean>
+  /** Кусок источника, где лежит блок (-1 — последний) или символ; true — ответ пришёл. */
+  onLoad: (sourceId: number, place: TextPlace) => Promise<boolean>
   /** Кусок, где лежит блок, — если его ещё нет. */
   ensureBlock: (sourceId: number, block: number) => Promise<boolean>
   onWordClick: (candidateId: number) => void
@@ -80,11 +81,6 @@ export function SourceTexts({ text, done, focused, editingSourceId, onLoad, ensu
   const focusId = focused?.phrase_id ?? null
   const [folded, setFolded] = useState<ReadonlySet<number>>(new Set())
   const foldable = documents.length > 1
-  const toggle = (sourceId: number) => setFolded(prev => {
-    const next = new Set(prev)
-    if (!next.delete(sourceId)) next.add(sourceId)
-    return next
-  })
 
   // Клик по подсветке не перерисовывает куски: обработчик один на всё время.
   const clickRef = useRef(onWordClick)
@@ -123,6 +119,23 @@ export function SourceTexts({ text, done, focused, editingSourceId, onLoad, ensu
   const focusedRef = useRef(focused)
   useLayoutEffect(() => { focusedRef.current = focused }, [focused])
 
+  /** Прокрутки к фразе больше не ждём: заглушки снова грузятся. */
+  const dropPending = useCallback(() => {
+    if (pending.current === null) return
+    pending.current = null
+    setScrolled(n => n + 1)
+  }, [])
+
+  const toggle = (sourceId: number) => {
+    // Свёрнутый документ не дорисует фразу, которую ждёт прокрутка.
+    if (!folded.has(sourceId) && pending.current?.sourceId === sourceId) dropPending()
+    setFolded(prev => {
+      const next = new Set(prev)
+      if (!next.delete(sourceId)) next.add(sourceId)
+      return next
+    })
+  }
+
   /** Прокрутка, что ждала кусок фразы, — когда кусок нарисован. Слова нет и в нём — прокрутки нет. */
   const finishScroll = useCallback(() => {
     const wanted = pending.current
@@ -146,12 +159,20 @@ export function SourceTexts({ text, done, focused, editingSourceId, onLoad, ensu
     const container = containerRef.current
     if (!container || focusId === null || !focused) return
     const sourceId = focused.source.id
+    // У источника без документа текста нет: ни прокрутки, ни запроса.
+    if (!textRef.current.contents?.documents.some(d => d.source_id === sourceId)) {
+      dropPending()
+      return
+    }
     if (editingStarted) setFolded(prev => (prev.has(sourceId) ? new Set([...prev].filter(id => id !== sourceId)) : prev))
-    else if (folded.has(sourceId)) return
+    else if (folded.has(sourceId)) {
+      dropPending()
+      return
+    }
     const position = focused.phrase_position
     const section = container.querySelector(`[data-source-id="${sourceId}"]`)
     if (!position) {
-      pending.current = null
+      dropPending()
       if (editingStarted) {
         if (!textRef.current.chunks.has(sourceId)) void ensureBlock(sourceId, FIRST_BLOCK)
         return
@@ -163,10 +184,7 @@ export function SourceTexts({ text, done, focused, editingSourceId, onLoad, ensu
     const before = section?.querySelector<HTMLElement>(`[data-mark-id="${focusId}"]`) ?? null
     pending.current = { phraseId: focusId, sourceId, block: position.block, smooth: before !== null && !gapBetween(container, before) }
     void ensureBlock(sourceId, position.block).then(loaded => {
-      if (!loaded && pending.current?.phraseId === focusId) {
-        pending.current = null
-        setScrolled(n => n + 1)
-      }
+      if (!loaded && pending.current?.phraseId === focusId) dropPending()
     })
     finishScroll()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- прокручиваем при смене фразы и начале правки, а не при каждом обновлении текста
@@ -180,13 +198,13 @@ export function SourceTexts({ text, done, focused, editingSourceId, onLoad, ensu
       for (const entry of entries) {
         if (!entry.isIntersecting || pending.current) continue
         const gap = (entry.target as HTMLElement).dataset
-        const sourceId = Number(gap.sourceId)
-        const start = Number(gap.gapStart)
-        const end = gap.gapEnd === undefined ? null : Number(gap.gapEnd)
-        // Край — относительно самой колонки, а не поля подгрузки вокруг неё.
-        const view = container.getBoundingClientRect()
-        const above = entry.boundingClientRect.top < view.top && entry.boundingClientRect.bottom <= view.bottom
-        void onLoad(sourceId, above ? (end === null ? LAST_BLOCK : end - 1) : start)
+        const place = gapPlace(
+          { start: Number(gap.gapStart), end: gap.gapEnd === undefined ? null : Number(gap.gapEnd), startOffset: Number(gap.gapOffset) },
+          entry.boundingClientRect,
+          // Край — относительно самой колонки, а не поля подгрузки вокруг неё.
+          container.getBoundingClientRect(),
+        )
+        void onLoad(Number(gap.sourceId), place)
       }
     }, { root: container, rootMargin: PREFETCH_MARGIN })
     container.querySelectorAll(GAP_SELECTOR).forEach(gap => observer.observe(gap))

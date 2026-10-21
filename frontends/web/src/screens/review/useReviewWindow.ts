@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError, ReviewExpiredError } from '@/api/client'
-import type { CandidateSection, GenerationOverview, ReviewContext, ReviewUpdate, SetScope, StoredCandidate } from '@/api/types'
+import type { CandidateSection, GenerationOverview, ReviewContext, ReviewUpdate, SetScope, StoredCandidate, TextPlace } from '@/api/types'
 import type { SortOrder } from '@/lib/preferences'
 import {
   applyUpdate, currentRow, initialState, missesReplace, neighbour, reopened, rowIndexOf, withCurrent,
@@ -178,12 +178,12 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
   }, [send, apply])
 
   const pendingText = useRef(new Map<string, Promise<boolean>>())
-  /** Кусок источника, где лежит блок; true — ответ пришёл. Тот же запрос дважды разом не уходит. */
-  const loadText = useCallback((sourceId: number, block: number): Promise<boolean> => {
-    const key = `${sourceId}:${block}`
+  /** Кусок источника, где лежит блок или символ; true — ответ пришёл. Тот же запрос дважды разом не уходит. */
+  const loadText = useCallback((sourceId: number, place: TextPlace): Promise<boolean> => {
+    const key = `${sourceId}:${'at' in place ? `@${place.at}` : place.block}`
     const asked = pendingText.current.get(key)
     if (asked) return asked
-    const done = send(ctx => api.reviewText(ctx, sourceId, block))
+    const done = send(ctx => api.reviewText(ctx, sourceId, place))
       .then(update => { apply(update, { window: true }); return true })
       .catch(e => {
         // Источник ушёл из набора: оглавление это скажет.
@@ -198,7 +198,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
   /** Кусок, где лежит блок, — если его ещё нет. */
   const ensureBlock = useCallback(async (sourceId: number, block: number): Promise<boolean> => {
     if (chunkHolding(textRef.current, sourceId, block)) return true
-    return loadText(sourceId, block)
+    return loadText(sourceId, { block })
   }, [loadText])
 
   // Первый текст ревью: кусок у текущей карточки, без неё — начало первого документа.
@@ -208,9 +208,9 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     const card = stateRef.current.currentId === null ? undefined : stateRef.current.cards.get(stateRef.current.currentId)
     const position = card?.phrase_position
     if (card && position && contents.documents.some(d => d.source_id === card.source.id)) {
-      void loadText(card.source.id, position.block)
+      void loadText(card.source.id, { block: position.block })
     } else if (contents.documents.length > 0) {
-      void loadText(contents.documents[0].source_id, FIRST_BLOCK)
+      void loadText(contents.documents[0].source_id, { block: FIRST_BLOCK })
     }
   }, [loadText])
 

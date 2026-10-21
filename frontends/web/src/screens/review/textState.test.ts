@@ -46,7 +46,7 @@ describe('withContents', () => {
 
 describe('textItems', () => {
   it('gives a source with no chunk one gap sized by its hint', () => {
-    expect(textItems(opened, 2)).toEqual([{ gap: { start: 0, end: null, chars: 3000 } }])
+    expect(textItems(opened, 2)).toEqual([{ gap: { start: 0, end: null, start_offset: 0, chars: 3000 } }])
   })
 
   it('gives the gaps around and between chunks, sized by the offsets', () => {
@@ -54,11 +54,11 @@ describe('textItems', () => {
     state = applyText(state, reviewUpdate({ text: chunk(6) }))
     const items = textItems(state, 1).map(item => ('gap' in item ? item.gap : item.chunk.first_block))
     expect(items).toEqual([
-      { start: 0, end: 2, chars: 200 },
+      { start: 0, end: 2, start_offset: 0, chars: 200 },
       2,
-      { start: 4, end: 6, chars: 200 },
+      { start: 4, end: 6, start_offset: 400, chars: 200 },
       6,
-      { start: 8, end: 10, chars: 200 },
+      { start: 8, end: 10, start_offset: 800, chars: 200 },
     ])
   })
 })

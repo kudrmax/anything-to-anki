@@ -760,6 +760,9 @@ export interface ChunkHighlights {
   highlights: Highlight[]
 }
 
+/** Где в тексте источника взять кусок: блок (-1 — последний) или символ по смещению в тексте документа. */
+export type TextPlace = { block: number } | { at: number }
+
 /** Кусок текста, что есть у клиента: источник и первый блок куска. */
 export interface TextChunkRef {
   source_id: number

@@ -1,10 +1,10 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DocumentSelection, StoredCandidate } from '@/api/types'
+import type { DocumentSelection, StoredCandidate, TextPlace } from '@/api/types'
 import { reviewCard, reviewUpdate } from './reviewFixtures'
 import type { SelectedText } from './SourceText'
-import { TEXT_PX_PER_CHAR } from './SourceText'
+import { TEXT_PX_PER_CHAR } from './textPlaceholders'
 import { SourceTexts } from './SourceTexts'
 import { contents, listItem, paragraph, textChunk } from './textFixtures'
 import { applyText, initialText, withContents, type TextState } from './textState'
@@ -41,7 +41,7 @@ describe('SourceTexts', () => {
   let host: HTMLDivElement
   let root: Root
   let scrolls: ScrollToOptions[]
-  let onLoad: ReturnType<typeof vi.fn<(sourceId: number, block: number) => Promise<boolean>>>
+  let onLoad: ReturnType<typeof vi.fn<(sourceId: number, place: TextPlace) => Promise<boolean>>>
   let ensureBlock: ReturnType<typeof vi.fn<(sourceId: number, block: number) => Promise<boolean>>>
   let selected: SelectedText[]
 
@@ -134,13 +134,25 @@ describe('SourceTexts', () => {
     // Заглушки Pilot выше экрана, у Episode 2 — ниже.
     SeeingObserver.rectOf = gap => (gap.dataset.sourceId === '1' ? { top: -300, bottom: -10 } : { top: 600, bottom: 900 })
     render(withChunks(opened([1, 'Pilot'], [2, 'Episode 2']), textChunk(1, 2, [paragraph('a'), paragraph('b')])))
-    expect(onLoad.mock.calls).toEqual([[1, 1], [1, 9], [2, 0]])
+    expect(onLoad.mock.calls).toEqual([[1, { block: 1 }], [1, { block: 9 }], [2, { block: 0 }]])
 
     onLoad.mockClear()
     SeeingObserver.rectOf = () => ({ top: -300, bottom: -10 })
     render(opened([1, 'Pilot'], [2, 'Episode 2']))
     // Выше экрана документ без кусков грузится с последнего.
-    expect(onLoad.mock.calls).toContainEqual([2, -1])
+    expect(onLoad.mock.calls).toContainEqual([2, { block: -1 }])
+  })
+
+  it('a placeholder that covers the column asks for one chunk, at the character under its middle', () => {
+    vi.stubGlobal('IntersectionObserver', SeeingObserver)
+    // Колонка в jsdom — [0, 0]: заглушка от -1300 до 9000 закрывает её, середина колонки — 1300px от верха заглушки.
+    SeeingObserver.rectOf = () => ({ top: -1300, bottom: 9000 })
+    render(withChunks(opened([1, 'Pilot']), textChunk(1, 0, [paragraph('a'), paragraph('b')])))
+    expect(onLoad.mock.calls).toEqual([[1, { at: 200 + Math.round(1300 / TEXT_PX_PER_CHAR) }]])
+
+    onLoad.mockClear()
+    render(opened([1, 'Pilot', 50_000]))
+    expect(onLoad.mock.calls).toEqual([[1, { at: Math.round(1300 / TEXT_PX_PER_CHAR) }]])
   })
 
   it('numbers list items by the number the server gives, across a chunk border', () => {
@@ -192,6 +204,30 @@ describe('SourceTexts', () => {
     await act(async () => { render(twoTexts(), 1, example) })
     expect(ensureBlock).not.toHaveBeenCalled()
     expect(scrolls).toEqual([])
+  })
+
+  it('folding the document a scroll waits for lets the placeholders load again', async () => {
+    vi.stubGlobal('IntersectionObserver', SeeingObserver)
+    ensureBlock.mockImplementation(() => new Promise(() => {}))
+    const text = twoTexts()
+    const far = reviewCard({ phrase_id: 9, source: { id: 1, has_video: false, can_polish_phrases: false }, phrase_position: { block: 50, start_line: 0, start_char: 0, end_line: 0, end_char: 4 } })
+    render(text)
+    await act(async () => { render(text, null, far) })
+    onLoad.mockClear()
+    await act(async () => { render(withChunks(text, textChunk(2, 1, [paragraph('more')], [], 3)), null, far) })
+    expect(onLoad).not.toHaveBeenCalled()
+
+    toggle('Pilot')
+
+    expect(onLoad.mock.calls.length).toBeGreaterThan(0)
+  })
+
+  it('a card of a source without a document asks for no text', async () => {
+    const elsewhere = reviewCard({ phrase_id: 9, source: { id: 5, has_video: false, can_polish_phrases: false }, phrase_position: { block: 3, start_line: 0, start_char: 0, end_line: 0, end_char: 4 } })
+    render(twoTexts())
+    await act(async () => { render(twoTexts(), null, elsewhere) })
+    await act(async () => { render(twoTexts(), 5, elsewhere) })
+    expect(ensureBlock).not.toHaveBeenCalled()
   })
 
   it('a folded document requests nothing, even for the current card in it', async () => {

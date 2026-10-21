@@ -3,6 +3,7 @@ import type { DocumentBlock, DocumentPosition, DocumentSelection, Highlight, Sto
 import { codePointOffset, lineSegments, type LineMark } from '@/lib/text/documentSegments'
 import type { DoneMark } from './reviewState'
 import { chunkHighlights, isDoneIn, isTextGap, type TextGap, type TextItem, type TextState } from './textState'
+import { TEXT_PX_PER_CHAR } from './textPlaceholders'
 import css from './review.module.css'
 
 export interface SelectionPoint {
@@ -19,12 +20,6 @@ export interface SelectedText {
   selection: DocumentSelection
 }
 
-/**
- * Высота символа незагруженного текста в панели, в пикселях: оценка для заглушки, не правило. Замерена
- * на нарисованных кусках в колонке шириной --aside (0.62 на абзац сплошного текста), с запасом на
- * отступы между блоками.
- */
-export const TEXT_PX_PER_CHAR = 0.65
 
 interface SourceTextProps {
   sourceId: number
@@ -154,6 +149,7 @@ function GapView({ sourceId, gap }: { sourceId: number; gap: TextGap }) {
       data-source-id={sourceId}
       data-gap-start={gap.start}
       data-gap-end={gap.end ?? undefined}
+      data-gap-offset={gap.start_offset}
       style={{ '--placeholder-h': `${Math.round(gap.chars * TEXT_PX_PER_CHAR)}px` } as CSSProperties}
       aria-hidden
     />

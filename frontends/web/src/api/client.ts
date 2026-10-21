@@ -20,6 +20,7 @@ import type {
   ReviewContents,
   ReviewContext,
   ReviewUpdate,
+  TextPlace,
   Scope,
   SourceBoard,
   SourcePlacement,
@@ -165,9 +166,9 @@ export const api = {
   reviewContents: (ctx: ReviewContext) =>
     req<ReviewContents>(reviewPath(ctx, 'contents')),
 
-  /** Кусок текста источника, где лежит блок; -1 — последний кусок. */
-  reviewText: (ctx: ReviewContext, sourceId: number, block: number) =>
-    req<ReviewUpdate>(reviewPath(ctx, `text/${sourceId}`, { block: String(block) })),
+  /** Кусок текста источника, где лежит блок (-1 — последний кусок) или символ по смещению. */
+  reviewText: (ctx: ReviewContext, sourceId: number, place: TextPlace) =>
+    req<ReviewUpdate>(reviewPath(ctx, `text/${sourceId}`, 'at' in place ? { at: String(place.at) } : { block: String(place.block) })),
 
   getReviewGeneration: (scope: SetScope) =>
     req<GenerationOverview>(`/api/review/generation?${new URLSearchParams({ scope: String(scope) })}`),
