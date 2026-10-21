@@ -475,10 +475,10 @@ class PhraseChangedError(DomainError):
 
 
 class PhraseSectionMissingError(DomainError):
-    """Raised when a stored phrase has no section: the fix script has not run yet."""
+    """Raised when a stored phrase has no section, which every phrase must have."""
 
     def __init__(self, phrase_id: int) -> None:
-        super().__init__(f"Phrase {phrase_id} has no section: run `make fix-sections`")
+        super().__init__(f"Phrase {phrase_id} has no section")
         self.phrase_id = phrase_id
 
 

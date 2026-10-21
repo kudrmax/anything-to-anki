@@ -1,4 +1,4 @@
-.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths fix-sections card-states-check bench-db bench-review app test-macos _check_env _check_setup _up _up-worktree _down _down-worktree
+.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths card-states-check bench-db bench-review app test-macos _check_env _check_setup _up _up-worktree _down _down-worktree
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # -include не падает если файла нет; если .env создаётся правилом ниже,
@@ -423,18 +423,6 @@ test-macos:  ## Тесты macOS-оболочки
 ##@ Миграция
 migrate-paths: _check_setup  ## Перевести пути к медиа в БД на эту копию (dry-run, APPLY=1 для применения)
 	.venv/bin/python scripts/relocate_media_paths.py $(if $(APPLY),--apply)
-
-fix-sections: _check_setup dict-update  ## Проставить секции фразам и пересобрать источники (при остановленном приложении)
-	@for f in .pids/*.pid; do \
-	    [ -f "$$f" ] || continue; \
-	    for pid in $$(cat "$$f"); do \
-	        if kill -0 $$pid 2>/dev/null; then \
-	            echo "fix-sections: the app is running ($$f, PID $$pid). Run 'make down' (or 'make down-worktree') first."; \
-	            exit 1; \
-	        fi; \
-	    done; \
-	done
-	.venv/bin/python scripts/fix_sections.py
 
 card-states-check: _check_setup  ## Сравнить сохранённую проекцию карточек с полным расчётом (только чтение; истёкший 30-дневный таймер Anki — расхождение до тика времени) [DB=…]
 	.venv/bin/python scripts/card_states_check.py $(if $(DB),--db "$(DB)")
