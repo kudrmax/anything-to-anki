@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import pool
 
 # Make the backend package importable when running `alembic` CLI from backend/
 # alembic/ is now inside the package: backend/src/backend/alembic/
@@ -14,7 +14,11 @@ if str(_src) not in sys.path:
     sys.path.insert(0, str(_src))
 
 from backend.infrastructure.persistence import models  # noqa: E402,F401 — registers all ORM models
-from backend.infrastructure.persistence.database import Base, default_db_url  # noqa: E402
+from backend.infrastructure.persistence.database import (  # noqa: E402
+    Base,
+    create_app_engine,
+    default_db_url,
+)
 
 target_metadata = Base.metadata
 
@@ -38,11 +42,9 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    url = config.get_main_option("sqlalchemy.url")
+    assert url is not None
+    connectable = create_app_engine(url, poolclass=pool.NullPool, foreign_keys=False)
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():

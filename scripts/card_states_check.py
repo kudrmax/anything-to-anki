@@ -1,41 +1,42 @@
 """Compare the stored projection of card state with the rows computed live, the way the
 review computes them today: `make card-states-check [DB=…]`.
 
-Reads this copy's database (DATA_DIR) or the one given, opened read-only in one read
+Reads this copy's database (DATA_DIR) or the one given, opened query-only in one read
 transaction, so a running app does not shift it midway. Prints every differing row and exits
 with 1 if there is one. Never writes and never migrates.
 
-An Anki timer of 30 days that passed since the last rebuild or write shows as a difference
-until the time tick (Task 5.3) writes it: the stored row still reads as it did before.
+An Anki timer of 30 days that passed since the last rebuild, write or time tick shows as a
+difference until the worker's next time tick (once a minute) writes it.
 """
 from __future__ import annotations
 
 import argparse
-import sqlite3
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from backend.application.utils.card_state_differences import differences
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.database import (
-    SQLITE_BUSY_TIMEOUT_MS,
     SQLITE_FILE_URL_PREFIX,
     default_db_url,
+    open_query_only,
 )
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+if TYPE_CHECKING:
+    import sqlite3
+
 DIFFERENT_EXIT_CODE = 1
-MS_PER_SECOND = 1000
 
 
 def _read_only_session_factory(path: str) -> sessionmaker[Session]:
     def connect() -> sqlite3.Connection:
-        connection = sqlite3.connect(
-            f"{Path(path).resolve().as_uri()}?mode=ro", uri=True, check_same_thread=False,
-            timeout=SQLITE_BUSY_TIMEOUT_MS / MS_PER_SECOND,
-        )
+        if not Path(path).is_file():
+            raise SystemExit(f"No database at {path}")
+        connection = open_query_only(path)
         connection.isolation_level = None
         return connection
 

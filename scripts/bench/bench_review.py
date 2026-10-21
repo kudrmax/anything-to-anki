@@ -22,7 +22,7 @@ from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.card_choice import CardChoice, Press
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.infrastructure.container import Container
-from backend.infrastructure.persistence.database import create_session_factory
+from backend.infrastructure.persistence.database import create_session_factory, open_query_only
 
 OPEN_RUNS = 3
 BYTES_PER_MB = 1_000_000
@@ -69,7 +69,7 @@ def parse_args(argv: list[str] | None = None) -> BenchArgs:
 
 def copy_to_temp(db: Path, directory: Path) -> Path:
     target = directory / "bench.db"
-    origin = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    origin = open_query_only(str(db))
     copy = sqlite3.connect(target)
     try:
         origin.backup(copy)
