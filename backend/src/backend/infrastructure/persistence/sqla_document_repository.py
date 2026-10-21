@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
@@ -8,7 +7,7 @@ from sqlalchemy import func, select
 from backend.domain.exceptions import SourceDocumentExistsError
 from backend.domain.ports.document_repository import DocumentRepository
 from backend.infrastructure.persistence.document_json import dump_document, load_document
-from backend.infrastructure.persistence.models import SourceDocumentModel
+from backend.infrastructure.persistence.models import SourceDocumentModel, SourceModel
 from backend.infrastructure.persistence.phrase_writes import chunks
 
 if TYPE_CHECKING:
@@ -43,14 +42,17 @@ class SqlaDocumentRepository(DocumentRepository):
         return load_document(model.document) if model else None
 
     def fingerprint(self, source_id: int) -> str | None:
-        stored = self._session.scalar(
-            select(SourceDocumentModel.document).where(
-                SourceDocumentModel.source_id == source_id,
-            )
-        )
+        """The moment its source was made, to the microsecond, and its length: read without
+        reading the document."""
+        stored = self._session.execute(
+            select(SourceModel.created_at, func.length(SourceDocumentModel.document))
+            .join(SourceModel, SourceModel.id == SourceDocumentModel.source_id)
+            .where(SourceDocumentModel.source_id == source_id)
+        ).tuples().first()
         if stored is None:
             return None
-        return hashlib.blake2b(stored.encode(), digest_size=16).hexdigest()
+        created_at, length = stored
+        return f"{created_at.isoformat()}/{length}"
 
     def size_hints(self, source_ids: Collection[int]) -> dict[int, int]:
         hints: dict[int, int] = {}

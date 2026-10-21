@@ -9,7 +9,7 @@ import pytest
 from backend.application.utils.open_review import OpenReview
 from backend.application.utils.review_text import ReviewText
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
-from backend.application.utils.source_texts import SourceTexts
+from backend.application.utils.source_texts import SourceText, SourceTexts
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.domain.value_objects.document_position import DocumentPosition
@@ -114,10 +114,18 @@ def _review() -> OpenReview:
 
 
 def test_a_chunk_of_a_whole_book_read_again_is_read_quickly(
-    factory: sessionmaker[Session],
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     texts = SourceTexts()
     review = _review()
+    laid_out: list[Document] = []
+    lay_out = SourceText.of
+
+    def counted(document: Document) -> SourceText:
+        laid_out.append(document)
+        return lay_out(document)
+
+    monkeypatch.setattr(SourceText, "of", staticmethod(counted))
 
     def read(block: int) -> tuple[float, int]:
         with factory() as session:
@@ -132,5 +140,6 @@ def test_a_chunk_of_a_whole_book_read_again_is_read_quickly(
     read(0)
     seconds, marks = read(BLOCKS // 2)
 
+    assert len(laid_out) == 1, "the second read laid the document out again"
     assert marks > 0
     assert seconds <= CHUNK_READ_SECONDS, f"{seconds * 1000:.0f} ms"

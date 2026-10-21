@@ -62,29 +62,35 @@ def test_a_stored_document_is_never_written_again(db_session: Session, source_id
     assert repo.get(source_id) == DOCUMENT
 
 
-def test_the_fingerprint_names_the_stored_document(db_session: Session) -> None:
-    for source_id in (1, 2, 3):
+def test_the_fingerprint_stays_while_the_document_is_stored(db_session: Session) -> None:
+    for source_id in (1, 2):
         insert_source(db_session, source_id)
     repo = SqlaDocumentRepository(db_session)
     repo.save(1, DOCUMENT)
-    repo.save(2, DOCUMENT)
-    repo.save(3, OTHER)
+    repo.save(2, OTHER)
 
-    assert repo.fingerprint(1) == repo.fingerprint(2)
-    assert repo.fingerprint(1) != repo.fingerprint(3)
-    assert repo.fingerprint(4) is None
+    assert repo.fingerprint(1) == repo.fingerprint(1)
+    assert repo.fingerprint(1) != repo.fingerprint(2)
+    assert repo.fingerprint(3) is None
 
 
 def test_a_source_id_given_again_has_another_fingerprint(
     db_session: Session, source_id: int,
 ) -> None:
-    """SQLite gives the id of the source added last to the next one once it is deleted."""
+    """SQLite gives the id of the source added last to the next one once it is deleted: the
+    new source, made later, has another fingerprint even with the same document."""
     repo = SqlaDocumentRepository(db_session)
     repo.save(source_id, DOCUMENT)
     before = repo.fingerprint(source_id)
     db_session.execute(text("DELETE FROM sources WHERE id = :id"), {"id": source_id})
-    insert_source(db_session, source_id)
-    repo.save(source_id, OTHER)
+    db_session.execute(
+        text(
+            "INSERT INTO sources (id, title, status, created_at)"
+            " VALUES (:id, 'title', 'done', '2026-01-01 00:00:00.000001')"
+        ),
+        {"id": source_id},
+    )
+    repo.save(source_id, DOCUMENT)
 
     assert repo.fingerprint(source_id) != before
 

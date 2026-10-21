@@ -22,8 +22,10 @@ class DocumentRepository(ABC):
 
     @abstractmethod
     def fingerprint(self, source_id: int) -> str | None:
-        """A digest of the stored document: two stored documents with the same digest are
-        the same document. None for a source without one."""
+        """What names the stored document: a document is written once, with its source, so
+        the source's id with this names one document — a source made later under the same
+        id has another fingerprint. Cheap: the document is not read. None for a source
+        without one."""
 
     @abstractmethod
     def size_hints(self, source_ids: Collection[int]) -> dict[int, int]:
