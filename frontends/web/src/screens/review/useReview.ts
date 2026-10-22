@@ -147,6 +147,17 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     }
   }, [mutate, loadGeneration, showToast])
 
+  const replaceWithTarget = useCallback(async (candidateId: number) => {
+    try {
+      // Target — новая фраза слова: он встаёт на место заменённой карточки и становится текущим.
+      await mutate(ctx => api.replaceWithTarget(ctx, candidateId))
+      showToast('Phrase replaced — generating meaning...')
+      await loadGeneration()
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Replace failed')
+    }
+  }, [mutate, loadGeneration, showToast])
+
   const runBatch = async (change: () => Promise<ReviewUpdate>, fallback: string) => {
     try {
       await change()
@@ -326,7 +337,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     sortOrder, setSortOrder,
     counts: { reviewed: progressReviewed, total: progressTotal, learn: learnCount, progress: progressTotal > 0 ? progressReviewed / progressTotal : 0 },
     generation: view.generation, generationActions,
-    press, generate, replaceWithExample,
+    press, generate, replaceWithExample, replaceWithTarget,
     clozeEditingId, clozeEditing: clozeEditingId !== null, startCloze, cancelCloze, saveCloze, generateTTS, regenerateMedia, findImages, applyImage, pasteImage, polishAgain, setPolishReverted, editPhrase,
     busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds, image: applyingImageIds },
     editing, startEditing, cancelEditing, setBoundary, addWord,

@@ -321,6 +321,9 @@ export const api = {
       body: JSON.stringify({ example_text: exampleText }),
     }),
 
+  replaceWithTarget: (ctx: ReviewContext, phraseId: number) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/replace-with-target`, ctx), { method: 'POST' }),
+
   addSavedPhrase: (phrase: string, targetWords: number[]) =>
     req<StoredCandidate>('/sources/saved-phrases', {
       method: 'POST',

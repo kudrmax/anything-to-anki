@@ -314,6 +314,7 @@ class TestGenerationApi:
             "post", f"/phrases/{SECOND_PHRASE}/replace-with-example",
             {"example_text": "A word2 here."},
         ),
+        ("post", f"/phrases/{SECOND_PHRASE}/replace-with-target", {}),
         ("put", f"/phrases/{SECOND_PHRASE}/cloze", {
             "phrase": "word2", "hidden_word_indices": [0], "hint_kind": "none",
         }),

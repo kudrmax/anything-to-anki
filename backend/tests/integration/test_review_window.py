@@ -477,6 +477,7 @@ MUTATIONS: list[tuple[str, str, dict[str, object]]] = [
         "phrase": "word1", "hidden_word_indices": [0], "hint_kind": "none",
     }}),
     ("POST", f"/phrases/{_PRESSED}/replace-with-example", {"json": {"example_text": "a word1"}}),
+    ("POST", f"/phrases/{_PRESSED}/replace-with-target", {}),
     ("POST", "/sources/1/candidates/manual", {"json": {
         "target_words": [0], "selection": _SELECTION,
     }}),

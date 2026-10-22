@@ -48,6 +48,7 @@ from backend.application.use_cases.rename_collection import RenameCollectionUseC
 from backend.application.use_cases.rename_source import RenameSourceUseCase
 from backend.application.use_cases.render_names import RenderNamesUseCase
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
+from backend.application.use_cases.replace_with_target import ReplaceWithTargetUseCase
 from backend.application.use_cases.report_candidate import ReportCandidateUseCase
 from backend.application.use_cases.restore_collection import RestoreCollectionUseCase
 from backend.application.use_cases.review_mutation import ReviewMutation
@@ -75,6 +76,7 @@ from backend.application.utils.live_card_states import LiveCardStates
 from backend.application.utils.live_generation_status import LiveGenerationStatus
 from backend.application.utils.live_source_progress import LiveSourceProgress
 from backend.application.utils.phrase_reader import PhraseReader
+from backend.application.utils.phrase_replacement import PhraseReplacement
 from backend.application.utils.review_answer import ReviewAnswer
 from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.review_header import ReviewHeader
@@ -891,17 +893,30 @@ class Container:
 
     def replace_with_example_use_case(self, session: Session) -> ReplaceWithExampleUseCase:
         return ReplaceWithExampleUseCase(
+            replacement=self._phrase_replacement(session),
+            phrase_reader=self._phrase_reader,
+            card_views=self._card_views(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def replace_with_target_use_case(self, session: Session) -> ReplaceWithTargetUseCase:
+        return ReplaceWithTargetUseCase(
+            replacement=self._phrase_replacement(session),
+            phrase_reader=self._phrase_reader,
+            card_views=self._card_views(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def _phrase_replacement(self, session: Session) -> PhraseReplacement:
+        return PhraseReplacement(
             occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
             candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
-            phrase_reader=self._phrase_reader,
             stamper=self._section_stamper(session),
             job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             lock=SqlaSourceOperationLock(session),
-            card_views=self._card_views(session),
             word_states=SqlaWordStateRepository(session, self._change_recorder(session)),
             vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
-            unit_of_work=self._unit_of_work(session),
         )
 
     def _threshold_resolver(self, session: Session) -> FrequentWordThresholdResolver:
