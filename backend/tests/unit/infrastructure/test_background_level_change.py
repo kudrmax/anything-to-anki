@@ -1,0 +1,26 @@
+"""A level change that cannot even begin its run still drops its lock: otherwise every
+write would be refused until a restart, with no change to show for it."""
+from unittest.mock import MagicMock
+
+import pytest
+from backend.application.dto.level_change_dtos import LevelChangeOutcome
+from backend.application.dto.settings_dtos import UpdateSettingsRequest
+from backend.application.utils.level_change_progress import LevelChangeProgress
+from backend.infrastructure.api.background_level_change import BackgroundLevelChangeLauncher
+
+
+@pytest.mark.unit
+def test_a_run_that_breaks_before_the_change_drops_the_lock() -> None:
+    progress = LevelChangeProgress()
+    release = MagicMock()
+
+    def broken_run(_request: UpdateSettingsRequest) -> None:
+        raise RuntimeError("no session")
+
+    BackgroundLevelChangeLauncher(
+        start=MagicMock(), run=broken_run, release=release, progress=progress,
+        spawn=lambda run: run(),
+    ).start(UpdateSettingsRequest(cefr_level="C1"))
+
+    release.assert_called_once_with()
+    assert progress.status().outcome is LevelChangeOutcome.FAILED

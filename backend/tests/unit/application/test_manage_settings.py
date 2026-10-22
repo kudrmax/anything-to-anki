@@ -15,7 +15,7 @@ class TestManageSettingsUseCase:
             settings_repo=self.settings_repo,
             threshold_resolver=threshold_resolver(self.settings_repo),
             unit_of_work=MagicMock(),
-            rebuild_launcher=MagicMock(),
+            level_change=MagicMock(),
         )
 
     def test_get_settings(self) -> None:
@@ -40,11 +40,12 @@ class TestManageSettingsUseCase:
         assert result.anki_field_meaning == "Meaning"
         assert result.anki_field_ipa == "IPA"
 
-    def test_update_cefr_level(self) -> None:
+    def test_update_cefr_level_starts_a_level_change_and_writes_nothing(self) -> None:
         self.settings_repo.get.return_value = None
         req = UpdateSettingsRequest(cefr_level="C1")
         self.use_case.update_settings(req)
-        self.settings_repo.set.assert_any_call("cefr_level", "C1")
+        self.use_case._level_change.start.assert_called_once_with(req)  # type: ignore[attr-defined]
+        self.settings_repo.set.assert_not_called()
 
     def test_update_deck_name(self) -> None:
         self.settings_repo.get.return_value = None
@@ -52,12 +53,12 @@ class TestManageSettingsUseCase:
         self.use_case.update_settings(req)
         self.settings_repo.set.assert_any_call("anki_deck_name", "MyDeck")
 
-    def test_update_both_fields(self) -> None:
+    def test_update_both_fields_goes_with_the_level_change(self) -> None:
         self.settings_repo.get.return_value = None
         req = UpdateSettingsRequest(cefr_level="C2", anki_deck_name="Learning")
         self.use_case.update_settings(req)
-        self.settings_repo.set.assert_any_call("cefr_level", "C2")
-        self.settings_repo.set.assert_any_call("anki_deck_name", "Learning")
+        self.use_case._level_change.start.assert_called_once_with(req)  # type: ignore[attr-defined]
+        self.settings_repo.set.assert_not_called()
 
     def test_update_note_type(self) -> None:
         self.settings_repo.get.return_value = None
@@ -78,10 +79,6 @@ class TestManageSettingsUseCase:
         self.settings_repo.set.assert_any_call("anki_field_target_word", "Word")
         self.settings_repo.set.assert_any_call("anki_field_meaning", "Definition")
         self.settings_repo.set.assert_any_call("anki_field_ipa", "Pronunciation")
-
-    def test_backward_compat_update_cefr_level(self) -> None:
-        self.use_case.update_cefr_level("C1")
-        self.settings_repo.set.assert_called_once_with("cefr_level", "C1")
 
     def test_get_settings_includes_image_audio_defaults(self) -> None:
         self.settings_repo.get.return_value = None

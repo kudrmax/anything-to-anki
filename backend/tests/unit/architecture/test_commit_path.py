@@ -112,3 +112,29 @@ def test_no_transaction_outside_persistence() -> None:
 @pytest.mark.unit
 def test_no_session_outside_persistence_and_di() -> None:
     assert _offenders("session", SESSION_ALLOWED) == []
+
+
+UNIT_OF_WORK = "backend/src/backend/infrastructure/persistence/sqla_unit_of_work.py"
+# Transactions inside persistence that bypass the unit of work and its level change gate,
+# each safe while the level is being changed for the reason given.
+GATE_BYPASS_ALLOWED = (
+    # Startup only, before any request or level change: frees what a restart interrupted.
+    "backend/src/backend/infrastructure/persistence/database.py",
+    # A cache the level change's own analysis fills; no other analysis runs meanwhile, as
+    # every source operation's start is a gated write.
+    "backend/src/backend/infrastructure/persistence/sqla_parse_cache.py",
+    # Waits out the level change's lock before writing.
+    "backend/src/backend/infrastructure/persistence/session_ai_usage_recorder.py",
+)
+
+
+@pytest.mark.unit
+def test_every_transaction_inside_persistence_passes_the_gate_or_is_known() -> None:
+    """A transaction of its own would write past a level change; a new one is either moved
+    into the unit of work or listed here with why it is safe."""
+    allowed = (
+        *(prefix for prefix in TRANSACTION_ALLOWED if prefix != PERSISTENCE_DIR),
+        UNIT_OF_WORK,
+        *GATE_BYPASS_ALLOWED,
+    )
+    assert _offenders("transaction", allowed) == []

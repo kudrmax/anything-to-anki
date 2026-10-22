@@ -55,9 +55,11 @@ import type {
   NoteTypeCheck,
   NoteTypeKind,
   UnknownWord,
+  LevelChangeStatus,
 } from './types'
 import { buildHeaders, reloadIfStale } from './clientBuild'
 import { ApiError, REVIEW_EXPIRED_STATUS, ReviewExpiredError } from './errors'
+import { LEVEL_CHANGE_STATUS, notifyLevelChange } from './levelChangeSignal'
 
 export { ApiError, ReviewExpiredError } from './errors'
 
@@ -69,6 +71,7 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
     ...init,
   })
   reloadIfStale(res)
+  if (res.status === LEVEL_CHANGE_STATUS) notifyLevelChange()
   if (!res.ok) {
     const body = await res.text()
     throw res.status === REVIEW_EXPIRED_STATUS ? new ReviewExpiredError(body) : new ApiError(res.status, body)
@@ -209,6 +212,8 @@ export const api = {
 
   getSettings: () => req<Settings>('/api/settings'),
 
+  getLevelChange: () => req<LevelChangeStatus>('/api/level-change'),
+  cancelLevelChange: () => req<LevelChangeStatus>('/api/level-change/cancel', { method: 'POST' }),
   updateSettings: (patch: Partial<Settings>) =>
     req<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
 

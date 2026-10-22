@@ -36,6 +36,7 @@ from backend.application.dto.candidate_dtos import SelectionDTO
 from backend.application.dto.card_report_dtos import ReportCandidateRequest
 from backend.application.dto.generation_dtos import GenerationKindStatusDTO, GenerationStatusDTO
 from backend.application.dto.review_dtos import OpenReviewRequest, ReviewContext
+from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.dto.source_dtos import ProgressDTO
 from backend.application.utils import candidate_sorter
 from backend.application.utils.candidate_sorter import CandidateSorter
@@ -79,10 +80,6 @@ from backend.domain.value_objects.polished_phrase import PolishedPhrase
 from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.review_order import CardRow, ReviewOrder
 from backend.domain.value_objects.source_scope import SourceScope
-from backend.infrastructure.api.background_rebuild_launcher import (
-    BackgroundSourcesRebuildLauncher,
-    RebuildPasses,
-)
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.database import Base, _enable_sqlite_foreign_keys
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
@@ -316,13 +313,8 @@ class _ScenarioContainer(Container):
         del settings_repo
         return self._polisher  # type: ignore[return-value]
 
-    def _rebuild_launcher(self) -> BackgroundSourcesRebuildLauncher:
-        work = self.session_work()
-        return BackgroundSourcesRebuildLauncher(
-            scope_operations=lambda: work.open(self.scope_operation_use_case),
-            spawn=lambda run: run(),
-            passes=RebuildPasses(),
-        )
+    def _spawn_level_change(self, run: Callable[[], None]) -> None:
+        run()
 
 
 @dataclass
@@ -807,7 +799,9 @@ class _Projection(RuleBasedStateMachine):
     @rule(level=st.sampled_from(LEVELS))
     def change_level(self, level: str) -> None:
         self._refusable(
-            lambda s: self.container.manage_settings_use_case(s).update_cefr_level(level),
+            lambda s: self.container.manage_settings_use_case(s).update_settings(
+                UpdateSettingsRequest(cefr_level=level),
+            ),
         )
 
     @precondition(lambda self: len(self._sources()) > 1)

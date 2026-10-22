@@ -297,7 +297,7 @@
   --ls-tight: -.02em; --ls-caps: .07em; --ls-focus: -.012em;
 
   /* слои и прозрачность */
-  --z-menu: 20; --z-modal: 30; --z-toast: 40;
+  --z-menu: 20; --z-modal: 30; --z-toast: 40; --z-block: 50;
   --offscreen: -9999px;  /* картинка перетаскивания собирается вне экрана */
   --o-disabled: .5; --o-off: .45; --o-kbd: .6; --o-dim: .35; --o-visuals: .6;
   --shadow-pop: 0 14px 36px -12px color-mix(in srgb, black 60%, transparent);

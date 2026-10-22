@@ -697,6 +697,16 @@ class SourceOperationModel(Base):
     started_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
 
 
+class LevelChangeLockModel(Base):
+    """Present while the level is being changed; at most one row."""
+
+    __tablename__ = "level_change_lock"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_level_change_lock_single"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+
+
 class TopicTargetModel(Base):
     """SQLAlchemy model for targets generated for a topic source."""
 
