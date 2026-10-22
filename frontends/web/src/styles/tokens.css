@@ -42,6 +42,9 @@
   --err-tint: color-mix(in srgb, var(--err) 14%, transparent);
   --err-line: color-mix(in srgb, var(--err) 60%, transparent);
   --media-veil: color-mix(in srgb, var(--bg) 25%, transparent);
+  /* подсказки картинок на карточке: пунктир слота и вуаль под «+» */
+  --suggestion-line: color-mix(in srgb, var(--tx3) 55%, transparent);
+  --suggestion-veil: color-mix(in srgb, var(--bg) 55%, transparent);
   --fade-bottom: linear-gradient(transparent, var(--bg) 40%);
   /* функции AI на графике токенов */
   --usage-1: var(--ac);
@@ -72,6 +75,7 @@
   --thumb-h: 72px;
   --meaning-image-h: 180px;
   --image-option-ratio: 4 / 3;
+  --suggestion-cols: repeat(5, minmax(0, calc(var(--thumb-h) * 4 / 3)));
   --field-area: 128px;
   --add-area: 96px;        /* поле карточки Add в колонке Sources */
   --add-plus: var(--icon-l);
