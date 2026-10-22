@@ -7,11 +7,11 @@ from backend.domain.services.candidate_sorting import (
     sort_with_keys,
     stored_standing,
 )
-from backend.domain.services.review_layout import place_by_key
+from backend.domain.services.review_layout import place_by_key, remove_cards
 from backend.domain.value_objects.review_order import HeldCard
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Mapping, Sequence
+    from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 
     from backend.application.utils.candidate_sorter import CandidateSorter
     from backend.application.utils.frequent_word_threshold_resolver import (
@@ -64,23 +64,33 @@ class ReviewOrdering:
         source_ids: Sequence[int],
         sort: CandidateSortOrder,
         step: float | None,
-        new_words: Mapping[int, int],
+        words: Collection[int],
+        kept: Collection[int] = (),
     ) -> ReviewOrder:
-        """The new cards (phrase id → word id) placed into the held order by their keys now,
-        each in its section now, against the keys the held cards were held by. Reads only
-        the cards of the new cards' words."""
+        """The cards of these words where an order opened now puts them: a new card joins,
+        a held one whose key or section changed moves, each in its section now; a `kept`
+        card stays where it is. The other held cards keep their keys, so the order stays in
+        key order. Reads only the cards of these words."""
+        in_set = set(source_ids)
         rows = [
-            row for row in self._card_states.order_rows_of_words(set(new_words.values()))
-            if row.source_id in set(source_ids)
+            row for row in self._card_states.order_rows_of_words(set(words))
+            if row.source_id in in_set
         ]
         keys = order_keys(
             rows, sort, stored_standing(step),
             usage_order=self._candidate_sorter.usage_order(), source_order=source_ids,
         )
-        return place_by_key(order, [
-            HeldCard(row.phrase_id, row.word_id, row.sections.at(step), keys[row.phrase_id])
-            for row in rows if row.phrase_id in new_words
-        ])
+        moved = []
+        for row in rows:
+            card = HeldCard(row.phrase_id, row.word_id, row.sections.at(step), keys[row.phrase_id])
+            held = order.card(row.phrase_id)
+            if row.phrase_id in kept and held is not None:
+                continue
+            if held != card or held.key != card.key:
+                moved.append(card)
+        if not moved:
+            return order
+        return place_by_key(remove_cards(order, [c.phrase_id for c in moved]), moved)
 
     @staticmethod
     def held(

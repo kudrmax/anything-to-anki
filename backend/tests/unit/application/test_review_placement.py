@@ -1,7 +1,6 @@
-"""New cards placed into an open review's held order from the rows of their own words only,
-by binary search over the keys the held cards were held by: the same order as `place_new`
-gives over the opening's keys and the new cards' keys sorted together, in every sort order
-and at every threshold step, sections included, however the held cards changed since."""
+"""Cards of the changed words placed into an open review's order from the rows of their own
+words only, by binary search over the keys the other cards are held by: the same order a
+review opened now has, in every sort order and at every threshold step, sections included."""
 from __future__ import annotations
 
 from dataclasses import replace
@@ -11,11 +10,9 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.utils.review_ordering import ReviewOrdering
 from backend.domain.services.candidate_sorting import (
-    order_keys,
     sort_with_keys,
     stored_standing,
 )
-from backend.domain.services.review_layout import place_new
 from backend.domain.value_objects.by_step import NewCountsByStep, SectionsByStep
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
@@ -130,15 +127,14 @@ def _keys_rise(order: ReviewOrder) -> bool:
     step=st.sampled_from(THRESHOLD_STEPS),
     data=st.data(),
 )
-def test_new_cards_stand_where_the_opening_sorted_with_them_puts_them(
+def test_changed_and_new_cards_stand_where_an_order_opened_now_puts_them(
     cards: list[OrderedCard],
     sort: CandidateSortOrder,
     step: float | None,
     data: st.DataObject,
 ) -> None:
-    """Held cards decided or moved since the opening keep their place and the key they were
-    held by; a new card's key is read now. The placed order is `place_new` over the held
-    cards at their opening keys and the new ones at theirs, sorted together."""
+    """New cards and held ones decided since the opening, placed by their words, stand where
+    an order opened now on every card puts them: the open list shows the set as it is."""
     ids = [c.phrase_id for c in cards]
     new_ids = set(data.draw(st.lists(st.sampled_from(ids), min_size=1, unique=True)))
     flipped = set(data.draw(st.lists(st.sampled_from(ids), unique=True)))
@@ -146,21 +142,13 @@ def test_new_cards_stand_where_the_opening_sorted_with_them_puts_them(
     now = [
         _changed(c, c.phrase_id in flipped and c.phrase_id not in new_ids) for c in cards
     ]
-    fresh = order_keys(
-        now, sort, stored_standing(step), usage_order=USAGE_ORDER, source_order=SOURCES,
-    )
-    new_cards = [
-        HeldCard(c.phrase_id, c.word_id, c.sections.at(step), fresh[c.phrase_id])
-        for c in now if c.phrase_id in new_ids
-    ]
-    together = sorted([*order.cards, *new_cards], key=lambda card: card.key or ())
+    words = {c.word_id for c in now if c.phrase_id in new_ids | flipped}
 
-    placed = _ordering(_Rows(now), step).placed(
-        order, SOURCES, sort, step, {c.phrase_id: c.word_id for c in new_cards},
-    )
+    placed = _ordering(_Rows(now), step).placed(order, SOURCES, sort, step, words)
 
-    assert list(placed.cards) == list(place_new(order, together, new_ids).cards)
-    assert [c.key for c in placed.cards] == [c.key for c in together]
+    opened_now = _opened(now, sort, step)
+    assert list(placed.cards) == list(opened_now.cards)
+    assert [c.key for c in placed.cards] == [c.key for c in opened_now.cards]
     assert _keys_rise(placed)
     assert placed.sectioned == order.sectioned
 
@@ -181,7 +169,7 @@ def test_only_the_words_of_the_new_cards_are_read() -> None:
     order = _opened(cards, CandidateSortOrder.RELEVANCE, None)
 
     placed = _ordering(rows, None).placed(
-        order, (1,), CandidateSortOrder.RELEVANCE, None, {5000: 5000},
+        order, (1,), CandidateSortOrder.RELEVANCE, None, {5000},
     )
 
     assert rows.words_read == {5000}

@@ -122,13 +122,18 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   const picksWords = review.reportReasons.some(reason => reason.picks_words && reasons.includes(reason.label))
   const pickedUnknown = picksWords ? [...unknownWords].sort((a, b) => a - b) : []
   const canSend = reasons.length > 0 || complaint.trim().length > 0
+  // Меню закрывается сразу, жалоба уходит в фоне; не дошла — выбранное возвращается, ошибку покажет тост.
   const sendReport = async (close: () => void) => {
     if (!canSend) return
-    if (await review.report(id, reasons, complaint.trim(), pickedUnknown)) {
-      setReasons([])
-      setComplaint('')
-      setUnknownWords(new Set())
-      close()
+    const sent = { reasons, complaint, unknownWords }
+    setReasons([])
+    setComplaint('')
+    setUnknownWords(new Set())
+    close()
+    if (!(await review.report(id, sent.reasons, sent.complaint.trim(), pickedUnknown))) {
+      setReasons(sent.reasons)
+      setComplaint(sent.complaint)
+      setUnknownWords(sent.unknownWords)
     }
   }
   const report: MenuPage = {
