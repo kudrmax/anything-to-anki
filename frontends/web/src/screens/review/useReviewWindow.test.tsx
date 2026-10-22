@@ -272,7 +272,8 @@ describe('useReviewWindow', () => {
 
   it('#24: a new list without the current card keeps the card on screen and asks for the rows around it', async () => {
     await render()
-    vi.spyOn(api, 'reviewAround').mockResolvedValue(windowAround(42, { revision: 1 }))
+    const around = deferred()
+    vi.spyOn(api, 'reviewAround').mockReturnValue(around.promise)
     const answer = deferred()
     let running: Promise<unknown> = Promise.resolve()
     act(() => { running = latest.mutate(() => answer.promise, { phraseId: 41, closes: 'card' }) })
@@ -289,6 +290,13 @@ describe('useReviewWindow', () => {
     expect(latest.current?.phrase_id).toBe(42)
     await flush()
     expect(vi.mocked(api.reviewAround).mock.calls.map(([, id]) => id)).toEqual([42])
+
+    // Пока строки шли, экран ушёл дальше: их ответ его не возвращает.
+    await act(async () => { await latest.mutate(async () => reviewUpdate({ revision: 3, focus_id: 8 })) })
+    expect(latest.state.currentId).toBe(8)
+    await act(async () => { around.resolve(windowAround(42, { revision: 3 })) })
+    await flush()
+    expect(latest.state.currentId).toBe(8)
   })
 
   it('#18: a refused press takes back its marks and returns to the pressed card', async () => {

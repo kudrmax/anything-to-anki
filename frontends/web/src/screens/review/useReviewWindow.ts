@@ -279,8 +279,9 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     recenter.current = () => {
       const id = stateRef.current.currentId
       if (id === null) return
+      // Строки для экрана, а не переход: пока они шли, экран мог уйти дальше.
       send(ctx => api.reviewAround(ctx, id))
-        .then(update => { apply(update, { window: true }) })
+        .then(update => { apply(update, { window: true, keepCurrent: true }) })
         .catch(e => { if (isNotFound(e)) setGone(true) })
     }
   }, [send, apply])
