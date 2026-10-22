@@ -79,7 +79,7 @@ class TestSpaCyTextAnalyzer:
         assert layout(pieced) == layout(whole)
         assert all(text[t.char_start:t.char_end] == t.text for t in pieced)
 
-    def test_text_longer_than_spacy_takes_at_once_is_parsed(self) -> None:
+    def test_text_without_blank_lines_is_parsed_in_pieces(self) -> None:
         analyzer = SpaCyTextAnalyzer(piece_length=40)
         text = "The cat sat on the mat. " * 20
         tokens = analyzer.analyze(text)

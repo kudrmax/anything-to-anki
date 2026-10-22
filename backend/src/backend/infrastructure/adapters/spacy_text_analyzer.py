@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 
 PARAGRAPH_BOUNDARIES = "paragraph_boundaries"
 PARAGRAPH_BREAK = "\n\n"
+# spaCy's memory grows with the text it parses at once: about 10 GB for its limit of a
+# million characters, under 2 GB for a hundred thousand. A longer text goes in pieces.
+PIECE_LENGTH = 100_000
 
 
 @Language.component(PARAGRAPH_BOUNDARIES)
@@ -29,9 +32,8 @@ def paragraph_boundaries(doc: Doc) -> Doc:
 class SpaCyTextAnalyzer(TextAnalyzer):
     """Analyzes text using spaCy, producing NLP-agnostic TokenData objects.
 
-    spaCy takes a text of at most `max_length` characters, so a longer one is parsed in
-    pieces cut at blank lines where possible; its tokens read as of one text. A text that
-    fits one piece is parsed whole, exactly as spaCy parses it.
+    A text longer than `piece_length` is parsed piece by piece, cut at blank lines where
+    possible, so spaCy never holds more than a piece; its tokens read as of one text.
     """
 
     def __init__(
@@ -39,7 +41,7 @@ class SpaCyTextAnalyzer(TextAnalyzer):
     ) -> None:
         self._nlp: Language = spacy.load(model_name)
         self._nlp.add_pipe(PARAGRAPH_BOUNDARIES, before="parser")
-        self._piece_length = piece_length or self._nlp.max_length
+        self._piece_length = min(piece_length or PIECE_LENGTH, self._nlp.max_length)
 
     @property
     def version(self) -> str:
@@ -47,11 +49,10 @@ class SpaCyTextAnalyzer(TextAnalyzer):
         return f"{spacy_about.__version__}:{self._nlp.meta['version']}"
 
     def analyze(self, text: str) -> list[TokenData]:
-        pieces = text_pieces(text, self._piece_length)
         tokens: list[TokenData] = []
         sentences = 0
-        docs = self._nlp.pipe(text[start:end] for start, end in pieces)
-        for (start, _end), doc in zip(pieces, docs, strict=True):
+        for start, end in text_pieces(text, self._piece_length):
+            doc = self._nlp(text[start:end])
             tokens.extend(_tokens(doc, len(tokens), sentences, start))
             sentences += sum(1 for _ in doc.sents)
         return tokens
