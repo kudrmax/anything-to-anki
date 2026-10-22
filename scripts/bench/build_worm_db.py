@@ -103,13 +103,23 @@ def clear_collection(container: Container, db_url: str, name: str) -> None:
 
 
 def add_book(container: Container, db_url: str, epub: Path, whole: bool) -> SourcesCreated:
+    """The chapters gather into a new collection; the book as one source is put into one,
+    so the review of a collection measures it either way."""
     session_factory = create_session_factory(db_url)
     with session_factory() as session:
+        choice = (
+            CollectionChoice(
+                existing_id=container.create_collection_use_case(session).execute(
+                    COLLECTION_NAME,
+                ).id,
+            )
+            if whole else CollectionChoice(new_name=COLLECTION_NAME)
+        )
         result = container.add_source_use_case(session).execute(
             typed_inputs(str(epub)),
             None,
             [Answers({SPLIT_QUESTION: WHOLE_ANSWER if whole else SPLIT_ANSWER})],
-            Naming(CollectionChoice(new_name=COLLECTION_NAME), NamingRule(DEFAULT_NAMING_RULE)),
+            Naming(choice, NamingRule(DEFAULT_NAMING_RULE)),
         )
         session.commit()
     if not isinstance(result, SourcesCreated):
