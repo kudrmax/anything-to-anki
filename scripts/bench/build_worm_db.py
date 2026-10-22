@@ -1,5 +1,6 @@
 """Build a benchmark database: a copy of the app database plus a big real book (Worm) split
-into chapter sources and processed, so the review has book-sized data to be measured on.
+into chapter sources, or added whole as one source, and processed, so the review has
+book-sized data to be measured on.
 
 Run it with `make bench-db`. It works on a copy only; the source database is never changed.
 """
@@ -7,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import resource
 import sqlite3
 import sys
 import time
@@ -20,16 +22,21 @@ from backend.domain.value_objects.collection_choice import CollectionChoice
 from backend.domain.value_objects.naming_rule import DEFAULT_NAMING_RULE, NamingRule
 from backend.domain.value_objects.question import Answers
 from backend.infrastructure.container import Container
-from backend.infrastructure.persistence.database import create_session_factory, open_query_only
+from backend.infrastructure.persistence.database import (
+    create_session_factory,
+    open_query_only,
+    run_alembic_migrations,
+)
 
 COLLECTION_NAME = "Worm"
 SPLIT_QUESTION = "book.split"
 SPLIT_ANSWER = "split"
+WHOLE_ANSWER = "whole"
 ALL_CHAPTERS = 0
+BYTES_IN_MB = 1024 * 1024  # ru_maxrss is in bytes on macOS
 CARDS_SQL = (
     "SELECT COUNT(*) FROM phrases p JOIN candidates c ON c.id = p.candidate_id "
-    "JOIN sources s ON s.id = c.source_id "
-    "WHERE s.collection_id = ? AND p.shown_by IS NOT NULL"
+    "WHERE c.source_id = ? AND p.shown_by IS NOT NULL"
 )
 
 
@@ -39,6 +46,7 @@ class BuildArgs:
     epub: Path
     chapters: int
     out: Path
+    whole: bool
 
 
 def parse_args(argv: list[str] | None = None) -> BuildArgs:
@@ -48,8 +56,9 @@ def parse_args(argv: list[str] | None = None) -> BuildArgs:
     parser.add_argument("--epub", type=Path, required=True)
     parser.add_argument("--chapters", type=int, default=ALL_CHAPTERS, help="0 = all")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--whole", action="store_true", help="the book as one source")
     ns = parser.parse_args(argv)
-    return BuildArgs(ns.source_db, ns.epub, ns.chapters, ns.out)
+    return BuildArgs(ns.source_db, ns.epub, ns.chapters, ns.out, ns.whole)
 
 
 def backup_copy(source: Path, target: Path) -> None:
@@ -93,13 +102,13 @@ def clear_collection(container: Container, db_url: str, name: str) -> None:
     print(f"removed the earlier {name!r}: {len(source_ids)} sources")
 
 
-def add_book(container: Container, db_url: str, epub: Path) -> SourcesCreated:
+def add_book(container: Container, db_url: str, epub: Path, whole: bool) -> SourcesCreated:
     session_factory = create_session_factory(db_url)
     with session_factory() as session:
         result = container.add_source_use_case(session).execute(
             typed_inputs(str(epub)),
             None,
-            [Answers({SPLIT_QUESTION: SPLIT_ANSWER})],
+            [Answers({SPLIT_QUESTION: WHOLE_ANSWER if whole else SPLIT_ANSWER})],
             Naming(CollectionChoice(new_name=COLLECTION_NAME), NamingRule(DEFAULT_NAMING_RULE)),
         )
         session.commit()
@@ -128,10 +137,13 @@ def process_chapters(container: Container, db_url: str, source_ids: list[int]) -
         )
 
 
-def count_cards(db_path: Path, collection_id: int) -> int:
+def count_cards(db_path: Path, source_ids: list[int]) -> int:
     connection = sqlite3.connect(db_path)
     try:
-        return int(connection.execute(CARDS_SQL, (collection_id,)).fetchone()[0])
+        return sum(
+            int(connection.execute(CARDS_SQL, (source_id,)).fetchone()[0])
+            for source_id in source_ids
+        )
     finally:
         connection.close()
 
@@ -147,18 +159,19 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     backup_copy(args.source_db, args.out)
     db_url = f"sqlite:///{args.out.resolve()}"
+    run_alembic_migrations(db_url)
     container = Container(session_factory=create_session_factory(db_url))
     clear_collection(container, db_url, COLLECTION_NAME)
-    created = add_book(container, db_url, args.epub)
-    if created.collection_id is None:
-        raise SystemExit("The book was not gathered into a collection")
+    created = add_book(container, db_url, args.epub, args.whole)
     chosen = created.source_ids if args.chapters == ALL_CHAPTERS else (
         created.source_ids[: args.chapters]
     )
-    print(f"book split into {len(created.source_ids)} chapters; processing {len(chosen)}")
+    print(f"book added as {len(created.source_ids)} sources; processing {len(chosen)}")
     process_chapters(container, db_url, chosen)
-    cards = count_cards(args.out, created.collection_id)
-    print(f"cards in collection {COLLECTION_NAME!r}: {cards}")
+    cards = count_cards(args.out, created.source_ids)
+    print(f"cards in {COLLECTION_NAME!r}: {cards}")
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    print(f"peak memory: {peak / BYTES_IN_MB:.0f} MB")
     return 0
 
 
