@@ -76,9 +76,13 @@ export function applyUpdate(state: ReviewState, update: ReviewUpdate, options: A
     for (const [index, row] of next) if (row.phrase_id !== null && removed.has(row.phrase_id)) next.delete(index)
     rows = next
   }
+  const currentId = stale || options.keepCurrent ? state.currentId : update.focus_id ?? state.currentId
   let cards = state.cards
   if (replace || update.cards.length > 0 || removed.size > 0) {
     const next = new Map(replace ? [] : state.cards)
+    // Новый список может прийти без строки текущей карточки (экран ушёл дальше): сама карточка остаётся на экране.
+    const shown = currentId === null ? undefined : state.cards.get(currentId)
+    if (replace && shown) next.set(shown.phrase_id, shown)
     for (const card of update.cards) {
       // У устаревшего ответа карточка старше той, что у клиента: берём его только за неимением своей.
       const own = state.cards.get(card.phrase_id)
@@ -106,7 +110,7 @@ export function applyUpdate(state: ReviewState, update: ReviewUpdate, options: A
     rows,
     cards,
     done,
-    currentId: stale || options.keepCurrent ? state.currentId : update.focus_id ?? state.currentId,
+    currentId,
   }
 }
 

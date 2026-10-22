@@ -80,7 +80,11 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     // Подсветки ложатся из каждого ответа, даже устаревшего: сервер не пришлёт их ещё раз.
     commitText(t => applyText(t, update))
     const applied = commit(s => applyUpdate(s, update, options))
-    if (applied && missed) recenter.current()
+    const held = stateRef.current
+    // Новый список без строки текущей карточки: строки вокруг неё просим отдельно.
+    const lost = update.layout?.replace === true && held.currentId !== null
+      && held.cards.has(held.currentId) && rowIndexOf(held, held.currentId) === undefined
+    if (applied && (missed || lost)) recenter.current()
     checkContents.current(update)
     return applied
   }, [commit, commitText])
