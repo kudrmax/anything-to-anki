@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING
 from backend.application.utils.open_review import OpenReview
 from backend.application.utils.review_answer import window_around
 from backend.domain.services.review_layout import initial_focus
-from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
-from backend.domain.value_objects.review_order import ReviewOrder
 from backend.domain.value_objects.source_scope import SourceScope
 
 if TYPE_CHECKING:
@@ -48,12 +46,7 @@ class OpenReviewUseCase:
             sources = self._scope_resolver.reviewable_sources(scope)
             source_ids = [s.id for s in sources if s.id is not None]
             step = self._ordering.step()
-            pairs = self._ordering.ordered(source_ids, request.sort, step)
-            ordered = [card for card, _ in pairs]
-            order = ReviewOrder(
-                self._ordering.held(ordered, step, {c.phrase_id: k for c, k in pairs}),
-                sectioned=request.sort != CandidateSortOrder.CHRONOLOGICAL,
-            )
+            order, ordered = self._ordering.opened(source_ids, request.sort, step)
             focus = initial_focus(
                 order, {c.phrase_id: c.is_done for c in ordered}, request.requested_id,
             )

@@ -5,9 +5,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+from backend.application.utils import review_ordering
 from backend.application.utils.review_ordering import ReviewOrdering
 from backend.domain.services.candidate_sorting import (
     sort_with_keys,
@@ -39,12 +40,15 @@ STEPS = len(THRESHOLD_STEPS)
 class _Rows(LiveSectionTallies):
     """The stored rows of a set of cards, as the review order reads them."""
 
-    def __init__(self, cards: Sequence[OrderedCard]) -> None:
+    def __init__(self, cards: Sequence[OrderedCard], *, whole: bool = False) -> None:
         self._all = list(cards)
+        self._whole = whole
         self.words_read: set[int] = set()
 
     def order_rows(self, source_ids: Sequence[int]) -> list[OrderedCard]:
-        raise AssertionError("placing new cards must not read the whole set")
+        if not self._whole:
+            raise AssertionError("placing a few cards must not read the whole set")
+        return [card for card in self._all if card.source_id in source_ids]
 
     def order_rows_of_words(self, word_ids: Collection[int]) -> list[OrderedCard]:
         self.words_read.update(word_ids)
@@ -148,6 +152,10 @@ def test_changed_and_new_cards_stand_where_an_order_opened_now_puts_them(
 
     opened_now = _opened(now, sort, step)
     assert list(placed.cards) == list(opened_now.cards)
+    # Many moved cards order the set anew: the same list.
+    with patch.object(review_ordering, "PLACED_ONE_BY_ONE_AT_MOST", 0):
+        anew = _ordering(_Rows(now, whole=True), step).placed(order, SOURCES, sort, step, words)
+    assert list(anew.cards) == list(opened_now.cards)
     assert [c.key for c in placed.cards] == [c.key for c in opened_now.cards]
     assert _keys_rise(placed)
     assert placed.sectioned == order.sectioned

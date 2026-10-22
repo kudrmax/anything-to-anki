@@ -8,7 +8,8 @@ from backend.domain.services.candidate_sorting import (
     stored_standing,
 )
 from backend.domain.services.review_layout import place_by_key, remove_cards
-from backend.domain.value_objects.review_order import HeldCard
+from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+from backend.domain.value_objects.review_order import HeldCard, ReviewOrder
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
@@ -19,9 +20,12 @@ if TYPE_CHECKING:
     )
     from backend.domain.ports.card_state_query import CardStateQuery
     from backend.domain.services.candidate_sorting import OrderKey
-    from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
     from backend.domain.value_objects.ordered_card import OrderedCard
-    from backend.domain.value_objects.review_order import ReviewOrder
+
+
+# Past this many changed words reading their cards and placing each costs more than
+# ordering the set anew.
+PLACED_ONE_BY_ONE_AT_MOST = 2_000
 
 
 class ReviewOrdering:
@@ -58,6 +62,18 @@ class ReviewOrdering:
             usage_order=self._candidate_sorter.usage_order(), source_order=source_ids,
         )
 
+    def opened(
+        self, source_ids: Sequence[int], sort: CandidateSortOrder, step: float | None,
+    ) -> tuple[ReviewOrder, list[OrderedCard]]:
+        """The order a review opened now holds, with every card of it in that order."""
+        pairs = self.ordered(source_ids, sort, step)
+        cards = [card for card, _ in pairs]
+        order = ReviewOrder(
+            self.held(cards, step, {c.phrase_id: k for c, k in pairs}),
+            sectioned=sort != CandidateSortOrder.CHRONOLOGICAL,
+        )
+        return order, cards
+
     def placed(
         self,
         order: ReviewOrder,
@@ -70,7 +86,10 @@ class ReviewOrdering:
         """The cards of these words where an order opened now puts them: a new card joins,
         a held one whose key or section changed moves, each in its section now; a `kept`
         card stays where it is. The other held cards keep their keys, so the order stays in
-        key order. Reads only the cards of these words."""
+        key order. Reads only the cards of these words; past `PLACED_ONE_BY_ONE_AT_MOST`
+        of them, orders the set anew."""
+        if len(words) > PLACED_ONE_BY_ONE_AT_MOST:
+            return self.opened(source_ids, sort, step)[0]
         in_set = set(source_ids)
         rows = [
             row for row in self._card_states.order_rows_of_words(set(words))
