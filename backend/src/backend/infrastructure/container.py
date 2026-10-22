@@ -146,6 +146,11 @@ from backend.infrastructure.api.background_level_change import (
     LevelChangeRun,
     in_thread,
 )
+from backend.infrastructure.api.running_operations import (
+    BOOTSTRAP_BUILDS,
+    InProcessRunningOperations,
+)
+from backend.infrastructure.api.source_operations import OPERATIONS
 from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.persistence.database import app_session_factory
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
@@ -1107,6 +1112,7 @@ class Container:
                 source_lock=SqlaSourceOperationLock(session),
                 level_change_lock=SqlaLevelChangeLock(session),
                 unit_of_work=self._unit_of_work(session),
+                running=InProcessRunningOperations(OPERATIONS, BOOTSTRAP_BUILDS),
             ),
             run=self._level_change_run(),
             release=self._release_level_change_lock,

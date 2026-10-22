@@ -10,7 +10,7 @@ from backend.application.dto.settings_dtos import (  # noqa: TC001
     SettingsDTO,
     UpdateSettingsRequest,
 )
-from backend.domain.exceptions import SourceOperationBusyError
+from backend.domain.exceptions import LongOperationRunningError, SourceOperationBusyError
 from backend.infrastructure.api.dependencies import use_case
 from backend.infrastructure.container import Container
 
@@ -45,7 +45,7 @@ def update_settings(
 ) -> SettingsDTO:
     try:
         return settings.update_settings(request)
-    except SourceOperationBusyError as e:
+    except (SourceOperationBusyError, LongOperationRunningError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 

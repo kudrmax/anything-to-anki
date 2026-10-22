@@ -50,6 +50,10 @@ class SourceOperationRegistry:
     def failed(self, scope: str, operation_id: int, error: str) -> None:
         self._update(scope, operation_id, {"state": OperationState.ERROR, "error": error})
 
+    def any_running(self) -> bool:
+        with self._guard:
+            return any(op.state is OperationState.RUNNING for op in self._last.values())
+
     def last(self, scope: str) -> SourceOperationDTO | None:
         with self._guard:
             return self._last.get(scope)
