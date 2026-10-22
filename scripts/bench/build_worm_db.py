@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from backend.application.dto.add_source_dtos import SourcesCreated
+from backend.application.dto.collection_dtos import SourcePlacementDTO
 from backend.application.source_intake.naming import Naming
 from backend.application.source_intake.typed_input import typed_inputs
 from backend.domain.value_objects.collection_choice import CollectionChoice
@@ -107,20 +108,18 @@ def add_book(container: Container, db_url: str, epub: Path, whole: bool) -> Sour
     so the review of a collection measures it either way."""
     session_factory = create_session_factory(db_url)
     with session_factory() as session:
-        choice = (
-            CollectionChoice(
-                existing_id=container.create_collection_use_case(session).execute(
-                    COLLECTION_NAME,
-                ).id,
-            )
-            if whole else CollectionChoice(new_name=COLLECTION_NAME)
-        )
         result = container.add_source_use_case(session).execute(
             typed_inputs(str(epub)),
             None,
             [Answers({SPLIT_QUESTION: WHOLE_ANSWER if whole else SPLIT_ANSWER})],
-            Naming(choice, NamingRule(DEFAULT_NAMING_RULE)),
+            Naming(CollectionChoice(new_name=COLLECTION_NAME), NamingRule(DEFAULT_NAMING_RULE)),
         )
+        if whole and isinstance(result, SourcesCreated):
+            collection = container.create_collection_use_case(session).execute(COLLECTION_NAME)
+            container.place_sources_use_case(session).execute([
+                SourcePlacementDTO(source_id=source_id, collection_id=collection.id)
+                for source_id in result.source_ids
+            ])
         session.commit()
     if not isinstance(result, SourcesCreated):
         raise SystemExit(f"Adding the book did not create sources: {result!r}")
