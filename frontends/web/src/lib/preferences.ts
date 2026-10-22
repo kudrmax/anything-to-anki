@@ -78,3 +78,9 @@ export const phraseListShownPref = makePref<boolean>({
   default: true,
   parse: (raw) => raw !== 'false',
 })
+
+export const pictureSuggestionsShownPref = makePref<boolean>({
+  key: 'review.pictureSuggestionsShown',
+  default: true,
+  parse: (raw) => raw === 'true',
+})
