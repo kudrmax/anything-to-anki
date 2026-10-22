@@ -428,9 +428,9 @@ card-states-check: _check_setup  ## Сравнить сохранённую пр
 	.venv/bin/python scripts/card_states_check.py $(if $(DB),--db "$(DB)")
 
 ##@ Бенчмарк (только копии БД)
-bench-db: _check_setup _check_dictionaries_dir  ## Собрать БД с книгой Worm: EPUB=… OUT=… [CHAPTERS=N, 0 = все]
+bench-db: _check_setup _check_dictionaries_dir  ## Собрать БД с книгой Worm: EPUB=… OUT=… [CHAPTERS=N, 0 = все] [WHOLE=1 — одним источником]
 	@test -n "$(EPUB)" -a -n "$(OUT)" || { echo "usage: make bench-db EPUB=book.epub OUT=new.db [CHAPTERS=N]"; exit 1; }
-	.venv/bin/python -m scripts.bench.build_worm_db --epub "$(EPUB)" --out "$(OUT)" --chapters $(or $(CHAPTERS),0)
+	.venv/bin/python -m scripts.bench.build_worm_db --epub "$(EPUB)" --out "$(OUT)" --chapters $(or $(CHAPTERS),0) $(if $(WHOLE),--whole)
 
 bench-review: _check_setup  ## Замерить обзор на копии БД: DB=… OUT=… [PRESSES=200]
 	@test -n "$(DB)" -a -n "$(OUT)" || { echo "usage: make bench-review DB=bench.db OUT=result.json [PRESSES=N]"; exit 1; }

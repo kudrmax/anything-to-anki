@@ -1,4 +1,5 @@
 import pytest
+from backend.domain.entities.token_data import TokenData
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 
 
@@ -60,6 +61,31 @@ class TestSpaCyTextAnalyzer:
         body = {t.sent_index for t in tokens if t.text in ("started", "secret")}
         assert len(heading) == len(body) == 1
         assert heading != body
+
+    def test_text_longer_than_a_piece_is_parsed_in_pieces_as_one_text(self) -> None:
+        text = "\n\n".join(
+            f"Paragraph {n} tells how the cat sat on the mat. It was happy." for n in range(12)
+        )
+        whole = self.analyzer.analyze(text)
+        pieced = SpaCyTextAnalyzer(piece_length=150).analyze(text)
+
+        def layout(tokens: list[TokenData]) -> list[tuple[object, ...]]:
+            return [
+                (t.index, t.text, t.char_start, t.whitespace_after, t.sent_index,
+                 t.head_index, t.children_indices)
+                for t in tokens
+            ]
+
+        assert layout(pieced) == layout(whole)
+        assert all(text[t.char_start:t.char_end] == t.text for t in pieced)
+
+    def test_text_without_blank_lines_is_parsed_in_pieces(self) -> None:
+        analyzer = SpaCyTextAnalyzer(piece_length=40)
+        text = "The cat sat on the mat. " * 20
+        tokens = analyzer.analyze(text)
+        assert [t.index for t in tokens] == list(range(len(tokens)))
+        assert all(text[t.char_start:t.char_end] == t.text for t in tokens)
+        assert all(0 <= t.head_index < len(tokens) for t in tokens)
 
     def test_single_line_break_does_not_end_a_sentence(self) -> None:
         tokens = self.analyzer.analyze("I told him that\nwe would come back tomorrow.")

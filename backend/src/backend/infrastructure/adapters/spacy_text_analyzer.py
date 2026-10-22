@@ -8,12 +8,16 @@ from spacy.language import Language
 
 from backend.domain.entities.token_data import TokenData
 from backend.domain.ports.text_analyzer import TextAnalyzer
+from backend.infrastructure.adapters.text_pieces import text_pieces
 
 if TYPE_CHECKING:
     from spacy.tokens import Doc
 
 PARAGRAPH_BOUNDARIES = "paragraph_boundaries"
 PARAGRAPH_BREAK = "\n\n"
+# spaCy's memory grows with the text it parses at once: about 10 GB for its limit of a
+# million characters, under 2 GB for a hundred thousand. A longer text goes in pieces.
+PIECE_LENGTH = 100_000
 
 
 @Language.component(PARAGRAPH_BOUNDARIES)
@@ -26,11 +30,18 @@ def paragraph_boundaries(doc: Doc) -> Doc:
 
 
 class SpaCyTextAnalyzer(TextAnalyzer):
-    """Analyzes text using spaCy, producing NLP-agnostic TokenData objects."""
+    """Analyzes text using spaCy, producing NLP-agnostic TokenData objects.
 
-    def __init__(self, model_name: str = "en_core_web_sm") -> None:
+    A text longer than `piece_length` is parsed piece by piece, cut at blank lines where
+    possible, so spaCy never holds more than a piece; its tokens read as of one text.
+    """
+
+    def __init__(
+        self, model_name: str = "en_core_web_sm", piece_length: int | None = None,
+    ) -> None:
         self._nlp: Language = spacy.load(model_name)
         self._nlp.add_pipe(PARAGRAPH_BOUNDARIES, before="parser")
+        self._piece_length = min(piece_length or PIECE_LENGTH, self._nlp.max_length)
 
     @property
     def version(self) -> str:
@@ -38,35 +49,39 @@ class SpaCyTextAnalyzer(TextAnalyzer):
         return f"{spacy_about.__version__}:{self._nlp.meta['version']}"
 
     def analyze(self, text: str) -> list[TokenData]:
-        doc = self._nlp(text)
         tokens: list[TokenData] = []
-
-        # Build sent_index mapping
-        sent_indices: dict[int, int] = {}
-        for sent_idx, sent in enumerate(doc.sents):
-            for token in sent:
-                sent_indices[token.i] = sent_idx
-
-        for token in doc:
-            children_indices = tuple(child.i for child in token.children)
-            tokens.append(
-                TokenData(
-                    index=token.i,
-                    text=token.text,
-                    lemma=token.lemma_,
-                    pos=token.pos_,
-                    tag=token.tag_,
-                    head_index=token.head.i,
-                    children_indices=children_indices,
-                    is_punct=token.is_punct,
-                    is_stop=token.is_stop,
-                    is_alpha=token.is_alpha,
-                    is_propn=token.pos_ == "PROPN",
-                    sent_index=sent_indices.get(token.i, 0),
-                    dep=token.dep_,
-                    whitespace_after=token.whitespace_,
-                    char_start=token.idx,
-                )
-            )
-
+        sentences = 0
+        for start, end in text_pieces(text, self._piece_length):
+            doc = self._nlp(text[start:end])
+            tokens.extend(_tokens(doc, len(tokens), sentences, start))
+            sentences += sum(1 for _ in doc.sents)
         return tokens
+
+
+def _tokens(doc: Doc, first_index: int, first_sentence: int, first_char: int) -> list[TokenData]:
+    """The doc's tokens, numbered on from the tokens, sentences and text before the doc."""
+    sent_indices: dict[int, int] = {}
+    for sent_idx, sent in enumerate(doc.sents):
+        for token in sent:
+            sent_indices[token.i] = sent_idx
+
+    return [
+        TokenData(
+            index=first_index + token.i,
+            text=token.text,
+            lemma=token.lemma_,
+            pos=token.pos_,
+            tag=token.tag_,
+            head_index=first_index + token.head.i,
+            children_indices=tuple(first_index + child.i for child in token.children),
+            is_punct=token.is_punct,
+            is_stop=token.is_stop,
+            is_alpha=token.is_alpha,
+            is_propn=token.pos_ == "PROPN",
+            sent_index=first_sentence + sent_indices.get(token.i, 0),
+            dep=token.dep_,
+            whitespace_after=token.whitespace_,
+            char_start=first_char + token.idx,
+        )
+        for token in doc
+    ]
