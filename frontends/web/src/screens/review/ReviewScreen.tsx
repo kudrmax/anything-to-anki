@@ -4,9 +4,9 @@ import { backIn, backTo } from '@/lib/backLink'
 import { exportPath, parseSetScope } from '@/lib/scope'
 import { allowedInClozeMarkup, isToolAction, reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { pastedPicture } from '@/lib/pastedPicture'
-import { phraseListShownPref, sourceTextShownPref } from '@/lib/preferences'
+import { phraseListShownPref, pictureSuggestionsShownPref, sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
-import { ArrowDownWideNarrow, ChevronLeft, ChevronRight, Ellipsis, FileText, List, ListChevronsDownUp, ListChevronsUpDown, PanelRightClose, PanelRightOpen, Sparkles, Upload } from 'lucide-react'
+import { ArrowDownWideNarrow, ChevronLeft, ChevronRight, Ellipsis, FileText, Image, ImageOff, List, ListChevronsDownUp, ListChevronsUpDown, PanelRightClose, PanelRightOpen, Sparkles, Upload } from 'lucide-react'
 import { Banner, Button, Empty, Icon, IconButton, Menu, Progress, Spinner, Toast, type MenuItem } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
 import { generationItems } from './generationItems'
@@ -19,6 +19,7 @@ import { sortItems, sortLabel } from './sortItems'
 import type { SelectedText, SelectionPoint } from './SourceText'
 import { SourceTexts } from './SourceTexts'
 import { audioUrlForCandidate, useReview } from './useReview'
+import { usePictureSuggestions } from './usePictureSuggestions'
 import { useSwipe } from './useSwipe'
 import { ReviewList } from './ReviewList'
 import type { DecisionButton, ReviewRow, SetScope, SourceStatus } from '@/api/types'
@@ -61,6 +62,12 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
     setSourceTextShown(!sourceTextShown)
   }
   const [phraseListShown, setPhraseListShown] = useState(() => phraseListShownPref.read())
+  const [picturesShown, setPicturesShown] = useState(() => pictureSuggestionsShownPref.read())
+  const togglePictures = () => {
+    pictureSuggestionsShownPref.write(!picturesShown)
+    setPicturesShown(!picturesShown)
+  }
+  const suggestPictures = usePictureSuggestions(review.state, picturesShown)
   const togglePhraseList = () => {
     phraseListShownPref.write(!phraseListShown)
     setPhraseListShown(!phraseListShown)
@@ -178,6 +185,11 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
             <SortMenu value={review.sortOrder} onChange={review.setSortOrder} />
             <GenerateMenu review={review} />
             <IconButton
+              icon={picturesShown ? Image : ImageOff}
+              label={picturesShown ? 'Hide picture suggestions' : 'Show picture suggestions'}
+              onClick={togglePictures}
+            />
+            <IconButton
               icon={phraseListShown ? ListChevronsDownUp : ListChevronsUpDown}
               label={phraseListShown ? 'Hide phrase list' : 'Show phrase list'}
               onClick={togglePhraseList}
@@ -246,7 +258,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
           onLoad={review.loadRows}
           onToggleSection={toggleSection}
           renderCard={(card, isCurrent) => isCurrent
-            ? <PhraseCard key={card.phrase_id} candidate={card} review={review} />
+            ? <PhraseCard key={card.phrase_id} candidate={card} review={review} suggestPictures={suggestPictures} />
             : <PhraseRow key={card.phrase_id} candidate={card} onSelect={id => void review.goTo(id)} />}
           followKey={phraseListShown}
         />

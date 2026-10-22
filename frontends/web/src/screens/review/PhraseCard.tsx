@@ -10,6 +10,8 @@ import { CardPhrase } from './CardPhrase'
 import { CefrTooltip } from './CefrTooltip'
 import { ClozePanel } from './ClozePanel'
 import { DecisionButtons, PhraseTools } from './PhraseActions'
+import { PictureSuggestions } from './PictureSuggestions'
+import type { PictureSuggestionsLoader } from './usePictureSuggestions'
 import { audioUrlForCandidate, type Review } from './useReview'
 import { useClozeEditor } from './useClozeEditor'
 import { usePhraseEditor } from './usePhraseEditor'
@@ -19,6 +21,8 @@ import css from './review.module.css'
 interface PhraseCardProps {
   candidate: StoredCandidate
   review: Review
+  /** Нет — подсказки картинок выключены. */
+  suggestPictures: PictureSuggestionsLoader | null
 }
 
 const GENERATED_PHRASE = 'generated phrase'
@@ -61,7 +65,7 @@ function StatusText({ status, labels, error }: { status: EnrichmentStatus | unde
  * Текущая фраза: сверху фраза, слева то, по чему решаешь (перевод и пересказ контекста),
  * справа справка (произношение, синонимы, определение, примеры), снизу факты и инструменты.
  */
-export function PhraseCard({ candidate, review }: PhraseCardProps) {
+export function PhraseCard({ candidate, review, suggestPictures }: PhraseCardProps) {
   const [cefrAnchor, setCefrAnchor] = useState<HTMLElement | null>(null)
   // Телефон: справка свёрнута в строку Details, «Use as phrase» — только у примера, по которому тапнули.
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -147,6 +151,7 @@ export function PhraseCard({ candidate, review }: PhraseCardProps) {
             />
             {media.meaningImageUrl && <img className={css.meaningImage} src={media.meaningImageUrl} alt="" onError={e => { e.currentTarget.hidden = true }} />}
           </div>
+          {suggestPictures && !media.meaningImageUrl && <PictureSuggestions candidate={candidate} review={review} load={suggestPictures} />}
         </div>
 
         <button type="button" className={css.detailsToggle} aria-expanded={detailsOpen} onClick={() => setDetailsOpen(open => !open)}>
