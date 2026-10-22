@@ -6,8 +6,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
+from backend.infrastructure.api import running_operations, source_operations
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
+from backend.infrastructure.api.source_operations import SourceOperationRegistry
 from backend.infrastructure.container import Container
 from backend.infrastructure.persistence.database import Base
 from backend.infrastructure.persistence.sqla_source_operation_lock import (
@@ -177,3 +179,38 @@ def test_busy_source_refuses_the_change(
     assert held.pending is None
     assert _status(client)["running"] is False
     assert client.patch("/api/settings", json={"anki_deck_name": "Free"}).status_code == 200
+
+
+def test_a_running_set_operation_refuses_the_change(
+    client: TestClient, held: _HeldChange, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = SourceOperationRegistry()
+    registry.started("all", SourceOperationKind.UPDATE)
+    monkeypatch.setattr(source_operations.OPERATIONS, "_last", registry._last)
+
+    response = client.patch("/api/settings", json={"cefr_level": "C1"})
+
+    assert response.status_code == 409
+    assert held.pending is None
+    assert client.get("/api/settings").json()["cefr_level"] == "B1"
+
+
+def test_a_running_index_build_refuses_the_change(
+    client: TestClient, held: _HeldChange, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(running_operations.BOOTSTRAP_BUILDS, "running", lambda: True)
+
+    response = client.patch("/api/settings", json={"cefr_level": "C1"})
+
+    assert response.status_code == 409
+    assert held.pending is None
+
+
+def test_the_index_build_does_not_start_during_a_change(
+    client: TestClient, held: _HeldChange,
+) -> None:
+    client.patch("/api/settings", json={"cefr_level": "C1"})
+
+    assert client.post("/api/bootstrap/build").status_code == LOCKED
+
+    held.run()

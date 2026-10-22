@@ -13,7 +13,12 @@ from backend.application.use_cases.start_level_change import StartLevelChangeUse
 from backend.application.utils.level_change_progress import LevelChangeProgress
 from backend.application.utils.settings_writer import SettingsWriter
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
-from backend.domain.exceptions import LevelChangeInProgressError, SourceOperationBusyError
+from backend.domain.exceptions import (
+    LevelChangeInProgressError,
+    LongOperationRunningError,
+    SourceOperationBusyError,
+)
+from backend.domain.ports.running_operations import RunningOperations
 from backend.domain.services.level_change_progress import DONE_PERCENT
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
@@ -46,6 +51,14 @@ NEW_LEVEL = "C1"
 TO_C1 = UpdateSettingsRequest(cefr_level=NEW_LEVEL, anki_deck_name="Deck after")
 
 
+class _Running(RunningOperations):
+    def __init__(self) -> None:
+        self.long_operation = False
+
+    def any_running(self) -> bool:
+        return self.long_operation
+
+
 class World:
     """Two processed sources whose phrases sit in a section the next rebuild moves."""
 
@@ -70,6 +83,7 @@ class World:
         self.lock = SqlaLevelChangeLock(session)
         self.progress = LevelChangeProgress()
         self.rebuilder: SourceRebuilder = self.bench.rebuilder()
+        self.running = _Running()
 
     def start(self) -> None:
         self.progress.try_start()
@@ -77,6 +91,7 @@ class World:
             source_lock=self.bench.lock,
             level_change_lock=self.lock,
             unit_of_work=SqlaUnitOfWork(self.session, self.bench.vocabulary.scope),
+            running=self.running,
         ).execute()
 
     def change(self, request: UpdateSettingsRequest = TO_C1) -> None:
@@ -294,3 +309,14 @@ def test_files_that_cannot_be_removed_do_not_undo_a_committed_change(world: Worl
 
     assert world.progress.status().outcome is LevelChangeOutcome.SUCCEEDED
     assert world.setting("cefr_level") == NEW_LEVEL
+
+
+def test_start_refused_while_a_long_operation_runs(world: World) -> None:
+    """Update of a set takes its sources one by one; a change started between two of them
+    would cut it off."""
+    world.running.long_operation = True
+
+    with pytest.raises(LongOperationRunningError):
+        world.start()
+
+    assert not world.lock.held()

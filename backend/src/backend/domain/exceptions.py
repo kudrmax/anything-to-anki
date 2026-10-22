@@ -90,6 +90,13 @@ class LevelChangeInProgressError(DomainError):
         super().__init__("The level is being changed")
 
 
+class LongOperationRunningError(DomainError):
+    """Raised by a level change started while a long operation over sources runs."""
+
+    def __init__(self) -> None:
+        super().__init__("Wait for the running operation to finish before changing the level")
+
+
 class LevelChangeCancelledError(DomainError):
     """Raised inside a level change the user cancelled: it is rolled back."""
 

@@ -11,11 +11,14 @@ from backend.application.dto.bootstrap_dtos import (  # noqa: TC001
     GetBootstrapWordsRequest,
     SaveBootstrapWordsRequest,
 )
+from backend.domain.exceptions import LevelChangeInProgressError
 from backend.infrastructure.api.dependencies import (
     DetachedUseCases,
+    get_container,
     get_detached_use_cases,
     use_case,
 )
+from backend.infrastructure.api.running_operations import BOOTSTRAP_BUILDS
 from backend.infrastructure.container import Container
 
 if TYPE_CHECKING:
@@ -24,9 +27,6 @@ if TYPE_CHECKING:
     from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 
 router = APIRouter(prefix="/api/bootstrap", tags=["bootstrap"])
-
-_build_task: asyncio.Task[None] | None = None
-
 
 @router.get("/status")
 def get_bootstrap_status(
@@ -43,17 +43,18 @@ async def start_bootstrap_build(
         use_case(Container.build_bootstrap_index_use_case),  # noqa: B008
     ),
     detached: DetachedUseCases = Depends(get_detached_use_cases),  # noqa: B008
+    container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, str]:
-    global _build_task  # noqa: PLW0603
-
-    if build.is_building():
+    if container.level_change_progress().status().running:
+        raise LevelChangeInProgressError
+    if build.is_building() or BOOTSTRAP_BUILDS.running():
         raise HTTPException(status_code=409, detail="Build already in progress")
 
     def _run_build() -> None:
         with detached.open(Container.build_bootstrap_index_use_case) as background_build:
             background_build.execute()
 
-    _build_task = asyncio.create_task(asyncio.to_thread(_run_build))
+    BOOTSTRAP_BUILDS.track(asyncio.create_task(asyncio.to_thread(_run_build)))
     return {"status": "started"}
 
 
