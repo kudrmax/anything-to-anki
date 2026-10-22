@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.preview_cloze import PreviewClozeUseCase
     from backend.application.use_cases.regenerate_phrase_media import RegeneratePhraseMediaUseCase
     from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
+    from backend.application.use_cases.replace_with_target import ReplaceWithTargetUseCase
     from backend.application.use_cases.report_candidate import ReportCandidateUseCase
     from backend.application.use_cases.revert_phrase_polish import RevertPhrasePolishUseCase
     from backend.application.use_cases.review_mutation import ReviewMutation
@@ -251,6 +252,27 @@ def replace_with_example(
         raise HTTPException(status_code=422, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/{phrase_id}/replace-with-target", status_code=201)
+def replace_with_target(
+    phrase_id: int,
+    replace: ReplaceWithTargetUseCase = Depends(  # noqa: B008
+        use_case(Container.replace_with_target_use_case),  # noqa: B008
+    ),
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    mutation: ReviewMutation = Depends(use_case(Container.review_mutation)),  # noqa: B008
+) -> ReviewUpdateDTO:
+    """The card replaced by its bare target: the new card takes its place and the focus."""
+    try:
+        with review_expired():
+            return mutation.replace(ctx, phrase_id, lambda: replace.execute(phrase_id))
+    except PhraseNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except SourceOperationBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except InvalidPhraseError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 @router.post("/{phrase_id}/polish", status_code=202)

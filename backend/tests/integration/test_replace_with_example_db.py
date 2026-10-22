@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.use_cases.replace_with_example import ReplaceWithExampleUseCase
 from backend.application.utils.export_queue import ExportQueue
+from backend.application.utils.phrase_replacement import PhraseReplacement
 from backend.domain.entities.candidate_meaning import CandidateMeaning
 from backend.domain.entities.candidate_tts import CandidateTTS
 from backend.domain.entities.occurrence import Occurrence
@@ -85,18 +86,20 @@ class Bench:
         reader.read.side_effect = _read
         self.decisions = Decisions(session)
         self.use_case = ReplaceWithExampleUseCase(
-            occurrence_repo=self.occurrences,
-            candidate_repo=SqlaCandidateRepository(session, SessionChangeRecorder(session)),
+            replacement=PhraseReplacement(
+                occurrence_repo=self.occurrences,
+                candidate_repo=SqlaCandidateRepository(session, SessionChangeRecorder(session)),
+                stamper=section_stamper(SqlaSettingsRepository(
+                    session, SessionChangeRecorder(session),
+                )),
+                job_repo=SqlaJobRepository(session, SessionChangeRecorder(session)),
+                lock=free_lock(),
+                word_states=self.decisions.word_states,
+                vocabulary=self.decisions.vocabulary,
+                effects=self.decisions.effects(),
+            ),
             phrase_reader=reader,
-            stamper=section_stamper(SqlaSettingsRepository(
-                session, SessionChangeRecorder(session),
-            )),
-            job_repo=SqlaJobRepository(session, SessionChangeRecorder(session)),
-            lock=free_lock(),
             card_views=card_views(session),
-            word_states=self.decisions.word_states,
-            vocabulary=self.decisions.vocabulary,
-            effects=self.decisions.effects(),
             unit_of_work=SqlaUnitOfWork(self.session, self.decisions.scope),
         )
 

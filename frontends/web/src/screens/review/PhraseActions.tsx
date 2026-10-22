@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, Check, Clapperboard, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Check, Clapperboard, Crosshair, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { ButtonCommand, CardButton, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
 import { KEY_LABEL, OVERLAY, toolKey, type ToolAction } from '@/lib/hotkeys'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
@@ -171,6 +171,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
   const editItems: MenuItem[] = [
     { label: 'Edit text', hint: 'Fix words in the phrase', icon: TextCursorInput, onSelect: onEditPhrase },
     { label: 'Change boundary', hint: 'Pick the phrase in the source', icon: TextSelect, onSelect: () => review.startEditing(id) },
+    { label: 'Target only', hint: 'Just the target, no sentence', icon: Crosshair, onSelect: () => void review.replaceWithTarget(id) },
   ]
 
   const meaningItems: MenuItem[] = [

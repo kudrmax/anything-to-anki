@@ -22,7 +22,7 @@ const MUTATIONS = [
   'runReviewGeneration', 'cancelReviewGeneration', 'downloadReviewVideos', 'saveCloze', 'decidePhrase',
   'generateMeaning', 'regeneratePhraseMedia', 'applyTargetImage', 'pasteTargetImage', 'polishPhraseAgain',
   'setPolishReverted', 'editPhrase', 'generatePhraseTTS', 'setPhraseBoundary', 'reportCandidate',
-  'replaceWithExample', 'addManualCandidate',
+  'replaceWithExample', 'replaceWithTarget', 'addManualCandidate',
 ]
 const WRAPPER = 'mutate'
 
