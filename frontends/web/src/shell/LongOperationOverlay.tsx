@@ -63,8 +63,10 @@ interface BlockerProps {
 export function LongOperationBlocker({ label, percent, cancellable, onCancel }: BlockerProps) {
   return (
     <div className={css.overlay} role="alertdialog" aria-modal="true" aria-label={label}>
-      <div className={css.percent}>{percent}%</div>
-      <Button onClick={onCancel} disabled={!cancellable}>Cancel</Button>
+      <div className={css.card}>
+        <div className={css.percent}>{percent}%</div>
+        <Button onClick={onCancel} disabled={!cancellable}>Cancel</Button>
+      </div>
     </div>
   )
 }

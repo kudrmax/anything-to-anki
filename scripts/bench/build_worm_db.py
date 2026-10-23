@@ -11,6 +11,7 @@ import os
 import resource
 import sqlite3
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +21,7 @@ from backend.application.dto.collection_dtos import SourcePlacementDTO
 from backend.application.source_intake.naming import Naming
 from backend.application.source_intake.typed_input import typed_inputs
 from backend.domain.value_objects.collection_choice import CollectionChoice
+from backend.domain.value_objects.long_operation_kind import LongOperationKind
 from backend.domain.value_objects.naming_rule import DEFAULT_NAMING_RULE, NamingRule
 from backend.domain.value_objects.question import Answers
 from backend.infrastructure.container import Container
@@ -35,6 +37,7 @@ SPLIT_ANSWER = "split"
 WHOLE_ANSWER = "whole"
 ALL_CHAPTERS = 0
 BYTES_IN_MB = 1024 * 1024  # ru_maxrss is in bytes on macOS
+PROGRESS_EVERY_S = 1.0
 CARDS_SQL = (
     "SELECT COUNT(*) FROM phrases p JOIN candidates c ON c.id = p.candidate_id "
     "WHERE c.source_id = ? AND p.shown_by IS NOT NULL"
@@ -127,23 +130,34 @@ def add_book(container: Container, db_url: str, epub: Path, whole: bool) -> Sour
 
 
 def process_chapters(container: Container, db_url: str, source_ids: list[int]) -> None:
+    """All the sources as one long operation, as the app runs it; its progress printed every
+    PROGRESS_EVERY_S, with the longest time it stood still."""
     session_factory = create_session_factory(db_url)
-    total = len(source_ids)
+    progress = container.long_operation_progress()
     began = time.perf_counter()
-    for number, source_id in enumerate(source_ids, 1):
-        chapter_began = time.perf_counter()
-        with session_factory() as session:
-            use_case = container.process_source_use_case(session)
-            use_case.start(source_id)
-            session.commit()
-            use_case.execute(source_id)
-            session.commit()
-        print(
-            f"chapter {number}/{total} source {source_id} "
-            f"{time.perf_counter() - chapter_began:.1f}s "
-            f"(total {time.perf_counter() - began:.0f}s)",
-            flush=True,
-        )
+    done = threading.Event()
+
+    def watch() -> None:
+        last_percent, last_change, still = -1, began, 0.0
+        while not done.wait(PROGRESS_EVERY_S):
+            percent = progress.status().percent
+            now = time.perf_counter()
+            if percent != last_percent:
+                still = max(still, now - last_change)
+                last_percent, last_change = percent, now
+            print(f"{now - began:6.0f}s {percent:3d}%", flush=True)
+        print(f"progress stood still at most {max(still, time.perf_counter() - last_change):.0f}s")
+
+    watcher = threading.Thread(target=watch, daemon=True)
+    progress.try_start(LongOperationKind.PROCESS)
+    watcher.start()
+    with session_factory() as session:
+        result = container.process_source_use_case(session).run(source_ids)
+    done.set()
+    watcher.join()
+    failed = result.failed if result is not None else "cancelled"
+    took = time.perf_counter() - began
+    print(f"processed {len(source_ids)} sources in {took:.0f}s, failed {failed}")
 
 
 def count_cards(db_path: Path, source_ids: list[int]) -> int:
