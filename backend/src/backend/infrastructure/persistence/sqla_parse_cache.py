@@ -20,13 +20,18 @@ logger = logging.getLogger(__name__)
 
 # Rows deleted per statement: far below SQLite's limit of bound parameters.
 DELETE_CHUNK_SIZE = 500
+# Compressed bytes decompressed at a time.
+DECOMPRESS_CHUNK_SIZE = 1 << 16
+ROW_END = b"\n"
 
 type _TokenRow = list[int | str | bool | list[int]]
 
 
 class SqlaParseCache(ParseCache):
-    """Parses in `document_parses`: tokens as a JSON list of their fields, zlib-compressed.
-    A document keeps only the parse of the newest version; an unreadable parse is a miss.
+    """Parses in `document_parses`: a line per token, a JSON list of its fields, the lines
+    zlib-compressed. A document keeps only the parse of the newest version; an unreadable
+    parse is a miss. A parse is encoded and decoded a token at a time: a book's parse is
+    never held whole as rows or as text.
 
     Every call is its own short transaction, so an analysis holds no lock on the database.
     """
@@ -41,7 +46,7 @@ class SqlaParseCache(ParseCache):
         if data is None:
             return None
         try:
-            return [_token(row) for row in json.loads(zlib.decompress(data))]
+            return _decoded(data)
         except (zlib.error, ValueError):
             logger.warning(
                 "Parse cache: unreadable parse dropped (document_hash=%s, version=%s)",
@@ -59,9 +64,7 @@ class SqlaParseCache(ParseCache):
             session.commit()
 
     def put(self, document_hash: str, analyzer_version: str, tokens: list[TokenData]) -> None:
-        data = zlib.compress(
-            json.dumps([_row(token) for token in tokens], separators=(",", ":")).encode(),
-        )
+        data = _encoded(tokens)
         with self._session_factory() as session:
             session.execute(delete(DocumentParseModel).where(
                 DocumentParseModel.document_hash == document_hash,
@@ -95,6 +98,32 @@ class SqlaParseCache(ParseCache):
                 )
             session.commit()
         return len(stale)
+
+
+def _encoded(tokens: list[TokenData]) -> bytes:
+    compressor = zlib.compressobj()
+    parts = [
+        compressor.compress(json.dumps(_row(token), separators=(",", ":")).encode() + ROW_END)
+        for token in tokens
+    ]
+    parts.append(compressor.flush())
+    return b"".join(parts)
+
+
+def _decoded(data: bytes) -> list[TokenData]:
+    """ValueError for a parse cut short; zlib.error or ValueError for one that is broken."""
+    decompressor = zlib.decompressobj()
+    tokens: list[TokenData] = []
+    rest = b""
+    for start in range(0, len(data), DECOMPRESS_CHUNK_SIZE):
+        *rows, rest = (rest + decompressor.decompress(
+            data[start : start + DECOMPRESS_CHUNK_SIZE],
+        )).split(ROW_END)
+        tokens.extend(_token(json.loads(row)) for row in rows)
+    if not decompressor.eof or rest + decompressor.flush():
+        msg = "parse is cut short"
+        raise ValueError(msg)
+    return tokens
 
 
 def _row(token: TokenData) -> _TokenRow:

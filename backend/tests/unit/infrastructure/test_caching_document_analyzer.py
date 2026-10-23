@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tracemalloc
 import zlib
 from typing import TYPE_CHECKING
 
@@ -29,6 +30,13 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 VERSION = "3.8.0:3.8.0:1"
+BOOK_TOKENS = 60_000
+MEASURED_TOKENS = 150_000
+# How much memory storing or reading a parse may take on top of its tokens, as a share of
+# what the tokens take: the parse is never held whole as rows or as one JSON text.
+MEMORY_OVER_TOKENS = 0.25
+# The compressed parse itself, as its parts and joined, is what storing it may hold.
+STORED_COPIES = 2
 NEW_VERSION = "3.8.0:3.8.0:2"
 
 
@@ -64,6 +72,18 @@ class _CountingAnalyzer(DocumentAnalyzer):
             ),
         ]
         return AnalyzedDocument(tokens=tokens, layout=layout)
+
+
+def _book_tokens(count: int = BOOK_TOKENS) -> list[TokenData]:
+    return [
+        TokenData(
+            index=i, text=f"wörd\n{i}", lemma=f"word{i % 50}", pos="NOUN", tag="NN",
+            head_index=max(i - 1, 0), children_indices=(i + 1,) if i % 2 else (),
+            is_punct=False, is_stop=bool(i % 3), is_alpha=True, is_propn=False,
+            sent_index=i // 20, dep="nsubj", whitespace_after=" ", char_start=i * 7,
+        )
+        for i in range(count)
+    ]
 
 
 @pytest.fixture()
@@ -157,6 +177,52 @@ class TestCachingDocumentAnalyzer:
         assert rows == {
             (document_hash(document), NEW_VERSION), (document_hash(other), VERSION),
         }
+
+    def test_parse_of_a_book_round_trips(self, session_factory: sessionmaker[Session]) -> None:
+        tokens = _book_tokens()
+        cache = SqlaParseCache(session_factory)
+
+        cache.put("book", VERSION, tokens)
+
+        assert cache.get("book", VERSION) == tokens
+
+    def test_parse_of_a_book_is_stored_and_read_without_a_copy_of_it_in_memory(
+        self, session_factory: sessionmaker[Session],
+    ) -> None:
+        cache = SqlaParseCache(session_factory)
+        # What the first statements of an engine allocate once is not the parse's.
+        cache.put("warm-up", VERSION, _book_tokens(1))
+        cache.get("warm-up", VERSION)
+        tracemalloc.start()
+        try:
+            tokens = _book_tokens(MEASURED_TOKENS)
+            held = tracemalloc.get_traced_memory()[0]
+            tracemalloc.reset_peak()
+            cache.put("book", VERSION, tokens)
+            put_extra = tracemalloc.get_traced_memory()[1] - held
+            del tokens
+            before_get = tracemalloc.get_traced_memory()[0]
+            tracemalloc.reset_peak()
+            read = cache.get("book", VERSION)
+            current, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+
+        with session_factory() as session:
+            stored = len(session.get(DocumentParseModel, ("book", VERSION)).tokens)
+        assert read is not None
+        assert put_extra - STORED_COPIES * stored < held * MEMORY_OVER_TOKENS
+        assert peak - current < (current - before_get) * MEMORY_OVER_TOKENS
+
+    def test_cut_short_parse_is_a_miss(self, session_factory: sessionmaker[Session]) -> None:
+        document = _document("Glare hurts")
+        _analyzer(session_factory, _CountingAnalyzer()).analyze(document)
+        with session_factory() as session:
+            row = session.scalars(select(DocumentParseModel)).one()
+            row.tokens = row.tokens[: len(row.tokens) // 2]
+            session.commit()
+
+        assert SqlaParseCache(session_factory).get(document_hash(document), VERSION) is None
 
     @pytest.mark.parametrize("broken", [b"not zlib", zlib.compress(b"not json")])
     def test_unreadable_parse_is_parsed_again_and_replaced(
