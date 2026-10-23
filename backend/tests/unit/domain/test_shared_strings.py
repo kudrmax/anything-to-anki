@@ -1,6 +1,8 @@
 from dataclasses import replace
 
 from backend.domain.entities.token_data import TokenData
+from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.domain.value_objects.phrase import Word
 
 
 def _token(text: str, lemma: str) -> TokenData:
@@ -24,3 +26,11 @@ class TestTokenData:
     def test_a_replaced_token_shares_its_strings_too(self) -> None:
         token = replace(_token("run", "run"), text="".join(["ra", "n"]))
         assert token.text is _token("".join(["r", "an"]), "run").text
+
+
+class TestWord:
+    def test_keeps_no_dict_and_shares_its_lemma(self) -> None:
+        first = Word(0, 4, "".join(["ru", "ns"]), CEFRLevel.A1, 5.0, content=True)
+        second = Word(0, 4, "".join(["r", "uns"]), CEFRLevel.A1, 5.0, content=True)
+        assert not hasattr(first, "__dict__")
+        assert first.lemma is second.lemma

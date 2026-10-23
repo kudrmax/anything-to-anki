@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
@@ -11,11 +12,13 @@ if TYPE_CHECKING:
 TARGET_SEPARATOR = " "
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Word:
     """A word of a phrase: characters [start, end) of its text and what is known of it.
 
     `content`: a word that can be new to the user — not a function word, not a name.
+    A book's phrases hold millions of words, so a word keeps no dict and shares its lemma
+    with every other word that has it.
     """
 
     start: int
@@ -24,6 +27,9 @@ class Word:
     level: CEFRLevel
     zipf: float
     content: bool
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "lemma", sys.intern(self.lemma))
 
 
 @dataclass(frozen=True)
