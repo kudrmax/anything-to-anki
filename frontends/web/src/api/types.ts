@@ -1023,15 +1023,19 @@ export interface AIUsageStats {
   features: AIUsageFeature[]
 }
 
-export type LevelChangeOutcome = 'succeeded' | 'cancelled' | 'failed'
+export type LongOperationOutcome = 'succeeded' | 'cancelled' | 'failed'
 
-/** Идёт ли смена уровня и насколько; после неё — чем закончилась. */
-export interface LevelChangeStatus {
-  /** Растёт с каждой начатой сменой: итог новой смены отличим от итога прошлой. */
-  change_id: number
+export type LongOperationKind = 'level_change' | 'process' | 'update' | 'recut' | 'refresh'
+
+/** Идёт ли долгая операция и насколько; после неё — чем закончилась. */
+export interface LongOperationStatus {
+  /** Растёт с каждой начатой операцией: итог новой отличим от итога прошлой. */
+  operation_id: number
+  /** Вид последней начатой операции; null — ни одной ещё не было. */
+  kind: LongOperationKind | null
   running: boolean
   percent: number
   cancellable: boolean
-  outcome: LevelChangeOutcome | null
+  outcome: LongOperationOutcome | null
   error: string | null
 }

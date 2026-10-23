@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/api/client'
 import { onLevelChange } from '@/api/levelChangeSignal'
-import type { LevelChangeStatus } from '@/api/types'
+import type { LongOperationStatus } from '@/api/types'
 
 const POLL_INTERVAL_MS = 1_000
 
 const reloadPage = () => window.location.reload()
 
 interface LevelChange {
-  status: LevelChangeStatus | null
+  status: LongOperationStatus | null
   /** Смена упала: её ошибка, пока пользователь не закрыл сообщение. */
   failure: string | null
   dismissFailure: () => void
@@ -22,21 +22,21 @@ interface LevelChange {
  * страница не застала идущей (она прошла между двумя ответами), тоже считается.
  */
 export function useLevelChange(reload: () => void = reloadPage): LevelChange {
-  const [status, setStatus] = useState<LevelChangeStatus | null>(null)
+  const [status, setStatus] = useState<LongOperationStatus | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const wasRunning = useRef(false)
   /** Последняя смена, о которой страница уже знает; до первого ответа — никакой. */
   const seenChange = useRef<number | null>(null)
 
-  const apply = useCallback((next: LevelChangeStatus) => {
+  const apply = useCallback((next: LongOperationStatus) => {
     setStatus(next)
     const known = seenChange.current
-    const unseen = known !== null && next.change_id !== known
+    const unseen = known !== null && next.operation_id !== known
     if (!next.running && next.outcome !== null && (wasRunning.current || unseen)) {
       if (next.outcome === 'failed') setFailure(next.error ?? 'Level change failed')
       else reload()
     }
-    seenChange.current = next.change_id
+    seenChange.current = next.operation_id
     wasRunning.current = next.running
   }, [reload])
 

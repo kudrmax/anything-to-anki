@@ -6,30 +6,31 @@ from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
-from backend.application.dto.level_change_dtos import LevelChangeOutcome
+from backend.application.dto.long_operation_dtos import LongOperationOutcome
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.use_cases.change_level import ChangeLevelUseCase
 from backend.application.use_cases.start_level_change import StartLevelChangeUseCase
-from backend.application.utils.level_change_progress import LevelChangeProgress
+from backend.application.utils.long_operation_progress import LongOperationProgress
 from backend.application.utils.settings_writer import SettingsWriter
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.exceptions import (
-    LevelChangeInProgressError,
+    LongOperationInProgressError,
     LongOperationRunningError,
     SourceOperationBusyError,
 )
 from backend.domain.ports.running_operations import RunningOperations
-from backend.domain.services.level_change_progress import DONE_PERCENT
+from backend.domain.services.long_operation_progress import DONE_PERCENT
+from backend.domain.value_objects.long_operation_kind import LongOperationKind
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
-from backend.infrastructure.persistence.sqla_level_change_lock import SqlaLevelChangeLock
+from backend.infrastructure.persistence.sqla_long_operation_lock import SqlaLongOperationLock
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
-from backend.infrastructure.persistence.write_gate import OwnLevelChange
+from backend.infrastructure.persistence.write_gate import OwnLongOperation
 from sqlalchemy import text
 
 from tests.candidate_sorter_support import threshold_resolver
@@ -80,13 +81,13 @@ class World:
         session.execute(text(f"UPDATE phrases SET earned_section = '{OLD_SECTION}'"))
         session.commit()
         self.settings = SqlaSettingsRepository(session, SessionChangeRecorder(session))
-        self.lock = SqlaLevelChangeLock(session)
-        self.progress = LevelChangeProgress()
+        self.lock = SqlaLongOperationLock(session)
+        self.progress = LongOperationProgress()
         self.rebuilder: SourceRebuilder = self.bench.rebuilder()
         self.running = _Running()
 
     def start(self) -> None:
-        self.progress.try_start()
+        self.progress.try_start(LongOperationKind.LEVEL_CHANGE)
         StartLevelChangeUseCase(
             source_lock=self.bench.lock,
             level_change_lock=self.lock,
@@ -106,7 +107,7 @@ class World:
             lock=self.lock,
             media_files=self.bench.media_files,
             unit_of_work=SqlaUnitOfWork(
-                self.session, self.bench.vocabulary.scope, gate=OwnLevelChange(),
+                self.session, self.bench.vocabulary.scope, gate=OwnLongOperation(),
             ),
             progress=self.progress,
         ).execute(request)
@@ -157,7 +158,7 @@ def test_success_applies_level_settings_and_every_source(world: World) -> None:
     assert not world.lock.held()
     status = world.progress.status()
     assert (status.running, status.outcome, status.percent) == (
-        False, LevelChangeOutcome.SUCCEEDED, DONE_PERCENT,
+        False, LongOperationOutcome.SUCCEEDED, DONE_PERCENT,
     )
 
 
@@ -170,7 +171,7 @@ def test_failure_on_second_source_changes_nothing(world: World) -> None:
 
     assert world.unchanged()
     status = world.progress.status()
-    assert (status.outcome, status.error) == (LevelChangeOutcome.FAILED, "second source broke")
+    assert (status.outcome, status.error) == (LongOperationOutcome.FAILED, "second source broke")
 
 
 def test_cancel_in_analyse_writes_nothing(world: World) -> None:
@@ -178,7 +179,7 @@ def test_cancel_in_analyse_writes_nothing(world: World) -> None:
         world.change()
 
     assert world.unchanged()
-    assert world.progress.status().outcome is LevelChangeOutcome.CANCELLED
+    assert world.progress.status().outcome is LongOperationOutcome.CANCELLED
 
 
 def test_cancel_in_apply_rolls_back(world: World) -> None:
@@ -186,7 +187,7 @@ def test_cancel_in_apply_rolls_back(world: World) -> None:
         world.change()
 
     assert world.unchanged()
-    assert world.progress.status().outcome is LevelChangeOutcome.CANCELLED
+    assert world.progress.status().outcome is LongOperationOutcome.CANCELLED
 
 
 def test_cannot_cancel_in_finish(world: World) -> None:
@@ -196,7 +197,7 @@ def test_cannot_cancel_in_finish(world: World) -> None:
         world.change()
 
     assert refused == [False]
-    assert world.progress.status().outcome is LevelChangeOutcome.SUCCEEDED
+    assert world.progress.status().outcome is LongOperationOutcome.SUCCEEDED
     assert world.setting("cefr_level") == NEW_LEVEL
 
 
@@ -213,7 +214,7 @@ def test_start_refused_when_source_busy(world: World) -> None:
 def test_start_refused_when_locked(world: World) -> None:
     world.start()
 
-    with pytest.raises(LevelChangeInProgressError):
+    with pytest.raises(LongOperationInProgressError):
         world.start()
 
 
@@ -248,9 +249,9 @@ def test_percent_never_goes_back(world: World) -> None:
 def test_source_without_text_has_sections_moved_only(db_session: Session) -> None:
     bench = Bench(db_session, role="topic", status="done")
     settings = SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session))
-    lock = SqlaLevelChangeLock(db_session)
-    progress = LevelChangeProgress()
-    progress.try_start()
+    lock = SqlaLongOperationLock(db_session)
+    progress = LongOperationProgress()
+    progress.try_start(LongOperationKind.LEVEL_CHANGE)
     lock.take()
     db_session.commit()
 
@@ -263,12 +264,12 @@ def test_source_without_text_has_sections_moved_only(db_session: Session) -> Non
         rebuilder=bench.rebuilder(),
         lock=lock,
         media_files=bench.media_files,
-        unit_of_work=SqlaUnitOfWork(db_session, bench.vocabulary.scope, gate=OwnLevelChange()),
+        unit_of_work=SqlaUnitOfWork(db_session, bench.vocabulary.scope, gate=OwnLongOperation()),
         progress=progress,
     ).execute(TO_C1)
 
     bench.analyze_text.execute.assert_not_called()
-    assert progress.status().outcome is LevelChangeOutcome.SUCCEEDED
+    assert progress.status().outcome is LongOperationOutcome.SUCCEEDED
 
 
 def test_a_source_that_failed_processing_is_left_out(world: World) -> None:
@@ -284,7 +285,7 @@ def test_a_source_that_failed_processing_is_left_out(world: World) -> None:
 
     world.change()
 
-    assert world.progress.status().outcome is LevelChangeOutcome.SUCCEEDED
+    assert world.progress.status().outcome is LongOperationOutcome.SUCCEEDED
     assert world.setting("cefr_level") == NEW_LEVEL
 
 
@@ -297,7 +298,7 @@ def test_a_done_source_without_its_document_fails_the_whole_change(world: World)
     world.change()
 
     assert world.unchanged()
-    assert world.progress.status().outcome is LevelChangeOutcome.FAILED
+    assert world.progress.status().outcome is LongOperationOutcome.FAILED
 
 
 def test_files_that_cannot_be_removed_do_not_undo_a_committed_change(world: World) -> None:
@@ -307,7 +308,7 @@ def test_files_that_cannot_be_removed_do_not_undo_a_committed_change(world: Worl
     with patch.object(world.bench.media_files, "remove", refuse):
         world.change()
 
-    assert world.progress.status().outcome is LevelChangeOutcome.SUCCEEDED
+    assert world.progress.status().outcome is LongOperationOutcome.SUCCEEDED
     assert world.setting("cefr_level") == NEW_LEVEL
 
 

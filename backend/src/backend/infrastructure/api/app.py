@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
-from backend.domain.exceptions import LevelChangeInProgressError
+from backend.domain.exceptions import LongOperationInProgressError
 from backend.infrastructure.api.client_build import StaleClientMiddleware
 from backend.infrastructure.api.dependencies import get_container, get_session_factory
 from backend.infrastructure.api.routes import (
@@ -26,7 +26,7 @@ from backend.infrastructure.api.routes import (
     export,
     generation,
     known_words,
-    level_change,
+    long_operation,
     operations,
     phrases,
     review,
@@ -44,7 +44,7 @@ from backend.infrastructure.logging_setup import configure_logging
 from backend.infrastructure.persistence.database import (
     cleanup_parse_cache,
     reconcile_media_files,
-    release_level_change_lock,
+    release_long_operation_lock,
     release_source_operations,
     run_alembic_migrations,
 )
@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if ":memory:" not in db_url:
         run_alembic_migrations(db_url)
     release_source_operations(session_factory)
-    release_level_change_lock(session_factory)
+    release_long_operation_lock(session_factory)
     cleanup_parse_cache(session_factory)
     data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
     media_root = os.environ.get("MEDIA_ROOT", os.path.join(data_dir, "media"))
@@ -113,16 +113,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# One code for every write refused while the level is being changed: the frontend shows the
-# level change instead of an error.
-LEVEL_CHANGE_IN_PROGRESS_STATUS = 423
+# One code for every write refused while a long operation runs: the frontend shows the
+# operation instead of an error.
+LONG_OPERATION_IN_PROGRESS_STATUS = 423
 
 
-@app.exception_handler(LevelChangeInProgressError)
-async def level_change_in_progress(
-    _request: Request, exc: LevelChangeInProgressError,
+@app.exception_handler(LongOperationInProgressError)
+async def long_operation_in_progress(
+    _request: Request, exc: LongOperationInProgressError,
 ) -> JSONResponse:
-    return JSONResponse(status_code=LEVEL_CHANGE_IN_PROGRESS_STATUS, content={"detail": str(exc)})
+    return JSONResponse(
+        status_code=LONG_OPERATION_IN_PROGRESS_STATUS, content={"detail": str(exc)},
+    )
 
 
 app.add_middleware(RequestLoggingMiddleware)
@@ -144,7 +146,7 @@ app.include_router(known_words.router)
 app.include_router(unknown_words.router)
 app.include_router(vocabulary.router)
 app.include_router(settings.router)
-app.include_router(level_change.router)
+app.include_router(long_operation.router)
 app.include_router(anki.router)
 app.include_router(export.router)
 app.include_router(stats.router)

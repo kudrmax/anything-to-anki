@@ -71,10 +71,10 @@ from backend.application.utils.frequent_word_threshold_resolver import (
     FrequentWordThresholdResolver,
 )
 from backend.application.utils.knowledge_scope import KnowledgeScope
-from backend.application.utils.level_change_progress import LevelChangeProgress
 from backend.application.utils.live_card_states import LiveCardStates
 from backend.application.utils.live_generation_status import LiveGenerationStatus
 from backend.application.utils.live_source_progress import LiveSourceProgress
+from backend.application.utils.long_operation_progress import LongOperationProgress
 from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.phrase_replacement import PhraseReplacement
 from backend.application.utils.review_answer import ReviewAnswer
@@ -197,7 +197,7 @@ from backend.infrastructure.persistence.sqla_document_repository import SqlaDocu
 from backend.infrastructure.persistence.sqla_job_queue import SqlaJobQueue
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
 from backend.infrastructure.persistence.sqla_learning_query import SqlaLearningQuery
-from backend.infrastructure.persistence.sqla_level_change_lock import SqlaLevelChangeLock
+from backend.infrastructure.persistence.sqla_long_operation_lock import SqlaLongOperationLock
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -225,8 +225,8 @@ from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
 from backend.infrastructure.persistence.write_gate import (
-    OwnLevelChange,
-    RefuseDuringLevelChange,
+    OwnLongOperation,
+    RefuseDuringLongOperation,
     WriteGate,
 )
 from backend.infrastructure.queue.in_memory_generation_stops import InMemoryGenerationStops
@@ -430,8 +430,8 @@ class Container:
         templates_dir = project_root / "anki-templates"
         self._anki_template_renderer = AnkiTemplateRenderer(templates_dir)
         self._clock: Clock = clock or SystemClock()
-        self._write_gate: WriteGate = write_gate or RefuseDuringLevelChange()
-        self._level_change_progress = LevelChangeProgress()
+        self._write_gate: WriteGate = write_gate or RefuseDuringLongOperation()
+        self._long_operation_progress = LongOperationProgress()
         self._session_factory: sessionmaker[Session] | None = session_factory
         # The open reviews outlive a restart: the client goes on with the order it has.
         self._review_order_store: ReviewOrderStore[OpenReview] = FileReviewOrderStore(
@@ -1053,12 +1053,12 @@ class Container:
             gate=self._write_gate,
         )
 
-    def _level_change_unit_of_work(self, session: Session) -> SqlaUnitOfWork:
+    def _long_operation_unit_of_work(self, session: Session) -> SqlaUnitOfWork:
         """The level change's own writes: they go on while its lock keeps the others out."""
         return SqlaUnitOfWork(
             session, self.knowledge_scope(session),
             before_commit=self.card_state_projector(session).apply,
-            gate=OwnLevelChange(),
+            gate=OwnLongOperation(),
         )
 
     def _change_recorder(self, session: Session) -> SessionChangeRecorder:
@@ -1121,30 +1121,30 @@ class Container:
             level_change=self._level_change_launcher(session),
         )
 
-    def level_change_progress(self) -> LevelChangeProgress:
+    def long_operation_progress(self) -> LongOperationProgress:
         """One per process: the level change runs in the process that started it."""
-        return self._level_change_progress
+        return self._long_operation_progress
 
     def _level_change_launcher(self, session: Session) -> BackgroundLevelChangeLauncher:
         return BackgroundLevelChangeLauncher(
             start=StartLevelChangeUseCase(
                 source_lock=SqlaSourceOperationLock(session),
-                level_change_lock=SqlaLevelChangeLock(session),
+                level_change_lock=SqlaLongOperationLock(session),
                 unit_of_work=self._unit_of_work(session),
                 running=InProcessRunningOperations(OPERATIONS, BOOTSTRAP_BUILDS),
             ),
             run=self._level_change_run(),
-            release=self._release_level_change_lock,
-            progress=self._level_change_progress,
+            release=self._release_long_operation_lock,
+            progress=self._long_operation_progress,
             spawn=self._spawn_level_change,
         )
 
-    def _release_level_change_lock(self) -> None:
+    def _release_long_operation_lock(self) -> None:
         with (
             self._get_session_factory()() as session,
-            self._level_change_unit_of_work(session).write(),
+            self._long_operation_unit_of_work(session).write(),
         ):
-            SqlaLevelChangeLock(session).release()
+            SqlaLongOperationLock(session).release()
 
     def _spawn_level_change(self, run: Callable[[], None]) -> None:
         in_thread(run)
@@ -1167,10 +1167,10 @@ class Container:
             threshold_resolver=self._threshold_resolver(session),
             scope_resolver=self._scope_resolver(session),
             rebuilder=self._source_rebuilder(session),
-            lock=SqlaLevelChangeLock(session),
+            lock=SqlaLongOperationLock(session),
             media_files=LocalMediaFiles(self._media_root),
-            unit_of_work=self._level_change_unit_of_work(session),
-            progress=self._level_change_progress,
+            unit_of_work=self._long_operation_unit_of_work(session),
+            progress=self._long_operation_progress,
         )
 
     def get_anki_status_use_case(self, session: Session) -> GetAnkiStatusUseCase:

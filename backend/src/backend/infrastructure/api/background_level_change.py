@@ -5,14 +5,15 @@ import threading
 from typing import TYPE_CHECKING
 
 from backend.application.utils.level_change_launcher import LevelChangeLauncher
-from backend.domain.exceptions import LevelChangeInProgressError
+from backend.domain.exceptions import LongOperationInProgressError
+from backend.domain.value_objects.long_operation_kind import LongOperationKind
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from backend.application.dto.settings_dtos import UpdateSettingsRequest
     from backend.application.use_cases.start_level_change import StartLevelChangeUseCase
-    from backend.application.utils.level_change_progress import LevelChangeProgress
+    from backend.application.utils.long_operation_progress import LongOperationProgress
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class BackgroundLevelChangeLauncher(LevelChangeLauncher):
         start: StartLevelChangeUseCase,
         run: LevelChangeRun,
         release: Callable[[], None],
-        progress: LevelChangeProgress,
+        progress: LongOperationProgress,
         spawn: Callable[[Callable[[], None]], None] = in_thread,
     ) -> None:
         self._start = start
@@ -42,8 +43,8 @@ class BackgroundLevelChangeLauncher(LevelChangeLauncher):
         self._spawn = spawn
 
     def start(self, request: UpdateSettingsRequest) -> None:
-        if not self._progress.try_start():
-            raise LevelChangeInProgressError
+        if not self._progress.try_start(LongOperationKind.LEVEL_CHANGE):
+            raise LongOperationInProgressError
         try:
             self._start.execute()
         except BaseException:

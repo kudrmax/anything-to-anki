@@ -3,12 +3,12 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
 import { notifyLevelChange } from '@/api/levelChangeSignal'
-import type { LevelChangeStatus } from '@/api/types'
+import type { LongOperationStatus } from '@/api/types'
 import { LevelChangeBlocker, LevelChangeOverlay } from './LevelChangeOverlay'
 
-const idle: LevelChangeStatus = { change_id: 0, running: false, percent: 0, cancellable: false, outcome: null, error: null }
-const running = (percent: number, cancellable = true): LevelChangeStatus => (
-  { change_id: 1, running: true, percent, cancellable, outcome: null, error: null }
+const idle: LongOperationStatus = { operation_id: 0, kind: null, running: false, percent: 0, cancellable: false, outcome: null, error: null }
+const running = (percent: number, cancellable = true): LongOperationStatus => (
+  { operation_id: 1, kind: 'level_change', running: true, percent, cancellable, outcome: null, error: null }
 )
 
 describe('LevelChangeBlocker', () => {
@@ -40,7 +40,7 @@ describe('LevelChangeBlocker', () => {
 describe('LevelChangeOverlay', () => {
   let root: Root
   let host: HTMLDivElement
-  let replies: LevelChangeStatus[]
+  let replies: LongOperationStatus[]
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -71,7 +71,7 @@ describe('LevelChangeOverlay', () => {
     replies = [running(10)]
     await act(async () => root.render(<LevelChangeOverlay />))
 
-    replies = [{ ...idle, change_id: 1, outcome: 'failed', error: 'source 3 broke' }]
+    replies = [{ ...idle, operation_id: 1, outcome: 'failed', error: 'source 3 broke' }]
     await act(async () => notifyLevelChange())
 
     expect(document.body.textContent).not.toContain('10%')
@@ -81,14 +81,14 @@ describe('LevelChangeOverlay', () => {
   it('tells about a change that ended before it was ever seen running', async () => {
     await act(async () => root.render(<LevelChangeOverlay />))
 
-    replies = [{ ...idle, change_id: 1, outcome: 'failed', error: 'source 3 broke' }]
+    replies = [{ ...idle, operation_id: 1, outcome: 'failed', error: 'source 3 broke' }]
     await act(async () => notifyLevelChange())
 
     expect(document.body.textContent).toContain('source 3 broke')
   })
 
   it('says nothing about a change that ended before the page was opened', async () => {
-    replies = [{ ...idle, change_id: 4, outcome: 'failed', error: 'old news' }]
+    replies = [{ ...idle, operation_id: 4, outcome: 'failed', error: 'old news' }]
     await act(async () => root.render(<LevelChangeOverlay />))
     await act(async () => notifyLevelChange())
 

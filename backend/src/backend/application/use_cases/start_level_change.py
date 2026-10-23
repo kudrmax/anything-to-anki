@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from backend.domain.exceptions import LongOperationRunningError, SourceOperationBusyError
 
 if TYPE_CHECKING:
-    from backend.domain.ports.level_change_lock import LevelChangeLock
+    from backend.domain.ports.long_operation_lock import LongOperationLock
     from backend.domain.ports.running_operations import RunningOperations
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.unit_of_work import UnitOfWork
@@ -18,7 +18,7 @@ class StartLevelChangeUseCase:
     def __init__(
         self,
         source_lock: SourceOperationLock,
-        level_change_lock: LevelChangeLock,
+        level_change_lock: LongOperationLock,
         unit_of_work: UnitOfWork,
         running: RunningOperations,
     ) -> None:

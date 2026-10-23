@@ -83,11 +83,11 @@ class SourceOperationBusyError(DomainError):
         self.kind = kind
 
 
-class LevelChangeInProgressError(DomainError):
-    """Raised by a write while the level is being changed: nothing else changes meanwhile."""
+class LongOperationInProgressError(DomainError):
+    """Raised by a write while a long operation runs: nothing else changes meanwhile."""
 
     def __init__(self) -> None:
-        super().__init__("The level is being changed")
+        super().__init__("A long operation is running")
 
 
 class LongOperationRunningError(DomainError):
@@ -97,11 +97,11 @@ class LongOperationRunningError(DomainError):
         super().__init__("Wait for the running operation to finish before changing the level")
 
 
-class LevelChangeCancelledError(DomainError):
-    """Raised inside a level change the user cancelled: it is rolled back."""
+class LongOperationCancelledError(DomainError):
+    """Raised inside a long operation the user cancelled: it is rolled back."""
 
     def __init__(self) -> None:
-        super().__init__("The level change was cancelled")
+        super().__init__("The operation was cancelled")
 
 
 class RebuildNotSupportedError(DomainError):

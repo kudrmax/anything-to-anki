@@ -202,13 +202,13 @@ def release_source_operations(session_factory: sessionmaker[Session]) -> None:
         session.close()
 
 
-def release_level_change_lock(session_factory: sessionmaker[Session]) -> None:
+def release_long_operation_lock(session_factory: sessionmaker[Session]) -> None:
     """No level change survives a restart of the app: its write was rolled back with it."""
-    from backend.infrastructure.persistence.sqla_level_change_lock import SqlaLevelChangeLock
+    from backend.infrastructure.persistence.sqla_long_operation_lock import SqlaLongOperationLock
 
     session = session_factory()
     try:
-        SqlaLevelChangeLock(session).release()
+        SqlaLongOperationLock(session).release()
         session.commit()
     finally:
         session.close()

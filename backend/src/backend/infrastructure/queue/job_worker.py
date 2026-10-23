@@ -299,13 +299,13 @@ async def main() -> None:
     """Entry point for ``python -m backend.infrastructure.queue``."""
     from backend.infrastructure.container import Container
     from backend.infrastructure.logging_setup import configure_logging
-    from backend.infrastructure.persistence.write_gate import WaitOutLevelChange
+    from backend.infrastructure.persistence.write_gate import WaitOutLongOperation
     from backend.infrastructure.startup_heap import freeze_startup_heap
 
     configure_logging("worker")
     lock = _acquire_single_worker_lock()
     try:
-        gate = WaitOutLevelChange()
+        gate = WaitOutLongOperation()
         worker = JobWorker(Container(write_gate=gate), waited_seconds=gate.waited_seconds)
         freeze_startup_heap()
         await worker.run()

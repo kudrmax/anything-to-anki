@@ -56,7 +56,7 @@ import type {
   NoteTypeCheck,
   NoteTypeKind,
   UnknownWord,
-  LevelChangeStatus,
+  LongOperationStatus,
 } from './types'
 import { buildHeaders, reloadIfStale } from './clientBuild'
 import { ApiError, REVIEW_EXPIRED_STATUS, ReviewExpiredError } from './errors'
@@ -213,8 +213,8 @@ export const api = {
 
   getSettings: () => req<Settings>('/api/settings'),
 
-  getLevelChange: () => req<LevelChangeStatus>('/api/level-change'),
-  cancelLevelChange: () => req<LevelChangeStatus>('/api/level-change/cancel', { method: 'POST' }),
+  getLevelChange: () => req<LongOperationStatus>('/api/long-operation'),
+  cancelLevelChange: () => req<LongOperationStatus>('/api/long-operation/cancel', { method: 'POST' }),
   updateSettings: (patch: Partial<Settings>) =>
     req<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
 
