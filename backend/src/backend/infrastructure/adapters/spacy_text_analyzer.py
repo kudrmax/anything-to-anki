@@ -15,9 +15,10 @@ if TYPE_CHECKING:
 
 PARAGRAPH_BOUNDARIES = "paragraph_boundaries"
 PARAGRAPH_BREAK = "\n\n"
-# spaCy's memory grows with the text it parses at once: about 10 GB for its limit of a
-# million characters, under 2 GB for a hundred thousand. A longer text goes in pieces.
-PIECE_LENGTH = 100_000
+# spaCy's memory grows with the text it parses at once. Measured on a whole book, the peak
+# of the process: 10 GB for its limit of a million characters, 2 GB for a hundred thousand,
+# 0.9 GB for ten thousand, at the same speed. A longer text goes in pieces.
+PIECE_LENGTH = 10_000
 
 
 @Language.component(PARAGRAPH_BOUNDARIES)

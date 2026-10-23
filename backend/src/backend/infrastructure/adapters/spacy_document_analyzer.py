@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 # Bump whenever the tokens of the same text may change outside spaCy and its model: here,
 # in SpaCyTextAnalyzer, VerseSentenceEnds or TokenData. Cached parses of older versions
 # are not used.
-POSTPROCESS_VERSION = 2
+POSTPROCESS_VERSION = 3
 
 # Ends a line of verse for the parser; it is never part of the document or of a phrase.
 SENTENCE_END = "."
