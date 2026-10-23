@@ -124,3 +124,27 @@ def test_it_remembers_only_the_most_recently_asked_searches() -> None:
     assert searches.search("a", _never).status is PictureSearchStatus.READY
     assert searches.search("b", lambda: []).status is PictureSearchStatus.SEARCHING
     searches.close()
+
+
+def test_the_newest_asked_search_runs_first() -> None:
+    searches = ThreadedPictureSearches(workers=1)
+    release = threading.Event()
+    ran: list[str] = []
+
+    def blocking() -> list[ImageOption]:
+        release.wait(WAIT_S)
+        return []
+
+    def noting(word: str) -> list[ImageOption]:
+        ran.append(word)
+        return []
+
+    searches.search("first", blocking)
+    time.sleep(0.1)
+    for word in ("a", "b", "c"):
+        searches.search(word, lambda word=word: noting(word))
+    release.set()
+    for word in ("a", "b", "c"):
+        _settled(searches, word)
+    assert ran == ["c", "b", "a"]
+    searches.close()

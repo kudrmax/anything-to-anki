@@ -20,14 +20,18 @@ const preload = (options: ImageOption[]) => {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-/** Картинки слова, когда сервер их нашёл; каждый запрос короткий — соединения остаются ревью. */
-async function suggested(wordId: number): Promise<ImageOption[]> {
+/**
+ * Картинки слова, когда сервер их нашёл; каждый запрос короткий — соединения остаются ревью.
+ * Спрашивает, пока слово нужно (`wanted`): пролистанное больше не спрашивают, его спросят при следующем показе.
+ */
+async function suggested(wordId: number, wanted: () => boolean): Promise<ImageOption[]> {
   const giveUpAt = Date.now() + SUGGESTION_WAIT_MS
   for (;;) {
     const answer = await api.suggestTargetImages(wordId)
     if (answer.status === 'ready') return answer.options.slice(0, SUGGESTED_PICTURES)
     if (answer.status === 'failed' || Date.now() >= giveUpAt) throw new Error('No picture suggestions')
     await sleep(SUGGESTION_POLL_MS)
+    if (!wanted()) throw new Error('No longer wanted')
   }
 }
 
@@ -37,11 +41,13 @@ async function suggested(wordId: number): Promise<ImageOption[]> {
  */
 export function usePictureSuggestions(state: ReviewState, enabled: boolean): PictureSuggestionsLoader | null {
   const found = useRef(new Map<number, Promise<ImageOption[]>>())
+  /** Слова текущей карточки и тех, что идут следом: только их и спрашивают. */
+  const wanted = useRef(new Set<number>())
 
   const load = useCallback<PictureSuggestionsLoader>(wordId => {
     const known = found.current.get(wordId)
     if (known) return known
-    const search = suggested(wordId).catch(() => {
+    const search = suggested(wordId, () => wanted.current.has(wordId)).catch(() => {
       found.current.delete(wordId)
       return []
     })
@@ -50,8 +56,11 @@ export function usePictureSuggestions(state: ReviewState, enabled: boolean): Pic
   }, [])
 
   useEffect(() => {
+    const upcoming = upcomingCards(state, PREFETCHED_CARDS)
+    const current = state.currentId === null ? undefined : state.cards.get(state.currentId)
+    wanted.current = new Set([...(current ? [current] : []), ...upcoming].map(card => card.word_id))
     if (!enabled) return
-    for (const card of upcomingCards(state, PREFETCHED_CARDS)) {
+    for (const card of upcoming) {
       if (!card.meaning_image_path && !found.current.has(card.word_id)) void load(card.word_id).then(preload)
     }
   }, [enabled, state, load])

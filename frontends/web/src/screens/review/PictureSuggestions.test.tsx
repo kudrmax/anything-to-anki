@@ -112,12 +112,34 @@ describe('picture suggestions', () => {
     it('#24: while the server still searches, asks again later and offers the pictures once found', async () => {
       vi.useFakeTimers({ toFake: ['setTimeout'] })
       try {
-        search.mockResolvedValueOnce({ status: 'searching', query: 'word10', options: [] })
-        probe({ ...reviewState(), currentId: 99 })
+        let first = true
+        search.mockImplementation(async (wordId: number) => {
+          if (wordId !== 10 || !first) return found(wordId)
+          first = false
+          return { status: 'searching', query: 'word10', options: [] }
+        })
+        probe(reviewState())
         const offered = latest!(10)
         await vi.advanceTimersByTimeAsync(SUGGESTION_POLL_MS)
         expect(await offered).toEqual(options(10, 5))
-        expect(search).toHaveBeenCalledTimes(2)
+        expect(search.mock.calls.filter((call: unknown[]) => call[0] === 10)).toHaveLength(2)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('#24: stops asking about a word the screen moved past; asks again when it comes back', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout'] })
+      try {
+        search.mockResolvedValue({ status: 'searching', query: 'word20', options: [] })
+        probe(reviewState())
+        const offered = latest!(20)
+        await vi.advanceTimersByTimeAsync(SUGGESTION_POLL_MS)
+        const asked = search.mock.calls.filter((call: unknown[]) => call[0] === 20).length
+        probe({ ...reviewState(), currentId: 8 })
+        await vi.advanceTimersByTimeAsync(SUGGESTION_POLL_MS * 5)
+        expect(await offered).toEqual([])
+        expect(search.mock.calls.filter((call: unknown[]) => call[0] === 20).length).toBe(asked)
       } finally {
         vi.useRealTimers()
       }

@@ -299,6 +299,32 @@ describe('useReviewWindow', () => {
     expect(latest.state.currentId).toBe(8)
   })
 
+  it('#24: while a Known is on its way, a card of its lemma loaded meanwhile is skipped', async () => {
+    const lemmaOf = (id: number) => (id === 41 || id === 44 ? 'visor' : `w${id}`)
+    const named = (id: number) => ({ ...card(id), lemma: lemmaOf(id) })
+    vi.mocked(api.openReview).mockResolvedValue(windowAround(41, { cards: [named(40), named(41), named(42)] }))
+    await render()
+    const known = deferred()
+    let running: Promise<unknown> = Promise.resolve()
+    act(() => { running = latest.mutate(() => known.promise, { phraseId: 41, closes: 'lemma' }) })
+    expect(latest.state.currentId).toBe(42)
+    // Строки после 42 приходят, пока Known ещё в пути: сервер ещё считает 44 открытой.
+    await act(async () => {
+      latest.mutate(async () => reviewUpdate({
+        revision: 1, layout: layout([cardRow(43, 43), cardRow(44, 44), cardRow(45, 45)], { total_rows: TOTAL, total_cards: TOTAL }),
+        cards: [named(43), named(44), named(45)], focus_id: null,
+      })).catch(() => {})
+    })
+    act(() => { void latest.mutate(() => new Promise(() => {}), { phraseId: 42, closes: 'card' }) })
+    expect(latest.state.currentId).toBe(43)
+    act(() => { void latest.mutate(() => new Promise(() => {}), { phraseId: 43, closes: 'card' }) })
+    expect(latest.state.currentId).toBe(45)
+    await act(async () => {
+      known.resolve(reviewUpdate({ revision: 2, done: { 41: true, 44: true }, focus_id: 42 }))
+      await running
+    })
+  })
+
   it('#18: a refused press takes back its marks and returns to the pressed card', async () => {
     await render()
     const answer = deferred()
