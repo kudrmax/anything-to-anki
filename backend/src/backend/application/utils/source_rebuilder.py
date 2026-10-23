@@ -15,6 +15,8 @@ from backend.domain.services.rebuild_plan import RebuildRules, plan_rebuild, pla
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
     from backend.application.utils.frequent_word_threshold_resolver import (
         FrequentWordThresholdResolver,
@@ -143,6 +145,10 @@ class SourceRebuilder:
             source_id, document, self._builder.words(result.words),
             self._done_on_the_fly(source_id),
         )
+
+    def sizes(self, source_ids: Sequence[int]) -> dict[int, int]:
+        """The length of each source's text, of those that have one."""
+        return self._document_repo.size_hints(source_ids)
 
     def _saved_values(self) -> AnalysisValues:
         return AnalysisValues(

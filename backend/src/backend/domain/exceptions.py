@@ -91,10 +91,10 @@ class LongOperationInProgressError(DomainError):
 
 
 class LongOperationRunningError(DomainError):
-    """Raised by a level change started while a long operation over sources runs."""
+    """Raised by a long operation started while a preview or the index build runs."""
 
     def __init__(self) -> None:
-        super().__init__("Wait for the running operation to finish before changing the level")
+        super().__init__("Wait for the running operation to finish")
 
 
 class LongOperationCancelledError(DomainError):

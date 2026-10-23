@@ -57,7 +57,7 @@ from backend.application.use_cases.run_generation_job import MeaningGenerationUs
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
 from backend.application.use_cases.scope_operation import ScopeOperationUseCase
 from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
-from backend.application.use_cases.start_level_change import StartLevelChangeUseCase
+from backend.application.use_cases.start_long_operation import StartLongOperationUseCase
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
 from backend.application.utils.anki_template_renderer import AnkiTemplateRenderer
 from backend.application.utils.candidate_factory import CandidateFactory
@@ -75,6 +75,7 @@ from backend.application.utils.live_card_states import LiveCardStates
 from backend.application.utils.live_generation_status import LiveGenerationStatus
 from backend.application.utils.live_source_progress import LiveSourceProgress
 from backend.application.utils.long_operation_progress import LongOperationProgress
+from backend.application.utils.long_operation_runner import LongOperationRunner
 from backend.application.utils.phrase_reader import PhraseReader
 from backend.application.utils.phrase_replacement import PhraseReplacement
 from backend.application.utils.review_answer import ReviewAnswer
@@ -143,8 +144,9 @@ from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
 )
 from backend.infrastructure.adapters.yandex_image_source import YandexImageSource
-from backend.infrastructure.api.background_level_change import (
+from backend.infrastructure.api.background_long_operation import (
     BackgroundLevelChangeLauncher,
+    BackgroundLongOperationLauncher,
     LevelChangeRun,
     in_thread,
 )
@@ -1054,7 +1056,7 @@ class Container:
         )
 
     def _long_operation_unit_of_work(self, session: Session) -> SqlaUnitOfWork:
-        """The level change's own writes: they go on while its lock keeps the others out."""
+        """A long operation's own writes: they go on while its lock keeps the others out."""
         return SqlaUnitOfWork(
             session, self.knowledge_scope(session),
             before_commit=self.card_state_projector(session).apply,
@@ -1122,21 +1124,41 @@ class Container:
         )
 
     def long_operation_progress(self) -> LongOperationProgress:
-        """One per process: the level change runs in the process that started it."""
+        """One per process: a long operation runs in the process that started it."""
         return self._long_operation_progress
 
-    def _level_change_launcher(self, session: Session) -> BackgroundLevelChangeLauncher:
-        return BackgroundLevelChangeLauncher(
-            start=StartLevelChangeUseCase(
+    def long_operation_launcher(self, session: Session) -> BackgroundLongOperationLauncher:
+        """Starts an operation over sources; its run opens sessions of its own."""
+        return self._long_operation_launcher(session, self._spawn_long_operation)
+
+    def _long_operation_launcher(
+        self, session: Session, spawn: Callable[[Callable[[], None]], None],
+    ) -> BackgroundLongOperationLauncher:
+        return BackgroundLongOperationLauncher(
+            start=StartLongOperationUseCase(
                 source_lock=SqlaSourceOperationLock(session),
-                level_change_lock=SqlaLongOperationLock(session),
+                long_operation_lock=SqlaLongOperationLock(session),
                 unit_of_work=self._unit_of_work(session),
                 running=InProcessRunningOperations(OPERATIONS, BOOTSTRAP_BUILDS),
             ),
-            run=self._level_change_run(),
             release=self._release_long_operation_lock,
             progress=self._long_operation_progress,
-            spawn=self._spawn_level_change,
+            spawn=spawn,
+        )
+
+    def _level_change_launcher(self, session: Session) -> BackgroundLevelChangeLauncher:
+        return BackgroundLevelChangeLauncher(
+            self._long_operation_launcher(session, self._spawn_level_change),
+            self._level_change_run(),
+        )
+
+    def long_operation_runner(self, session: Session) -> LongOperationRunner:
+        """Runs an operation whose lock is held, on writes that go on under that lock."""
+        return LongOperationRunner(
+            lock=SqlaLongOperationLock(session),
+            media_files=LocalMediaFiles(self._media_root),
+            unit_of_work=self._long_operation_unit_of_work(session),
+            progress=self._long_operation_progress,
         )
 
     def _release_long_operation_lock(self) -> None:
@@ -1147,6 +1169,9 @@ class Container:
             SqlaLongOperationLock(session).release()
 
     def _spawn_level_change(self, run: Callable[[], None]) -> None:
+        in_thread(run)
+
+    def _spawn_long_operation(self, run: Callable[[], None]) -> None:
         in_thread(run)
 
     def _level_change_run(self) -> LevelChangeRun:
@@ -1167,10 +1192,7 @@ class Container:
             threshold_resolver=self._threshold_resolver(session),
             scope_resolver=self._scope_resolver(session),
             rebuilder=self._source_rebuilder(session),
-            lock=SqlaLongOperationLock(session),
-            media_files=LocalMediaFiles(self._media_root),
-            unit_of_work=self._long_operation_unit_of_work(session),
-            progress=self._long_operation_progress,
+            runner=self.long_operation_runner(session),
         )
 
     def get_anki_status_use_case(self, session: Session) -> GetAnkiStatusUseCase:

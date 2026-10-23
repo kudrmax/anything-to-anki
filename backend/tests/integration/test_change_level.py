@@ -9,8 +9,9 @@ import pytest
 from backend.application.dto.long_operation_dtos import LongOperationOutcome
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.use_cases.change_level import ChangeLevelUseCase
-from backend.application.use_cases.start_level_change import StartLevelChangeUseCase
+from backend.application.use_cases.start_long_operation import StartLongOperationUseCase
 from backend.application.utils.long_operation_progress import LongOperationProgress
+from backend.application.utils.long_operation_runner import LongOperationRunner
 from backend.application.utils.settings_writer import SettingsWriter
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.exceptions import (
@@ -88,9 +89,9 @@ class World:
 
     def start(self) -> None:
         self.progress.try_start(LongOperationKind.LEVEL_CHANGE)
-        StartLevelChangeUseCase(
+        StartLongOperationUseCase(
             source_lock=self.bench.lock,
-            level_change_lock=self.lock,
+            long_operation_lock=self.lock,
             unit_of_work=SqlaUnitOfWork(self.session, self.bench.vocabulary.scope),
             running=self.running,
         ).execute()
@@ -104,12 +105,14 @@ class World:
                 self.bench.sources, SqlaCollectionRepository(self.session), added_order(),
             ),
             rebuilder=self.rebuilder,
-            lock=self.lock,
-            media_files=self.bench.media_files,
-            unit_of_work=SqlaUnitOfWork(
-                self.session, self.bench.vocabulary.scope, gate=OwnLongOperation(),
+            runner=LongOperationRunner(
+                lock=self.lock,
+                media_files=self.bench.media_files,
+                unit_of_work=SqlaUnitOfWork(
+                    self.session, self.bench.vocabulary.scope, gate=OwnLongOperation(),
+                ),
+                progress=self.progress,
             ),
-            progress=self.progress,
         ).execute(request)
 
     def sections(self) -> set[str | None]:
@@ -262,10 +265,14 @@ def test_source_without_text_has_sections_moved_only(db_session: Session) -> Non
             bench.sources, SqlaCollectionRepository(db_session), added_order(),
         ),
         rebuilder=bench.rebuilder(),
-        lock=lock,
-        media_files=bench.media_files,
-        unit_of_work=SqlaUnitOfWork(db_session, bench.vocabulary.scope, gate=OwnLongOperation()),
-        progress=progress,
+        runner=LongOperationRunner(
+            lock=lock,
+            media_files=bench.media_files,
+            unit_of_work=SqlaUnitOfWork(
+                db_session, bench.vocabulary.scope, gate=OwnLongOperation(),
+            ),
+            progress=progress,
+        ),
     ).execute(TO_C1)
 
     bench.analyze_text.execute.assert_not_called()
