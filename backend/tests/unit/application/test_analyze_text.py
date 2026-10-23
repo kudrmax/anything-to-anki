@@ -10,7 +10,12 @@ from backend.application.dto.analysis_dtos import (
     OccurrenceDTO,
     WordDTO,
 )
-from backend.application.use_cases.analyze_text import PARSE_SHARE, AnalyzeTextUseCase
+from backend.application.use_cases.analyze_text import (
+    COLLECT_SHARE,
+    COLLECT_STEPS,
+    PARSE_SHARE,
+    AnalyzeTextUseCase,
+)
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.token_data import TokenData
 from backend.domain.ports.document_analyzer import AnalyzedDocument, DocumentAnalyzer
@@ -139,9 +144,11 @@ class TestAnalyzeTextUseCase:
 
         use_case.execute(AnalyzeTextRequest(user_level="B1"), parts.append)
 
+        words_from = PARSE_SHARE + COLLECT_SHARE
         assert parts == sorted(parts)
         assert parts[0] == PARSE_SHARE
-        assert len([p for p in parts if PARSE_SHARE < p < 1.0]) == 2
+        assert len([p for p in parts if PARSE_SHARE < p <= words_from]) == COLLECT_STEPS
+        assert len([p for p in parts if words_from < p < 1.0]) == 2
         assert parts[-1] == 1.0
 
     def test_filters_below_user_level(self) -> None:

@@ -17,6 +17,7 @@ from backend.domain.value_objects.document import (
     ParagraphMode,
 )
 from backend.infrastructure.adapters.caching_document_analyzer import (
+    STORE_SHARE,
     CachingDocumentAnalyzer,
     document_hash,
 )
@@ -129,6 +130,22 @@ class TestCachingDocumentAnalyzer:
         _analyzer(session_factory, _CountingAnalyzer()).analyze(document, parts.append)
 
         assert parts == [1.0]
+
+    def test_a_fresh_parse_is_whole_only_once_it_is_stored(
+        self, session_factory: sessionmaker[Session],
+    ) -> None:
+        parts: list[float] = []
+
+        class _Reporting(_CountingAnalyzer):
+            def analyze(
+                self, document: Document, report: PartReport = no_report,
+            ) -> AnalyzedDocument:
+                report(1.0)
+                return super().analyze(document)
+
+        _analyzer(session_factory, _Reporting()).analyze(_document("Glare hurts"), parts.append)
+
+        assert parts == [1.0 - STORE_SHARE, 1.0]
 
     def test_cache_outlives_the_analyzer(self, session_factory: sessionmaker[Session]) -> None:
         document = _document("Glare hurts")

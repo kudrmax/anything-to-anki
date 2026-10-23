@@ -25,8 +25,12 @@ from backend.domain.value_objects.cefr_level import CEFRLevel
 
 logger = logging.getLogger(__name__)
 
-# The share of the analysis the parse takes, measured on a whole book: 240 of 320 seconds.
+# Shares of the analysis, measured on a whole book: the parse 240 of 320 seconds, collecting
+# the words and phrasal verbs over every token 15, each word's phrases the rest.
 PARSE_SHARE = 0.75
+COLLECT_SHARE = 0.05
+# What collecting is reported after: the occurrences laid out, the words, the phrasal verbs.
+COLLECT_STEPS = 3
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -99,7 +103,8 @@ class AnalyzeTextUseCase:
     def execute(
         self, document: Document, request: AnalyzeTextRequest, report: PartReport = no_report,
     ) -> AnalyzeTextResponse:
-        """`report` is told the share of the analysis done: the parse, then each word."""
+        """`report` is told the share of the analysis done: the parse, the collecting of the
+        words, then the occurrences of each word."""
         user_level = CEFRLevel.from_str(request.user_level)
         analyzed = self._document_analyzer.analyze(document, scaled(report, 0.0, PARSE_SHARE))
         tokens, layout = analyzed.tokens, analyzed.layout
@@ -122,19 +127,35 @@ class AnalyzeTextUseCase:
             vocabulary=request.vocabulary,
             frequent_zipf=request.frequent_word_zipf,
         )
+        collect_report = scaled(report, PARSE_SHARE, COLLECT_SHARE)
         occurrences = _Occurrences(tokens, layout, knowledge, self._selector)
+        collect_report(part_of(1, COLLECT_STEPS))
         lemmas = self._collect_words(tokens, knowledge)
+        collect_report(part_of(2, COLLECT_STEPS))
         phrasal_verbs = self._collect_phrasal_verbs(tokens, knowledge)
-        words_report = scaled(report, PARSE_SHARE, 1.0 - PARSE_SHARE)
-        total = len(lemmas) + len(phrasal_verbs)
+        collect_report(part_of(3, COLLECT_STEPS))
+        words_from = PARSE_SHARE + COLLECT_SHARE
+        words_report = scaled(report, words_from, 1.0 - words_from)
+        # A word takes a while of its own and a while per occurrence: the share done is the
+        # mean of the share of the words and that of their occurrences.
+        found_by_word = [*lemmas.values(), *phrasal_verbs.values()]
+        all_words, all_found = len(found_by_word), sum(map(len, found_by_word))
+        words_done = found_done = 0
+
+        def word_done(found: list[_Occurrence]) -> None:
+            nonlocal words_done, found_done
+            words_done += 1
+            found_done += len(found)
+            words_report((part_of(words_done, all_words) + part_of(found_done, all_found)) / 2)
+
         words: list[WordDTO] = []
-        for done, (lemma, found) in enumerate(lemmas.items(), start=1):
+        for lemma, found in lemmas.items():
             if (word := self._word(lemma, found, occurrences, user_level)) is not None:
                 words.append(word)
-            words_report(part_of(done, total))
-        for done, (lemma, found) in enumerate(phrasal_verbs.items(), start=len(lemmas) + 1):
+            word_done(found)
+        for lemma, found in phrasal_verbs.items():
             words.append(self._phrasal_verb(lemma, found, occurrences))
-            words_report(part_of(done, total))
+            word_done(found)
         report(1.0)
 
         unique_lemmas = len({t.lemma.lower() for t in tokens if t.is_alpha})
