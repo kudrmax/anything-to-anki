@@ -80,7 +80,11 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     // Подсветки ложатся из каждого ответа, даже устаревшего: сервер не пришлёт их ещё раз.
     commitText(t => applyText(t, update))
     const applied = commit(s => applyUpdate(s, update, options))
-    if (applied && missed) recenter.current()
+    const held = stateRef.current
+    // Новый список без строки текущей карточки: строки вокруг неё просим отдельно.
+    const lost = update.layout?.replace === true && held.currentId !== null
+      && held.cards.has(held.currentId) && rowIndexOf(held, held.currentId) === undefined
+    if (applied && (missed || lost)) recenter.current()
     checkContents.current(update)
     return applied
   }, [commit, commitText])
@@ -123,6 +127,8 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
 
   /** Нажатия уходят на сервер по одному, в порядке нажатий: следующее — после ответа на предыдущее. */
   const presses = useRef<Promise<unknown>>(Promise.resolve())
+  /** Леммы, которые решают нажатия в очереди: сколько таких нажатий ещё не получило ответ. */
+  const closing = useRef(new Map<string, number>())
 
   /**
    * Единственный путь изменения на экране ревью: ответ ложится на состояние, фокус — куда сказал сервер.
@@ -134,11 +140,20 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
   const mutate = useCallback(async (call: ReviewCall<ReviewUpdate>, press?: Press): Promise<ReviewUpdate> => {
     let ahead: PressAhead | null = null
     if (press) {
-      const shown = pressAhead(stateRef.current, press.phraseId, press.closes)
+      const shown = pressAhead(stateRef.current, press.phraseId, press.closes, new Set(closing.current.keys()))
       if (shown) {
         ahead = shown.ahead
         commit(() => shown.state)
+        if (ahead.lemma !== null) closing.current.set(ahead.lemma, (closing.current.get(ahead.lemma) ?? 0) + 1)
       }
+    }
+    const lemma = ahead?.lemma ?? null
+    // Ответ пришёл (или нажатие отклонено): сервер сам говорит, что разобрано.
+    const settled = () => {
+      if (lemma === null) return
+      const left = (closing.current.get(lemma) ?? 1) - 1
+      if (left > 0) closing.current.set(lemma, left)
+      else closing.current.delete(lemma)
     }
     let update: ReviewUpdate
     try {
@@ -150,6 +165,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
         update = await send(call)
       }
     } catch (e) {
+      settled()
       const undone = ahead
       if (undone) commit(s => undoAhead(s, undone))
       throw e
@@ -158,6 +174,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     // Экран ушёл с места перехода — дальше ведёт он; остался — фокус ставит ответ.
     const leftBehind = ahead !== null && stateRef.current.currentId !== ahead.landed
     apply(update, { keepCurrent: ahead !== null })
+    settled()
     const focus = update.focus_id
     if (leftBehind || focus === null) return update
     // Опрос мог обогнать нажатие: устаревший ответ ничего не меняет, но фокус нажатия не теряется.
@@ -275,8 +292,9 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     recenter.current = () => {
       const id = stateRef.current.currentId
       if (id === null) return
+      // Строки для экрана, а не переход: пока они шли, экран мог уйти дальше.
       send(ctx => api.reviewAround(ctx, id))
-        .then(update => { apply(update, { window: true }) })
+        .then(update => { apply(update, { window: true, keepCurrent: true }) })
         .catch(e => { if (isNotFound(e)) setGone(true) })
     }
   }, [send, apply])

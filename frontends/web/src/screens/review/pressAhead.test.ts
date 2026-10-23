@@ -76,3 +76,20 @@ describe('pressAhead', () => {
     expect(undone.done.get(2)).toEqual({ done: true, revision: 6 })
   })
 })
+
+describe('pressAhead with presses still on their way', () => {
+  it('#24: skips the cards of a lemma a queued press decides, even ones loaded after it', () => {
+    const state = five({ 2: { lemma: 'visor' }, 3: { lemma: 'visor' } })
+    const shown = pressAhead(state, 1, 'card', new Set(['visor']))!
+    expect(shown.state.currentId).toBe(4)
+  })
+
+  it('#24: a press on a card of such a lemma closes nothing: the card is decided already', () => {
+    expect(pressAhead(five({ 2: { lemma: 'visor' } }), 2, 'card', new Set(['visor']))).toBeNull()
+  })
+
+  it('#24: says which lemma a press decides, so the screen can hold it until the answer', () => {
+    expect(pressAhead(five(), 1, 'lemma')!.ahead.lemma).toBe('w1')
+    expect(pressAhead(five(), 1, 'card')!.ahead.lemma).toBeNull()
+  })
+})

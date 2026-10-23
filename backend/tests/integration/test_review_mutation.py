@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from backend.application.constants import REVIEW_WINDOW_AROUND
 from backend.application.dto.review_dtos import OpenReviewRequest, ReviewContext
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import Press
@@ -85,6 +86,10 @@ class World:
         with self.factory() as session:
             return self.container.review_window_use_case(session).changes(ctx)
 
+    def around(self, ctx: ReviewContext, phrase_id: int) -> ReviewUpdateDTO:
+        with self.factory() as session:
+            return self.container.review_window_use_case(session).around(ctx, phrase_id)
+
     def write(self, change: Callable[[Session], object]) -> None:
         self.container.session_work().write(change)
 
@@ -121,18 +126,22 @@ def _first_open_ready(world: World, review: OpenReview) -> int:
 def test_known_on_an_open_card_moves_the_focus_to_the_next_open_card_of_its_section(
     world: World,
 ) -> None:
+    """The focus goes through Ready as the user saw it; the pressed card leaves for Reviewed
+    at once, and the list comes anew."""
     opened = world.open()
     review = world.held(opened.review_id)
     pressed = _first_open_ready(world, review)
+    ready = [review.order.phrase_id_at(i) for i in review.order.in_section(READY)]
 
     update = world.press(_ctx(opened, pressed), pressed, Press.KNOWN)
 
-    ready = [review.order.phrase_id_at(i) for i in review.order.in_section(READY)]
     done = world.done(ready)
     after = ready[ready.index(pressed) + 1:] + ready[:ready.index(pressed)]
     assert update.focus_id == next(p for p in after if not done[p])
     assert update.done[pressed] is True
-    assert update.layout is None
+    assert update.layout is not None and update.layout.replace
+    held = world.held(opened.review_id).order
+    assert held.section_at(held.index_of(pressed)) is CandidateSection.REVIEWED
 
 
 def test_undo_keeps_the_focus(world: World) -> None:
@@ -150,8 +159,10 @@ def test_another_button_on_a_done_card_keeps_the_focus(world: World) -> None:
     opened = world.open()
     pressed = _first_open_ready(world, world.held(opened.review_id))
     first = world.press(_ctx(opened, pressed), pressed, Press.LEARN)
+    # The pressed card went to Reviewed: the user goes to it there to press again.
+    back = world.around(_ctx(first, first.focus_id), pressed)
 
-    switched = world.press(_ctx(first, pressed), pressed, Press.CLOZE)
+    switched = world.press(_ctx(back, pressed), pressed, Press.CLOZE)
 
     assert switched.focus_id is None
     assert [c.choice for c in switched.cards if c.phrase_id == pressed] == ["cloze"]
@@ -335,17 +346,19 @@ def test_a_press_on_a_frequent_lemma_sends_whole_only_the_served_cards(
             _ctx(opened, pressed), pressed, lambda: decide.decide(pressed, Press.KNOWN),
         )
 
-    assert {card.phrase_id for card in update.cards} <= served
-    assert served & set(frequent) <= {card.phrase_id for card in update.cards}
+    # The list came anew: whole cards only for the rows around the current card, not for
+    # every card of the lemma; the rest of the lemma comes as done marks.
+    assert update.layout is not None and update.layout.replace
+    assert len(update.cards) <= 2 * REVIEW_WINDOW_AROUND + 1
     assert {p for p, done in update.done.items() if done} >= set(frequent)
 
 
 
-def test_a_card_whose_phrase_changes_keeps_its_place_though_a_fresh_open_puts_it_elsewhere(
+def test_a_card_whose_phrase_changes_moves_at_once_where_a_fresh_open_puts_it(
     world: World,
 ) -> None:
-    """The changed phrase gives the card another sort key: the held order does not move it,
-    only an order opened anew sorts it by that key."""
+    """The changed phrase gives the card another sort key: the open list moves it there at
+    once, as an order opened anew would."""
     [card] = world.card_ids(
         "SELECT p.id FROM phrases p JOIN candidates c ON c.id = p.candidate_id"
         " WHERE c.source_id = 1 AND p.shown_by IS NOT NULL AND p.phrase_position LIKE :line"
@@ -364,10 +377,10 @@ def test_a_card_whose_phrase_changes_keeps_its_place_though_a_fresh_open_puts_it
         )
 
     assert update.removed == []
-    assert update.layout is None
-    assert _card_rows(world.held(opened.review_id)) == before
-    fresh = _card_rows(world.held(world.open(current=card).review_id))
-    assert fresh.index(card) != before.index(card)
+    assert update.layout is not None and update.layout.replace
+    now = _card_rows(world.held(opened.review_id))
+    assert now.index(card) != before.index(card)
+    assert now == _card_rows(world.held(world.open(current=card).review_id))
 
 
 def _card_rows(review: OpenReview) -> list[int]:

@@ -110,13 +110,16 @@ class ReviewUpdates:
             review.current = ctx.current
             before = review.layout()
             gone = {p for p in removed if review.order.index_of(p) is not None}
+            # The focus moves on through the list the user saw: the pressed card leaves for
+            # its new place, the card that stood after it comes next.
+            seen = review.order
+            if focus_id is None and focus_by is not None:
+                focus_id = focus_by(seen, _StoredDone(
+                    seen, self._card_states, {p: r.is_done for p, r in live.items()},
+                ))
             order = self._placed(review, source_ids, live, removed, placement)
             if order is not review.order:
                 review.reorder(order)
-            if focus_id is None and focus_by is not None:
-                focus_id = focus_by(review.order, _StoredDone(
-                    review.order, self._card_states, {p: r.is_done for p, r in live.items()},
-                ))
             if focus_id is None and ctx.current in gone:
                 focus_id = focus_after_removal(before, ctx.current, gone)
             if focus_id is not None:
@@ -142,9 +145,9 @@ class ReviewUpdates:
         removed: list[int],
         placement: Placement | None,
     ) -> ReviewOrder:
-        """The held order with the gone cards out and the new ones in: a replacing card in
-        the place of the one it replaces, every other one after its nearest held card in the
-        order the set has now. Each new card takes the section it has now."""
+        """The order with the gone cards out and every changed card where an order opened now
+        puts it, in the section it has now: the list shows the set as it stands. A replacing
+        card takes the place of the one it replaces."""
         order = review.order
         step = self._ordering.step()
         if placement is not None:
@@ -158,9 +161,10 @@ class ReviewUpdates:
                     HeldCard(new.phrase_id, new.word_id, new.sections.at(step)),
                 )
         order = remove_cards(order, removed)
-        new_words = {p: row.word_id for p, row in live.items() if order.index_of(p) is None}
-        if new_words:
-            order = self._ordering.placed(order, source_ids, review.sort, step, new_words)
+        words = {row.word_id for row in live.values()}
+        if words:
+            kept = () if placement is None else (placement.new_id,)
+            order = self._ordering.placed(order, source_ids, review.sort, step, words, kept)
         return order
 
 

@@ -270,6 +270,61 @@ describe('useReviewWindow', () => {
     expect(latest.state.currentId).toBe(90)
   })
 
+  it('#24: a new list without the current card keeps the card on screen and asks for the rows around it', async () => {
+    await render()
+    const around = deferred()
+    vi.spyOn(api, 'reviewAround').mockReturnValue(around.promise)
+    const answer = deferred()
+    let running: Promise<unknown> = Promise.resolve()
+    act(() => { running = latest.mutate(() => answer.promise, { phraseId: 41, closes: 'card' }) })
+    expect(latest.state.currentId).toBe(42)
+
+    await act(async () => {
+      answer.resolve(reviewUpdate({
+        revision: 2, done: { 41: true }, focus_id: 42,
+        layout: layout([cardRow(0, 7), cardRow(1, 8)], { version: 1, total_rows: TOTAL, total_cards: TOTAL, replace: true }),
+        cards: [card(7), card(8)],
+      }))
+      await running
+    })
+    expect(latest.current?.phrase_id).toBe(42)
+    await flush()
+    expect(vi.mocked(api.reviewAround).mock.calls.map(([, id]) => id)).toEqual([42])
+
+    // Пока строки шли, экран ушёл дальше: их ответ его не возвращает.
+    await act(async () => { await latest.mutate(async () => reviewUpdate({ revision: 3, focus_id: 8 })) })
+    expect(latest.state.currentId).toBe(8)
+    await act(async () => { around.resolve(windowAround(42, { revision: 3 })) })
+    await flush()
+    expect(latest.state.currentId).toBe(8)
+  })
+
+  it('#24: while a Known is on its way, a card of its lemma loaded meanwhile is skipped', async () => {
+    const lemmaOf = (id: number) => (id === 41 || id === 44 ? 'visor' : `w${id}`)
+    const named = (id: number) => ({ ...card(id), lemma: lemmaOf(id) })
+    vi.mocked(api.openReview).mockResolvedValue(windowAround(41, { cards: [named(40), named(41), named(42)] }))
+    await render()
+    const known = deferred()
+    let running: Promise<unknown> = Promise.resolve()
+    act(() => { running = latest.mutate(() => known.promise, { phraseId: 41, closes: 'lemma' }) })
+    expect(latest.state.currentId).toBe(42)
+    // Строки после 42 приходят, пока Known ещё в пути: сервер ещё считает 44 открытой.
+    await act(async () => {
+      latest.mutate(async () => reviewUpdate({
+        revision: 1, layout: layout([cardRow(43, 43), cardRow(44, 44), cardRow(45, 45)], { total_rows: TOTAL, total_cards: TOTAL }),
+        cards: [named(43), named(44), named(45)], focus_id: null,
+      })).catch(() => {})
+    })
+    act(() => { void latest.mutate(() => new Promise(() => {}), { phraseId: 42, closes: 'card' }) })
+    expect(latest.state.currentId).toBe(43)
+    act(() => { void latest.mutate(() => new Promise(() => {}), { phraseId: 43, closes: 'card' }) })
+    expect(latest.state.currentId).toBe(45)
+    await act(async () => {
+      known.resolve(reviewUpdate({ revision: 2, done: { 41: true, 44: true }, focus_id: 42 }))
+      await running
+    })
+  })
+
   it('#18: a refused press takes back its marks and returns to the pressed card', async () => {
     await render()
     const answer = deferred()

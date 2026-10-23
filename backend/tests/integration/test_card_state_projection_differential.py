@@ -1034,9 +1034,9 @@ class _Projection(RuleBasedStateMachine):
     def _the_held_review_takes_what_changed(
         self, cards: list[ReviewCard], members: list[Source],
     ) -> None:
-        """The collection's review open since the first step takes what changed: it holds
-        every live card of the set once and no other, and each card it served is done or
-        not as the client was last told."""
+        """The collection's review open since the first step takes what changed: it lists the
+        set's cards as a review opened now does, each in its section now, and each card it
+        served is done or not as the client was last told."""
         held = self.held
         with self.factory() as session:
             update = self.container.review_window_use_case(session).changes(
@@ -1060,6 +1060,16 @@ class _Projection(RuleBasedStateMachine):
         assert all(a < b for a, b in itertools.pairwise(keys)), (
             "the held review left the key order it places new cards by"
         )
+        with store.hold(held.review_id) as review:
+            sections = {card.phrase_id: card.section for card in review.order.cards}
+            rows = [
+                (row.phrase_id, sections[row.phrase_id])
+                for row in review.layout().rows if isinstance(row, CardRow)
+            ]
+            sort = review.sort
+        with self.factory() as session:
+            opened_now = self._opened(session, SourceScope.collection(COLLECTION), sort)
+        assert rows == opened_now, "the open review does not list the set as it is now"
         assert {p: held.done[p] for p in served} == {p: live[p] for p in served}
         shown, self.shown = self.shown, self._shown_cards()
         stale = [
@@ -1145,7 +1155,7 @@ class _Projection(RuleBasedStateMachine):
         }
         placed = ordering.placed(
             remove_cards(today, taken), source_ids, sort, step,
-            {p: card.word_id for p in taken if (card := today.card(p)) is not None},
+            {card.word_id for p in taken if (card := today.card(p)) is not None},
         )
         assert list(placed.cards) == list(today.cards), (source_ids, sort)
 

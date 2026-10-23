@@ -223,6 +223,13 @@ export interface ImageSearchResult {
   options: ImageOption[]
 }
 
+/** Подсказки картинок слова, насколько дошёл их поиск на сервере: searching — спросить ещё раз позже. */
+export interface ImageSuggestions {
+  status: 'searching' | 'ready' | 'failed'
+  query: string
+  options: ImageOption[]
+}
+
 export type ClozeHintKind = 'none' | 'translation' | 'synonyms' | 'first_letter' | 'custom'
 
 /** Подсказка по умолчанию: своя пишется только под конкретную карточку. */

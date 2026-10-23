@@ -72,6 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _rebuild_card_states()
     freeze_startup_heap()
     yield
+    get_container().close_background_work()
 
 
 def _rebuild_card_states() -> None:

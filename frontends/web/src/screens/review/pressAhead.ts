@@ -15,14 +15,20 @@ export interface PressAhead {
   before: ReadonlyMap<number, DoneMark | undefined>
   /** Отметка, которую поставило нажатие: ответ сервера её сменяет. */
   mark: DoneMark
+  /** Лемма, которую нажатие решает целиком; null — нажатие закрывает одну карточку. */
+  lemma: string | null
 }
 
-/** Состояние сразу после нажатия и что оно поставило; null — нажатие ничего не закрывает, экран ждёт ответа. */
+/**
+ * Состояние сразу после нажатия и что оно поставило; null — нажатие ничего не закрывает, экран ждёт ответа.
+ * `closing` — леммы, которые решают нажатия, ещё не дошедшие до сервера: их карточки уже разобраны,
+ * даже подгруженные после нажатия, когда сервер о нём ещё не знал.
+ */
 export function pressAhead(
-  state: ReviewState, pressed: number, closes: Closes | null,
+  state: ReviewState, pressed: number, closes: Closes | null, closing: ReadonlySet<string> = new Set(),
 ): { state: ReviewState; ahead: PressAhead } | null {
   const card = state.cards.get(pressed)
-  if (closes === null || !card || doneOf(state, pressed)) return null
+  if (closes === null || !card || doneOf(state, pressed, closing)) return null
   const closed = closes === 'card'
     ? [pressed]
     : [...state.cards.values()].flatMap(c => (c.lemma === card.lemma ? [c.phrase_id] : []))
@@ -34,9 +40,10 @@ export function pressAhead(
     done.set(id, mark)
   }
   const marks = { ...state, done }
-  const next = nextOpen(marks, pressed)
+  const lemma = closes === 'lemma' ? card.lemma : null
+  const next = nextOpen(marks, pressed, lemma === null ? closing : new Set([...closing, lemma]))
   const landed = next ?? pressed
-  return { state: { ...marks, currentId: landed }, ahead: { pressed, landed, before, mark } }
+  return { state: { ...marks, currentId: landed }, ahead: { pressed, landed, before, mark, lemma } }
 }
 
 /** Отметки нажатия, которое сервер отклонил, — назад; экран — на нажатую, если с места перехода не уходили. */
@@ -51,18 +58,20 @@ export function undoAhead(state: ReviewState, ahead: PressAhead): ReviewState {
 }
 
 /** Разобрана ли карточка; undefined — карточки нет среди загруженных. */
-function doneOf(state: ReviewState, phraseId: number): boolean | undefined {
-  return state.done.get(phraseId)?.done ?? state.cards.get(phraseId)?.is_done
+function doneOf(state: ReviewState, phraseId: number, closing: ReadonlySet<string>): boolean | undefined {
+  const card = state.cards.get(phraseId)
+  if (card && closing.has(card.lemma)) return true
+  return state.done.get(phraseId)?.done ?? card?.is_done
 }
 
 /**
  * Первая неразобранная карточка участка после нажатой, затем с начала участка; участок — строки карточек
  * между строками разделов. null — открытых нет; undefined — путь к ней идёт через незагруженное.
  */
-function nextOpen(state: ReviewState, pressed: number): number | null | undefined {
+function nextOpen(state: ReviewState, pressed: number, closing: ReadonlySet<string>): number | null | undefined {
   const index = rowIndexOf(state, pressed)
   if (index === undefined) return undefined
-  const after = firstOpen(state, index + 1, () => true)
+  const after = firstOpen(state, index + 1, () => true, closing)
   if (after !== null) return after
   let start = index
   for (let i = index - 1; i >= 0; i--) {
@@ -71,16 +80,18 @@ function nextOpen(state: ReviewState, pressed: number): number | null | undefine
     if (row.phrase_id === null) break
     start = i
   }
-  return firstOpen(state, start, i => i < index)
+  return firstOpen(state, start, i => i < index, closing)
 }
 
 /** Первая неразобранная карточка от строки вниз до строки раздела, края списка или `within`. */
-function firstOpen(state: ReviewState, start: number, within: (index: number) => boolean): number | null | undefined {
+function firstOpen(
+  state: ReviewState, start: number, within: (index: number) => boolean, closing: ReadonlySet<string>,
+): number | null | undefined {
   for (let i = start; i < state.totalRows && within(i); i++) {
     const row = state.rows.get(i)
     if (!row) return undefined
     if (row.phrase_id === null) return null
-    const done = doneOf(state, row.phrase_id)
+    const done = doneOf(state, row.phrase_id, closing)
     if (done === undefined) return undefined
     if (!done) return row.phrase_id
   }
