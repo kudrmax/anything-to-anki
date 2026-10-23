@@ -241,6 +241,7 @@ from backend.infrastructure.readers.youtube_reader import YouTubeReader
 from backend.infrastructure.review.file_review_order_store import FileReviewOrderStore
 from backend.infrastructure.review.open_review_codec import OpenReviewCodec
 from backend.infrastructure.services.lazy_media_reconciler import LazyMediaReconciler
+from backend.infrastructure.services.threaded_picture_searches import ThreadedPictureSearches
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -282,6 +283,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.run_generation import RunGenerationUseCase
     from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
     from backend.application.use_cases.search_target_images import SearchTargetImagesUseCase
+    from backend.application.use_cases.suggest_target_images import SuggestTargetImagesUseCase
     from backend.application.utils.generation_targets import GenerationCards, GenerationTarget
     from backend.application.utils.job_phrases import JobPhrases
     from backend.application.utils.meaning_image_placer import MeaningImagePlacer
@@ -372,6 +374,8 @@ class Container:
             BingImageSource(),
             YandexImageSource(),
         ]
+        # Suggested pictures are searched apart from requests: a slow source never holds one.
+        self._picture_searches = ThreadedPictureSearches()
         # Its own pacing: a picture the user picked must not queue behind bulk
         # pronunciation downloads, nor wait minutes out on a rate limit.
         self._image_downloader = ThrottledHttpFileDownloader(
@@ -1491,6 +1495,21 @@ class Container:
             settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
             image_sources=self._target_image_sources,
         )
+
+    def suggest_target_images_use_case(self, session: Session) -> SuggestTargetImagesUseCase:
+        from backend.application.use_cases.suggest_target_images import (
+            SuggestTargetImagesUseCase,
+        )
+        return SuggestTargetImagesUseCase(
+            candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
+            settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
+            image_sources=self._target_image_sources,
+            searches=self._picture_searches,
+        )
+
+    def close_background_work(self) -> None:
+        """At the app's end: background searches not started yet are dropped."""
+        self._picture_searches.close()
 
     def apply_target_image_use_case(self, session: Session) -> ApplyTargetImageUseCase:
         from backend.application.use_cases.apply_target_image import ApplyTargetImageUseCase

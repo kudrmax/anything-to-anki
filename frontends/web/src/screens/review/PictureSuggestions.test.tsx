@@ -2,17 +2,17 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import type { ImageOption, ImageSearchResult } from '@/api/types'
+import type { ImageOption, ImageSuggestions } from '@/api/types'
 import { PictureSuggestions } from './PictureSuggestions'
 import { cardRow, reviewCard } from './reviewFixtures'
 import { initialState, type ReviewState } from './reviewState'
 import type { Review } from './useReview'
-import { usePictureSuggestions, type PictureSuggestionsLoader } from './usePictureSuggestions'
+import { SUGGESTION_POLL_MS, usePictureSuggestions, type PictureSuggestionsLoader } from './usePictureSuggestions'
 
 const options = (word: number, count: number): ImageOption[] =>
   Array.from({ length: count }, (_, i) => ({ url: `https://pictures/${word}/${i}.jpg`, provider: 'bing' }))
 
-const found = (word: number, count = 8): ImageSearchResult => ({ query: `word${word}`, options: options(word, count) })
+const found = (word: number, count = 8): ImageSuggestions => ({ status: 'ready', query: `word${word}`, options: options(word, count) })
 
 const flush = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 10)) })
 
@@ -25,7 +25,7 @@ describe('picture suggestions', () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     host = document.createElement('div')
     root = createRoot(host)
-    search = vi.spyOn(api, 'searchTargetImages').mockImplementation(async wordId => found(wordId))
+    search = vi.spyOn(api, 'suggestTargetImages').mockImplementation(async wordId => found(wordId))
   })
 
   afterEach(() => {
@@ -107,6 +107,27 @@ describe('picture suggestions', () => {
       expect(await latest!(10)).toEqual([])
       expect(await latest!(10)).toEqual(options(10, 5))
       expect(search).toHaveBeenCalledTimes(2)
+    })
+
+    it('#24: while the server still searches, asks again later and offers the pictures once found', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout'] })
+      try {
+        search.mockResolvedValueOnce({ status: 'searching', query: 'word10', options: [] })
+        probe({ ...reviewState(), currentId: 99 })
+        const offered = latest!(10)
+        await vi.advanceTimersByTimeAsync(SUGGESTION_POLL_MS)
+        expect(await offered).toEqual(options(10, 5))
+        expect(search).toHaveBeenCalledTimes(2)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('#24: a search the server could not do offers nothing and is asked again next time', async () => {
+      search.mockResolvedValueOnce({ status: 'failed', query: 'word10', options: [] })
+      probe({ ...reviewState(), currentId: 99 })
+      expect(await latest!(10)).toEqual([])
+      expect(await latest!(10)).toEqual(options(10, 5))
     })
 
     it('neither searches nor offers anything when switched off', async () => {

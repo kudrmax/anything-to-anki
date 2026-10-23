@@ -12,6 +12,7 @@ from backend.application.dto.review_dtos import (  # noqa: TC001 — FastAPI's a
 from backend.application.dto.target_image_dtos import (  # noqa: TC001
     ApplyTargetImageRequest,
     TargetImageOptionsDTO,
+    TargetImageSuggestionsDTO,
 )
 from backend.domain.exceptions import (
     CandidateNotFoundError,
@@ -27,6 +28,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.paste_target_image import PasteTargetImageUseCase
     from backend.application.use_cases.review_mutation import ReviewMutation
     from backend.application.use_cases.search_target_images import SearchTargetImagesUseCase
+    from backend.application.use_cases.suggest_target_images import SuggestTargetImagesUseCase
 
 # Actions on a word of a source; its cards (phrases) have theirs under /phrases.
 router = APIRouter(prefix="/words", tags=["words"])
@@ -46,6 +48,19 @@ def search_target_images(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except ImageSearchError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+@router.get("/{candidate_id}/image-suggestions")
+def suggest_target_images(
+    candidate_id: int,
+    suggest: SuggestTargetImagesUseCase = Depends(  # noqa: B008
+        use_case(Container.suggest_target_images_use_case),  # noqa: B008
+    ),
+) -> TargetImageSuggestionsDTO:
+    try:
+        return suggest.execute(candidate_id)
+    except CandidateNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.put("/{candidate_id}/image")

@@ -6,6 +6,10 @@ import { upcomingCards } from './upcomingCards'
 
 export const SUGGESTED_PICTURES = 5
 const PREFETCHED_CARDS = 5
+/** Как часто спрашивать сервер, пока поиск ещё идёт: сам поиск идёт на сервере в фоне. */
+export const SUGGESTION_POLL_MS = 2000
+/** Сколько ждать подсказок: дольше — их нет, слово спросят снова при следующем показе. */
+const SUGGESTION_WAIT_MS = 60_000
 
 /** Подсказки картинок слова; найденные один раз — до конца ревью. */
 export type PictureSuggestionsLoader = (wordId: number) => Promise<ImageOption[]>
@@ -14,9 +18,22 @@ const preload = (options: ImageOption[]) => {
   for (const option of options) new Image().src = option.url
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+/** Картинки слова, когда сервер их нашёл; каждый запрос короткий — соединения остаются ревью. */
+async function suggested(wordId: number): Promise<ImageOption[]> {
+  const giveUpAt = Date.now() + SUGGESTION_WAIT_MS
+  for (;;) {
+    const answer = await api.suggestTargetImages(wordId)
+    if (answer.status === 'ready') return answer.options.slice(0, SUGGESTED_PICTURES)
+    if (answer.status === 'failed' || Date.now() >= giveUpAt) throw new Error('No picture suggestions')
+    await sleep(SUGGESTION_POLL_MS)
+  }
+}
+
 /**
- * Ищет картинки для слова текущей карточки и заранее — для следующих карточек списка,
- * чтобы на них подсказки появлялись сразу. Неудачный поиск не запоминается: его повторят.
+ * Подсказки картинок для слова текущей карточки и заранее — для следующих карточек списка.
+ * Ищет их сервер в фоне: нашёл — показываем, нет — пока не показываем. Неудачный поиск не запоминается.
  */
 export function usePictureSuggestions(state: ReviewState, enabled: boolean): PictureSuggestionsLoader | null {
   const found = useRef(new Map<number, Promise<ImageOption[]>>())
@@ -24,13 +41,10 @@ export function usePictureSuggestions(state: ReviewState, enabled: boolean): Pic
   const load = useCallback<PictureSuggestionsLoader>(wordId => {
     const known = found.current.get(wordId)
     if (known) return known
-    const search = api.searchTargetImages(wordId).then(
-      result => result.options.slice(0, SUGGESTED_PICTURES),
-      () => {
-        found.current.delete(wordId)
-        return []
-      },
-    )
+    const search = suggested(wordId).catch(() => {
+      found.current.delete(wordId)
+      return []
+    })
     found.current.set(wordId, search)
     return search
   }, [])

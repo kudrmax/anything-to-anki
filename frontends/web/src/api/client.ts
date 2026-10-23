@@ -32,6 +32,7 @@ import type {
   GenerationScope,
   GlobalExport,
   ImageSearchResult,
+  ImageSuggestions,
   KnownWord,
   LearningWords,
   ReportReason,
@@ -244,6 +245,8 @@ export const api = {
 
   regeneratePhraseMedia: (ctx: ReviewContext, phraseId: number) =>
     req<ReviewUpdate>(onReview(`/phrases/${phraseId}/regenerate-media`, ctx), { method: 'POST' }),
+
+  suggestTargetImages: (wordId: number) => req<ImageSuggestions>(`/words/${wordId}/image-suggestions`),
 
   searchTargetImages: (wordId: number, query?: string) =>
     req<ImageSearchResult>(`/words/${wordId}/image-options${query === undefined ? '' : `?${new URLSearchParams({ query })}`}`),

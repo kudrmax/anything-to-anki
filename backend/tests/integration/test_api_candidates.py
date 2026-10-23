@@ -302,6 +302,11 @@ class TestTargetImageAPI:
 
         assert response.status_code == 404
 
+    def test_suggestions_for_an_unknown_candidate(self, client: TestClient) -> None:
+        response = client.get("/words/999/image-suggestions")
+
+        assert response.status_code == 404
+
     def test_pasting_for_an_unknown_candidate(self, client: TestClient) -> None:
         response = on_review(
             client, "PUT", "/words/999/image/pasted",
