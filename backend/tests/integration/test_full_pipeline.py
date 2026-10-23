@@ -190,10 +190,7 @@ class TestRebuildWithTheRealAnalysis:
                 ),
             )))
             session.commit()
-            process = container.process_source_use_case(session)
-            process.start(source.id)
-            session.commit()
-            process.execute(source.id)
+            container.process_source_use_case(session).run([source.id])
 
             rebuild = container.rebuild_source_use_case(session)
 

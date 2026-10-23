@@ -1,6 +1,6 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import { BookOpen, Clapperboard, Ellipsis, FileText, Globe, Music, Sparkles, type LucideIcon } from 'lucide-react'
-import type { GenerationStatus, ProcessingStage, SetOperation, SourceSummary } from '@/api/types'
+import type { GenerationStatus, SetOperation, SourceSummary } from '@/api/types'
 import { formatDate } from '@/lib/text/format'
 import { Button, Field, Icon, IconButton, Menu, Progress, Spinner, Text } from '@/ui'
 import { SOURCES_MIME } from './CollectionTree'
@@ -50,12 +50,6 @@ const lookOf = (source: SourceSummary): SourceLook => {
   return source.kind === 'song' ? 'lyrics' : 'text'
 }
 
-const STAGE_LABEL: Record<ProcessingStage, string> = {
-  analyzing_text: 'Analyzing text…',
-  collecting_phrases: 'Collecting phrases…',
-}
-const STAGE_DEFAULT = 'Starting…'
-
 type GenerationState = GenerationStatus | 'idle'
 
 const GENERATION_LABEL: Record<GenerationState, string> = {
@@ -76,7 +70,6 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
   // Тап, которым закончился долгий тап, уже включил выбор: открывать источник не нужно.
   const longPressed = useRef(false)
 
-  const isProcessing = source.status === 'processing'
   const generation: GenerationState | null = source.awaiting_generation ? source.generation_status ?? 'idle' : null
 
   const startEditing = () => { setDraft(source.title); setEditing(true) }
@@ -122,9 +115,6 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
           <Text tone={generation === 'failed' ? 'err' : 'muted'} size="s">{GENERATION_LABEL[generation]}</Text>
         </span>
       )
-    }
-    if (isProcessing) {
-      return <span className={css.caption}><Spinner /><Text tone="muted" size="s">{source.processing_stage ? STAGE_LABEL[source.processing_stage] : STAGE_DEFAULT}</Text></span>
     }
     if (source.status === 'new') return <Text tone="muted" size="s">Not processed yet</Text>
     if (source.status === 'error') return <Text tone="err" size="s">Processing failed</Text>

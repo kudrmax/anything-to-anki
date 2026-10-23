@@ -6,11 +6,13 @@ from typing import TYPE_CHECKING
 
 from backend.domain.ports.document_analyzer import AnalyzedDocument, DocumentAnalyzer
 from backend.domain.services.document_layout import DocumentLayout
+from backend.domain.services.long_operation_progress import no_report
 from backend.domain.value_objects.document import Paragraph, ParagraphMode
 from backend.infrastructure.adapters.verse_sentence_ends import VerseSentenceEnds
 
 if TYPE_CHECKING:
     from backend.domain.entities.token_data import TokenData
+    from backend.domain.services.long_operation_progress import PartReport
     from backend.domain.value_objects.document import Document
     from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 
@@ -40,15 +42,17 @@ class SpacyDocumentAnalyzer(DocumentAnalyzer):
         """Changes whenever the parse of the same document may change."""
         return f"{self._text_analyzer.version}:{POSTPROCESS_VERSION}"
 
-    def analyze(self, document: Document) -> AnalyzedDocument:
+    def analyze(self, document: Document, report: PartReport = no_report) -> AnalyzedDocument:
         layout = DocumentLayout(document)
         ends = self._verse_ends(layout)
         parsed = "".join(
             layout.text[start:end] + (SENTENCE_END if end in ends else "")
             for start, end in _pieces(layout.text, ends)
         )
+        in_parsed = [end + i for i, end in enumerate(ends)]
         tokens = [
-            _placed(token, ends) for token in self._text_analyzer.analyze(parsed)
+            _placed(token, ends, in_parsed)
+            for token in self._text_analyzer.analyze(parsed, report)
         ]
         return AnalyzedDocument(tokens=tokens, layout=layout)
 
@@ -74,9 +78,13 @@ def _pieces(text: str, cuts: list[int]) -> list[tuple[int, int]]:
     return list(zip(bounds, bounds[1:], strict=False))
 
 
-def _placed(token: TokenData, ends: list[int]) -> TokenData:
-    """A token's offset in the document: periods the parser alone saw are taken out."""
-    added_before = bisect.bisect_left([end + i for i, end in enumerate(ends)], token.char_start)
+def _placed(token: TokenData, ends: list[int], in_parsed: list[int]) -> TokenData:
+    """A token's offset in the document: periods the parser alone saw are taken out. A token
+    with none before it stands where it is. `in_parsed`: where each period is in the text the
+    parser saw."""
+    added_before = bisect.bisect_left(in_parsed, token.char_start)
     if added_before < len(ends) and ends[added_before] + added_before == token.char_start:
         return replace(token, text="", char_start=ends[added_before])
+    if added_before == 0:
+        return token
     return replace(token, char_start=token.char_start - added_before)

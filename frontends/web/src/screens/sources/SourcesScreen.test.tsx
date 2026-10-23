@@ -23,7 +23,7 @@ const tree: CollectionTree = {
 
 const source = (id: number, title: string, status: SourceSummary['status']): SourceSummary => ({
   id, title, status, kind: 'text', role: 'content', has_video: false, source_url: null, video_downloaded: false,
-  created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, progress: { decided: 1, total: 4 }, processing_stage: null,
+  created_at: '2026-10-01T00:00:00Z', candidate_count: 4, learn_count: 0, progress: { decided: 1, total: 4 },
   collection_id: null, collection_path: [], stage: 'ready', awaiting_generation: false, generation_status: null,
   generation_error: null, available_operations: [], can_start_operation: true, busy_with: null, operation_hint: null, progress_caption: '4 phrases',
   can_process: status === 'new' || status === 'error', can_review: true, can_export: status !== 'done', can_delete: true, review_fraction: 0.25,

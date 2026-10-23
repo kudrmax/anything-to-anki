@@ -56,11 +56,11 @@ import type {
   NoteTypeCheck,
   NoteTypeKind,
   UnknownWord,
-  LevelChangeStatus,
+  LongOperationStatus,
 } from './types'
 import { buildHeaders, reloadIfStale } from './clientBuild'
 import { ApiError, REVIEW_EXPIRED_STATUS, ReviewExpiredError } from './errors'
-import { LEVEL_CHANGE_STATUS, notifyLevelChange } from './levelChangeSignal'
+import { LONG_OPERATION_STATUS, notifyLongOperation, startsLongOperation } from './longOperationSignal'
 
 export { ApiError, ReviewExpiredError } from './errors'
 
@@ -72,7 +72,7 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
     ...init,
   })
   reloadIfStale(res)
-  if (res.status === LEVEL_CHANGE_STATUS) notifyLevelChange()
+  if (res.status === LONG_OPERATION_STATUS) notifyLongOperation()
   if (!res.ok) {
     const body = await res.text()
     throw res.status === REVIEW_EXPIRED_STATUS ? new ReviewExpiredError(body) : new ApiError(res.status, body)
@@ -189,7 +189,7 @@ export const api = {
     req<ReviewUpdate>(onReview(`/api/review/download-video?${new URLSearchParams({ scope: String(scope) })}`, ctx), { method: 'POST' }),
 
   processSource: (id: number) =>
-    req<{ status: string }>(`/sources/${id}/process`, { method: 'POST' }),
+    startsLongOperation(req<{ status: string }>(`/sources/${id}/process`, { method: 'POST' })),
 
   previewCloze: (id: number, draft: Partial<ClozeDraft>, signal?: AbortSignal) =>
     req<ClozePreview>(`/phrases/${id}/cloze/preview`, { method: 'POST', body: JSON.stringify(draft), signal }),
@@ -213,8 +213,8 @@ export const api = {
 
   getSettings: () => req<Settings>('/api/settings'),
 
-  getLevelChange: () => req<LevelChangeStatus>('/api/level-change'),
-  cancelLevelChange: () => req<LevelChangeStatus>('/api/level-change/cancel', { method: 'POST' }),
+  getLongOperation: () => req<LongOperationStatus>('/api/long-operation'),
+  cancelLongOperation: () => req<LongOperationStatus>('/api/long-operation/cancel', { method: 'POST' }),
   updateSettings: (patch: Partial<Settings>) =>
     req<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
 
@@ -286,10 +286,10 @@ export const api = {
     req<SourceOperation>(`/api/operations/preview?${new URLSearchParams({ scope: String(scope), of: mode })}`, { method: 'POST' }),
 
   rebuild: (scope: SetScope, mode: RebuildMode) =>
-    req<SourceOperation>(`/api/operations/${mode}?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
+    startsLongOperation(req<SourceOperation>(`/api/operations/${mode}?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' })),
 
   refresh: (scope: SetScope) =>
-    req<SourceOperation>(`/api/operations/refresh?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
+    startsLongOperation(req<SourceOperation>(`/api/operations/refresh?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' })),
 
   getOperation: (scope: SetScope) =>
     req<SourceOperation>(`/api/operations?${new URLSearchParams({ scope: String(scope) })}`),
@@ -392,15 +392,15 @@ export const api = {
     }),
 
   processPending: (scope: Scope) =>
-    req<{ started: number[]; skipped: number[] }>(`/sources/process-pending?${new URLSearchParams({ scope: String(scope) })}`, {
+    startsLongOperation(req<{ started: number[]; skipped: number[] }>(`/sources/process-pending?${new URLSearchParams({ scope: String(scope) })}`, {
       method: 'POST',
-    }),
+    })),
 
   processSources: (sourceIds: number[]) =>
-    req<{ started: number[]; skipped: number[] }>('/sources/process-batch', {
+    startsLongOperation(req<{ started: number[]; skipped: number[] }>('/sources/process-batch', {
       method: 'POST',
       body: JSON.stringify({ source_ids: sourceIds }),
-    }),
+    })),
 
   deleteSources: (sourceIds: number[]) =>
     req<{ deleted: number[]; skipped: number[] }>('/sources/delete-batch', {

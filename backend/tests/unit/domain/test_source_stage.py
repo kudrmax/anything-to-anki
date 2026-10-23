@@ -3,12 +3,9 @@ from __future__ import annotations
 import pytest
 from backend.domain.services.source_stage import (
     is_pending,
-    set_operation,
-    shown_status,
     stage_of,
 )
 from backend.domain.value_objects.review_status import ReviewStatus
-from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_stage import SourceStage
 from backend.domain.value_objects.source_status import SourceStatus
 
@@ -41,29 +38,3 @@ def test_is_pending(status: SourceStatus, awaiting: bool, pending: bool) -> None
 def test_a_source_held_by_an_operation_is_not_pending() -> None:
     assert not is_pending(SourceStatus.NEW, awaiting_generation=False, busy=True)
 
-
-@pytest.mark.unit
-@pytest.mark.parametrize(("busy_with", "shown"), [
-    (None, "new"),
-    (SourceOperationKind.PROCESS, "processing"),
-    (SourceOperationKind.UPDATE, "new"),
-])
-def test_a_source_shows_processing_only_while_it_is_processed(
-    busy_with: SourceOperationKind | None, shown: str,
-) -> None:
-    assert shown_status(ReviewStatus.NEW, busy_with) == shown
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(("status", "operations", "busy_with"), [
-    (ReviewStatus.NEW, [None, SourceOperationKind.PROCESS], SourceOperationKind.PROCESS),
-    (ReviewStatus.ERROR, [SourceOperationKind.PROCESS], SourceOperationKind.PROCESS),
-    (ReviewStatus.DONE, [SourceOperationKind.PROCESS], None),
-    (ReviewStatus.NEW, [SourceOperationKind.UPDATE], None),
-    (ReviewStatus.NEW, [], None),
-])
-def test_a_set_is_processed_while_a_source_is_and_none_is_ready(
-    status: ReviewStatus, operations: list[SourceOperationKind | None],
-    busy_with: SourceOperationKind | None,
-) -> None:
-    assert set_operation(status, operations) is busy_with

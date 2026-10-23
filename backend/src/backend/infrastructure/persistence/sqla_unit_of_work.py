@@ -9,7 +9,7 @@ from sqlalchemy.exc import OperationalError
 from backend.domain.exceptions import NestedWriteError, UncommittedWorkError, WriteInReadError
 from backend.domain.ports.unit_of_work import UnitOfWork
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
-from backend.infrastructure.persistence.write_gate import RefuseDuringLevelChange
+from backend.infrastructure.persistence.write_gate import RefuseDuringLongOperation
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -56,7 +56,7 @@ class SqlaUnitOfWork(UnitOfWork):
         gate: WriteGate | None = None,
     ) -> None:
         self._session = session
-        self._gate = gate if gate is not None else RefuseDuringLevelChange()
+        self._gate = gate if gate is not None else RefuseDuringLongOperation()
         self._knowledge = knowledge
         self._recorder = SessionChangeRecorder(session)
         self._before_commit = before_commit

@@ -5,6 +5,7 @@ import threading
 from typing import TYPE_CHECKING
 
 from backend.application.dto.rebuild_dtos import OperationState, SourceOperationDTO
+from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 if TYPE_CHECKING:
     from backend.application.dto.rebuild_dtos import (
@@ -12,7 +13,6 @@ if TYPE_CHECKING:
         RebuildSummaryDTO,
         TopicRefreshSummaryDTO,
     )
-    from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 
 
 class SourceOperationRegistry:
@@ -50,9 +50,20 @@ class SourceOperationRegistry:
     def failed(self, scope: str, operation_id: int, error: str) -> None:
         self._update(scope, operation_id, {"state": OperationState.ERROR, "error": error})
 
-    def any_running(self) -> bool:
+    def preview_running(self) -> bool:
+        """A preview runs: it reads what a long operation would rewrite."""
         with self._guard:
-            return any(op.state is OperationState.RUNNING for op in self._last.values())
+            return any(
+                op.state is OperationState.RUNNING and op.kind is SourceOperationKind.PREVIEW
+                for op in self._last.values()
+            )
+
+    def forget(self, scope: str, operation_id: int) -> None:
+        """An operation that did not start after all."""
+        with self._guard:
+            current = self._last.get(scope)
+            if current is not None and current.operation_id == operation_id:
+                del self._last[scope]
 
     def last(self, scope: str) -> SourceOperationDTO | None:
         with self._guard:

@@ -9,12 +9,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.application.dto.rebuild_dtos import SourceOperationDTO  # noqa: TC001
 from backend.domain.exceptions import (
     CollectionNotFoundError,
+    LongOperationCancelledError,
+    LongOperationRunningError,
     RebuildNotSupportedError,
     RefreshNotSupportedError,
     SourceNotFoundError,
     SourceOperationBusyError,
 )
 from backend.domain.services.source_operations import REBUILD_OPERATION
+from backend.domain.value_objects.long_operation_kind import LongOperationKind
 from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.infrastructure.api.background import in_background, operation_background
@@ -32,6 +35,16 @@ if TYPE_CHECKING:
 
     from backend.application.use_cases.scope_operation import ScopeOperationUseCase
     from backend.domain.value_objects.source_scope import SourceScope
+    from backend.infrastructure.api.background_long_operation import (
+        BackgroundLongOperationLauncher,
+    )
+
+# The long operation each rebuild runs as.
+LONG_KIND = {
+    RebuildMode.UPDATE: LongOperationKind.UPDATE,
+    RebuildMode.RECUT: LongOperationKind.RECUT,
+}
+CANCELLED = str(LongOperationCancelledError())
 
 # Under /api: the web app owns the other paths.
 router = APIRouter(prefix="/api/operations", tags=["operations"])
@@ -40,9 +53,11 @@ router = APIRouter(prefix="/api/operations", tags=["operations"])
 @dataclass(frozen=True)
 class Operations:
     """What starting an operation takes: the use case that checks the set on the
-    request's session, and sessions of their own for the run."""
+    request's session, the launcher of long operations, and sessions of their own for the
+    run."""
 
     check: ScopeOperationUseCase
+    launcher: BackgroundLongOperationLauncher
     detached: DetachedUseCases
 
 
@@ -50,9 +65,12 @@ def _operations(
     check: ScopeOperationUseCase = Depends(  # noqa: B008
         use_case(Container.scope_operation_use_case),  # noqa: B008
     ),
+    launcher: BackgroundLongOperationLauncher = Depends(  # noqa: B008
+        use_case(Container.long_operation_launcher),  # noqa: B008
+    ),
     detached: DetachedUseCases = Depends(get_detached_use_cases),  # noqa: B008
 ) -> Operations:
-    return Operations(check, detached)
+    return Operations(check, launcher, detached)
 
 
 @contextmanager
@@ -63,7 +81,7 @@ def _check_errors() -> Iterator[None]:
         yield
     except (RebuildNotSupportedError, RefreshNotSupportedError) as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except SourceOperationBusyError as e:
+    except (SourceOperationBusyError, LongOperationRunningError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except (SourceNotFoundError, CollectionNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -110,12 +128,46 @@ async def preview(
     )
 
 
+def _start_long(
+    raw_scope: str,
+    kind: SourceOperationKind,
+    long_kind: LongOperationKind,
+    operations: Operations,
+    run: Callable[[ScopeOperationUseCase, SourceScope, int], None],
+) -> SourceOperationDTO:
+    """Checks the set synchronously, then runs the operation as a long operation: nothing
+    else writes until it ends. Its result goes to the set's last operation."""
+    scope = parse_scope(raw_scope)
+    with _check_errors():
+        operations.check.check(scope, kind)
+    operation = OPERATIONS.started(scope.token, kind)
+
+    def work() -> None:
+        try:
+            with operations.detached.open(Container.scope_operation_use_case) as scoped:
+                run(scoped, scope, operation.operation_id)
+        except Exception as e:
+            OPERATIONS.failed(scope.token, operation.operation_id, str(e))
+            raise
+
+    try:
+        with _check_errors():
+            operations.launcher.start(long_kind, work)
+    except BaseException:
+        OPERATIONS.forget(scope.token, operation.operation_id)
+        raise
+    return operation
+
+
 def _rebuild(scope: str, mode: RebuildMode, operations: Operations) -> SourceOperationDTO:
     def run(scoped: ScopeOperationUseCase, target: SourceScope, operation_id: int) -> None:
-        OPERATIONS.finished(target.token, operation_id, summary=scoped.rebuild(target, mode))
+        summary = scoped.rebuild(target, mode)
+        if summary is None:
+            OPERATIONS.failed(target.token, operation_id, CANCELLED)
+        else:
+            OPERATIONS.finished(target.token, operation_id, summary=summary)
 
-    operation = REBUILD_OPERATION[mode]
-    return _start(scope, operation, operation, operations, run)
+    return _start_long(scope, REBUILD_OPERATION[mode], LONG_KIND[mode], operations, run)
 
 
 @router.post("/update", status_code=202)
@@ -142,10 +194,14 @@ async def refresh(
     """Adds to the set's topics the phrases their targets now have in the other sources."""
 
     def run(scoped: ScopeOperationUseCase, target: SourceScope, operation_id: int) -> None:
-        OPERATIONS.finished(target.token, operation_id, refresh=scoped.refresh(target))
+        refreshed = scoped.refresh(target)
+        if refreshed is None:
+            OPERATIONS.failed(target.token, operation_id, CANCELLED)
+        else:
+            OPERATIONS.finished(target.token, operation_id, refresh=refreshed)
 
-    return _start(
-        scope, SourceOperationKind.REFRESH, SourceOperationKind.REFRESH, operations, run,
+    return _start_long(
+        scope, SourceOperationKind.REFRESH, LongOperationKind.REFRESH, operations, run,
     )
 
 

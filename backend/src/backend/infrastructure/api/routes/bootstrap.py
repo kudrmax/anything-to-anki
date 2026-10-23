@@ -11,7 +11,7 @@ from backend.application.dto.bootstrap_dtos import (  # noqa: TC001
     GetBootstrapWordsRequest,
     SaveBootstrapWordsRequest,
 )
-from backend.domain.exceptions import LevelChangeInProgressError
+from backend.domain.exceptions import LongOperationInProgressError
 from backend.infrastructure.api.dependencies import (
     DetachedUseCases,
     get_container,
@@ -45,8 +45,8 @@ async def start_bootstrap_build(
     detached: DetachedUseCases = Depends(get_detached_use_cases),  # noqa: B008
     container: Container = Depends(get_container),  # noqa: B008
 ) -> dict[str, str]:
-    if container.level_change_progress().status().running:
-        raise LevelChangeInProgressError
+    if container.long_operation_progress().status().running:
+        raise LongOperationInProgressError
     if build.is_building() or BOOTSTRAP_BUILDS.running():
         raise HTTPException(status_code=409, detail="Build already in progress")
 

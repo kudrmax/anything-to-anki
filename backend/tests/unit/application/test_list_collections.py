@@ -274,26 +274,25 @@ def _tree_of(
 
 
 @pytest.mark.unit
-def test_a_set_whose_new_sources_are_all_processed_shows_processing() -> None:
+def test_a_set_with_a_source_in_a_preview_reads_as_its_sources() -> None:
     tree = _tree_of(
         [
             Source(id=10, status=SourceStatus.NEW, collection_id=1),
             Source(id=11, status=SourceStatus.ERROR, collection_id=1),
         ],
-        _held({10: HeldOperation(SourceOperationKind.PROCESS)}),
+        _held({10: HeldOperation(SourceOperationKind.PREVIEW)}),
     )
     friends = tree.collections[0].counts
-    assert (friends.status, friends.pending, friends.can_process) == ("processing", 1, True)
-    assert friends.progress_caption == "Processing…"
+    assert (friends.status, friends.pending, friends.can_process) == ("new", 1, True)
 
 
 @pytest.mark.unit
 def test_a_set_with_nothing_to_start_cannot_be_processed() -> None:
     held = _tree_of(
         [Source(id=10, status=SourceStatus.NEW, collection_id=1)],
-        _held({10: HeldOperation(SourceOperationKind.PROCESS)}),
+        _held({10: HeldOperation(SourceOperationKind.PREVIEW)}),
     ).collections[0].counts
-    assert (held.status, held.can_process) == ("processing", False)
+    assert (held.status, held.can_process) == ("new", False)
     empty = _tree_of([], _held({})).collections[0].counts
     assert (empty.status, empty.can_process) == ("new", False)
     awaiting = _tree_of(

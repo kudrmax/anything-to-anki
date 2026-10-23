@@ -7,6 +7,7 @@ from backend.application.utils.phrase_reader import PhraseReader
 from backend.domain.entities.token_data import TokenData
 from backend.domain.exceptions import TargetNotInPhraseError
 from backend.domain.ports.text_analyzer import TextAnalyzer
+from backend.domain.services.long_operation_progress import PartReport, no_report
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
 pytestmark = pytest.mark.unit
@@ -20,7 +21,7 @@ class _Analyzer(TextAnalyzer):
     def __init__(self, lemmas: dict[str, str]) -> None:
         self._lemmas = lemmas
 
-    def analyze(self, text: str) -> list[TokenData]:
+    def analyze(self, text: str, report: PartReport = no_report) -> list[TokenData]:
         tokens: list[TokenData] = []
         offset = 0
         for i, piece in enumerate(text.split(" ")):

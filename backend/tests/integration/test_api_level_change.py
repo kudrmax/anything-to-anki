@@ -76,11 +76,11 @@ def held(monkeypatch: pytest.MonkeyPatch, factory: sessionmaker[Session]) -> _He
 def client(
     held: _HeldChange, factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[TestClient, None, None]:
-    from backend.application.utils.level_change_progress import LevelChangeProgress
+    from backend.application.utils.long_operation_progress import LongOperationProgress
     from backend.infrastructure.api import dependencies
 
     container = dependencies.get_container()
-    monkeypatch.setattr(container, "_level_change_progress", LevelChangeProgress())
+    monkeypatch.setattr(container, "_long_operation_progress", LongOperationProgress())
 
     def override_session() -> Generator[Session, None, None]:
         with factory() as session:
@@ -94,7 +94,7 @@ def client(
 
 
 def _status(client: TestClient) -> dict[str, object]:
-    response = client.get("/api/level-change")
+    response = client.get("/api/long-operation")
     assert response.status_code == 200
     body: dict[str, object] = response.json()
     return body
@@ -144,10 +144,10 @@ def test_reads_work_during_change(client: TestClient, held: _HeldChange) -> None
 
 
 def test_cancel_endpoint(client: TestClient, held: _HeldChange) -> None:
-    assert client.post("/api/level-change/cancel").status_code == 409
+    assert client.post("/api/long-operation/cancel").status_code == 409
     client.patch("/api/settings", json={"cefr_level": "C1", "anki_deck_name": "Other"})
 
-    assert client.post("/api/level-change/cancel").status_code == 202
+    assert client.post("/api/long-operation/cancel").status_code == 202
     held.run()
 
     assert _status(client)["outcome"] == "cancelled"
@@ -181,11 +181,11 @@ def test_busy_source_refuses_the_change(
     assert client.patch("/api/settings", json={"anki_deck_name": "Free"}).status_code == 200
 
 
-def test_a_running_set_operation_refuses_the_change(
+def test_a_running_preview_refuses_the_change(
     client: TestClient, held: _HeldChange, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     registry = SourceOperationRegistry()
-    registry.started("all", SourceOperationKind.UPDATE)
+    registry.started("all", SourceOperationKind.PREVIEW)
     monkeypatch.setattr(source_operations.OPERATIONS, "_last", registry._last)
 
     response = client.patch("/api/settings", json={"cefr_level": "C1"})

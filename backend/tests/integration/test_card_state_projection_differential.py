@@ -397,9 +397,7 @@ def _process_corpus(container: _ScenarioContainer, factory: sessionmaker[Session
         session.commit()
     for source_id in SOURCES:
         with factory() as session:
-            processing = container.process_source_use_case(session)
-            processing.start(source_id)
-            processing.execute(source_id)
+            container.process_source_use_case(session).run([source_id])
     container.session_work().write(_video)
     with factory() as session:
         phrase_ids = list(session.scalars(text("SELECT id FROM phrases ORDER BY id")))

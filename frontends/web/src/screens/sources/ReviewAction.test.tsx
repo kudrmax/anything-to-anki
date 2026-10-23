@@ -23,7 +23,7 @@ describe('ReviewAction', () => {
 
   it.each<[SourceStatus, boolean, string]>([
     ['new', true, 'Process'], ['error', false, 'Retry'], ['done', true, 'Review'],
-    ['partially_reviewed', true, 'Continue'], ['reviewed', true, 'Open'], ['processing', true, ''],
+    ['partially_reviewed', true, 'Continue'], ['reviewed', true, 'Open'],
   ])('%s → %s', (status, canReview, label) => {
     render(status, canReview)
     expect(host.textContent).toBe(label)
@@ -51,7 +51,7 @@ describe('ReviewAction', () => {
   })
 
   it('offers processing only on new and failed sets', () => {
-    expect((['new', 'error', 'processing', 'done', 'partially_reviewed', 'reviewed'] as SourceStatus[]).filter(offersProcess))
+    expect((['new', 'error', 'done', 'partially_reviewed', 'reviewed'] as SourceStatus[]).filter(offersProcess))
       .toEqual(['new', 'error'])
   })
 })

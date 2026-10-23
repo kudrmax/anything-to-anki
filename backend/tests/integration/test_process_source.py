@@ -6,14 +6,8 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-from backend.application.use_cases.process_sources import ProcessSourcesUseCase
-from backend.domain.exceptions import SourceOperationBusyError
-from backend.domain.value_objects.held_operation import HeldOperation
 from backend.domain.value_objects.occurrence_row import OccurrenceRow
 from backend.domain.value_objects.phrase_origin_kind import ShownBy
-from backend.domain.value_objects.processing_stage import ProcessingStage
-from backend.domain.value_objects.source_operation_kind import SourceOperationKind
-from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from sqlalchemy import text
 
 from tests.source_rebuild_support import (
@@ -42,15 +36,15 @@ def bench(db_session: Session) -> Bench:
     return Bench(db_session)
 
 
-def test_others_see_the_source_being_analysed_before_it_is_done(tmp_path: Path) -> None:
+def test_the_analysis_holds_no_write_and_shows_nothing_before_it_is_applied(
+    tmp_path: Path,
+) -> None:
     shared = SharedBench(tmp_path)
     try:
         shared.bench.processed(word("glare", at(0)))
 
-        assert shared.seen == [
-            HeldOperation(SourceOperationKind.PROCESS, ProcessingStage.ANALYZING_TEXT),
-        ]
-        assert shared.held_elsewhere() is None
+        assert (shared.free, shared.phrases_seen) == ([True], [0])
+        assert shared.phrases_elsewhere() == 1
     finally:
         shared.close()
 
@@ -90,76 +84,47 @@ def _id(word: StoredCandidate) -> int:
     return word.id
 
 
-def test_processing_marks_the_source_done_and_frees_it(bench: Bench) -> None:
+def test_processing_marks_the_source_done(bench: Bench) -> None:
     bench.processed(word("glare", at(0)))
 
     assert bench.status() == "done"
     assert bench.lock.held(SOURCE) is None
 
 
-def test_processing_takes_the_source(bench: Bench) -> None:
-    bench.process().start(SOURCE)
-
-    assert bench.lock.held(SOURCE) is SourceOperationKind.PROCESS
-    assert bench.status() == "new"  # the status is an outcome; the lock shows the process
-    with pytest.raises(SourceOperationBusyError):
-        bench.process().start(SOURCE)
-
-
-def test_a_batch_start_that_fails_midway_takes_no_source(bench: Bench) -> None:
+def test_sources_are_processed_together_and_one_that_fails_shows_its_error(
+    bench: Bench,
+) -> None:
     bench.session.execute(text(
         "INSERT INTO sources (id, title, status, role, created_at)"
         f" VALUES ({SECOND}, 'title', 'new', 'content', '2026-01-02 00:00:00')"
     ))
     bench.session.commit()
+    bench.analysis = [word("glare", at(0))]
+
+    result = bench.process().run([SOURCE, SECOND])
+
+    assert result is not None
+    assert result.failed == 1
+    assert bench.status() == "done"
+    bench.session.expire_all()
+    status, error = bench.session.execute(text(
+        f"SELECT status, error_message FROM sources WHERE id = {SECOND}"
+    )).one()
+    assert status == "error"
+    assert f"Source {SECOND} has no document" in error
+
+
+def test_a_failure_while_applying_writes_nothing(bench: Bench) -> None:
+    bench.analysis = [word("glare", at(0))]
     process = bench.process()
-    take = process.take
-
-    def take_then_break(source_id: int) -> None:
-        if source_id == SECOND:
-            raise RuntimeError("database went away")
-        take(source_id)
-
-    process.take = take_then_break  # type: ignore[method-assign]
-    batch = ProcessSourcesUseCase(
-        MagicMock(), MagicMock(), process, bench.lock,
-        SqlaUnitOfWork(bench.session, bench.vocabulary.scope),
+    bench.occurrences.apply_plan = MagicMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError("disk full"),
     )
 
-    with pytest.raises(RuntimeError):
-        batch.start([SOURCE, SECOND])
+    with pytest.raises(RuntimeError, match="disk full"):
+        process.run([SOURCE])
 
-    assert bench.lock.operations() == {}
-
-
-def test_the_stage_of_a_process_is_on_its_operation(bench: Bench) -> None:
-    seen: list[HeldOperation | None] = []
-    analyse = bench.analyze_text.execute.side_effect
-
-    def analyse_and_look(*args: object) -> object:
-        seen.append(bench.lock.operations().get(SOURCE))
-        return analyse(*args)
-
-    bench.analyze_text.execute.side_effect = analyse_and_look
-    process = bench.process()
-    process.start(SOURCE)
-    bench.session.commit()
-    process.execute(SOURCE)
-
-    assert seen == [HeldOperation(SourceOperationKind.PROCESS, ProcessingStage.ANALYZING_TEXT)]
-    assert bench.lock.operations() == {}
-
-
-def test_a_failed_processing_frees_the_source(bench: Bench) -> None:
-    process = bench.process()
-    process.start(SOURCE)
-    bench.session.commit()
-    bench.analyze_text.execute.side_effect = RuntimeError("parser crashed")
-
-    with pytest.raises(RuntimeError):
-        process.execute(SOURCE)
-
-    assert bench.lock.held(SOURCE) is None
+    assert bench.status() == "new"
     assert bench.phrases() == []
 
 
@@ -171,7 +136,7 @@ def test_usage_and_the_analysis_settings_reach_the_word(bench: Bench) -> None:
     [card] = bench.candidates.get_by_source(SOURCE)
     assert card.usage_distribution is not None
     assert card.usage_distribution.groups == {"informal": 1.0}
-    _document, request = bench.analyze_text.execute.call_args[0]
+    _document, request, _report = bench.analyze_text.execute.call_args[0]
     assert request.user_level == "B1"
 
 

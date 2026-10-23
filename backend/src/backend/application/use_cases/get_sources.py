@@ -17,7 +17,7 @@ from backend.domain.services.source_actions import (
 )
 from backend.domain.services.source_operations import operations_offer
 from backend.domain.services.source_review_status import derive_review_status
-from backend.domain.services.source_stage import is_pending, shown_status, source_stage
+from backend.domain.services.source_stage import is_pending, source_stage
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_stage import SourceStage
 
@@ -115,7 +115,7 @@ class GetSourcesUseCase:
         return SourceDTO(
             id=source.id,
             title=source.title or "",
-            status=shown_status(status, busy_with),
+            status=status.value,
             stage=source_stage(
                 source.status, progress, awaiting_generation=generation.awaiting,
             ).value,
@@ -128,7 +128,6 @@ class GetSourcesUseCase:
             candidate_count=of_source.cards,
             learn_count=learn_count,
             progress=ProgressDTO.of(progress),
-            processing_stage=_stage(operation),
             collection_id=collection_id,
             collection_path=collection_path,
             awaiting_generation=generation.awaiting,
@@ -158,7 +157,3 @@ def _matches(source: Source, key: str) -> bool:
     return not key or key in (source.title or "").casefold()
 
 
-def _stage(operation: HeldOperation | None) -> str | None:
-    if operation is None or operation.stage is None:
-        return None
-    return operation.stage.value

@@ -5,8 +5,8 @@ import time
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from backend.domain.exceptions import LevelChangeInProgressError
-from backend.infrastructure.persistence.sqla_level_change_lock import SqlaLevelChangeLock
+from backend.domain.exceptions import LongOperationInProgressError
+from backend.infrastructure.persistence.sqla_long_operation_lock import SqlaLongOperationLock
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -27,16 +27,16 @@ class WriteGate(ABC):
         time.sleep(GATE_RETRY_SECONDS)
 
 
-class RefuseDuringLevelChange(WriteGate):
+class RefuseDuringLongOperation(WriteGate):
     """A request: refused at once, the user sees the level change instead."""
 
     def admit(self, session: Session) -> bool:
-        if SqlaLevelChangeLock(session).held():
-            raise LevelChangeInProgressError
+        if SqlaLongOperationLock(session).held():
+            raise LongOperationInProgressError
         return True
 
 
-class WaitOutLevelChange(WriteGate):
+class WaitOutLongOperation(WriteGate):
     """The worker: its write lands once the level change is over. `waited_seconds` is the
     total time spent waiting, so a job's timeout can leave it out."""
 
@@ -45,7 +45,7 @@ class WaitOutLevelChange(WriteGate):
         self._waited = 0.0
 
     def admit(self, session: Session) -> bool:
-        return not SqlaLevelChangeLock(session).held()
+        return not SqlaLongOperationLock(session).held()
 
     def wait(self) -> None:
         started = time.monotonic()
@@ -58,7 +58,7 @@ class WaitOutLevelChange(WriteGate):
             return self._waited
 
 
-class OwnLevelChange(WriteGate):
+class OwnLongOperation(WriteGate):
     """The level change itself: its lock is what keeps the others out."""
 
     def admit(self, session: Session) -> bool:

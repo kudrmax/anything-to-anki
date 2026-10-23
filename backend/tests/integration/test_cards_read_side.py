@@ -15,7 +15,6 @@ from backend.domain.value_objects.document_position import DocumentPosition
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin import PhraseOrigin
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
-from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.infrastructure.api.app import app
@@ -409,18 +408,14 @@ class TestBoard:
 
 
 class TestBusySource:
-    def test_processing_shows_from_the_operation(
+    def test_a_source_in_a_preview_shows_from_the_operation(
         self, client: TestClient, session: Session,
     ) -> None:
         session.add(SourceModel(id=SOURCE, title="New", status=SourceStatus.NEW.value))
-        lock = SqlaSourceOperationLock(session)
-        lock.acquire(SOURCE, SourceOperationKind.PROCESS)
-        lock.set_stage(SOURCE, ProcessingStage.ANALYZING_TEXT)
+        SqlaSourceOperationLock(session).acquire(SOURCE, SourceOperationKind.PREVIEW)
         rebuild_projection(session)
         [summary] = client.get("/sources").json()
-        assert summary["status"] == "processing"
-        assert summary["processing_stage"] == "analyzing_text"
-        assert summary["busy_with"] == "process"
+        assert (summary["status"], summary["busy_with"]) == ("new", "preview")
         detail = _review(client)
         assert (detail["status"], detail["busy"]) == ("new", True)
 
@@ -432,7 +427,6 @@ class TestBusySource:
         [summary] = client.get("/sources").json()
         assert summary["status"] == "done"
         assert summary["busy_with"] == "update"
-        assert summary["processing_stage"] is None
         assert summary["available_operations"] == ["update", "recut"]
         assert summary["can_start_operation"] is False
         assert summary["operation_hint"]

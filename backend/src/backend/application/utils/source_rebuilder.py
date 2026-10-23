@@ -9,11 +9,14 @@ from backend.application.utils.occurrence_builder import OccurrenceBuilder
 from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
 from backend.domain.services.card_view import stored_chosen_to_learn
 from backend.domain.services.document_time import is_timed, time_of
+from backend.domain.services.long_operation_progress import no_report
 from backend.domain.services.phrase_selection import SelectionScore
 from backend.domain.services.rebuild_plan import RebuildRules, plan_rebuild, plan_sections
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
     from backend.application.utils.frequent_word_threshold_resolver import (
         FrequentWordThresholdResolver,
@@ -29,6 +32,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.unit_of_work import UnitOfWork
+    from backend.domain.services.long_operation_progress import PartReport
     from backend.domain.services.rebuild_plan import RebuildPlan
     from backend.domain.value_objects.built_analysis import BuiltWord, WordKey
     from backend.domain.value_objects.document import Document
@@ -113,11 +117,17 @@ class SourceRebuilder:
         self._weight_unknown = weight_unknown
         self._builder = OccurrenceBuilder()
 
-    def analyse(self, source_id: int, values: AnalysisValues | None = None) -> AnalysedSource:
+    def analyse(
+        self,
+        source_id: int,
+        values: AnalysisValues | None = None,
+        report: PartReport = no_report,
+    ) -> AnalysedSource:
         """Runs outside any write transaction, so no writer waits for the analysis. With no
-        `values`, it reads them from the settings."""
+        `values`, it reads them from the settings. `report` is told the share analysed."""
         source = self._source_repo.get_by_id(source_id)
         if source is not None and not source.has_text:
+            report(1.0)
             return AnalysedSource(source_id, None, None)
         document = self._document_repo.get(source_id)
         if document is None:
@@ -130,11 +140,15 @@ class SourceRebuilder:
             ),
             frequent_word_zipf=values.frequent_word_zipf,
         )
-        result = self._analyze_text.execute(document, request)
+        result = self._analyze_text.execute(document, request, report)
         return AnalysedSource(
             source_id, document, self._builder.words(result.words),
             self._done_on_the_fly(source_id),
         )
+
+    def sizes(self, source_ids: Sequence[int]) -> dict[int, int]:
+        """The length of each source's text, of those that have one."""
+        return self._document_repo.size_hints(source_ids)
 
     def _saved_values(self) -> AnalysisValues:
         return AnalysisValues(

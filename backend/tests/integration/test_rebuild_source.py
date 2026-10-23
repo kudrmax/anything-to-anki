@@ -13,7 +13,6 @@ from backend.domain.exceptions import (
     SourceNotFoundError,
     SourceOperationBusyError,
 )
-from backend.domain.services.source_operations import REBUILD_OPERATION
 from backend.domain.value_objects.card_choice import CardChoice
 from backend.domain.value_objects.held_operation import HeldOperation
 from backend.domain.value_objects.job_status import JobStatus
@@ -76,16 +75,18 @@ def shared(tmp_path: Path) -> Iterator[SharedBench]:
 
 
 @pytest.mark.parametrize("mode", MODES)
-def test_others_see_the_source_busy_while_it_is_analysed(
+def test_the_analysis_holds_no_write_and_others_see_the_source_unchanged(
     shared: SharedBench, mode: RebuildMode,
 ) -> None:
     shared.bench.processed(word("glare", at(0)))
-    shared.seen.clear()
+    shared.free.clear()
+    shared.phrases_seen.clear()
+    shared.bench.analysis = [word("glare", at(0)), word("linger", at(1))]
 
     shared.bench.rebuild().execute(SOURCE, mode)
 
-    assert shared.seen == [HeldOperation(REBUILD_OPERATION[mode])]
-    assert shared.held_elsewhere() is None
+    assert (shared.free, shared.phrases_seen) == ([True], [1])
+    assert shared.phrases_elsewhere() == 2
 
 
 def test_others_see_the_source_busy_while_its_preview_is_analysed(
@@ -215,9 +216,11 @@ def test_a_decision_made_during_the_analysis_is_kept(bench: Bench) -> None:
 
     analyse = bench.analyze_text.execute.side_effect
 
-    def decide_meanwhile(document: Document, request: AnalyzeTextRequest) -> object:
+    def decide_meanwhile(
+        document: Document, request: AnalyzeTextRequest, report: object = None,
+    ) -> object:
         bench.decide_learn("linger", decision.id)
-        return analyse(document, request)
+        return analyse(document, request, report)
 
     bench.analyze_text.execute.side_effect = decide_meanwhile
 
@@ -460,36 +463,36 @@ def test_the_preview_changes_nothing_and_counts_the_mode_asked_for(bench: Bench)
 # ── the lock and the sources that cannot be rebuilt ───────────────────
 
 
-def test_a_busy_source_is_refused(bench: Bench) -> None:
+def test_a_busy_source_is_refused_a_preview(bench: Bench) -> None:
     bench.processed(word("glare", at(0)))
-    bench.lock.acquire(SOURCE, SourceOperationKind.PROCESS)
+    bench.lock.acquire(SOURCE, SourceOperationKind.PREVIEW)
     bench.session.commit()
     bench.analyze_text.execute.reset_mock()
 
     with pytest.raises(SourceOperationBusyError):
-        bench.rebuild().execute(SOURCE, UPDATE)
-    with pytest.raises(SourceOperationBusyError):
         bench.rebuild().preview(SOURCE, UPDATE)
 
     bench.analyze_text.execute.assert_not_called()
-    assert bench.lock.held(SOURCE) is SourceOperationKind.PROCESS
+    assert bench.lock.held(SOURCE) is SourceOperationKind.PREVIEW
 
 
-def test_the_lock_is_taken_during_the_analysis_and_released_after(bench: Bench) -> None:
+def test_only_a_preview_takes_its_source_during_the_analysis(bench: Bench) -> None:
     bench.processed(word("glare", at(0)))
     held: list[SourceOperationKind | None] = []
     analyse = bench.analyze_text.execute.side_effect
 
-    def watch(document: Document, request: AnalyzeTextRequest) -> object:
+    def watch(
+        document: Document, request: AnalyzeTextRequest, report: object = None,
+    ) -> object:
         held.append(bench.lock.held(SOURCE))
-        return analyse(document, request)
+        return analyse(document, request, report)
 
     bench.analyze_text.execute.side_effect = watch
 
     bench.rebuild().execute(SOURCE, UPDATE)
     bench.rebuild().preview(SOURCE, UPDATE)
 
-    assert held == [SourceOperationKind.UPDATE, SourceOperationKind.PREVIEW]
+    assert held == [None, SourceOperationKind.PREVIEW]
     assert bench.lock.held(SOURCE) is None
 
 
@@ -509,10 +512,12 @@ def test_a_source_deleted_during_the_analysis_is_not_written(bench: Bench) -> No
     bench.processed(word("glare", at(0)))
     analyse = bench.analyze_text.execute.side_effect
 
-    def delete_meanwhile(document: Document, request: AnalyzeTextRequest) -> object:
+    def delete_meanwhile(
+        document: Document, request: AnalyzeTextRequest, report: object = None,
+    ) -> object:
         bench.session.execute(text("DELETE FROM sources WHERE id = :id"), {"id": SOURCE})
         bench.session.commit()
-        return analyse(document, request)
+        return analyse(document, request, report)
 
     bench.analyze_text.execute.side_effect = delete_meanwhile
     bench.analysis = [word("glare", at(0)), word("linger", at(3))]

@@ -100,7 +100,7 @@ def _hold(factory: sessionmaker[Session], *source_ids: int) -> None:
     with factory() as session:
         lock = SqlaSourceOperationLock(session)
         for source_id in source_ids:
-            lock.acquire(source_id, SourceOperationKind.PROCESS)
+            lock.acquire(source_id, SourceOperationKind.PREVIEW)
         session.commit()
 
 
@@ -114,18 +114,19 @@ def _topic(factory: sessionmaker[Session]) -> None:
 
 
 @pytest.mark.parametrize("operation", ["update", "recut"])
-def test_a_source_is_updated_or_recut_in_the_background(
-    client: TestClient, spawned: list[object], operation: str,
+def test_a_source_is_updated_or_recut_as_a_long_operation(
+    client: TestClient, operation: str,
 ) -> None:
     started = client.post(f"/api/operations/{operation}", params={"scope": f"source-{PILOT}"})
 
     assert started.status_code == 202
     running = started.json()
     assert (running["kind"], running["state"]) == (operation, "running")
-    assert len(spawned) == 1
     state = client.get("/api/operations", params={"scope": f"source-{PILOT}"})
     assert state.status_code == 200
     assert state.json()["operation_id"] == running["operation_id"]
+    assert state.json()["state"] != "running", "it ran in the request in tests"
+    assert client.get("/api/long-operation").json()["kind"] == operation
 
 
 def test_a_collection_previews_its_rebuild_in_the_background(
@@ -142,21 +143,19 @@ def test_a_collection_previews_its_rebuild_in_the_background(
     assert client.get("/api/operations", params={"scope": "all"}).status_code == 404
 
 
-def test_all_is_rebuilt_without_a_scope_of_its_own(
-    client: TestClient, spawned: list[object],
-) -> None:
+def test_all_is_rebuilt_without_a_scope_of_its_own(client: TestClient) -> None:
     assert _rebuild(client, "all") == 202
     assert _rebuild(client, "unsorted") == 202
-    assert len(spawned) == 2
 
 
-def test_a_set_starts_while_one_of_its_sources_is_free(
-    client: TestClient, factory: sessionmaker[Session], spawned: list[object],
+def test_a_rebuild_does_not_start_while_a_source_is_in_a_preview(
+    client: TestClient, factory: sessionmaker[Session],
 ) -> None:
     show = _show(client)
     _hold(factory, PILOT)
 
-    assert _rebuild(client, show) == 202
+    assert _rebuild(client, show) == 409
+    assert client.get("/api/operations", params={"scope": show}).status_code == 404
 
 
 def test_a_set_whose_every_source_is_busy_is_409(

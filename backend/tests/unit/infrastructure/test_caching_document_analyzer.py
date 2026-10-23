@@ -8,6 +8,7 @@ import pytest
 from backend.domain.entities.token_data import TokenData
 from backend.domain.ports.document_analyzer import AnalyzedDocument, DocumentAnalyzer
 from backend.domain.services.document_layout import DocumentLayout
+from backend.domain.services.long_operation_progress import PartReport, no_report
 from backend.domain.value_objects.document import (
     Document,
     Heading,
@@ -16,6 +17,7 @@ from backend.domain.value_objects.document import (
     ParagraphMode,
 )
 from backend.infrastructure.adapters.caching_document_analyzer import (
+    STORE_SHARE,
     CachingDocumentAnalyzer,
     document_hash,
 )
@@ -48,7 +50,7 @@ class _CountingAnalyzer(DocumentAnalyzer):
     def __init__(self) -> None:
         self.calls = 0
 
-    def analyze(self, document: Document) -> AnalyzedDocument:
+    def analyze(self, document: Document, report: PartReport = no_report) -> AnalyzedDocument:
         self.calls += 1
         layout = DocumentLayout(document)
         tokens = [
@@ -117,6 +119,33 @@ class TestCachingDocumentAnalyzer:
         assert inner.calls == 1
         assert second.tokens == first.tokens
         assert second.layout.text == first.layout.text
+
+    def test_a_cached_parse_is_reported_whole_at_once(
+        self, session_factory: sessionmaker[Session],
+    ) -> None:
+        document = _document("Glare hurts")
+        _analyzer(session_factory, _CountingAnalyzer()).analyze(document)
+        parts: list[float] = []
+
+        _analyzer(session_factory, _CountingAnalyzer()).analyze(document, parts.append)
+
+        assert parts == [1.0]
+
+    def test_a_fresh_parse_is_whole_only_once_it_is_stored(
+        self, session_factory: sessionmaker[Session],
+    ) -> None:
+        parts: list[float] = []
+
+        class _Reporting(_CountingAnalyzer):
+            def analyze(
+                self, document: Document, report: PartReport = no_report,
+            ) -> AnalyzedDocument:
+                report(1.0)
+                return super().analyze(document)
+
+        _analyzer(session_factory, _Reporting()).analyze(_document("Glare hurts"), parts.append)
+
+        assert parts == [1.0 - STORE_SHARE, 1.0]
 
     def test_cache_outlives_the_analyzer(self, session_factory: sessionmaker[Session]) -> None:
         document = _document("Glare hurts")

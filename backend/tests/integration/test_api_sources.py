@@ -73,14 +73,13 @@ def client(_db_engine: object) -> Generator[TestClient, None, None]:
 
 @pytest.fixture()
 def spawned(monkeypatch: pytest.MonkeyPatch) -> list[object]:
-    """Background operations started by the routes; none of them runs."""
+    """Previews started by the routes; none of them runs."""
     started: list[object] = []
 
     def record(work: Coroutine[object, object, None]) -> None:
         work.close()
         started.append(work)
 
-    monkeypatch.setattr(sources_routes, "in_background", record)
     monkeypatch.setattr(operations_routes, "in_background", record)
     return started
 

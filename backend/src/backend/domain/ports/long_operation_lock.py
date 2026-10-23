@@ -3,12 +3,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 
-class LevelChangeLock(ABC):
-    """Port for the lock a level change holds: while it is held, nothing else writes."""
+class LongOperationLock(ABC):
+    """Port for the lock a long operation holds: while it is held, nothing else writes."""
 
     @abstractmethod
     def take(self) -> None:
-        """Raises LevelChangeInProgressError if a level change already holds it."""
+        """Raises LongOperationInProgressError if a long operation already holds it."""
 
     @abstractmethod
     def held(self) -> bool: ...

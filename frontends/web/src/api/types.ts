@@ -1,6 +1,5 @@
 export type SourceStatus =
   | 'new'
-  | 'processing'
   | 'done'
   | 'error'
   | 'partially_reviewed'
@@ -10,8 +9,6 @@ export type SourceStatus =
 export type SourceKind = 'text' | 'book' | 'subtitles' | 'song'
 export type SourceRole = 'content' | 'topic' | 'saved_phrases'
 export type SourceFormat = 'plain' | 'markdown' | 'html' | 'epub' | 'srt' | 'video_file' | 'youtube'
-
-export type ProcessingStage = 'analyzing_text' | 'collecting_phrases'
 
 export type CandidateSortOrder = 'relevance' | 'chronological' | 'key_words'
 
@@ -128,7 +125,6 @@ export interface SourceSummary extends SetOffer {
   candidate_count: number
   learn_count: number
   progress: Progress
-  processing_stage: ProcessingStage | null
   collection_id: number | null
   collection_path: string[]
   stage: SourceStage
@@ -1023,15 +1019,19 @@ export interface AIUsageStats {
   features: AIUsageFeature[]
 }
 
-export type LevelChangeOutcome = 'succeeded' | 'cancelled' | 'failed'
+export type LongOperationOutcome = 'succeeded' | 'cancelled' | 'failed'
 
-/** Идёт ли смена уровня и насколько; после неё — чем закончилась. */
-export interface LevelChangeStatus {
-  /** Растёт с каждой начатой сменой: итог новой смены отличим от итога прошлой. */
-  change_id: number
+export type LongOperationKind = 'level_change' | 'process' | 'update' | 'recut' | 'refresh'
+
+/** Идёт ли долгая операция и насколько; после неё — чем закончилась. */
+export interface LongOperationStatus {
+  /** Растёт с каждой начатой операцией: итог новой отличим от итога прошлой. */
+  operation_id: number
+  /** Вид последней начатой операции; null — ни одной ещё не было. */
+  kind: LongOperationKind | null
   running: boolean
   percent: number
   cancellable: boolean
-  outcome: LevelChangeOutcome | null
+  outcome: LongOperationOutcome | null
   error: string | null
 }

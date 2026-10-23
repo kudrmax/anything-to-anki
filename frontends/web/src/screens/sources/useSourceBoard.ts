@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { onLongOperationFinished } from '@/api/longOperationSignal'
 import { api } from '@/api/client'
 import type { Scope, SourceBoard } from '@/api/types'
 import { messageOf } from '@/lib/apiError'
@@ -50,6 +51,9 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
   }, [load, query])
 
   const reload = useCallback(async () => { await load(); callbacks.current.onChanged() }, [load])
+
+  /** Долгая операция над источниками закончилась: доска показывает её итог. */
+  useEffect(() => onLongOperationFinished(() => void reload()), [reload])
 
   const sources = board?.groups.flatMap(g => g.sources) ?? []
   const anyBusy = sources.some(s => s.busy_with !== null || s.generation_status === 'queued' || s.generation_status === 'running')

@@ -9,20 +9,20 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.entities.ai_usage_record import AIUsageRecord
-from backend.domain.exceptions import LevelChangeInProgressError
+from backend.domain.exceptions import LongOperationInProgressError
 from backend.domain.value_objects.ai_feature import AIFeature
 from backend.domain.value_objects.token_usage import TokenUsage
 from backend.infrastructure.persistence import database
 from backend.infrastructure.persistence.database import Base, create_session_factory
 from backend.infrastructure.persistence.models import AIUsageModel, SettingModel
 from backend.infrastructure.persistence.session_ai_usage_recorder import SessionAIUsageRecorder
-from backend.infrastructure.persistence.sqla_level_change_lock import SqlaLevelChangeLock
+from backend.infrastructure.persistence.sqla_long_operation_lock import SqlaLongOperationLock
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from backend.infrastructure.persistence.write_gate import (
     GATE_RETRY_SECONDS,
-    OwnLevelChange,
-    RefuseDuringLevelChange,
-    WaitOutLevelChange,
+    OwnLongOperation,
+    RefuseDuringLongOperation,
+    WaitOutLongOperation,
     WriteGate,
 )
 from sqlalchemy import func, select
@@ -54,13 +54,13 @@ def _unit_of_work(session: Session, gate: WriteGate) -> SqlaUnitOfWork:
 
 def _lock(factory: sessionmaker[Session]) -> None:
     with factory() as session:
-        SqlaLevelChangeLock(session).take()
+        SqlaLongOperationLock(session).take()
         session.commit()
 
 
 def _unlock(factory: sessionmaker[Session]) -> None:
     with factory() as session:
-        SqlaLevelChangeLock(session).release()
+        SqlaLongOperationLock(session).release()
         session.commit()
 
 
@@ -79,12 +79,12 @@ def test_refuse_gate_raises_while_locked_and_rolls_back(
 ) -> None:
     _lock(factory)
 
-    with factory() as session, pytest.raises(LevelChangeInProgressError):
-        _write(session, RefuseDuringLevelChange(), "refused")
+    with factory() as session, pytest.raises(LongOperationInProgressError):
+        _write(session, RefuseDuringLongOperation(), "refused")
 
     assert _stored(factory) is None
     with factory() as session:
-        _write(session, OwnLevelChange(), "own")  # the database is not left locked
+        _write(session, OwnLongOperation(), "own")  # the database is not left locked
 
 
 def test_wait_gate_writes_after_release_and_counts_its_waits(
@@ -95,7 +95,7 @@ def test_wait_gate_writes_after_release_and_counts_its_waits(
     _lock(factory)
     waits = threading.Semaphore(0)
 
-    class _Counted(WaitOutLevelChange):
+    class _Counted(WaitOutLongOperation):
         def wait(self) -> None:
             waits.release()
             super().wait()
@@ -122,13 +122,13 @@ def test_own_gate_writes_while_locked(factory: sessionmaker[Session]) -> None:
     _lock(factory)
 
     with factory() as session:
-        _write(session, OwnLevelChange(), "own")
+        _write(session, OwnLongOperation(), "own")
 
     assert _stored(factory) == "own"
 
 
 @pytest.mark.parametrize(
-    "gate", [RefuseDuringLevelChange(), WaitOutLevelChange(), OwnLevelChange()],
+    "gate", [RefuseDuringLongOperation(), WaitOutLongOperation(), OwnLongOperation()],
 )
 def test_any_gate_writes_when_unlocked(factory: sessionmaker[Session], gate: WriteGate) -> None:
     with factory() as session:
@@ -142,7 +142,7 @@ def test_default_gate_refuses(factory: sessionmaker[Session]) -> None:
 
     with (
         factory() as session,
-        pytest.raises(LevelChangeInProgressError),
+        pytest.raises(LongOperationInProgressError),
         SqlaUnitOfWork(session, user_vocabulary().scope).write(),
     ):
         session.merge(SettingModel(key=KEY, value="default"))
@@ -189,13 +189,13 @@ def short_busy_factory(
 def _stage_two(factory: sessionmaker[Session], inside: threading.Event) -> None:
     """The level change's one write: held past the busy timeout, dropping the lock at its
     commit."""
-    with factory() as session, _unit_of_work(session, OwnLevelChange()).write():
+    with factory() as session, _unit_of_work(session, OwnLongOperation()).write():
         inside.set()
         time.sleep(STAGE_TWO_S)
-        SqlaLevelChangeLock(session).release()
+        SqlaLongOperationLock(session).release()
 
 
-@pytest.mark.parametrize("gate", [WaitOutLevelChange(), RefuseDuringLevelChange()])
+@pytest.mark.parametrize("gate", [WaitOutLongOperation(), RefuseDuringLongOperation()])
 def test_a_write_during_the_long_write_meets_the_gate_not_the_busy_timeout(
     short_busy_factory: sessionmaker[Session], gate: WriteGate,
 ) -> None:
@@ -208,10 +208,10 @@ def test_a_write_during_the_long_write_meets_the_gate_not_the_busy_timeout(
     try:
         with short_busy_factory() as session:
             _write(session, gate, "after")
-    except LevelChangeInProgressError:
-        assert isinstance(gate, RefuseDuringLevelChange)
+    except LongOperationInProgressError:
+        assert isinstance(gate, RefuseDuringLongOperation)
     else:
-        assert isinstance(gate, WaitOutLevelChange)
+        assert isinstance(gate, WaitOutLongOperation)
         assert _stored(short_busy_factory) == "after"
     finally:
         change.join()

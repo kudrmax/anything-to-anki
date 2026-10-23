@@ -119,7 +119,6 @@ describe('ScopeHeader', () => {
 
   it.each<[string, ScopeCounts]>([
     ['an empty collection', { ...counts, total: 0, status: 'new', can_review: false }],
-    ['a collection being processed', { ...counts, status: 'processing', can_review: false }],
   ])('offers no processing on %s', (_, shown) => {
     render([], a, shown)
     expect(buttons().filter(label => label?.startsWith('Process') || label === 'Retry')).toEqual([])

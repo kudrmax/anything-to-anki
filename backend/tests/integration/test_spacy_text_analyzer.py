@@ -87,6 +87,16 @@ class TestSpaCyTextAnalyzer:
         assert all(text[t.char_start:t.char_end] == t.text for t in tokens)
         assert all(0 <= t.head_index < len(tokens) for t in tokens)
 
+    def test_reports_the_share_parsed_after_each_piece(self) -> None:
+        text = "The cat sat on the mat. " * 20
+        parts: list[float] = []
+
+        SpaCyTextAnalyzer(piece_length=100).analyze(text, parts.append)
+
+        assert len(parts) > 1
+        assert parts == sorted(parts)
+        assert parts[-1] == 1.0
+
     def test_single_line_break_does_not_end_a_sentence(self) -> None:
         tokens = self.analyzer.analyze("I told him that\nwe would come back tomorrow.")
         assert len({t.sent_index for t in tokens}) == 1

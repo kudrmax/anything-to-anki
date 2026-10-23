@@ -1,0 +1,12 @@
+.overlay {
+  position: fixed; inset: 0; z-index: var(--z-block);
+  display: grid; place-items: center; padding: var(--s6);
+  background: var(--overlay);
+}
+/* Процент и отмена на карточке, как в модальном окне: текст под оверлеем их не перебивает. */
+.card {
+  display: flex; flex-direction: column; align-items: center; gap: var(--s6);
+  padding: var(--s6); border-radius: var(--r); background: var(--card);
+  box-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop);
+}
+.percent { font-size: var(--fs-focus); font-weight: var(--fw-b); font-variant-numeric: tabular-nums; color: var(--tx); }

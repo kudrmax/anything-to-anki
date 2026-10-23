@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import logging
-import traceback
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -49,6 +48,7 @@ from backend.domain.exceptions import (
     InvalidAnswerError,
     InvalidPhraseError,
     InvalidSourceInputError,
+    LongOperationRunningError,
     NotATextFileError,
     PermanentSourceError,
     SourceAlreadyProcessedError,
@@ -61,10 +61,10 @@ from backend.domain.exceptions import (
     UnsupportedUrlError,
 )
 from backend.domain.value_objects.collection_choice import CollectionChoice
+from backend.domain.value_objects.long_operation_kind import LongOperationKind
 from backend.domain.value_objects.naming_rule import NamingRule
 from backend.domain.value_objects.number_format import NumberFormat
 from backend.domain.value_objects.question import Answers
-from backend.infrastructure.api.background import in_background
 from backend.infrastructure.api.dependencies import (
     DetachedUseCases,
     get_container,
@@ -76,6 +76,8 @@ from backend.infrastructure.api.scope_param import parse_scope
 from backend.infrastructure.container import Container
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from backend.application.use_cases.add_manual_candidate import AddManualCandidateUseCase
     from backend.application.use_cases.add_saved_phrase import AddSavedPhraseUseCase
     from backend.application.use_cases.add_source import AddSourceUseCase
@@ -88,14 +90,13 @@ if TYPE_CHECKING:
     from backend.application.use_cases.process_sources import ProcessSourcesUseCase
     from backend.application.use_cases.rename_source import RenameSourceUseCase
     from backend.application.use_cases.review_mutation import ReviewMutation
+    from backend.infrastructure.api.background_long_operation import (
+        BackgroundLongOperationLauncher,
+    )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sources", tags=["sources"])
-
-# The tail of the traceback a failed processing leaves on its source.
-ERROR_DETAIL_LENGTH = 500
-
 
 @router.post("/add", status_code=201)
 def add_source(
@@ -248,13 +249,16 @@ async def process_pending(
     process: ProcessSourcesUseCase = Depends(  # noqa: B008
         use_case(Container.process_sources_use_case),  # noqa: B008
     ),
+    launcher: BackgroundLongOperationLauncher = Depends(  # noqa: B008
+        use_case(Container.long_operation_launcher),  # noqa: B008
+    ),
     detached: DetachedUseCases = Depends(get_detached_use_cases),  # noqa: B008
 ) -> StartedSourcesDTO:
     try:
-        result = process.start(process.pending_in(parse_scope(scope)))
+        result = process.check(process.pending_in(parse_scope(scope)))
     except CollectionNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    _launch(result.started, detached)
+    _launch(result.started, launcher, detached)
     return result
 
 
@@ -264,10 +268,13 @@ async def process_batch(
     process: ProcessSourcesUseCase = Depends(  # noqa: B008
         use_case(Container.process_sources_use_case),  # noqa: B008
     ),
+    launcher: BackgroundLongOperationLauncher = Depends(  # noqa: B008
+        use_case(Container.long_operation_launcher),  # noqa: B008
+    ),
     detached: DetachedUseCases = Depends(get_detached_use_cases),  # noqa: B008
 ) -> StartedSourcesDTO:
-    result = process.start(list(dict.fromkeys(request.source_ids)))
-    _launch(result.started, detached)
+    result = process.check(list(dict.fromkeys(request.source_ids)))
+    _launch(result.started, launcher, detached)
     return result
 
 
@@ -281,9 +288,30 @@ def delete_batch(
     return delete.execute(list(dict.fromkeys(request.source_ids)))
 
 
-def _launch(source_ids: list[int], detached: DetachedUseCases) -> None:
-    for source_id in source_ids:
-        in_background(_process_background(source_id, detached))
+def _launch(
+    source_ids: list[int],
+    launcher: BackgroundLongOperationLauncher,
+    detached: DetachedUseCases,
+) -> None:
+    """Processes the sources as one long operation, on a session of its own."""
+    if not source_ids:
+        return
+
+    def run() -> None:
+        with detached.open(Container.process_source_use_case) as process:
+            process.run(source_ids)
+
+    with _start_errors():
+        launcher.start(LongOperationKind.PROCESS, run)
+
+
+@contextmanager
+def _start_errors() -> Iterator[None]:
+    """A preview, the index build or a busy source keeps a long operation from starting."""
+    try:
+        yield
+    except (LongOperationRunningError, SourceOperationBusyError) as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
 
 @router.patch("/{source_id}/title")
@@ -309,35 +337,21 @@ async def process_source(
     process: ProcessSourceUseCase = Depends(  # noqa: B008
         use_case(Container.process_source_use_case),  # noqa: B008
     ),
+    launcher: BackgroundLongOperationLauncher = Depends(  # noqa: B008
+        use_case(Container.long_operation_launcher),  # noqa: B008
+    ),
     detached: DetachedUseCases = Depends(get_detached_use_cases),  # noqa: B008
 ) -> dict[str, str]:
     try:
-        process.start(source_id)
+        process.check(source_id)
     except SourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except (
         SourceAlreadyProcessedError, SourceOperationBusyError, TopicTargetsMissingError,
     ) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
-
-    in_background(_process_background(source_id, detached))
+    _launch([source_id], launcher, detached)
     return {"status": "processing"}
-
-
-async def _process_background(source_id: int, detached: DetachedUseCases) -> None:
-    ran = False
-    try:
-        with detached.open(Container.process_source_use_case) as process:
-            ran = True
-            await asyncio.to_thread(process.execute, source_id)
-    except Exception:
-        logger.exception("Background processing failed (source_id=%d)", source_id)
-        error = traceback.format_exc()[-ERROR_DETAIL_LENGTH:]
-        try:
-            with detached.open(Container.process_source_use_case) as process:
-                process.fail(source_id, error, never_ran=not ran)
-        except Exception:
-            logger.exception("Failed to mark source %d as ERROR", source_id)
 
 
 @router.delete("/{source_id}", status_code=204)

@@ -12,6 +12,7 @@ from backend.application.use_cases.describe_input import MAX_PHRASE_CHARS, Descr
 from backend.domain.ports.file_reader import FileReader
 from backend.domain.ports.text_analyzer import TextAnalyzer
 from backend.domain.services.input_kind_classifier import InputKindClassifier
+from backend.domain.services.long_operation_progress import PartReport, no_report
 from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.input_kind import InputKind
 from backend.domain.value_objects.input_problem import InputProblem
@@ -42,7 +43,7 @@ class FakeFiles(FileReader):
 class NoParsing(TextAnalyzer):
     """Эти вводы описываются без spaCy: разбор на каждое нажатие клавиши слишком дорог."""
 
-    def analyze(self, text: str) -> list[TokenData]:
+    def analyze(self, text: str, report: PartReport = no_report) -> list[TokenData]:
         raise AssertionError(f"spaCy must not be called for {text!r}")
 
 

@@ -19,10 +19,18 @@ from backend.domain.services.fragment_selection import (
     FragmentSelectionConfig,
     FragmentSelector,
 )
+from backend.domain.services.long_operation_progress import no_report, part_of, scaled
 from backend.domain.services.phrase_building import build_phrase
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
 logger = logging.getLogger(__name__)
+
+# Shares of the analysis, measured on a whole book: the parse 240 of 320 seconds, collecting
+# the words and phrasal verbs over every token 15, each word's phrases the rest.
+PARSE_SHARE = 0.75
+COLLECT_SHARE = 0.05
+# What collecting is reported after: the occurrences laid out, the words, the phrasal verbs.
+COLLECT_STEPS = 3
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -36,6 +44,7 @@ if TYPE_CHECKING:
     from backend.domain.services.fragment_selection.scoring.scorer import (
         UnknownCounter,
     )
+    from backend.domain.services.long_operation_progress import PartReport
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.document import Document
@@ -91,9 +100,13 @@ class AnalyzeTextUseCase:
         self._selector = FragmentSelector(config=self._fragment_config)
         self._usage_lookup = usage_lookup
 
-    def execute(self, document: Document, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
+    def execute(
+        self, document: Document, request: AnalyzeTextRequest, report: PartReport = no_report,
+    ) -> AnalyzeTextResponse:
+        """`report` is told the share of the analysis done: the parse, the collecting of the
+        words, then the occurrences of each word."""
         user_level = CEFRLevel.from_str(request.user_level)
-        analyzed = self._document_analyzer.analyze(document)
+        analyzed = self._document_analyzer.analyze(document, scaled(report, 0.0, PARSE_SHARE))
         tokens, layout = analyzed.tokens, analyzed.layout
         logger.info(
             "analyze_text: start (text_len=%d, user_level=%s, known_words=%d, "
@@ -102,6 +115,7 @@ class AnalyzeTextUseCase:
             request.frequent_word_zipf,
         )
         if not tokens:
+            report(1.0)
             return AnalyzeTextResponse(
                 text=layout.text, words=[], total_tokens=0, unique_lemmas=0,
             )
@@ -113,15 +127,36 @@ class AnalyzeTextUseCase:
             vocabulary=request.vocabulary,
             frequent_zipf=request.frequent_word_zipf,
         )
+        collect_report = scaled(report, PARSE_SHARE, COLLECT_SHARE)
         occurrences = _Occurrences(tokens, layout, knowledge, self._selector)
-        words = [
-            word
-            for lemma, found in self._collect_words(tokens, knowledge).items()
-            if (word := self._word(lemma, found, occurrences, user_level)) is not None
-        ] + [
-            self._phrasal_verb(lemma, found, occurrences)
-            for lemma, found in self._collect_phrasal_verbs(tokens, knowledge).items()
-        ]
+        collect_report(part_of(1, COLLECT_STEPS))
+        lemmas = self._collect_words(tokens, knowledge)
+        collect_report(part_of(2, COLLECT_STEPS))
+        phrasal_verbs = self._collect_phrasal_verbs(tokens, knowledge)
+        collect_report(part_of(3, COLLECT_STEPS))
+        words_from = PARSE_SHARE + COLLECT_SHARE
+        words_report = scaled(report, words_from, 1.0 - words_from)
+        # A word takes a while of its own and a while per occurrence: the share done is the
+        # mean of the share of the words and that of their occurrences.
+        found_by_word = [*lemmas.values(), *phrasal_verbs.values()]
+        all_words, all_found = len(found_by_word), sum(map(len, found_by_word))
+        words_done = found_done = 0
+
+        def word_done(found: list[_Occurrence]) -> None:
+            nonlocal words_done, found_done
+            words_done += 1
+            found_done += len(found)
+            words_report((part_of(words_done, all_words) + part_of(found_done, all_found)) / 2)
+
+        words: list[WordDTO] = []
+        for lemma, found in lemmas.items():
+            if (word := self._word(lemma, found, occurrences, user_level)) is not None:
+                words.append(word)
+            word_done(found)
+        for lemma, found in phrasal_verbs.items():
+            words.append(self._phrasal_verb(lemma, found, occurrences))
+            word_done(found)
+        report(1.0)
 
         unique_lemmas = len({t.lemma.lower() for t in tokens if t.is_alpha})
         logger.info(

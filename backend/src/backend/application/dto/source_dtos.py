@@ -78,8 +78,7 @@ class SourceDTO(BaseModel):
 
     id: int
     title: str
-    # The outcome of the source, or 'processing' while it is being processed.
-    status: str
+    status: str  # the outcome of the source
     stage: str  # 'in_progress' | 'preparing' | 'ready' | 'reviewed'
     kind: str | None  # 'text' | 'book' | 'subtitles' | 'song'; none for a topic or saved phrases
     role: str  # 'content' | 'topic' | 'saved_phrases'
@@ -90,7 +89,6 @@ class SourceDTO(BaseModel):
     candidate_count: int  # cards: shown phrases
     learn_count: int  # words to learn
     progress: ProgressDTO = ProgressDTO()
-    processing_stage: str | None = None
     collection_id: int | None = None
     collection_path: list[str] = []  # e.g. ["Friends", "Season 1"]; empty in Unsorted
     awaiting_generation: bool = False
