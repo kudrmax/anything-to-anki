@@ -19,6 +19,7 @@ from backend.infrastructure.persistence.session_ai_usage_recorder import Session
 from backend.infrastructure.persistence.sqla_level_change_lock import SqlaLevelChangeLock
 from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from backend.infrastructure.persistence.write_gate import (
+    GATE_RETRY_SECONDS,
     OwnLevelChange,
     RefuseDuringLevelChange,
     WaitOutLevelChange,
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.integration
 
 LOCK_HELD_S = 1.0
+WAITS_BEFORE_RELEASE = 2
 KEY = "probe"
 
 
@@ -85,21 +87,35 @@ def test_refuse_gate_raises_while_locked_and_rolls_back(
         _write(session, OwnLevelChange(), "own")  # the database is not left locked
 
 
-def test_wait_gate_writes_after_release(factory: sessionmaker[Session]) -> None:
+def test_wait_gate_writes_after_release_and_counts_its_waits(
+    factory: sessionmaker[Session],
+) -> None:
+    """The lock is let go once the write has started its second wait: the write lands
+    after it, and every wait counts, however slow the first look at the lock was."""
     _lock(factory)
-    gate = WaitOutLevelChange()
-    releaser = threading.Timer(LOCK_HELD_S, _unlock, args=(factory,))
+    waits = threading.Semaphore(0)
+
+    class _Counted(WaitOutLevelChange):
+        def wait(self) -> None:
+            waits.release()
+            super().wait()
+
+    gate = _Counted()
+
+    def release_on_the_second_wait() -> None:
+        for _ in range(WAITS_BEFORE_RELEASE):
+            waits.acquire()
+        _unlock(factory)
+
+    releaser = threading.Thread(target=release_on_the_second_wait)
     releaser.start()
-    started = time.monotonic()
 
     with factory() as session:
         _write(session, gate, "waited")
-    elapsed = time.monotonic() - started
 
     releaser.join()
     assert _stored(factory) == "waited"
-    assert elapsed >= LOCK_HELD_S
-    assert gate.waited_seconds() >= LOCK_HELD_S * 0.9
+    assert gate.waited_seconds() >= WAITS_BEFORE_RELEASE * GATE_RETRY_SECONDS
 
 
 def test_own_gate_writes_while_locked(factory: sessionmaker[Session]) -> None:
