@@ -307,7 +307,9 @@ class SharedBench:
         self.seen: list[HeldOperation | None] = []
         analyse = self.bench.analyze_text.execute.side_effect
 
-        def look_then_analyse(document: Document, request: object, report: object = None) -> AnalyzeTextResponse:
+        def look_then_analyse(
+            document: Document, request: object, report: object = None,
+        ) -> AnalyzeTextResponse:
             self.seen.append(self.held_elsewhere())
             response: AnalyzeTextResponse = analyse(document, request, report)
             return response

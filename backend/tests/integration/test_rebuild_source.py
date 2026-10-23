@@ -215,7 +215,9 @@ def test_a_decision_made_during_the_analysis_is_kept(bench: Bench) -> None:
 
     analyse = bench.analyze_text.execute.side_effect
 
-    def decide_meanwhile(document: Document, request: AnalyzeTextRequest, report: object = None) -> object:
+    def decide_meanwhile(
+        document: Document, request: AnalyzeTextRequest, report: object = None,
+    ) -> object:
         bench.decide_learn("linger", decision.id)
         return analyse(document, request, report)
 
@@ -480,7 +482,9 @@ def test_the_lock_is_taken_during_the_analysis_and_released_after(bench: Bench) 
     held: list[SourceOperationKind | None] = []
     analyse = bench.analyze_text.execute.side_effect
 
-    def watch(document: Document, request: AnalyzeTextRequest, report: object = None) -> object:
+    def watch(
+        document: Document, request: AnalyzeTextRequest, report: object = None,
+    ) -> object:
         held.append(bench.lock.held(SOURCE))
         return analyse(document, request, report)
 
@@ -509,7 +513,9 @@ def test_a_source_deleted_during_the_analysis_is_not_written(bench: Bench) -> No
     bench.processed(word("glare", at(0)))
     analyse = bench.analyze_text.execute.side_effect
 
-    def delete_meanwhile(document: Document, request: AnalyzeTextRequest, report: object = None) -> object:
+    def delete_meanwhile(
+        document: Document, request: AnalyzeTextRequest, report: object = None,
+    ) -> object:
         bench.session.execute(text("DELETE FROM sources WHERE id = :id"), {"id": SOURCE})
         bench.session.commit()
         return analyse(document, request, report)
