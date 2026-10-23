@@ -145,7 +145,7 @@ class Bench:
         session.commit()
         self.analysis: list[WordDTO] = []
         self.analyze_text = MagicMock()
-        self.analyze_text.execute.side_effect = lambda _document, _request: (
+        self.analyze_text.execute.side_effect = lambda _document, _request, _report: (
             AnalyzeTextResponse(text="", words=self.analysis, total_tokens=0, unique_lemmas=0)
         )
         self.lock = SqlaSourceOperationLock(session)
@@ -307,9 +307,9 @@ class SharedBench:
         self.seen: list[HeldOperation | None] = []
         analyse = self.bench.analyze_text.execute.side_effect
 
-        def look_then_analyse(document: Document, request: object) -> AnalyzeTextResponse:
+        def look_then_analyse(document: Document, request: object, report: object = None) -> AnalyzeTextResponse:
             self.seen.append(self.held_elsewhere())
-            response: AnalyzeTextResponse = analyse(document, request)
+            response: AnalyzeTextResponse = analyse(document, request, report)
             return response
 
         self.bench.analyze_text.execute.side_effect = look_then_analyse

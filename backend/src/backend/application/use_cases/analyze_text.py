@@ -19,10 +19,14 @@ from backend.domain.services.fragment_selection import (
     FragmentSelectionConfig,
     FragmentSelector,
 )
+from backend.domain.services.long_operation_progress import no_report, part_of, scaled
 from backend.domain.services.phrase_building import build_phrase
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
 logger = logging.getLogger(__name__)
+
+# The share of the analysis the parse takes, measured on a whole book: 240 of 320 seconds.
+PARSE_SHARE = 0.75
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -36,6 +40,7 @@ if TYPE_CHECKING:
     from backend.domain.services.fragment_selection.scoring.scorer import (
         UnknownCounter,
     )
+    from backend.domain.services.long_operation_progress import PartReport
     from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
     from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
     from backend.domain.value_objects.document import Document
@@ -91,9 +96,12 @@ class AnalyzeTextUseCase:
         self._selector = FragmentSelector(config=self._fragment_config)
         self._usage_lookup = usage_lookup
 
-    def execute(self, document: Document, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
+    def execute(
+        self, document: Document, request: AnalyzeTextRequest, report: PartReport = no_report,
+    ) -> AnalyzeTextResponse:
+        """`report` is told the share of the analysis done: the parse, then each word."""
         user_level = CEFRLevel.from_str(request.user_level)
-        analyzed = self._document_analyzer.analyze(document)
+        analyzed = self._document_analyzer.analyze(document, scaled(report, 0.0, PARSE_SHARE))
         tokens, layout = analyzed.tokens, analyzed.layout
         logger.info(
             "analyze_text: start (text_len=%d, user_level=%s, known_words=%d, "
@@ -102,6 +110,7 @@ class AnalyzeTextUseCase:
             request.frequent_word_zipf,
         )
         if not tokens:
+            report(1.0)
             return AnalyzeTextResponse(
                 text=layout.text, words=[], total_tokens=0, unique_lemmas=0,
             )
@@ -114,14 +123,19 @@ class AnalyzeTextUseCase:
             frequent_zipf=request.frequent_word_zipf,
         )
         occurrences = _Occurrences(tokens, layout, knowledge, self._selector)
-        words = [
-            word
-            for lemma, found in self._collect_words(tokens, knowledge).items()
-            if (word := self._word(lemma, found, occurrences, user_level)) is not None
-        ] + [
-            self._phrasal_verb(lemma, found, occurrences)
-            for lemma, found in self._collect_phrasal_verbs(tokens, knowledge).items()
-        ]
+        lemmas = self._collect_words(tokens, knowledge)
+        phrasal_verbs = self._collect_phrasal_verbs(tokens, knowledge)
+        words_report = scaled(report, PARSE_SHARE, 1.0 - PARSE_SHARE)
+        total = len(lemmas) + len(phrasal_verbs)
+        words: list[WordDTO] = []
+        for done, (lemma, found) in enumerate(lemmas.items(), start=1):
+            if (word := self._word(lemma, found, occurrences, user_level)) is not None:
+                words.append(word)
+            words_report(part_of(done, total))
+        for done, (lemma, found) in enumerate(phrasal_verbs.items(), start=len(lemmas) + 1):
+            words.append(self._phrasal_verb(lemma, found, occurrences))
+            words_report(part_of(done, total))
+        report(1.0)
 
         unique_lemmas = len({t.lemma.lower() for t in tokens if t.is_alpha})
         logger.info(

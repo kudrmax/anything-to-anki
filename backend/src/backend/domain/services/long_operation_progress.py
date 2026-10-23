@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import Enum
+
+type PartReport = Callable[[float], None]
+"""Told the share, 0 to 1, of a piece of work done so far."""
 
 
 class LongOperationStage(Enum):
@@ -14,6 +18,16 @@ ANALYSE_SHARE = 70
 APPLY_SHARE = 20
 FINISH_SHARE = 10
 DONE_PERCENT = 100
+
+
+def no_report(_part: float) -> None:
+    """A report nobody reads."""
+
+
+def scaled(report: PartReport, start: float, share: float) -> PartReport:
+    """The report of a piece of a bigger work: its 0 to 1 is `start` to `start + share` of
+    the whole."""
+    return lambda part: report(start + share * min(max(part, 0.0), 1.0))
 
 
 def part_of(done: int, total: int) -> float:

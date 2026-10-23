@@ -10,11 +10,12 @@ from backend.application.dto.analysis_dtos import (
     OccurrenceDTO,
     WordDTO,
 )
-from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
+from backend.application.use_cases.analyze_text import PARSE_SHARE, AnalyzeTextUseCase
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.token_data import TokenData
 from backend.domain.ports.document_analyzer import AnalyzedDocument, DocumentAnalyzer
 from backend.domain.services.document_layout import DocumentLayout
+from backend.domain.services.long_operation_progress import PartReport, no_report
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
 from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
@@ -67,7 +68,8 @@ class _LaidOutTokens(DocumentAnalyzer):
             Paragraph(lines=(Line(text.strip() or "-"),), mode=ParagraphMode.FLOW),
         ))
 
-    def analyze(self, document: Document) -> AnalyzedDocument:
+    def analyze(self, document: Document, report: PartReport = no_report) -> AnalyzedDocument:
+        report(1.0)
         return AnalyzedDocument(tokens=self.tokens, layout=DocumentLayout(document))
 
 
@@ -77,8 +79,10 @@ class _Analysis:
         self._phrasal_verb_detector = use_case._phrasal_verb_detector
         self.document = analyzer.document
 
-    def execute(self, request: AnalyzeTextRequest) -> AnalyzeTextResponse:
-        return self._use_case.execute(self.document, request)
+    def execute(
+        self, request: AnalyzeTextRequest, report: PartReport = no_report,
+    ) -> AnalyzeTextResponse:
+        return self._use_case.execute(self.document, request, report)
 
 
 def _create_use_case(
@@ -124,6 +128,21 @@ class TestAnalyzeTextUseCase:
         response = use_case.execute(request)
         assert response.words == []
         assert response.total_tokens == 0
+
+    def test_reports_the_parse_then_each_word_up_to_the_whole(self) -> None:
+        tokens = [_make_token(i, w, w) for i, w in enumerate(["relentless", "pursuit", "glare"])]
+        use_case = _create_use_case(
+            tokens=tokens,
+            cefr_map={w: CEFRLevel.C1 for w in ["relentless", "pursuit", "glare"]},
+        )
+        parts: list[float] = []
+
+        use_case.execute(AnalyzeTextRequest(user_level="B1"), parts.append)
+
+        assert parts == sorted(parts)
+        assert parts[0] == PARSE_SHARE
+        assert len([p for p in parts if PARSE_SHARE < p < 1.0]) == 2
+        assert parts[-1] == 1.0
 
     def test_filters_below_user_level(self) -> None:
         tokens = [_make_token(0, "happy", "happy")]
@@ -514,7 +533,9 @@ class TestAnalyzeTextEveryOccurrence:
         ]
 
         class _Fixed(DocumentAnalyzer):
-            def analyze(self, document: Document) -> AnalyzedDocument:
+            def analyze(
+                self, document: Document, report: PartReport = no_report,
+            ) -> AnalyzedDocument:
                 return AnalyzedDocument(tokens=tokens, layout=DocumentLayout(document))
 
         frequency_provider = MagicMock()

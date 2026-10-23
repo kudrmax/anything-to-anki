@@ -6,11 +6,13 @@ from typing import TYPE_CHECKING
 
 from backend.domain.ports.document_analyzer import AnalyzedDocument, DocumentAnalyzer
 from backend.domain.services.document_layout import DocumentLayout
+from backend.domain.services.long_operation_progress import no_report
 from backend.domain.value_objects.document import Paragraph, ParagraphMode
 from backend.infrastructure.adapters.verse_sentence_ends import VerseSentenceEnds
 
 if TYPE_CHECKING:
     from backend.domain.entities.token_data import TokenData
+    from backend.domain.services.long_operation_progress import PartReport
     from backend.domain.value_objects.document import Document
     from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 
@@ -40,7 +42,7 @@ class SpacyDocumentAnalyzer(DocumentAnalyzer):
         """Changes whenever the parse of the same document may change."""
         return f"{self._text_analyzer.version}:{POSTPROCESS_VERSION}"
 
-    def analyze(self, document: Document) -> AnalyzedDocument:
+    def analyze(self, document: Document, report: PartReport = no_report) -> AnalyzedDocument:
         layout = DocumentLayout(document)
         ends = self._verse_ends(layout)
         parsed = "".join(
@@ -48,7 +50,7 @@ class SpacyDocumentAnalyzer(DocumentAnalyzer):
             for start, end in _pieces(layout.text, ends)
         )
         tokens = [
-            _placed(token, ends) for token in self._text_analyzer.analyze(parsed)
+            _placed(token, ends) for token in self._text_analyzer.analyze(parsed, report)
         ]
         return AnalyzedDocument(tokens=tokens, layout=layout)
 

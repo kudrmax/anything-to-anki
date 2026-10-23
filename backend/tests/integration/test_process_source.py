@@ -171,7 +171,7 @@ def test_usage_and_the_analysis_settings_reach_the_word(bench: Bench) -> None:
     [card] = bench.candidates.get_by_source(SOURCE)
     assert card.usage_distribution is not None
     assert card.usage_distribution.groups == {"informal": 1.0}
-    _document, request = bench.analyze_text.execute.call_args[0]
+    _document, request, _report = bench.analyze_text.execute.call_args[0]
     assert request.user_level == "B1"
 
 

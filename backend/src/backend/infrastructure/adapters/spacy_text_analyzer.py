@@ -8,6 +8,7 @@ from spacy.language import Language
 
 from backend.domain.entities.token_data import TokenData
 from backend.domain.ports.text_analyzer import TextAnalyzer
+from backend.domain.services.long_operation_progress import PartReport, no_report
 from backend.infrastructure.adapters.text_pieces import text_pieces
 
 if TYPE_CHECKING:
@@ -49,13 +50,15 @@ class SpaCyTextAnalyzer(TextAnalyzer):
         """spaCy's version and the model's: what the parse of a text depends on."""
         return f"{spacy_about.__version__}:{self._nlp.meta['version']}"
 
-    def analyze(self, text: str) -> list[TokenData]:
+    def analyze(self, text: str, report: PartReport = no_report) -> list[TokenData]:
         tokens: list[TokenData] = []
         sentences = 0
         for start, end in text_pieces(text, self._piece_length):
             doc = self._nlp(text[start:end])
             tokens.extend(_tokens(doc, len(tokens), sentences, start))
             sentences += sum(1 for _ in doc.sents)
+            report(end / len(text))
+        report(1.0)
         return tokens
 
 
