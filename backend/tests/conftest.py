@@ -44,6 +44,15 @@ def _no_level_change_on_the_app_database(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 @pytest.fixture(autouse=True)
+def _long_operations_run_in_the_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An operation over sources runs in the request that starts it: on a thread of its own
+    it would outlive the test's database."""
+    from backend.infrastructure.container import Container
+
+    monkeypatch.setattr(Container, "_spawn_long_operation", lambda _self, run: run())
+
+
+@pytest.fixture(autouse=True)
 def _no_long_operation_left_by_another_test(monkeypatch: pytest.MonkeyPatch) -> None:
     """The registry of operations and the index build are kept in memory for the process: a
     test whose background operation never ended would refuse every later level change."""

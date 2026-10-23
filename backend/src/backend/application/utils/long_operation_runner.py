@@ -34,10 +34,15 @@ class Applied[R]:
 
 @dataclass(frozen=True)
 class OperationResult[R]:
-    """The results of the sources applied, in their order, and how many failed."""
+    """The results of the sources applied, in their order, and the sources that failed with
+    their errors."""
 
     results: list[R]
-    failed: int
+    failures: list[tuple[int, Exception]]
+
+    @property
+    def failed(self) -> int:
+        return len(self.failures)
 
 
 class SourceWork[P, R](ABC):
@@ -79,7 +84,7 @@ class LongOperationRunner:
     one write that drops the lock too: all of it or none. Cancelled, failed or cut off by a
     crash, nothing is written; the lock is dropped, and a lock a crash left behind goes at
     the next start. Files of what the operation dropped go once it is committed. The
-    progress tells how far it is and how it ended.
+    progress tells how far it is and how it ended; a failure is raised on as well.
     """
 
     def __init__(
@@ -95,7 +100,8 @@ class LongOperationRunner:
         self._progress = progress
 
     def run[P, R](self, work: SourceWork[P, R]) -> OperationResult[R] | None:
-        """The result once committed; None when cancelled or failed."""
+        """The result once committed; None when cancelled. A failure is raised once the
+        lock is dropped."""
         try:
             with self._unit_of_work.read():
                 source_ids = work.targets()
@@ -111,7 +117,7 @@ class LongOperationRunner:
             logger.exception("long operation: failed, nothing changed")
             self._release()
             self._progress.fail(str(e))
-            return None
+            raise
         self._remove(dropped_files)
         self._progress.succeed()
         logger.info(
@@ -173,7 +179,7 @@ class LongOperationRunner:
                 work.failed(source_id, error)
             self._progress.enter_finish()
             self._lock.release()
-        return OperationResult(results, len(failures)), dropped_files
+        return OperationResult(results, failures), dropped_files
 
     def _remove(self, dropped_files: list[str]) -> None:
         """The operation is committed: files left behind only take room, they undo

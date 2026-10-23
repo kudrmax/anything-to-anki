@@ -162,9 +162,7 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
     marks.mark_known("salary", "NOUN")
     topic_id = _add_topic(db_session)
 
-    use_case = container.process_source_use_case(db_session)
-    use_case.start(topic_id)
-    use_case.execute(topic_id)
+    container.process_source_use_case(db_session).run([topic_id])
 
     candidates = _by_lemma(db_session, topic_id)
     assert set(candidates) == {"negotiate", "meet halfway", "counter-offer"}
@@ -191,10 +189,7 @@ def test_topic_borrows_phrases_and_falls_back_to_generated(
 
 def _processed_topic(db_session: Session, container: Container) -> int:
     topic_id = _add_topic(db_session)
-    process = container.process_source_use_case(db_session)
-    process.start(topic_id)
-    db_session.commit()
-    process.execute(topic_id)
+    container.process_source_use_case(db_session).run([topic_id])
     return topic_id
 
 
@@ -376,9 +371,9 @@ def _refresh_use_case(
             SqlaOccurrenceRepository(db_session, SessionChangeRecorder(db_session)),
             section_stamper(SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session))),
         ),
-        lock=use_case._lock,
-        unit_of_work=use_case._unit_of_work,
+        unit_of_work=use_case._unit_of_work,  # noqa: SLF001 — the container's own
         collector=collector,
+        runner=use_case._runner,  # noqa: SLF001
     )
 
 
@@ -416,7 +411,7 @@ def test_topic_cannot_be_processed_before_targets_exist(
         status=SourceStatus.NEW,
     )
     with pytest.raises(TopicTargetsMissingError):
-        container.process_source_use_case(db_session).start(topic_id)
+        container.process_source_use_case(db_session).check(topic_id)
 
 
 def test_refresh_does_not_restamp(db_session: Session, container: Container) -> None:

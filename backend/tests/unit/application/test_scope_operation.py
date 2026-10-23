@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -11,6 +12,7 @@ from backend.application.dto.rebuild_dtos import (
     TopicRefreshSummaryDTO,
 )
 from backend.application.use_cases.scope_operation import ScopeOperationUseCase
+from backend.application.utils.long_operation_runner import OperationResult
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import (
@@ -28,6 +30,9 @@ from backend.domain.value_objects.source_status import SourceStatus
 from tests.source_order_support import added_order
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
 from tests.unit.application.source_fakes import InMemorySourceRepository
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 PILOT, FINALE, NEW, TOPIC = 1, 2, 3, 4
 UPDATE = RebuildMode.UPDATE
@@ -82,16 +87,34 @@ class TestScopeOperationUseCase:
         if source_id in self.held:
             raise SourceOperationBusyError(source_id, self.held[source_id])
 
+    def _rebuilt(
+        self, failing: frozenset[int] = frozenset(),
+    ) -> list[int]:
+        """The rebuild of the use case runs: the sources it was given, in order."""
+        given: list[int] = []
+
+        def rebuild(
+            targets: Callable[[], list[int]], mode: RebuildMode,
+        ) -> OperationResult[RebuildSummaryDTO]:
+            given.extend(targets())
+            return OperationResult(
+                [
+                    RebuildSummaryDTO(mode=mode, counts=_counts(t))
+                    for t in given if t not in failing
+                ],
+                [(t, RuntimeError("analysis broke")) for t in given if t in failing],
+            )
+
+        self.rebuild.rebuild.side_effect = rebuild
+        return given
+
     def test_an_update_runs_every_source_offering_it_in_the_set_order_and_sums(self) -> None:
-        self.rebuild.run.side_effect = lambda source_id, mode: RebuildSummaryDTO(
-            mode=mode, counts=_counts(source_id),
-        )
+        given = self._rebuilt()
 
         summary = self.use_case.rebuild(SourceScope.all(), UPDATE)
 
-        assert [c.args for c in self.rebuild.run.call_args_list] == [
-            (PILOT, UPDATE), (FINALE, UPDATE), (TOPIC, UPDATE),
-        ]
+        assert given == [PILOT, FINALE, TOPIC]
+        assert summary is not None
         assert summary.mode is UPDATE
         assert summary.counts.words_added == PILOT + FINALE + TOPIC
         assert summary.counts.words_removed == 3
@@ -99,53 +122,41 @@ class TestScopeOperationUseCase:
         assert (summary.skipped, summary.failed) == (0, 0)
 
     def test_a_recut_skips_the_sources_without_text_of_their_own(self) -> None:
-        self.rebuild.run.side_effect = lambda source_id, mode: RebuildSummaryDTO(
-            mode=mode, counts=_counts(source_id),
-        )
+        given = self._rebuilt()
 
         summary = self.use_case.rebuild(SourceScope.all(), RECUT)
 
-        assert [c.args for c in self.rebuild.run.call_args_list] == [
-            (PILOT, RECUT), (FINALE, RECUT),
-        ]
-        self.rebuild.start.assert_any_call(PILOT, RECUT, SourceOperationKind.RECUT)
+        assert given == [PILOT, FINALE]
+        assert summary is not None
         assert summary.mode is RECUT
 
     def test_a_source_is_a_set_of_one(self) -> None:
-        self.rebuild.run.return_value = RebuildSummaryDTO(mode=UPDATE, counts=_counts(5))
+        given = self._rebuilt()
 
         summary = self.use_case.rebuild(SourceScope.source(PILOT), UPDATE)
 
-        self.rebuild.start.assert_called_once_with(PILOT, UPDATE, SourceOperationKind.UPDATE)
-        assert summary == RebuildSummaryDTO(mode=UPDATE, counts=_counts(5))
-
-    def test_a_source_busy_at_its_turn_is_skipped_and_counted(self) -> None:
-        self.held[FINALE] = SourceOperationKind.PROCESS
-        self.rebuild.run.return_value = RebuildSummaryDTO(mode=UPDATE, counts=_counts(1))
-
-        summary = self.use_case.rebuild(SourceScope.all(), UPDATE)
-
-        assert [c.args[0] for c in self.rebuild.run.call_args_list] == [PILOT, TOPIC]
-        assert (summary.skipped, summary.failed) == (1, 0)
+        assert given == [PILOT]
+        assert summary == RebuildSummaryDTO(mode=UPDATE, counts=_counts(PILOT))
 
     def test_a_failed_source_is_counted_and_the_rest_go_on(self) -> None:
-        def run(source_id: int, mode: RebuildMode) -> RebuildSummaryDTO:
-            if source_id == PILOT:
-                raise RuntimeError("analysis broke")
-            return RebuildSummaryDTO(mode=mode, counts=_counts(1))
-
-        self.rebuild.run.side_effect = run
+        self._rebuilt(failing=frozenset({PILOT}))
 
         summary = self.use_case.rebuild(SourceScope.all(), UPDATE)
 
-        assert summary.counts.words_added == 2
+        assert summary is not None
+        assert summary.counts.words_added == FINALE + TOPIC
         assert (summary.skipped, summary.failed) == (0, 1)
 
     def test_the_operation_fails_when_every_source_failed(self) -> None:
-        self.rebuild.run.side_effect = RuntimeError("analysis broke")
+        self._rebuilt(failing=frozenset({PILOT, FINALE, TOPIC}))
 
         with pytest.raises(RuntimeError, match="analysis broke"):
             self.use_case.rebuild(SourceScope.all(), UPDATE)
+
+    def test_a_cancelled_rebuild_has_no_summary(self) -> None:
+        self.rebuild.rebuild.return_value = None
+
+        assert self.use_case.rebuild(SourceScope.all(), UPDATE) is None
 
     def test_a_preview_sums_the_sources_offering_the_mode(self) -> None:
         self.rebuild.run_preview.side_effect = lambda source_id, mode: RebuildPreviewDTO(
@@ -163,12 +174,19 @@ class TestScopeOperationUseCase:
         ]
 
     def test_a_refresh_runs_the_topics_of_the_set(self) -> None:
-        self.refresh.run.return_value = TopicRefreshSummaryDTO(words_added=2, phrases_added=5)
+        given: list[int] = []
 
-        refresh = self.use_case.refresh(SourceScope.all())
+        def refresh(targets: Callable[[], list[int]]) -> OperationResult[TopicRefreshSummaryDTO]:
+            given.extend(targets())
+            return OperationResult([TopicRefreshSummaryDTO(words_added=2, phrases_added=5)], [])
 
-        self.refresh.run.assert_called_once_with(TOPIC)
-        assert (refresh.words_added, refresh.phrases_added) == (2, 5)
+        self.refresh.refresh.side_effect = refresh
+
+        refreshed = self.use_case.refresh(SourceScope.all())
+
+        assert given == [TOPIC]
+        assert refreshed is not None
+        assert (refreshed.words_added, refreshed.phrases_added) == (2, 5)
 
     def test_a_set_without_a_source_offering_the_operation_cannot_start(self) -> None:
         with pytest.raises(RebuildNotSupportedError):

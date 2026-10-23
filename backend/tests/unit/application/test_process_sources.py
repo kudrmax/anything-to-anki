@@ -70,11 +70,11 @@ class TestProcessSources:
         assert self.use_case.pending_in(SourceScope.all()) == [1, 2, 4]
 
     def test_a_source_held_by_an_operation_is_not_pending(self) -> None:
-        self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.PROCESS)}
+        self.lock.operations.return_value = {1: HeldOperation(SourceOperationKind.PREVIEW)}
         assert self.use_case.pending_in(SourceScope.all()) == [2, 4]
 
-    def test_start_skips_sources_that_cannot_start(self) -> None:
-        self.process.take.side_effect = [SourceAlreadyProcessedError(1), None]
-        result = self.use_case.start([1, 2])
+    def test_the_check_skips_sources_that_cannot_be_processed(self) -> None:
+        self.process.check.side_effect = [SourceAlreadyProcessedError(1), None]
+        result = self.use_case.check([1, 2])
         assert result.started == [2]
         assert result.skipped == [1]

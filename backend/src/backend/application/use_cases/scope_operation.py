@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
     from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
     from backend.application.use_cases.refresh_topic import RefreshTopicUseCase
+    from backend.application.utils.long_operation_runner import OperationResult
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.unit_of_work import UnitOfWork
@@ -36,11 +37,13 @@ Result = TypeVar("Result")
 
 class ScopeOperationUseCase:
     """Update, Re-cut, their preview and Refresh over a set of sources; a source is a set of
-    one.
+    one. The sources offering the operation go in the set's order; one that fails is counted
+    and the rest go on. The results are summed; the operation fails only if every source
+    failed.
 
-    The sources offering the operation take their turns in the set's order: each is taken
-    only when its turn comes, one busy then is skipped, one that fails is counted and the
-    rest go on. The results are summed; the operation fails only if every source failed.
+    Update, Re-cut and Refresh are one long operation each, run once its lock is held. A
+    preview writes nothing: each source is taken only when its turn comes, and one busy then
+    is skipped.
     """
 
     def __init__(
@@ -78,21 +81,23 @@ class ScopeOperationUseCase:
         )
         return RebuildPreviewDTO.total(mode, previews, outcome)
 
-    def rebuild(self, scope: SourceScope, mode: RebuildMode) -> RebuildSummaryDTO:
-        operation = REBUILD_OPERATION[mode]
-        summaries, outcome = self._each(
-            scope, operation,
-            lambda source_id: self._rebuild_source.start(source_id, mode, operation),
-            lambda source_id: self._rebuild_source.run(source_id, mode),
+    def rebuild(self, scope: SourceScope, mode: RebuildMode) -> RebuildSummaryDTO | None:
+        """None when cancelled."""
+        result = self._rebuild_source.rebuild(
+            lambda: self._targets(scope, REBUILD_OPERATION[mode]), mode,
         )
-        return RebuildSummaryDTO.total(mode, summaries, outcome)
+        if result is None:
+            return None
+        return RebuildSummaryDTO.total(mode, result.results, _outcome(result))
 
-    def refresh(self, scope: SourceScope) -> TopicRefreshSummaryDTO:
-        refreshes, outcome = self._each(
-            scope, SourceOperationKind.REFRESH, self._refresh_topic.start,
-            self._refresh_topic.run,
+    def refresh(self, scope: SourceScope) -> TopicRefreshSummaryDTO | None:
+        """None when cancelled."""
+        result = self._refresh_topic.refresh(
+            lambda: self._targets(scope, SourceOperationKind.REFRESH),
         )
-        return TopicRefreshSummaryDTO.total(refreshes, outcome)
+        if result is None:
+            return None
+        return TopicRefreshSummaryDTO.total(result.results, _outcome(result))
 
     def _targets(self, scope: SourceScope, offered: SourceOperationKind) -> list[int]:
         return [
@@ -131,6 +136,13 @@ class ScopeOperationUseCase:
         if errors and len(errors) == len(targets):
             raise errors[0]
         return results, SetOutcomeDTO(skipped=skipped, failed=len(errors))
+
+
+def _outcome[R](result: OperationResult[R]) -> SetOutcomeDTO:
+    """Every source failed: the operation fails with the first error."""
+    if result.failures and not result.results:
+        raise result.failures[0][1]
+    return SetOutcomeDTO(skipped=0, failed=result.failed)
 
 
 def _not_supported(scope: SourceScope, kind: SourceOperationKind) -> DomainError:

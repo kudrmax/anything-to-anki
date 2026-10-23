@@ -32,12 +32,12 @@ BOOTSTRAP_BUILDS = BootstrapBuilds()
 
 
 class InProcessRunningOperations(RunningOperations):
-    """The long operations of this process: operations over sets of sources and the index
-    build. They all run in the API process, as the level change does."""
+    """What a long operation must not start beside, in this process: a preview of a set of
+    sources and the index build. Both run in the API process, as long operations do."""
 
     def __init__(self, operations: SourceOperationRegistry, builds: BootstrapBuilds) -> None:
         self._operations = operations
         self._builds = builds
 
     def any_running(self) -> bool:
-        return self._operations.any_running() or self._builds.running()
+        return self._operations.preview_running() or self._builds.running()

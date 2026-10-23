@@ -712,8 +712,8 @@ class Container:
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
             collected_phrases=self._collected_phrases(session),
             lock=SqlaSourceOperationLock(session),
-            unit_of_work=self._unit_of_work(session),
             rebuilder=self._source_rebuilder(session),
+            runner=self.long_operation_runner(session),
             topic_phrase_collector=self._topic_phrase_collector(session),
         )
 
@@ -723,6 +723,7 @@ class Container:
             lock=SqlaSourceOperationLock(session),
             unit_of_work=self._unit_of_work(session),
             rebuilder=self._source_rebuilder(session),
+            runner=self.long_operation_runner(session),
         )
 
     def refresh_topic_use_case(self, session: Session) -> RefreshTopicUseCase:
@@ -730,9 +731,9 @@ class Container:
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
             occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
             collected_phrases=self._collected_phrases(session),
-            lock=SqlaSourceOperationLock(session),
             unit_of_work=self._unit_of_work(session),
             collector=self._topic_phrase_collector(session),
+            runner=self.long_operation_runner(session),
         )
 
     def scope_operation_use_case(self, session: Session) -> ScopeOperationUseCase:

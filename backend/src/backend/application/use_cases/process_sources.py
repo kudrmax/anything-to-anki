@@ -26,9 +26,10 @@ logger = logging.getLogger(__name__)
 
 
 class ProcessSourcesUseCase:
-    """Starts processing of several sources: the chosen ones, or every pending one of a scope.
-    A source that can't start (missing, already started, busy, no topic targets) is
-    skipped. Every source is taken in one write: an unexpected failure takes none."""
+    """Which of several sources — the chosen ones, or every pending one of a scope — may be
+    processed: a source that can't (missing, already processed, busy, no topic targets) is
+    skipped. The rest are processed together by ProcessSourceUseCase.run, as one long
+    operation."""
 
     def __init__(
         self,
@@ -56,16 +57,16 @@ class ProcessSourcesUseCase:
             )
         ]
 
-    def start(self, source_ids: Sequence[int]) -> StartedSourcesDTO:
-        with self._unit_of_work.write():
-            return self._take(source_ids)
+    def check(self, source_ids: Sequence[int]) -> StartedSourcesDTO:
+        with self._unit_of_work.read():
+            return self._checked(source_ids)
 
-    def _take(self, source_ids: Sequence[int]) -> StartedSourcesDTO:
+    def _checked(self, source_ids: Sequence[int]) -> StartedSourcesDTO:
         started: list[int] = []
         skipped: list[int] = []
         for source_id in source_ids:
             try:
-                self._process_source.take(source_id)
+                self._process_source.check(source_id)
             except (
                 SourceNotFoundError,
                 SourceAlreadyProcessedError,

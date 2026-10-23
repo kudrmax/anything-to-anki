@@ -19,6 +19,8 @@ from backend.application.use_cases.process_source import ProcessSourceUseCase
 from backend.application.use_cases.rebuild_source import RebuildSourceUseCase
 from backend.application.use_cases.scope_operation import ScopeOperationUseCase
 from backend.application.utils.collected_phrases import CollectedPhrases
+from backend.application.utils.long_operation_progress import LongOperationProgress
+from backend.application.utils.long_operation_runner import LongOperationRunner
 from backend.application.utils.review_cards import ReviewCards
 from backend.application.utils.source_rebuilder import SourceRebuilder
 from backend.application.utils.source_scope_resolver import SourceScopeResolver
@@ -42,6 +44,7 @@ from backend.infrastructure.persistence.sqla_collection_repository import (
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
 from backend.infrastructure.persistence.sqla_job_repository import SqlaJobRepository
+from backend.infrastructure.persistence.sqla_long_operation_lock import SqlaLongOperationLock
 from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
@@ -54,7 +57,9 @@ from backend.infrastructure.persistence.sqla_unit_of_work import SqlaUnitOfWork
 from backend.infrastructure.persistence.sqla_word_state_repository import (
     SqlaWordStateRepository,
 )
+from backend.infrastructure.persistence.write_gate import OwnLongOperation
 from sqlalchemy import select, text
+from sqlalchemy.exc import OperationalError
 
 from tests.candidate_sorter_support import (
     candidate_sorter,
@@ -156,6 +161,7 @@ class Bench:
         self.sources = SqlaSourceRepository(session, SessionChangeRecorder(session))
         self.vocabulary = user_vocabulary()
         self.media_files = RemovedMediaFiles()
+        self.progress = LongOperationProgress()
 
     def rebuilder(self) -> SourceRebuilder:
         settings = SqlaSettingsRepository(self.session, SessionChangeRecorder(self.session))
@@ -176,12 +182,24 @@ class Bench:
             weight_unknown=WEIGHT_UNKNOWN,
         )
 
+    def runner(self) -> LongOperationRunner:
+        """Runs a long operation on the bench's session; nothing else writes in a test."""
+        return LongOperationRunner(
+            lock=SqlaLongOperationLock(self.session),
+            media_files=self.media_files,
+            unit_of_work=SqlaUnitOfWork(
+                self.session, self.vocabulary.scope, gate=OwnLongOperation(),
+            ),
+            progress=self.progress,
+        )
+
     def rebuild(self) -> RebuildSourceUseCase:
         return RebuildSourceUseCase(
             source_repo=self.sources,
             lock=self.lock,
             unit_of_work=SqlaUnitOfWork(self.session, self.vocabulary.scope),
             rebuilder=self.rebuilder(),
+            runner=self.runner(),
         )
 
     def scope_operation(
@@ -208,17 +226,14 @@ class Bench:
                 )),
             ),
             lock=self.lock,
-            unit_of_work=SqlaUnitOfWork(self.session, self.vocabulary.scope),
             rebuilder=self.rebuilder(),
+            runner=self.runner(),
         )
 
     def processed(self, *words: WordDTO) -> None:
         """The source processed with these words found in it."""
         self.analysis = list(words)
-        process = self.process()
-        process.start(SOURCE)
-        self.session.commit()
-        process.execute(SOURCE)
+        self.process().run([SOURCE])
 
     def phrases(self) -> list[PhraseModel]:
         self.session.expire_all()
@@ -295,8 +310,9 @@ class Bench:
 
 
 class SharedBench:
-    """A bench on a database file, so another session sees only what the bench committed;
-    `seen` holds what it saw of the source's operation each time the analysis ran."""
+    """A bench on a database file, so another session sees only what the bench committed.
+    Each time the analysis ran, `seen` holds what that session saw of the source's operation,
+    `phrases_seen` how many phrases it saw, and `free` whether it could write."""
 
     def __init__(self, path: Path) -> None:
         self._factory: sessionmaker[Session] = create_session_factory(
@@ -305,12 +321,16 @@ class SharedBench:
         Base.metadata.create_all(self._factory.kw["bind"])
         self.bench = Bench(self._factory())
         self.seen: list[HeldOperation | None] = []
+        self.phrases_seen: list[int] = []
+        self.free: list[bool] = []
         analyse = self.bench.analyze_text.execute.side_effect
 
         def look_then_analyse(
             document: Document, request: object, report: object = None,
         ) -> AnalyzeTextResponse:
             self.seen.append(self.held_elsewhere())
+            self.phrases_seen.append(self.phrases_elsewhere())
+            self.free.append(self.free_elsewhere())
             response: AnalyzeTextResponse = analyse(document, request, report)
             return response
 
@@ -319,6 +339,22 @@ class SharedBench:
     def held_elsewhere(self) -> HeldOperation | None:
         with self._factory() as other:
             return SqlaSourceOperationLock(other).operations().get(SOURCE)
+
+    def phrases_elsewhere(self) -> int:
+        with self._factory() as other:
+            return len(other.scalars(select(PhraseModel)).all())
+
+    def free_elsewhere(self) -> bool:
+        """Another session can take the database for a write at once."""
+        with self._factory() as other:
+            connection = other.connection()
+            connection.exec_driver_sql("PRAGMA busy_timeout = 0")
+            try:
+                connection.exec_driver_sql("BEGIN IMMEDIATE")
+            except OperationalError:
+                return False
+            connection.exec_driver_sql("ROLLBACK")
+            return True
 
     def close(self) -> None:
         self.bench.session.close()

@@ -1,40 +1,59 @@
 from __future__ import annotations
 
 import logging
+import traceback
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from backend.application.utils.long_operation_runner import Applied, SourceWork
 from backend.domain.exceptions import (
     SourceAlreadyProcessedError,
     SourceNotFoundError,
     SourceOperationBusyError,
     TopicTargetsMissingError,
 )
-from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.rebuild_mode import RebuildMode
-from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from backend.application.utils.collected_phrases import CollectedPhrases
-    from backend.application.utils.source_rebuilder import SourceRebuilder
+    from backend.application.utils.long_operation_runner import (
+        LongOperationRunner,
+        OperationResult,
+    )
+    from backend.application.utils.source_rebuilder import AnalysedSource, SourceRebuilder
     from backend.application.utils.topic_phrase_collector import TopicPhraseCollector
-    from backend.domain.entities.source import Source
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.source_repository import SourceRepository
-    from backend.domain.ports.unit_of_work import UnitOfWork
+    from backend.domain.services.long_operation_progress import PartReport
+    from backend.domain.value_objects.new_card import NewCard
 
 logger = logging.getLogger(__name__)
 
 _ALLOWED_START_STATUSES = frozenset({SourceStatus.NEW, SourceStatus.ERROR})
+# The tail of the traceback a failed processing leaves on its source.
+ERROR_DETAIL_LENGTH = 500
+
+
+@dataclass(frozen=True)
+class _Prepared:
+    """A text source analysed, or the phrases collected for a topic."""
+
+    source_id: int
+    analysed: AnalysedSource | None
+    collected: list[NewCard] | None
 
 
 class ProcessSourceUseCase:
-    """Processes a new source: a rebuild of a source with nothing in it yet.
+    """Processes new sources — a rebuild of a source with nothing in it yet — as one long
+    operation: all of them done in one write, or none.
 
-    `start` takes the source in a write of its own before `execute`, which frees it
-    whatever happens. The source's status stays its last outcome meanwhile: the lock is
-    what shows it is being processed and keeps other operations off it.
+    `check` tells whether a source may be processed, before the operation starts. `run`
+    processes, once the long operation lock is held. A source whose processing fails gets
+    its error in the same write; the others are done.
     """
 
     def __init__(
@@ -42,24 +61,19 @@ class ProcessSourceUseCase:
         source_repo: SourceRepository,
         collected_phrases: CollectedPhrases,
         lock: SourceOperationLock,
-        unit_of_work: UnitOfWork,
         rebuilder: SourceRebuilder,
+        runner: LongOperationRunner,
         topic_phrase_collector: TopicPhraseCollector | None = None,
     ) -> None:
         self._source_repo = source_repo
         self._collected_phrases = collected_phrases
         self._lock = lock
-        self._unit_of_work = unit_of_work
         self._rebuilder = rebuilder
+        self._runner = runner
         self._topic_phrase_collector = topic_phrase_collector
 
-    def start(self, source_id: int) -> None:
-        """Validate the source and take it. Call before launching the background task."""
-        with self._unit_of_work.write():
-            self.take(source_id)
-
-    def take(self, source_id: int) -> None:
-        """`start` for a use case that holds the write transaction itself."""
+    def check(self, source_id: int) -> None:
+        """Raises why the source cannot be processed now."""
         source = self._source_repo.get_by_id(source_id)
         if source is None:
             raise SourceNotFoundError(source_id)
@@ -67,8 +81,16 @@ class ProcessSourceUseCase:
             raise SourceAlreadyProcessedError(source_id)
         if source.role is SourceRole.TOPIC and not self._topic_ready(source_id):
             raise TopicTargetsMissingError(source_id)
-        if not self._lock.acquire(source_id, SourceOperationKind.PROCESS):
-            raise SourceOperationBusyError(source_id, self._lock.held(source_id))
+        held = self._lock.held(source_id)
+        if held is not None:
+            raise SourceOperationBusyError(source_id, held)
+
+    def run(self, source_ids: Sequence[int]) -> OperationResult[None] | None:
+        """Processes the sources in their order; None when cancelled or failed."""
+        return self._runner.run(_Processing(
+            list(source_ids), self._source_repo, self._collected_phrases, self._rebuilder,
+            self._topic_phrase_collector,
+        ))
 
     def _topic_ready(self, source_id: int) -> bool:
         return (
@@ -76,61 +98,62 @@ class ProcessSourceUseCase:
             and self._topic_phrase_collector.has_targets(source_id)
         )
 
-    def _notify_stage(self, source_id: int, stage: ProcessingStage) -> None:
-        """Shown at once; no transaction stays open into the work of the stage."""
-        logger.info(
-            "process_source: stage transition (source_id=%d, stage=%s)",
-            source_id, stage.value,
-        )
-        with self._unit_of_work.write():
-            self._lock.set_stage(source_id, stage)
 
-    def execute(self, source_id: int) -> None:
-        """Run the pipeline and save the results. Call in a background thread."""
-        logger.info("process_source: execute start (source_id=%d)", source_id)
-        try:
-            source = self._source_repo.get_by_id(source_id)
-            if source is None:
-                raise SourceNotFoundError(source_id)
-            if source.role is SourceRole.TOPIC:
-                self._process_topic(source)
-                return
-            self._notify_stage(source_id, ProcessingStage.ANALYZING_TEXT)
-            plan = self._rebuilder.apply(self._rebuilder.analyse(source_id), RebuildMode.UPDATE)
-        except BaseException:
-            self._release(source_id)
-            raise
-        self._release(source_id)
+class _Processing(SourceWork[_Prepared, None]):
+    """A text source is analysed and applied as an Update of an empty source; a topic gets
+    the phrases its targets have in the other sources."""
+
+    def __init__(
+        self,
+        source_ids: list[int],
+        source_repo: SourceRepository,
+        collected_phrases: CollectedPhrases,
+        rebuilder: SourceRebuilder,
+        collector: TopicPhraseCollector | None,
+    ) -> None:
+        self._source_ids = source_ids
+        self._source_repo = source_repo
+        self._collected_phrases = collected_phrases
+        self._rebuilder = rebuilder
+        self._collector = collector
+
+    def targets(self) -> list[int]:
+        return self._source_ids
+
+    def sizes(self, source_ids: Sequence[int]) -> dict[int, int]:
+        return self._rebuilder.sizes(source_ids)
+
+    def prepare(self, source_id: int, report: PartReport) -> _Prepared:
+        source = self._source_repo.get_by_id(source_id)
+        if source is None:
+            raise SourceNotFoundError(source_id)
+        if source.role is SourceRole.TOPIC:
+            if self._collector is None:
+                raise TopicTargetsMissingError(source_id)
+            collected = self._collector.collect(source_id)
+            report(1.0)
+            return _Prepared(source_id, None, collected)
+        return _Prepared(source_id, self._rebuilder.analyse(source_id, report=report), None)
+
+    def apply(self, prepared: _Prepared) -> Applied[None]:
+        if prepared.collected is not None:
+            created = self._collected_phrases.add(prepared.source_id, prepared.collected)
+            self._source_repo.update_status(prepared.source_id, SourceStatus.DONE)
+            logger.info(
+                "process_source: topic done (source_id=%d, phrases_created=%d)",
+                prepared.source_id, len(created),
+            )
+            return Applied(None, [])
+        assert prepared.analysed is not None
+        applied = self._rebuilder.apply_inside(prepared.analysed, RebuildMode.UPDATE)
         logger.info(
             "process_source: done (source_id=%d, words_created=%d, phrases_created=%d)",
-            source_id, len(plan.words_to_create), len(plan.occ_to_insert),
+            prepared.source_id, len(applied.plan.words_to_create),
+            len(applied.plan.occ_to_insert),
         )
+        return Applied(None, applied.dropped_files)
 
-    def fail(self, source_id: int, error: str, *, never_ran: bool) -> None:
-        """The processing failed with `error`: the source shows it. A source whose
-        `execute` never ran is still taken by `start`, and is freed here."""
-        with self._unit_of_work.write():
-            if never_ran:
-                self._lock.release(source_id)
-            self._source_repo.update_status(source_id, SourceStatus.ERROR, error_message=error)
-
-    def _release(self, source_id: int) -> None:
-        with self._unit_of_work.write():
-            self._lock.release(source_id)
-
-    def _process_topic(self, source: Source) -> None:
-        """Topics have no text to analyse: their phrases come from other sources. The source
-        is done and free in the same write."""
-        assert source.id is not None
-        if self._topic_phrase_collector is None:
-            raise TopicTargetsMissingError(source.id)
-        self._notify_stage(source.id, ProcessingStage.COLLECTING_PHRASES)
-        collected = self._topic_phrase_collector.collect(source.id)
-        with self._unit_of_work.write():
-            created = self._collected_phrases.add(source.id, collected)
-            self._source_repo.update_status(source.id, SourceStatus.DONE)
-            self._lock.release(source.id)
-        logger.info(
-            "process_source: topic done (source_id=%d, phrases_created=%d)",
-            source.id, len(created),
-        )
+    def failed(self, source_id: int, error: Exception) -> None:
+        """The source shows the tail of what went wrong."""
+        detail = "".join(traceback.format_exception(error))[-ERROR_DETAIL_LENGTH:]
+        self._source_repo.update_status(source_id, SourceStatus.ERROR, error_message=detail)

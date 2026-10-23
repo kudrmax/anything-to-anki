@@ -198,9 +198,9 @@ def test_a_failure_while_applying_rolls_everything_back(bench: _Bench) -> None:
 
     work.apply = broken_apply  # type: ignore[method-assign]
 
-    result = bench.runner.run(work)
+    with pytest.raises(RuntimeError, match="disk full"):
+        bench.runner.run(work)
 
-    assert result is None
     assert "rollback" in bench.log
     assert bench.log[-3:] == ["begin", "release", "commit"]
     status = bench.progress.status()
@@ -220,9 +220,9 @@ def test_a_source_that_fails_to_prepare_is_told_inside_the_same_write(bench: _Be
 
 
 def test_a_strict_operation_fails_whole_when_one_source_fails(bench: _Bench) -> None:
-    result = bench.runner.run(bench.work([1, 2], broken=frozenset({2}), strict=True))
+    with pytest.raises(ValueError, match="source 2 broke"):
+        bench.runner.run(bench.work([1, 2], broken=frozenset({2}), strict=True))
 
-    assert result is None
     assert "rollback" in bench.log
     assert bench.progress.status().error == "source 2 broke"
 

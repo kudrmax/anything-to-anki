@@ -181,11 +181,11 @@ def test_busy_source_refuses_the_change(
     assert client.patch("/api/settings", json={"anki_deck_name": "Free"}).status_code == 200
 
 
-def test_a_running_set_operation_refuses_the_change(
+def test_a_running_preview_refuses_the_change(
     client: TestClient, held: _HeldChange, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     registry = SourceOperationRegistry()
-    registry.started("all", SourceOperationKind.UPDATE)
+    registry.started("all", SourceOperationKind.PREVIEW)
     monkeypatch.setattr(source_operations.OPERATIONS, "_last", registry._last)
 
     response = client.patch("/api/settings", json={"cefr_level": "C1"})

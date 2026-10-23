@@ -53,12 +53,12 @@ class BackgroundLongOperationLauncher:
         self._spawn(lambda: self._run_logged(kind, run))
 
     def _run_logged(self, kind: LongOperationKind, run: Callable[[], None]) -> None:
-        """This only keeps a crash before the operation began from leaving the lock held and
-        the progress running."""
+        """An operation that failed has ended itself already; this keeps one that broke
+        before it began from leaving the lock held and the progress running."""
         try:
             run()
         except Exception as e:
-            logger.exception("long operation %s: could not run", kind.value)
+            logger.exception("long operation %s: failed", kind.value)
             try:
                 self._release()
             except Exception:

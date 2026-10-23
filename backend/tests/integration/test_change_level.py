@@ -17,6 +17,7 @@ from backend.application.utils.source_scope_resolver import SourceScopeResolver
 from backend.domain.exceptions import (
     LongOperationInProgressError,
     LongOperationRunningError,
+    SourceHasNoDocumentError,
     SourceOperationBusyError,
 )
 from backend.domain.ports.running_operations import RunningOperations
@@ -75,10 +76,7 @@ class World:
         session.commit()
         self.bench.analysis = [word("glare", at(0), at(1))]
         for source_id in (SOURCE, OTHER_SOURCE):
-            process = self.bench.process()
-            process.start(source_id)
-            session.commit()
-            process.execute(source_id)
+            self.bench.process().run([source_id])
         session.execute(text(f"UPDATE phrases SET earned_section = '{OLD_SECTION}'"))
         session.commit()
         self.settings = SqlaSettingsRepository(session, SessionChangeRecorder(session))
@@ -169,7 +167,10 @@ def test_failure_on_second_source_changes_nothing(world: World) -> None:
     def boom() -> None:
         raise RuntimeError("second source broke")
 
-    with _on_call(world.rebuilder, "apply_inside", 2, boom):  # type: ignore[attr-defined]
+    with (
+        _on_call(world.rebuilder, "apply_inside", 2, boom),  # type: ignore[attr-defined]
+        pytest.raises(RuntimeError, match="second source broke"),
+    ):
         world.change()
 
     assert world.unchanged()
@@ -302,7 +303,8 @@ def test_a_done_source_without_its_document_fails_the_whole_change(world: World)
     })
     world.session.commit()
 
-    world.change()
+    with pytest.raises(SourceHasNoDocumentError):
+        world.change()
 
     assert world.unchanged()
     assert world.progress.status().outcome is LongOperationOutcome.FAILED
