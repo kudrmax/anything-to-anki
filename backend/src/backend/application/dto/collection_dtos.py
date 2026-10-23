@@ -58,9 +58,9 @@ class ScopeCountsDTO(BaseModel):
     pending: int
     # The progress of all the scope's sources summed, as each source shows it.
     progress: ProgressDTO
-    # The scope read as one set under review, as a source reads: its status ('processing'
-    # while it is processed), whether there is something to process, whether it opens for
-    # review, how far the review got (0..1) and the line under the progress.
+    # The scope read as one set under review, as a source reads: its status, whether there
+    # is something to process, whether it opens for review, how far the review got (0..1)
+    # and the line under the progress.
     status: str
     can_process: bool
     can_review: bool

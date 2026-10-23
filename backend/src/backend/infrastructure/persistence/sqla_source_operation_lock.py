@@ -3,11 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CursorResult, delete, insert, select, update
+from sqlalchemy import CursorResult, delete, insert, select
 
 from backend.domain.ports.source_operation_lock import SourceOperationLock
 from backend.domain.value_objects.held_operation import HeldOperation
-from backend.domain.value_objects.processing_stage import ProcessingStage
 from backend.domain.value_objects.source_operation_kind import SourceOperationKind
 from backend.infrastructure.persistence.models import SourceOperationModel
 
@@ -42,28 +41,12 @@ class SqlaSourceOperationLock(SourceOperationLock):
         )
         return SourceOperationKind(kind) if kind is not None else None
 
-    def set_stage(self, source_id: int, stage: ProcessingStage) -> None:
-        self._session.execute(
-            update(SourceOperationModel)
-            .where(SourceOperationModel.source_id == source_id)
-            .values(stage=stage.value)
-        )
-        self._session.flush()
-
     def operations(self) -> dict[int, HeldOperation]:
         rows = self._session.execute(
-            select(
-                SourceOperationModel.source_id,
-                SourceOperationModel.kind,
-                SourceOperationModel.stage,
-            )
+            select(SourceOperationModel.source_id, SourceOperationModel.kind)
         ).all()
         return {
-            source_id: HeldOperation(
-                kind=SourceOperationKind(kind),
-                stage=ProcessingStage(stage) if stage is not None else None,
-            )
-            for source_id, kind, stage in rows
+            source_id: HeldOperation(kind=SourceOperationKind(kind)) for source_id, kind in rows
         }
 
     def clear_all(self) -> None:

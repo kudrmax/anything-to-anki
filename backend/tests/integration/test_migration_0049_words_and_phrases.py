@@ -561,7 +561,7 @@ def test_a_source_left_processing_is_new_again_and_no_stage_is_stored(db_url: st
     operation_columns = {
         c["name"] for c in inspect(create_engine(db_url)).get_columns("source_operations")
     }
-    assert "stage" in operation_columns
+    assert "stage" not in operation_columns, "0065 dropped the stage 0049 moved there"
 
 
 def test_a_stored_review_status_becomes_done_it_is_derived_on_read(db_url: str) -> None:

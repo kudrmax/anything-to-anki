@@ -692,8 +692,6 @@ class SourceOperationModel(Base):
         autoincrement=False,
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
-    # What a running process is doing now; other operations have no stages.
-    stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     started_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
 
 

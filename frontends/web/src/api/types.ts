@@ -1,6 +1,5 @@
 export type SourceStatus =
   | 'new'
-  | 'processing'
   | 'done'
   | 'error'
   | 'partially_reviewed'
@@ -10,8 +9,6 @@ export type SourceStatus =
 export type SourceKind = 'text' | 'book' | 'subtitles' | 'song'
 export type SourceRole = 'content' | 'topic' | 'saved_phrases'
 export type SourceFormat = 'plain' | 'markdown' | 'html' | 'epub' | 'srt' | 'video_file' | 'youtube'
-
-export type ProcessingStage = 'analyzing_text' | 'collecting_phrases'
 
 export type CandidateSortOrder = 'relevance' | 'chronological' | 'key_words'
 
@@ -128,7 +125,6 @@ export interface SourceSummary extends SetOffer {
   candidate_count: number
   learn_count: number
   progress: Progress
-  processing_stage: ProcessingStage | null
   collection_id: number | null
   collection_path: string[]
   stage: SourceStage
