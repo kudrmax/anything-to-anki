@@ -21,9 +21,9 @@ BENCH=<dir outside the repo>
 make bench-db EPUB=/Users/mdmkudryashov/Files/PocketBook/Books/Wildbow/Worm.epub CHAPTERS=25 OUT=$BENCH/worm-25.db
 make bench-db EPUB=... CHAPTERS=100 OUT=$BENCH/worm-100.db
 make bench-db EPUB=... CHAPTERS=0 OUT=$BENCH/worm-all.db
-make bench-review DB=$BENCH/worm-25.db  OUT=docs/specs/review-at-book-scale-bench/baseline-25.json PRESSES=200
-make bench-review DB=$BENCH/worm-100.db OUT=docs/specs/review-at-book-scale-bench/baseline-100.json PRESSES=200
-make bench-review DB=$BENCH/worm-all.db OUT=docs/specs/review-at-book-scale-bench/baseline-all.json PRESSES=10
+make bench-review DB=$BENCH/worm-25.db  OUT=internal/specs/review-at-book-scale-bench/baseline-25.json PRESSES=200
+make bench-review DB=$BENCH/worm-100.db OUT=internal/specs/review-at-book-scale-bench/baseline-100.json PRESSES=200
+make bench-review DB=$BENCH/worm-all.db OUT=internal/specs/review-at-book-scale-bench/baseline-all.json PRESSES=10
 ```
 
 The dev database already held an older "Worm" collection; `bench-db` removes it from the copy

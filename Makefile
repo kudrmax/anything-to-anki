@@ -229,11 +229,11 @@ _check_setup:
 	fi
 	@command -v ffmpeg >/dev/null || (echo "ERROR: ffmpeg not installed. Run 'make setup' first." && exit 1)
 
-##@ Установка
-setup: down setup-brew setup-media setup-python setup-frontend  ## Одноразовая установка зависимостей (brew, ffmpeg, Python, Node)
+##@ Setup
+setup: down setup-brew setup-media setup-python setup-frontend  ## One-time install of dependencies (brew, ffmpeg, Python, Node)
 	@echo "\n=== Setup complete. Run 'make up' to start. ==="
 
-setup-brew:  ## Установить brew-пакеты (uv, node, espeak)
+setup-brew:  ## Install brew packages (uv, node, espeak)
 	@echo "=== Checking brew dependencies ==="
 	@command -v brew >/dev/null || (echo "ERROR: Homebrew not installed. Install from https://brew.sh" && exit 1)
 	@for pkg in uv node espeak; do \
@@ -248,7 +248,7 @@ setup-brew:  ## Установить brew-пакеты (uv, node, espeak)
 # Подойдёт любой ffmpeg: webp кодирует Pillow, а не ffmpeg. Раньше здесь
 # требовалась сборка с libwebp — из-за этого setup упирался в часовую сборку
 # из исходников, а обновление homebrew/core ломало генерацию скриншотов.
-setup-media:  ## Проверить/установить ffmpeg
+setup-media:  ## Check for ffmpeg and install it if missing
 	@echo "=== Checking ffmpeg ==="
 	@if command -v ffmpeg >/dev/null 2>&1; then \
 	    echo "ffmpeg: already installed"; \
@@ -267,7 +267,7 @@ setup-media:  ## Проверить/установить ffmpeg
 # Модель spaCy ставится отдельно и в обход кэша pip: GitHub отдаёт её через
 # редирект на подписанный URL, и кэш pip на повторном запросе получает 304
 # с пустым телом — установка падает с «Wheel is invalid».
-setup-python:  ## Создать venv (если его нет) и поставить Python-зависимости
+setup-python:  ## Create the venv if missing and install Python dependencies
 	@echo "\n=== Installing Python dependencies ==="
 	@if [ ! -d .venv ]; then \
 	    echo "Creating venv..."; \
@@ -286,26 +286,30 @@ setup-python:  ## Создать venv (если его нет) и постави
 # Версии зафиксированы в $(LOCK_FILE), чтобы dev- и prod-копия ставили одно и
 # то же: без него каждая копия получала то, что было свежим в день установки.
 # Модель spaCy в lock не входит — она ставится выше по своему URL.
-lock: _check_setup  ## Зафиксировать версии Python-зависимостей из текущего venv
+lock: _check_setup  ## Pin Python dependency versions from the current venv
 	@.venv/bin/pip freeze --exclude-editable | grep -v "^$(SPACY_MODEL) @" > $(LOCK_FILE)
 	@echo "$(LOCK_FILE): $$(wc -l < $(LOCK_FILE) | tr -d ' ') packages pinned"
 
-setup-frontend:  ## Поставить зависимости фронтенда (npm install)
+setup-frontend:  ## Install frontend dependencies (npm install)
 	@echo "\n=== Installing frontend dependencies ==="
 	@cd frontends/web && npm install
 
-##@ Словари
+##@ Dictionaries
 _check_dictionaries_dir:
 	@if [ -z "$${DICTIONARIES_DIR}" ]; then \
 	    echo "ERROR: DICTIONARIES_DIR not set in .env. Set it to the path of your unified dictionaries folder."; \
 	    exit 1; \
 	fi
+	@if [ ! -d "$${DICTIONARIES_DIR}" ]; then \
+	    echo "ERROR: DICTIONARIES_DIR=$${DICTIONARIES_DIR} is not a folder. Set it in .env to an existing folder (an empty one works)."; \
+	    exit 1; \
+	fi
 
-dict-rebuild: _check_setup _check_dictionaries_dir  ## Пересобрать словарный кэш с нуля
+dict-rebuild: _check_setup _check_dictionaries_dir  ## Rebuild the dictionary cache from scratch
 	@rm -f $${DICTIONARIES_DIR}/.cache/dict.db 2>/dev/null || true
 	.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR}
 
-dict-update: _check_setup _check_dictionaries_dir  ## Обновить словарный кэш если JSON изменились
+dict-update: _check_setup _check_dictionaries_dir  ## Rebuild the dictionary cache if the JSON files changed
 	@.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR} --if-changed
 
 # Зависимости фронтенда ставятся заново, если package-lock.json новее установленных
@@ -315,8 +319,8 @@ define install_frontend_deps
 	@cd frontends/web && ( [ node_modules/.package-lock.json -nt package-lock.json ] || { echo "Installing frontend dependencies..."; npm ci --no-audit --no-fund; } )
 endef
 
-##@ Запуск (читает .env)
-up:  ## Запустить (ai_proxy + app + worker)
+##@ Run (reads .env)
+up:  ## Start (ai_proxy + app + worker)
 	$(call with_copy_lock,_up)
 
 _up: _check_env _check_setup dict-update
@@ -336,7 +340,7 @@ _up: _check_env _check_setup dict-update
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "\033[0m\n"
 
-up-worktree:  ## Запустить worktree (WORKTREE_PORT, сносит предыдущий)
+up-worktree:  ## Start this worktree (WORKTREE_PORT; stops the previous one)
 	$(call with_copy_lock,_up-worktree)
 
 _up-worktree: _check_env _check_setup dict-update
@@ -367,7 +371,7 @@ _up-worktree: _check_env _check_setup dict-update
 	@printf "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 	@printf "\033[0m\n"
 
-down:  ## Остановить
+down:  ## Stop
 	$(call with_copy_lock,_down)
 
 _down:
@@ -377,67 +381,67 @@ _down:
 	$(call kill_workers_of_this_copy)
 	$(call stop_ai_proxy)
 
-down-worktree:  ## Остановить worktree
+down-worktree:  ## Stop the worktree
 	$(call with_copy_lock,_down-worktree)
 
 _down-worktree:
 	$(call stop_worktree)
 
-logs:  ## Логи app + worker + ai_proxy одним потоком
+logs:  ## Logs of app + worker + ai_proxy in one stream
 	@trap 'kill 0' INT TERM; \
 	tail -F $(APP_LOG) 2>/dev/null | sed -l 's/^/app             | /' & \
 	tail -F $(WRK_LOG) 2>/dev/null | sed -l 's/^/worker          | /' & \
 	tail -F $(AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy        | /' & \
 	wait
 
-logs-worktree:  ## Логи worktree (app + worker + ai_proxy)
+logs-worktree:  ## Logs of the worktree (app + worker + ai_proxy)
 	@trap 'kill 0' INT TERM; \
 	tail -F .logs/app_wt.log 2>/dev/null | sed -l 's/^/app             | /' & \
 	tail -F .logs/worker_wt.log 2>/dev/null | sed -l 's/^/worker          | /' & \
 	tail -F $(AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy        | /' & \
 	wait
 
-##@ Разработка
-test: _check_setup dict-update  ## Запустить тесты
+##@ Development
+test: _check_setup dict-update  ## Run the tests
 	.venv/bin/python -m pytest
 
-coverage: _check_setup dict-update  ## Тесты с отчётом покрытия
+coverage: _check_setup dict-update  ## Run the tests with a coverage report
 	.venv/bin/python -m pytest --cov --cov-report=term
 
-test-ai: _check_setup  ## Интеграционные тесты AI (реальный ai_proxy + Claude API)
+test-ai: _check_setup  ## AI integration tests (real ai_proxy + Claude)
 	.venv/bin/python -m pytest -m ai_integration -v
 
-lint: _check_setup  ## Линтинг (ruff)
+lint: _check_setup  ## Lint (ruff)
 	.venv/bin/ruff check .
 
-typecheck: _check_setup  ## Проверка типов (mypy)
+typecheck: _check_setup  ## Type check (mypy)
 	.venv/bin/mypy backend/src
 
-##@ macOS-приложение
-app: _check_env  ## Собрать .app для этой копии и положить в ~/Applications
+##@ macOS app
+app: _check_env  ## Build the .app for this copy into ~/Applications
 	@frontends/macos/scripts/build-app.sh "$(CURDIR)" "$(PORT)" "$(INSTANCE_ENV_NAME)" "$(MENU_BAR_ICON)"
 
-test-macos:  ## Тесты macOS-оболочки
+test-macos:  ## Tests of the macOS app
 	swift test --package-path frontends/macos
 
-##@ Миграция
-migrate-paths: _check_setup  ## Перевести пути к медиа в БД на эту копию (dry-run, APPLY=1 для применения)
+##@ Migration
+migrate-paths: _check_setup  ## Point media paths in the DB to this copy (dry run; APPLY=1 applies)
 	.venv/bin/python scripts/relocate_media_paths.py $(if $(APPLY),--apply)
 
-card-states-check: _check_setup  ## Сравнить сохранённую проекцию карточек с полным расчётом (только чтение; истёкший 30-дневный таймер Anki — расхождение до тика времени) [DB=…]
+card-states-check: _check_setup  ## Compare stored card states with a full recalculation (read-only; an expired 30-day Anki timer differs until the next time tick) [DB=…]
 	.venv/bin/python scripts/card_states_check.py $(if $(DB),--db "$(DB)")
 
-##@ Бенчмарк (только копии БД)
-bench-db: _check_setup _check_dictionaries_dir  ## Собрать БД с книгой Worm: EPUB=… OUT=… [CHAPTERS=N, 0 = все] [WHOLE=1 — одним источником]
+##@ Benchmark (DB copies only)
+bench-db: _check_setup _check_dictionaries_dir  ## Build a DB with the book Worm: EPUB=… OUT=… [CHAPTERS=N, 0 = all] [WHOLE=1 — as one source]
 	@test -n "$(EPUB)" -a -n "$(OUT)" || { echo "usage: make bench-db EPUB=book.epub OUT=new.db [CHAPTERS=N]"; exit 1; }
 	.venv/bin/python -m scripts.bench.build_worm_db --epub "$(EPUB)" --out "$(OUT)" --chapters $(or $(CHAPTERS),0) $(if $(WHOLE),--whole)
 
-bench-review: _check_setup  ## Замерить обзор на копии БД: DB=… OUT=… [PRESSES=200]
+bench-review: _check_setup  ## Benchmark the review on a DB copy: DB=… OUT=… [PRESSES=200]
 	@test -n "$(DB)" -a -n "$(OUT)" || { echo "usage: make bench-review DB=bench.db OUT=result.json [PRESSES=N]"; exit 1; }
 	.venv/bin/python -m scripts.bench.bench_review --db "$(DB)" --out "$(OUT)" --presses $(or $(PRESSES),200)
 
-##@ Прочее
-help:  ## Показать доступные команды
+##@ Other
+help:  ## Show the available commands
 	@awk 'BEGIN {FS = ":.*##"; printf "\n"} \
 	  /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } \
 	  /^[a-zA-Z_-]+:.*##/ { printf "  %-14s %s\n", $$1, $$2 }' \

@@ -149,9 +149,10 @@ class AnkiNoteTypeIncompleteError(DomainError):
             if exists
             else "is not in Anki"
         )
+        fix = "Add missing fields" if exists else "Create note type"
         super().__init__(
             f"Note type «{note_type}» {problem}. Nothing was exported: these parts of "
-            "the cards would be lost. Add them in Settings → Anki → Create type."
+            f"the cards would be lost. Fix it in Settings → Anki → {fix}."
         )
         self.note_type = note_type
         self.missing_fields = missing_fields

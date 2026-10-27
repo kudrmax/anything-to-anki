@@ -95,6 +95,15 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 
 ---
 
+## Документация
+
+- Пользовательская документация — `README.md` и `docs/`, на английском. Это часть продукта.
+- Изменил фичу, настройку, make-команду, переменную `.env` или текст ошибки — обнови её страницу в `docs/` в той же ветке. Какая страница за что отвечает — таблица в `docs/development/contributing.md`.
+- Устаревший из-за изменения скриншот в `docs/images/` — переснять.
+- Спеки, планы, задачи, макеты и прочие рабочие заметки — в `internal/`, не в `docs/`.
+
+---
+
 ## Git и коммиты
 
 **Формат — conventional commits:** `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`. Subject ≤ 72 символов, imperative mood, без тикетов. Примеры из истории: `feat: sync translation and synonyms to Anki`, `refactor: remove prompt editor from frontend`.

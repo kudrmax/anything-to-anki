@@ -283,7 +283,7 @@ export function ReviewPrefs({ store, form }: SectionProps) {
 
 export function AiModel({ store, form }: SectionProps) {
   return (
-    <DividerRow last label="Claude" hint="Reserved for future AI-powered features.">
+    <DividerRow last label="Claude" hint="Model for meanings, phrase polish and topic words.">
       <Segmented value={form.ai_model} options={AI_MODELS} onChange={model => store.setField('ai_model', model)} />
     </DividerRow>
   )
