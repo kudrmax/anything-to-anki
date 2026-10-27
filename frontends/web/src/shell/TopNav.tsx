@@ -5,6 +5,7 @@ import css from './TopNav.module.css'
 
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
 const PROD_ENV = 'prod'
+export const SETTINGS_PATH = '/settings'
 
 type Section = 'sources' | 'export' | 'queue' | 'usage' | 'settings'
 
@@ -20,13 +21,13 @@ const MAIN: Destination[] = [
   { section: 'queue', label: 'Queue', path: '/queue' },
   { section: 'usage', label: 'Usage', path: '/usage' },
 ]
-const SETTINGS: Destination = { section: 'settings', label: 'Settings', path: '/settings' }
+const SETTINGS: Destination = { section: 'settings', label: 'Settings', path: SETTINGS_PATH }
 
 function sectionOf(pathname: string): Section {
   if (pathname.startsWith('/export')) return 'export'
   if (pathname.startsWith('/queue')) return 'queue'
   if (pathname.startsWith('/usage')) return 'usage'
-  if (pathname.startsWith('/settings') || pathname.startsWith('/calibrate')) return 'settings'
+  if (pathname.startsWith(SETTINGS_PATH) || pathname.startsWith('/calibrate')) return 'settings'
   return 'sources'
 }
 

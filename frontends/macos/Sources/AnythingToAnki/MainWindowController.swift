@@ -78,6 +78,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         webController.zoom(step)
     }
 
+    /// Cmd+,: opens the page's settings once the app is shown; the status screen has none.
+    func openSettings() {
+        guard status == nil else { return }
+        webController.openSettings()
+    }
+
     private func setContent(_ controller: NSViewController) {
         guard let window, window.contentViewController !== controller else { return }
         let frame = window.frame

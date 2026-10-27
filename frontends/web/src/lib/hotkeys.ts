@@ -67,3 +67,8 @@ export function isToolAction(action: ReviewAction): action is ToolAction {
 export function allowedInClozeMarkup(action: ReviewAction): boolean {
   return ALLOWED_IN_CLOZE_MARKUP.includes(action)
 }
+
+/** ⌘, (Ctrl+, вне macOS) открывает настройки, как в любом приложении. */
+export function opensSettings(e: KeyLike & { shiftKey: boolean }): boolean {
+  return e.code === 'Comma' && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && !e.repeat
+}

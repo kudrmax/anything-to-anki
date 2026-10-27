@@ -46,5 +46,6 @@ The phrase goes to the built-in **Saved phrases** source, and the word is marked
 
 ## Other features
 
+- **Settings** with `⌘,`, also in the app menu.
 - **Zoom** with `⌘+`, `⌘-` and `⌘0`.
 - **Reload** with `⌘R`.
