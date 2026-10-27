@@ -20,19 +20,23 @@ The source appears in the list with **Not processed yet**.
 
 Press **Process** on the source. An overlay shows the progress. For an article this takes a few seconds.
 
-When it is done, the source shows how many phrases it has, and a **Review** button.
+When it is done, the source shows how many phrases are ready, and a **Review** button.
+
+If it says **Nothing ready** and shows **Open**, the text has no phrase where the target is the only new word. This is common for short or hard texts. The cards are still there, in the **Extra** section of the Review screen.
 
 ## 4. Generate meanings
 
-1. Press **Review**. The Review screen opens on the first card.
+1. Press **Review** (or **Open**). The Review screen opens on the first card.
 2. Open the **✨** menu in the header.
-3. Choose **Phrases → Ready: generate missing**. AI rewrites long, hard sentences into short, simple ones.
-4. Choose **Meanings → Ready: generate missing**.
-5. Choose **Speech → Ready: generate missing** to have the phrases read aloud.
+3. Choose **Phrases → All: generate missing**. AI rewrites long, hard sentences into short, simple ones.
+4. Choose **Meanings → All: generate missing**.
+5. Choose **Speech → All: generate missing** to have the phrases read aloud.
 
 Jobs run in the order you start them. Start **Phrases** before **Meanings**: a phrase that gets simplified later loses its meaning and needs a new one.
 
 Meanings arrive within a minute or two, card by card. You can start reviewing right away.
+
+For a whole book, use **Ready: generate missing** instead: it covers only the best phrases and uses much less of your Claude plan.
 
 ## 5. Review
 
@@ -42,7 +46,7 @@ For each card, read the phrase and its meaning, then decide:
 - **Know** (`K`): you already know it; it won't be suggested again.
 - **Skip** (`S`): not this phrase, maybe another one.
 
-Start with the **Ready** section: phrases where the target is the only new word. See [Reviewing cards](../guide/review.md) for everything else a card can do.
+Start with the **Ready** section: phrases where the target is the only new word. Then open **Extra** below it for phrases with more new words. See [Reviewing cards](../guide/review.md) for everything else a card can do.
 
 ## 6. Send to Anki
 
