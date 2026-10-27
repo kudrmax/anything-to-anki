@@ -70,6 +70,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    @objc func openSettings(_ sender: Any?) {
+        openMainWindow(nil)
+        windowController?.openSettings()
+    }
+
     @objc func reloadPage(_ sender: Any?) {
         windowController?.reload()
     }

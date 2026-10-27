@@ -3,6 +3,8 @@ import LauncherCore
 import WebKit
 
 final class WebViewController: NSViewController {
+    static let openSettingsEvent = "nativeopensettings"
+
     var onLoadFailed: ((String) -> Void)?
 
     private let config: AppConfig
@@ -45,6 +47,17 @@ final class WebViewController: NSViewController {
 
     func zoom(_ step: PageZoom.Step) {
         webView.pageZoom = pageZoom.apply(step)
+    }
+
+    /// The page owns its routes, so the menu only tells it to open settings.
+    func openSettings() {
+        guard webView.url.map(config.isAppURL) == true else { return }
+        webView.callAsyncJavaScript(
+            "window.dispatchEvent(new CustomEvent(name))",
+            arguments: ["name": Self.openSettingsEvent],
+            in: nil,
+            in: .page
+        )
     }
 
     func observeBackground(_ apply: @escaping (NSColor) -> Void) -> NSKeyValueObservation {

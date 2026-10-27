@@ -1,6 +1,6 @@
 # Settings
 
-Open **Settings** in the top right corner. The sections are listed on the left.
+Open **Settings** in the top right corner, or press `⌘,` (`Ctrl+,` outside macOS) on any screen. The sections are listed on the left.
 
 **Save settings** saves the whole form, not only the open section. Theme, auto-play, usage priority and the word lists are saved at once, without the button.
 

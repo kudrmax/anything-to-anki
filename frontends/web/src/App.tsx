@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { AppShell, ErrorBoundary } from '@/shell'
+import { AppShell, ErrorBoundary, SETTINGS_PATH } from '@/shell'
 import { SourcesScreen } from '@/screens/sources/SourcesScreen'
 import { ReviewScreen } from '@/screens/review/ReviewScreen'
 import { ExportScreen } from '@/screens/export/ExportScreen'
@@ -19,7 +19,7 @@ export function App() {
           <Route path="/add" element={<Navigate to="/" replace />} />
           <Route path="/sources/:id/review" element={<OldSourceReview />} />
           <Route path="/sources/:id/export" element={<OldSourceExport />} />
-          <Route path="/settings" element={<ErrorBoundary><SettingsScreen /></ErrorBoundary>} />
+          <Route path={SETTINGS_PATH} element={<ErrorBoundary><SettingsScreen /></ErrorBoundary>} />
           <Route path="/calibrate" element={<ErrorBoundary><CalibrateScreen /></ErrorBoundary>} />
           <Route path="/queue" element={<ErrorBoundary><QueueScreen /></ErrorBoundary>} />
           <Route path="/usage" element={<ErrorBoundary><UsageScreen /></ErrorBoundary>} />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allowedInClozeMarkup, isToolAction, reviewAction } from './hotkeys'
+import { allowedInClozeMarkup, isToolAction, opensSettings, reviewAction } from './hotkeys'
 
 const press = (code: string, target: EventTarget | null = document.body, mods = {}) =>
   reviewAction({ code, metaKey: false, ctrlKey: false, altKey: false, repeat: false, target, ...mods })
@@ -96,5 +96,24 @@ describe('allowedInClozeMarkup', () => {
     expect(allowedInClozeMarkup('next')).toBe(false)
     expect(allowedInClozeMarkup('cloze')).toBe(false)
     expect(allowedInClozeMarkup('edit')).toBe(false)
+  })
+})
+
+describe('opensSettings', () => {
+  const press = (mods: Partial<{ metaKey: boolean, ctrlKey: boolean, altKey: boolean, shiftKey: boolean, repeat: boolean }>, code = 'Comma') =>
+    opensSettings({ code, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, repeat: false, target: document.body, ...mods })
+
+  it('opens settings on ⌘, and Ctrl+,', () => {
+    expect(press({ metaKey: true })).toBe(true)
+    expect(press({ ctrlKey: true })).toBe(true)
+  })
+  it('ignores a bare comma, other keys and extra modifiers', () => {
+    expect(press({})).toBe(false)
+    expect(press({ metaKey: true }, 'Period')).toBe(false)
+    expect(press({ metaKey: true, shiftKey: true })).toBe(false)
+    expect(press({ metaKey: true, altKey: true })).toBe(false)
+  })
+  it('does not repeat while the key is held', () => {
+    expect(press({ metaKey: true, repeat: true })).toBe(false)
   })
 })

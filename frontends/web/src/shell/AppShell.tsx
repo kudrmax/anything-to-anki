@@ -4,10 +4,12 @@ import { useApplyTheme } from '@/lib/theme'
 import { TopNav } from './TopNav'
 import { AnkiProblemsBanner } from './AnkiProblemsBanner'
 import { LongOperationOverlay } from './LongOperationOverlay'
+import { useSettingsShortcut } from './useSettingsShortcut'
 import css from './AppShell.module.css'
 
 export function AppShell() {
   useApplyTheme()
+  useSettingsShortcut()
   return (
     <div className={css.shell}>
       <TopNav />

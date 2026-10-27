@@ -2,6 +2,7 @@
 export const PICK_FILE_HANDLER = 'pickFile'
 export const CLOSE_QUICK_ADD_HANDLER = 'closeQuickAdd'
 export const FILE_DROP_EVENT = 'nativefiledrop'
+export const OPEN_SETTINGS_EVENT = 'nativeopensettings'
 
 interface ReplyHandler {
   postMessage(body: unknown): Promise<unknown>
@@ -61,4 +62,10 @@ export function quickAddPanel(win: Window = window): QuickAddPanel | null {
       void handler.postMessage(null)
     },
   }
+}
+
+/** Calls back when the macOS app's Settings… menu item (⌘,) is chosen; returns the unsubscribe. */
+export function onNativeOpenSettings(listener: () => void, win: Window = window): () => void {
+  win.addEventListener(OPEN_SETTINGS_EVENT, listener)
+  return () => win.removeEventListener(OPEN_SETTINGS_EVENT, listener)
 }
