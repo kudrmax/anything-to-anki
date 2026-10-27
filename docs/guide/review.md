@@ -18,7 +18,7 @@ The phrase is at the top, with the target in bold. Below it, the left column hol
 - **Translation**: a short translation of the target in this context. The translation is into **Russian**; to change the language, see [Configuration](../reference/configuration.md#translation-language).
 - **Context**: what is going on in the phrase, retold in simple English.
 - **Video frame and clip** (video sources only): a screenshot and the audio of the phrase, cut from the video. ▶ plays it.
-- **Picture** of the word, if you added one, and **Suggested pictures · click to add** if you didn't.
+- **Picture** of the word, if you added one. Otherwise, **Suggested pictures · click to add** shows the first results of a picture search; the Picture icon in the header turns them off.
 
 The right column holds reference material:
 
@@ -93,6 +93,8 @@ Each item has a submenu:
 - **Retry failed** and **Cancel**.
 - For YouTube sources, **Download video** downloads the video before media can be cut from it.
 
+![The Generate menu with the Meanings submenu open](../images/review-generate.png)
+
 Generation runs in the background, and you can keep reviewing meanwhile. Cards fill in as results arrive. Progress and failures are on the [Queue](queue-and-usage.md#queue) screen.
 
 A typical flow: process a source, then run **Meanings → Ready: generate missing** (and **Phrases** for books and articles), then review.
@@ -144,7 +146,21 @@ The panel on the right shows the source text, with every target marked. The curr
 - **Select text** to add a word the app missed. Tap the words that make up the target, then press **Add word**. The selection becomes the card's phrase.
 - **Edit → Change boundary** uses the same panel: select the new phrase, then press **Set boundary**.
 
-The header buttons show and hide the source text, the phrase list and picture suggestions.
+## Layout
+
+The icons in the header, left of **Export**, change what the screen shows:
+
+| Icon | What it does |
+|---|---|
+| Sort | Opens the [sort menu](#sorting) |
+| ✨ | Opens the [Generate menu](#generating-card-content) |
+| Picture | Shows or hides **Suggested pictures** on cards |
+| List | Shows or hides the phrase list under the card |
+| Panel | Shows or hides the source text on the right |
+
+With the phrase list and the source text hidden, only the current card is left. Move between cards with the arrows. The app remembers the layout.
+
+![Review with the phrase list and the source text hidden](../images/review-focus.png)
 
 ## Keyboard shortcuts
 

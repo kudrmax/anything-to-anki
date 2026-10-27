@@ -16,7 +16,13 @@ Everything runs locally on your Mac. AI features use your own [Claude Code](http
 
 2. **Process it.** The app splits the text into phrases and picks the targets that are new to you. It decides by your level, by the words you already know, and by how common each word is.
 3. **Generate the cards.** AI writes a meaning, a translation, synonyms and examples, and can simplify hard sentences. Video sources get a screenshot and an audio clip of the phrase; other sources get the phrase read aloud.
-4. **Review.** Decide card by card: **Learn**, **Cloze**, **Know** or **Skip**. The phrases where only the target is new come first.
+
+   ![Generate menu](docs/images/review-generate.png)
+
+4. **Review.** Decide card by card: **Learn**, **Cloze**, **Know** or **Skip**. The phrases where only the target is new come first. Hide the phrase list and the source text to see just the card.
+
+   ![Review with only the card shown](docs/images/review-focus.png)
+
 5. **Export to Anki.** One click sends the cards, with their media, to Anki.
 
    ![Export](docs/images/export.png)

@@ -2,8 +2,6 @@
 
 Open **Settings** in the top right corner. The sections are listed on the left.
 
-![Settings screen](../images/settings.png)
-
 **Save settings** saves the whole form, not only the open section. Theme, auto-play, usage priority and the word lists are saved at once, without the button.
 
 ## Appearance
