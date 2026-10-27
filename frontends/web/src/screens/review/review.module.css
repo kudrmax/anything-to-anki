@@ -206,3 +206,13 @@
 .phoneProgress { display: var(--phone-flex); flex-basis: 100%; order: 1; margin-top: var(--s2); }
 .phoneProgress > * { flex: 1; }
 .iconTrigger:hover:not(:disabled) kbd { background: var(--soft); }
+
+/* незнакомые слова: отмечаются прямо в тексте фразы */
+.unknown { display: flex; flex-direction: column; gap: var(--s4); width: var(--polish-pop); padding: var(--s3); }
+.unknownHint { margin: 0; font-size: var(--fs-s); color: var(--tx3); }
+.unknownPhrase { margin: 0; font-size: var(--fs-l); line-height: var(--lh-loose); overflow-wrap: anywhere; }
+.unknownWord { margin: 0 calc(var(--s1) * -1); padding: var(--s1) var(--s2); border-radius: var(--r-s); font: inherit; color: var(--tx); cursor: pointer; transition: background var(--t), color var(--t); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.unknownWord:hover { background: var(--hover); }
+.unknownTarget { text-decoration: underline; text-decoration-color: var(--ac); text-decoration-thickness: var(--underline); text-underline-offset: var(--s2); }
+.unknownPicked { color: var(--ac); background: var(--ac-wash); }
+.unknownWord.unknownPicked:hover { background: var(--ac-tint); }

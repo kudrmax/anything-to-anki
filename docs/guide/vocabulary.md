@@ -29,7 +29,7 @@ Words you marked **Learn** or **Cloze** are **learning**. They are not suggested
 
 ## Unknown words
 
-**Unknown words** are the opposite of known words: words you told the app you don't know. You add them with **Report → More than one unknown word** on a card. A phrase that contains an unknown word (other than its target) never counts as **Ready**. Manage the list in **Settings → Unknown words**.
+**Unknown words** are the opposite of known words: words you told the app you don't know. You add them with the **Unknown words** button (`U`) on a card. A phrase that contains an unknown word (other than its target) never counts as **Ready**. Manage the list in **Settings → Unknown words**.
 
 ## Frequent words
 

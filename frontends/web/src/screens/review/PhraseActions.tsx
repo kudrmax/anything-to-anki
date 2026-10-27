@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, Check, Clapperboard, Crosshair, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Check, Clapperboard, Crosshair, Feather, Flag, HelpCircle, Highlighter, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { ButtonCommand, CardButton, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
 import { KEY_LABEL, OVERLAY, toolKey, type ToolAction } from '@/lib/hotkeys'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
-import { phraseWordTexts } from '@/lib/text/phraseParts'
 import { toggled } from '@/lib/text/words'
-import { Button, Field, Icon, IconButton, Menu, Spinner, Text, WordPicker, Kbd, type MenuHandle, type MenuItem, type MenuPage } from '@/ui'
+import { Button, Field, Icon, IconButton, Menu, Spinner, Kbd, type MenuHandle, type MenuItem, type MenuPage } from '@/ui'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
+import { UnknownWordsPicker } from './UnknownWordsPicker'
 import type { Review } from './useReview'
 import css from './review.module.css'
 
@@ -17,8 +17,6 @@ const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string; icon: LucideIc
   { action: 'explain_simpler', label: 'Explain simpler', icon: Feather },
   { action: 'how_to_say', label: 'How to say it', icon: MessageCircle },
 ]
-
-const UNKNOWN_WORDS_HINT = 'Tap the words you don\'t know'
 
 const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string; primary: boolean }> = {
   learn: { label: 'Learn', kbd: KEY_LABEL.learn, primary: true },
@@ -118,26 +116,31 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
 
   const toggleReason = (reason: string) =>
     setReasons(prev => (prev.includes(reason) ? prev.filter(r => r !== reason) : [...prev, reason]))
-  // Причина, под которой отмечают незнакомые слова фразы: слова выбираются, только пока она выбрана.
-  const picksWords = review.reportReasons.some(reason => reason.picks_words && reasons.includes(reason.label))
-  const pickedUnknown = picksWords ? [...unknownWords].sort((a, b) => a - b) : []
   const canSend = reasons.length > 0 || complaint.trim().length > 0
   // Меню закрывается сразу, жалоба уходит в фоне; не дошла — выбранное возвращается, ошибку покажет тост.
   const sendReport = async (close: () => void) => {
     if (!canSend) return
-    const sent = { reasons, complaint, unknownWords }
+    const sent = { reasons, complaint }
     setReasons([])
     setComplaint('')
-    setUnknownWords(new Set())
     close()
-    if (!(await review.report(id, sent.reasons, sent.complaint.trim(), pickedUnknown))) {
+    if (!(await review.report(id, sent.reasons, sent.complaint.trim()))) {
       setReasons(sent.reasons)
       setComplaint(sent.complaint)
-      setUnknownWords(sent.unknownWords)
     }
   }
+  // Незнакомые слова уходят жалобой с причиной, под которой их отмечают; у неё своя кнопка, а не пункт флага.
+  const unknownWordsReason = review.reportReasons.find(reason => reason.picks_words)
+  const sendUnknownWords = async (close: () => void) => {
+    if (unknownWords.size === 0) return
+    const sent = unknownWords
+    setUnknownWords(new Set())
+    close()
+    const reasons = unknownWordsReason ? [unknownWordsReason.label] : []
+    if (!(await review.report(id, reasons, '', [...sent].sort((a, b) => a - b)))) setUnknownWords(sent)
+  }
   const report: MenuPage = {
-    items: review.reportReasons.map(reason => ({
+    items: review.reportReasons.filter(reason => !reason.picks_words).map(reason => ({
       label: reason.label,
       selected: reasons.includes(reason.label),
       keepOpen: true,
@@ -145,12 +148,6 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
     })),
     footer: close => (
       <div className={css.reportFooter}>
-        {picksWords && (
-          <>
-            <Text tone="muted" size="s">{UNKNOWN_WORDS_HINT}</Text>
-            <WordPicker words={phraseWordTexts(candidate.phrase)} selected={unknownWords} onToggle={i => setUnknownWords(prev => toggled(prev, i))} />
-          </>
-        )}
         <Field
           value={complaint}
           placeholder="Describe the problem…"
@@ -216,11 +213,12 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
 
   const editMenu = useRef<MenuHandle>(null)
   const regenerateMenu = useRef<MenuHandle>(null)
+  const unknownMenu = useRef<MenuHandle>(null)
   const reportMenu = useRef<MenuHandle>(null)
   const markingCloze = review.clozeEditingId === id
   const imageBusy = busy.image
   useEffect(() => {
-    const menus = { edit: editMenu, regenerate: regenerateMenu, report: reportMenu }
+    const menus = { edit: editMenu, regenerate: regenerateMenu, unknown: unknownMenu, report: reportMenu }
     const isOpen = (tool: ToolAction) => (tool === 'image' ? pickingImage : Boolean(menus[tool].current?.isOpen()))
     const toggle = (tool: ToolAction) => {
       if (tool === 'image') setPickingImage(open => !open && !imageBusy)
@@ -253,6 +251,19 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
       <IconButton icon={ImagePlus} label="Choose a picture of the word" kbd={KEY_LABEL.image} busy={busy.image} onClick={() => setPickingImage(true)} />
       <Menu ref={editMenu} items={editItems} trigger={menuTrigger(Pencil, 'Edit phrase', 'edit', false)} />
       <Menu ref={regenerateMenu} items={regenerateItems} trigger={menuTrigger(RefreshCw, 'Regenerate', 'regenerate', regenerating)} />
+      <Menu
+        ref={unknownMenu}
+        items={[]}
+        footer={close => (
+          <UnknownWordsPicker
+            phrase={candidate.phrase}
+            selected={unknownWords}
+            onToggle={word => setUnknownWords(prev => toggled(prev, word))}
+            onSend={() => void sendUnknownWords(close)}
+          />
+        )}
+        trigger={menuTrigger(Highlighter, 'Mark words you don\'t know', 'unknown', false)}
+      />
       <Menu
         ref={reportMenu}
         items={report.items}

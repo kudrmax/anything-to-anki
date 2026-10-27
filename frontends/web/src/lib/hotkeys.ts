@@ -2,24 +2,24 @@ export type ReviewAction =
   | 'prev' | 'next'
   | 'learn' | 'cloze' | 'known' | 'skip'
   | 'audio'
-  | 'image' | 'edit' | 'regenerate' | 'report'
+  | 'image' | 'edit' | 'regenerate' | 'unknown' | 'report'
 
-export type ToolAction = Extract<ReviewAction, 'image' | 'edit' | 'regenerate' | 'report'>
+export type ToolAction = Extract<ReviewAction, 'image' | 'edit' | 'regenerate' | 'unknown' | 'report'>
 
 /** Клавиши — по физическому положению (KeyboardEvent.code), чтобы работали в любой раскладке. */
 const KEYS: Record<string, ReviewAction> = {
   ArrowUp: 'prev', ArrowLeft: 'prev', ArrowDown: 'next', ArrowRight: 'next',
   KeyL: 'learn', Space: 'learn', KeyC: 'cloze', KeyK: 'known', KeyS: 'skip',
   KeyA: 'audio',
-  KeyI: 'image', KeyE: 'edit', KeyR: 'regenerate', KeyF: 'report',
+  KeyI: 'image', KeyE: 'edit', KeyR: 'regenerate', KeyU: 'unknown', KeyF: 'report',
 }
 /** Как клавиша действия подписана на кнопке. */
 export const KEY_LABEL: Record<Exclude<ReviewAction, 'prev' | 'next'>, string> = {
   learn: 'L', cloze: 'C', known: 'K', skip: 'S',
   audio: 'A',
-  image: 'I', edit: 'E', regenerate: 'R', report: 'F',
+  image: 'I', edit: 'E', regenerate: 'R', unknown: 'U', report: 'F',
 }
-const TOOLS: ReviewAction[] = ['image', 'edit', 'regenerate', 'report']
+const TOOLS: ReviewAction[] = ['image', 'edit', 'regenerate', 'unknown', 'report']
 export const OVERLAY = '[role="dialog"], [role="menu"]'
 const TYPING = 'input, textarea, select, [contenteditable="true"]'
 const BLOCKING = `${TYPING}, ${OVERLAY}`

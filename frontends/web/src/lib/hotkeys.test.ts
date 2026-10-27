@@ -27,6 +27,7 @@ describe('reviewAction', () => {
     expect(press('KeyI')).toBe('image')
     expect(press('KeyE')).toBe('edit')
     expect(press('KeyR')).toBe('regenerate')
+    expect(press('KeyU')).toBe('unknown')
     expect(press('KeyF')).toBe('report')
   })
   it('ignores the old digit keys and other keys', () => {
