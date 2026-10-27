@@ -145,7 +145,7 @@ Phrasal verbs закрыты, коллокации (`make a decision`, `strong c
 
 - **Anki-интеграция полностью однонаправленная.** Push есть, pull нет. Блокирует п.2 и п.12 — обе требуют `AnkiConnectReader` адаптера. Реализовать один раз под обе фичи.
 - **Field mapping в settings уже есть.** `manage_settings.py` умеет настраивать имена Anki-полей → архитектура к гибкости готова.
-- **Нет retry logic в arq-jobs.** Если AI-генерация или ffmpeg-extract упадёт — кандидат остаётся в `failed`, ручное вмешательство. Связано с задачей по логированию из `TASKS.md`.
+- **Нет retry logic в arq-jobs.** Если AI-генерация или ffmpeg-extract упадёт — кандидат остаётся в `failed`, ручное вмешательство. Связано с задачей по логированию из `internal/TASKS.md`.
 
 ---
 

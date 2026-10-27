@@ -25,3 +25,4 @@ htmlcov/
 /.DS_Store
 dictionaries/.cache/
 dictionaries_backup_*/
+/internal/plans

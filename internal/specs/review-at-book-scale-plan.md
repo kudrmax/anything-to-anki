@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12, SQLAlchemy 2, SQLite, Alembic, FastAPI, hypothesis (новая dev-зависимость), React + TypeScript.
 
-**Spec:** `docs/specs/review-at-book-scale.md` (коммит `9357da32`).
+**Spec:** `internal/specs/review-at-book-scale.md` (коммит `9357da32`).
 
 ## Как устроен этот план
 
@@ -49,7 +49,7 @@
 - Modify: `Makefile` — цели `bench-db` (`EPUB=… CHAPTERS=… OUT=…`) и `bench-review` (`DB=… OUT=…`). Обе работают с копией, а не с `data/`.
 
 - [ ] Собрать копии: 25 глав, 100 глав, вся книга.
-- [ ] Снять исходные цифры на нынешнем коде; сохранить JSON в `docs/specs/review-at-book-scale-bench/baseline.json`.
+- [ ] Снять исходные цифры на нынешнем коде; сохранить JSON в `internal/specs/review-at-book-scale-bench/baseline.json`.
 - [ ] Коммит: `chore: worm bench database and review benchmark`.
 
 ## Этап 1. Единственный путь коммита (пошагово — ниже)
@@ -271,7 +271,7 @@
 - [ ] **Скорость сервера** (`make bench-review`, 200 нажатий по случайным леммам).
 - [ ] **Скорость в браузере:** 30 нажатий подряд, от клавиши до отрисовки следующей карточки; открытие ревью; подгрузка куска при прокрутке.
 - [ ] **Тяжёлые операции:** Rebuild главы при открытом ревью; смена уровня; запуск приложения.
-- [ ] Записать цифры в `docs/specs/review-at-book-scale-bench/final.json` и таблицу «было / стало» в этот план.
+- [ ] Записать цифры в `internal/specs/review-at-book-scale-bench/final.json` и таблицу «было / стало» в этот план.
 
 **Пороги «ок»:**
 

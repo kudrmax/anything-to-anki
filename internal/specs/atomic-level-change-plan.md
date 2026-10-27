@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12, SQLAlchemy, SQLite (WAL), FastAPI, Alembic; React + TS (Vite).
 
-**Spec:** `docs/specs/atomic-level-change.md`
+**Spec:** `internal/specs/atomic-level-change.md`
 
 ## Global Constraints
 
@@ -122,7 +122,7 @@
 
 ### Task 8: Measure and verify
 
-- [ ] `make bench-db EPUB=… CHAPTERS=0 OUT=$BENCH/worm-all.db` (outside repo), run the change B1→B2 on a copy via a small script `scripts/bench/bench_level_change.py` (+ `make bench-level-change DB=… OUT=…`): stage times, peak RSS, percent vs time samples. Set shares in Task 5 so percent is ~linear in time. Write numbers to `docs/specs/atomic-level-change-bench.md`.
+- [ ] `make bench-db EPUB=… CHAPTERS=0 OUT=$BENCH/worm-all.db` (outside repo), run the change B1→B2 on a copy via a small script `scripts/bench/bench_level_change.py` (+ `make bench-level-change DB=… OUT=…`): stage times, peak RSS, percent vs time samples. Set shares in Task 5 so percent is ~linear in time. Write numbers to `internal/specs/atomic-level-change-bench.md`.
 - [ ] If peak RSS of stage 1 > 2 GB: keep analyses in a temp file per source instead of memory (spec allows), re-measure.
 - [ ] `kill -9` of the API mid stage 1 and mid stage 2 on a worktree copy: after `make up-worktree` the old level, no lock, `make card-states-check` 0 differences.
 - [ ] Real app in worktree: change level on dev data copy, overlay shows, Cancel works, a second tab shows overlay.
