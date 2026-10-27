@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, Check, Clapperboard, Crosshair, Feather, Flag, HelpCircle, Highlighter, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Check, Clapperboard, Crosshair, Feather, Flag, HelpCircle, ImagePlus, List, MessageCircle, Pencil, RefreshCw, Sparkles, Speech, TextCursorInput, TextSelect, WandSparkles, X, ZoomIn, type LucideIcon } from 'lucide-react'
 import type { ButtonCommand, CardButton, DecisionButton, FollowUpAction, StoredCandidate } from '@/api/types'
 import { KEY_LABEL, OVERLAY, toolKey, type ToolAction } from '@/lib/hotkeys'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
@@ -262,7 +262,7 @@ export function PhraseTools({ candidate, review, onEditPhrase }: PhraseToolsProp
             onSend={() => void sendUnknownWords(close)}
           />
         )}
-        trigger={menuTrigger(Highlighter, 'Mark words you don\'t know', 'unknown', false)}
+        trigger={menuTrigger(HelpCircle, 'Mark words you don\'t know', 'unknown', false)}
       />
       <Menu
         ref={reportMenu}
