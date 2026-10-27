@@ -21,6 +21,7 @@ from backend.infrastructure.api.dependencies import get_container, get_session_f
 from backend.infrastructure.api.routes import (
     anki,
     bootstrap,
+    card_layout,
     card_reports,
     collections,
     export,
@@ -146,6 +147,7 @@ app.include_router(known_words.router)
 app.include_router(unknown_words.router)
 app.include_router(vocabulary.router)
 app.include_router(settings.router)
+app.include_router(card_layout.router)
 app.include_router(long_operation.router)
 app.include_router(anki.router)
 app.include_router(export.router)
