@@ -1035,3 +1035,55 @@ export interface LongOperationStatus {
   outcome: LongOperationOutcome | null
   error: string | null
 }
+
+/** Часть тела карточки, которую раскладывает пользователь. Фраза сверху и полоса решений снизу — не элементы. */
+export type CardElement =
+  | 'target' | 'translation' | 'context' | 'definition' | 'notes' | 'synonyms' | 'examples'
+  | 'transcription' | 'pronunciation' | 'tts' | 'word_facts' | 'video_frame' | 'picture' | 'meaning_status'
+
+/** Что меняет стиль элемента: у текста — размер, тон и жирность, у медиа — размер, у кнопок — ничего. */
+export type CardElementKind = 'text' | 'media' | 'control'
+export type BlockSize = 'xs' | 's' | 'm' | 'l' | 'xl'
+export type BlockTone = 'accent' | 'primary' | 'secondary' | 'muted'
+export type BlockAlign = 'start' | 'end'
+export type ColumnWidth = 'narrow' | 'normal' | 'wide'
+
+export interface BlockStyle {
+  size: BlockSize
+  tone: BlockTone
+  bold: boolean
+  align: BlockAlign
+}
+
+export type CardLayoutRow = { kind: 'blocks'; elements: CardElement[] } | { kind: 'divider' }
+
+export interface CardLayoutColumn {
+  width: ColumnWidth
+  rows: CardLayoutRow[]
+}
+
+export interface CardLayout {
+  columns: CardLayoutColumn[]
+  styles: { element: CardElement; style: BlockStyle }[]
+}
+
+export interface CardLayoutView {
+  layout: CardLayout
+  elements: { element: CardElement; kind: CardElementKind }[]
+  hidden: CardElement[]
+  can_add_column: boolean
+  can_remove_column: boolean
+}
+
+/** Правка раскладки; места считаются по раскладке до правки. */
+export type CardLayoutEdit =
+  | { kind: 'move_block'; element: CardElement; column: number; row: number; position: number | null }
+  | { kind: 'hide_block'; element: CardElement }
+  | { kind: 'restyle_block'; element: CardElement } & Partial<BlockStyle>
+  | { kind: 'insert_divider'; column: number; row: number }
+  | { kind: 'remove_divider'; column: number; row: number }
+  | { kind: 'move_row'; column: number; row: number; to_column: number; to_row: number }
+  | { kind: 'add_column' }
+  | { kind: 'remove_column'; column: number }
+  | { kind: 'resize_column'; column: number; width: ColumnWidth }
+  | { kind: 'reset' }

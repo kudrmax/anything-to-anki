@@ -1,0 +1,53 @@
+/* тело карточки по раскладке: колонка — строки, строка — блоки в линию, при нехватке места переносятся */
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); min-width: 0; }
+.block { flex: 0 1 auto; min-width: 0; }
+.row > .block:only-child { flex: 1 1 auto; }
+.block[data-align="end"] { margin-left: auto; text-align: end; }
+/* линия во всю колонку, как у колонки шапки и нижней полосы */
+.divider { border: 0; border-top: var(--bw) solid var(--line); margin-block: var(--card-divider-my); }
+
+/* стиль блока */
+.block[data-kind="text"][data-size="xs"] { font-size: var(--fs-xs); }
+.block[data-kind="text"][data-size="s"] { font-size: var(--fs-s); }
+.block[data-kind="text"][data-size="m"] { font-size: var(--fs-m); }
+.block[data-kind="text"][data-size="l"] { font-size: var(--fs-b); }
+.block[data-kind="text"][data-size="xl"] { font-size: var(--fs-h1); }
+.block[data-kind="text"][data-tone="accent"] { color: var(--ac); }
+.block[data-kind="text"][data-tone="primary"] { color: var(--tx); }
+.block[data-kind="text"][data-tone="secondary"] { color: var(--tx2); }
+.block[data-kind="text"][data-tone="muted"] { color: var(--tx3); }
+.block[data-kind="text"][data-bold="true"] { font-weight: var(--fw-m); }
+.block[data-kind="media"][data-size="xs"] { --thumb-scale: var(--thumb-scale-xs); }
+.block[data-kind="media"][data-size="s"] { --thumb-scale: var(--thumb-scale-s); }
+.block[data-kind="media"][data-size="l"] { --thumb-scale: var(--thumb-scale-l); }
+.block[data-kind="media"][data-size="xl"] { --thumb-scale: var(--thumb-scale-xl); }
+/* картинки — для настроения, а не для решения: тише текста */
+.dimmed { opacity: var(--o-visuals); transition: opacity var(--t); }
+.dimmed:hover { opacity: 1; }
+.block[data-kind="control"] { font-size: var(--fs-s); color: var(--tx3); }
+
+/* элементы */
+.lemma { line-height: var(--lh-tight); letter-spacing: var(--ls-focus); }
+.block[data-bold="false"] .lemmaMark { font-weight: inherit; }
+.translation { line-height: var(--lh); letter-spacing: var(--ls-focus); }
+.context { line-height: var(--lh-read); }
+.context b { font-weight: var(--fw-m); }
+.context .richTarget { color: var(--ac); }
+.definition, .notes { line-height: var(--lh-read); }
+.notes { display: flex; flex-direction: column; gap: var(--s4); }
+.examples { list-style: none; display: flex; flex-direction: column; gap: var(--s3); line-height: var(--lh); }
+.definition b, .notes b, .examples b { font-weight: var(--fw-m); color: var(--tx); }
+.transcription { font-family: var(--mono); }
+.chips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s3); }
+.cefr { display: inline-flex; align-items: center; gap: var(--s2); }
+/* факты о слове — справка: тихо, через пробел */
+.wordFacts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s5); }
+.status { display: inline-flex; align-items: center; gap: var(--s2); }
+.meaningImage { display: block; max-width: 100%; max-height: calc(var(--thumb-h) * var(--thumb-scale)); width: auto; object-fit: contain; border-radius: var(--rc); }
+
+/* пример: при наведении его можно поставить вместо фразы; кнопка встаёт поверх строки и не отнимает места у текста */
+.example { position: relative; padding-left: var(--s5); }
+.example::before { content: '·'; position: absolute; left: 0; font-weight: var(--fw-m); color: var(--tx3); }
+.useExample { display: var(--use-example-display); position: var(--use-example-position); top: 0; right: 0; margin-left: var(--s3); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--use-example-bg); box-shadow: 0 0 var(--s3) var(--s2) var(--card); opacity: var(--reveal); transition: opacity var(--t); }
+.example:hover .useExample, .useExample:focus-visible { opacity: 1; }
+.exampleOpen .useExample { display: inline-flex; opacity: 1; }

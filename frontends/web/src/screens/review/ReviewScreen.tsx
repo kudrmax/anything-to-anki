@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useCardLayout } from '@/cardLayout'
 import { backIn, backTo } from '@/lib/backLink'
 import { exportPath, parseSetScope } from '@/lib/scope'
 import { allowedInClozeMarkup, isToolAction, reviewAction, type ReviewAction } from '@/lib/hotkeys'
@@ -68,6 +69,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
     setPicturesShown(!picturesShown)
   }
   const suggestPictures = usePictureSuggestions(review.state, picturesShown)
+  const cardLayout = useCardLayout()
   const togglePhraseList = () => {
     phraseListShownPref.write(!phraseListShown)
     setPhraseListShown(!phraseListShown)
@@ -258,7 +260,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
           onLoad={review.loadRows}
           onToggleSection={toggleSection}
           renderCard={(card, isCurrent) => isCurrent
-            ? <PhraseCard key={card.phrase_id} candidate={card} review={review} suggestPictures={suggestPictures} />
+            ? <PhraseCard key={card.phrase_id} candidate={card} review={review} layout={cardLayout} suggestPictures={suggestPictures} />
             : <PhraseRow key={card.phrase_id} candidate={card} onSelect={id => void review.goTo(id)} />}
           followKey={phraseListShown}
         />

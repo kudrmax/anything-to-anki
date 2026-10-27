@@ -8,26 +8,16 @@
 .cardLeft > * { margin-inline: var(--card-left-item-mx); }
 .cardLeft > * + * { margin-top: var(--card-left-item-mt); }
 .cardLeft > :first-child { margin-top: var(--card-left-first-mt); }
+/* линия раскладки — во всю колонку, от края до края */
+.cardLeft > hr { margin-inline: calc(var(--card-left-item-mx) - var(--card-pad)); }
+.cardRight > hr { margin-inline: calc(-1 * var(--card-pad)); }
 .cardRight { order: var(--card-right-order); display: flex; flex-direction: column; gap: var(--s4); contain: var(--card-right-contain); overflow-y: var(--card-right-overflow); mask-image: var(--card-right-mask); padding: var(--card-right-pt) var(--card-pad) var(--card-cols-pb); border-left: var(--card-right-bw) solid var(--line); }
 .phrase { margin-top: var(--focus-leading-trim); font-size: var(--fs-focus); line-height: var(--lh-focus); letter-spacing: var(--ls-focus); overflow-wrap: anywhere; }
 /* ручная правка фразы: поле повторяет типографику фразы */
 .phraseEdit { display: grid; border-radius: var(--r-s); background: var(--ac-wash); box-shadow: 0 0 0 var(--s2) var(--ac-wash); }
 .phraseEdit::after { content: attr(data-value) ' '; visibility: hidden; white-space: pre-wrap; }
 .phraseEdit > textarea, .phraseEdit::after { grid-area: 1 / 1; padding: 0; border: none; background: none; color: inherit; font: inherit; letter-spacing: inherit; overflow-wrap: anywhere; resize: none; overflow: hidden; outline: none; }
-.meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
-.cefr { display: inline-flex; align-items: center; gap: var(--s2); }
-/* факты о слове — справка: тихо, в конце строки произношения */
-.wordFacts { display: inline-flex; align-items: center; gap: var(--s5); margin-left: auto; }
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
-.cardLeft > .lemma { margin: calc(var(--card-left-first-mt) - var(--s1)) calc(var(--card-left-item-mx) - var(--card-pad)) 0; padding: 0 var(--card-pad) var(--s6); border-bottom: var(--bw) solid var(--line); font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh-tight); letter-spacing: var(--ls-focus); }
-.translation { font-size: var(--fs-h1); font-weight: var(--fw-m); line-height: var(--lh); letter-spacing: var(--ls-focus); }
-.retold { font-size: var(--fs-b); line-height: var(--lh-read); color: var(--tx); }
-.synonyms { font-size: var(--fs-m); color: var(--tx3); }
-.definition { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx2); }
-/* картинки — для настроения, а не для решения: мельче и тише текста */
-.visuals { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s3); opacity: var(--o-visuals); transition: opacity var(--t); }
-.visuals:hover { opacity: 1; }
-.visuals:empty { display: none; }
 /* подсказки картинок: пунктирные слоты с подписью — их предлагают, а не добавили; клик ставит картинку на карточку */
 .pictureSuggestionsBlock { display: flex; flex-direction: column; gap: var(--s2); }
 .pictureSuggestionsLabel { font-size: var(--fs-xs); color: var(--tx3); }
@@ -39,12 +29,6 @@
 .pictureSuggestion:hover:not(:disabled) img { opacity: 1; }
 .pictureSuggestionAdd { position: absolute; inset: var(--s1); display: flex; align-items: center; justify-content: center; border-radius: calc(var(--rc) - var(--s1)); color: var(--on-media); background: var(--suggestion-veil); opacity: 0; transition: opacity var(--t); }
 .pictureSuggestion:hover:not(:disabled) .pictureSuggestionAdd { opacity: 1; }
-.meaningImage { display: block; max-width: 100%; max-height: var(--thumb-h); width: auto; object-fit: contain; border-radius: var(--rc); }
-.context { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx3); }
-.examples { list-style: none; display: flex; flex-direction: column; gap: var(--s3); font-size: var(--fs-m); line-height: var(--lh); color: var(--tx3); }
-.definition b, .context b, .examples b { font-weight: var(--fw-m); color: var(--tx); }
-.retold b { font-weight: var(--fw-m); }
-.retold .target { color: var(--ac); }
 .cardFoot { grid-column: 1 / -1; order: var(--card-foot-order); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); padding: var(--card-foot-pad); border-top: var(--card-foot-bw) solid var(--line); }
 .footDecisions { display: var(--desktop-flex); align-items: center; gap: var(--s3); }
 .footRest { flex: 1 1 auto; display: flex; align-items: center; gap: var(--s4); }
@@ -143,13 +127,6 @@
 .reportFooter { display: flex; flex-direction: column; gap: var(--s3); }
 .reported, .reported:hover:not(:disabled) { color: var(--ac); }
 
-/* пример в карточке: при наведении его можно поставить вместо фразы */
-/* текст примера — на всю ширину колонки, кнопка не отнимает у него места: встаёт поверх строки */
-.example { position: relative; padding-left: var(--s5); }
-.example::before { content: '·'; position: absolute; left: 0; font-weight: var(--fw-m); color: var(--tx3); }
-.useExample { display: var(--use-example-display); position: var(--use-example-position); top: 0; right: 0; margin-left: var(--s3); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--use-example-bg); box-shadow: 0 0 var(--s3) var(--s2) var(--card); opacity: var(--reveal); transition: opacity var(--t); }
-.example:hover .useExample, .useExample:focus-visible { opacity: 1; }
-.exampleOpen .useExample { display: inline-flex; opacity: 1; }
 
 /* свой вопрос к AI */
 .ask { display: flex; align-items: center; gap: var(--s2); }
