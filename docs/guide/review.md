@@ -108,6 +108,7 @@ The buttons in the card's footer:
 | Picture | `I` | Search Wiktionary, Bing and Yandex for a picture of the word. You can also paste an image with `⌘V` anywhere on the screen |
 | Edit | `E` | **Edit text** fixes words in the phrase. **Change boundary** re-cuts the phrase from the source text. **Target only** replaces the phrase with the bare word |
 | Regenerate | `R` | Regenerates the meaning, or asks AI a follow-up: **Give examples**, **Explain in detail**, **Explain simpler**, **How to say it**, or **Your own question**. Also **Polish**, **Speech**, and **Screenshot and clip** for video |
+| Unknown words | `U` | Marks words of the phrase you don't know (see below) |
 | Report | `F` | Reports a problem with the card (see below) |
 
 Double-clicking the phrase also edits it.
@@ -121,11 +122,13 @@ Book and article sentences are often long and hard to understand without context
 - A polished phrase gets a new meaning and new speech, because the old ones described the old phrase.
 - Phrases of video sources are never polished, because the audio clip must match the phrase. Saved phrases are never polished either.
 
+### Unknown words
+
+**Unknown words** (`U`) shows the phrase with every word clickable. Click the words you don't know and press **Mark as unknown**. They go to your **Unknown words**, and phrases with them no longer count as Ready.
+
 ### Report
 
 **Report** stores a problem with a card together with a snapshot of the card. Pick one or more reasons, or describe the problem in your own words.
-
-One reason changes the card: **More than one unknown word** asks you to tap the words you don't know. They go to your **Unknown words**, and phrases with them no longer count as Ready.
 
 ## Cloze cards
 
@@ -177,6 +180,7 @@ Keys work in any keyboard layout. They are ignored while you type in a field or 
 | `I` | Picture |
 | `E` | Edit menu |
 | `R` | Regenerate menu |
+| `U` | Unknown words |
 | `F` | Report menu |
 | `⌘V` | Paste a picture onto the card |
 | `Esc` | Cancel editing, cloze or boundary change |

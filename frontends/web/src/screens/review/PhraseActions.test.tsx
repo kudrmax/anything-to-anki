@@ -135,7 +135,7 @@ describe('PhraseTools report', () => {
     const review = {
       editing: null, clozeEditingId: null,
       busy: { generating: new Set(), media: new Set(), tts: new Set(), image: new Set() },
-      reportReasons: [{ label: 'Bad phrase', picks_words: false }],
+      reportReasons: [{ label: 'Bad phrase', picks_words: false }, { label: 'Unknown words', picks_words: true }],
       report,
     } as unknown as Review
     return { review, report, answer: (saved: boolean) => answer(saved) }
@@ -153,7 +153,7 @@ describe('PhraseTools report', () => {
     click(byText('Send report'))
 
     expect(menuOpen()).toBe(false)
-    expect(report).toHaveBeenCalledWith(1, ['Bad phrase'], '', [])
+    expect(report).toHaveBeenCalledWith(1, ['Bad phrase'], '')
     await act(async () => { answer(true) })
   })
 
@@ -167,5 +167,25 @@ describe('PhraseTools report', () => {
 
     click(host.querySelector('[aria-label="Report a problem with this card"]')!)
     expect(byText('Send report')?.hasAttribute('disabled')).toBe(false)
+  })
+  it('keeps the unknown-words reason out of the flag', () => {
+    const { review } = reviewWith()
+    act(() => root.render(<PhraseTools candidate={reviewCard()} review={review} onEditPhrase={() => {}} />))
+    click(host.querySelector('[aria-label="Report a problem with this card"]')!)
+
+    expect(byText('Unknown words')).toBeUndefined()
+  })
+
+  it('sends the words picked under their own button with their reason', async () => {
+    const { review, report, answer } = reviewWith()
+    act(() => root.render(<PhraseTools candidate={reviewCard()} review={review} onEditPhrase={() => {}} />))
+    click(host.querySelector('[aria-label="Mark words you don\'t know"]')!)
+    click(byText('me'))
+    click(byText('He'))
+    click(byText('Mark 2 words as unknown'))
+
+    expect(menuOpen()).toBe(false)
+    expect(report).toHaveBeenCalledWith(1, ['Unknown words'], '', [0, 3])
+    await act(async () => { answer(true) })
   })
 })
