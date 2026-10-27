@@ -45,7 +45,14 @@ Each card has four buttons:
 
 **Learn**, **Cloze** and **Know** decide the **word**, not just the phrase: every card of that word, in every source, is done. On the word's other cards the buttons are disabled; change the decision on the card where you made it.
 
-To undo a decision, press the same button again.
+To take a decision off a card, press the same button again.
+
+After every press, a toast such as **Know · give in** appears for 6 seconds. Click **Undo** in it, or press `⌘Z` (`Ctrl+Z`), to give the card back the mark it had before the press, and the screen returns to that card. Only the last press can be undone. Saving a new cloze counts as a press too.
+
+Undo is a press in the other direction, not a rollback, so a few things do not come back:
+
+- The link between a card and its Anki note, if the press took the card out of Anki. The next export finds the note and does not make a duplicate.
+- What the press taught the app about word frequency, and an **Unknown** mark you set on that word in a report.
 
 After a press, the screen moves to the next open card right away, and the decided card moves to the **Reviewed** section.
 
@@ -183,6 +190,7 @@ Keys work in any keyboard layout. They are ignored while you type in a field or 
 | `U` | Unknown words |
 | `F` | Report menu |
 | `⌘V` | Paste a picture onto the card |
+| `⌘Z` | Undo the last press, while its toast is shown |
 | `Esc` | Cancel editing, cloze or boundary change |
 | `Enter` | Save the cloze or the edited text |
 

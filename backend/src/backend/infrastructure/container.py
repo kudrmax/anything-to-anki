@@ -866,7 +866,6 @@ class Container:
             vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
             lock=SqlaSourceOperationLock(session),
-            card_views=self._card_views(session),
             unit_of_work=self._unit_of_work(session),
         )
 
@@ -884,7 +883,6 @@ class Container:
             occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
             candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
             cloze_repo=SqlaCandidateClozeRepository(session, self._change_recorder(session)),
-            card_views=self._card_views(session),
             decide_phrase=self.decide_phrase_use_case(session),
             builder=ClozeBuilder(),
             lock=SqlaSourceOperationLock(session),

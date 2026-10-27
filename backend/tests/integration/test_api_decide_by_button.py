@@ -1,5 +1,6 @@
 """`POST /phrases/{id}/decision {button}` through the press table (design §2.4): every row
-answers with the card as it is after the press; a refused press is 409 and changes nothing."""
+answers with the card as it is after the press and the press that undoes it; a refused press
+is 409 and changes nothing."""
 from __future__ import annotations
 
 from collections.abc import Callable, Generator  # noqa: TC003
@@ -289,6 +290,13 @@ def _decide(client: TestClient, phrase_id: int, button: str) -> Response:
     )
 
 
+def _undo(client: TestClient, phrase_id: int, button: str) -> Response:
+    return on_review(
+        client, "POST", f"/phrases/{phrase_id}/decision/undo", json={"button": button},
+        current=phrase_id,
+    )
+
+
 def _card(client: TestClient, phrase_id: int) -> Json:
     cards = review_list(client, f"source-{HERE}")
     return next(card for card in cards if card["phrase_id"] == phrase_id)
@@ -308,6 +316,40 @@ def test_each_press_answers_with_the_card_it_leaves(
     assert (card["choice"], card["shown"]["status"]) == (row.choice, row.status)
     assert card == _card(client, row.phrase_id) | {"section": card["section"]}
     assert _bindings(factory) == (int(row.in_anki), int(row.released))
+
+
+@pytest.mark.parametrize("name", ROWS)
+def test_the_undo_a_press_offers_brings_the_card_back_and_focuses_it(
+    client: TestClient, factory: sessionmaker[Session], name: str,
+) -> None:
+    row = ROWS[name]
+    _given(factory, row.given)
+    before = _card(client, row.phrase_id)["choice"]
+    undo = _decide(client, row.phrase_id, row.button).json()["undo"]
+    if before == row.choice:
+        assert undo is None, "a press that keeps the choice has no press to undo it"
+        return
+    assert undo["phrase_id"] == row.phrase_id
+
+    response = _undo(client, row.phrase_id, undo["button"])
+
+    assert response.status_code == 200, response.text
+    assert card_in(response.json(), row.phrase_id)["choice"] == before
+    assert response.json()["focus_id"] == row.phrase_id
+    assert response.json()["undo"] is None
+
+
+def test_a_refused_undo_is_409_and_changes_nothing(
+    client: TestClient, factory: sessionmaker[Session],
+) -> None:
+    undo = _decide(client, CARD, "learn").json()["undo"]
+    _given(factory, lambda s: s.choice(CARD, "none").known_in_another_source())
+    before = _card(client, CARD)
+
+    response = _undo(client, CARD, undo["button"])
+
+    assert (response.status_code, response.json()["detail"]) == (409, "Already known")
+    assert _card(client, CARD) == before
 
 
 @pytest.mark.parametrize("name", REFUSALS)

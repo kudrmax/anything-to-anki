@@ -5,6 +5,7 @@ import { KEY_LABEL, OVERLAY, toolKey, type ToolAction } from '@/lib/hotkeys'
 import { keepFocusOnMouseDown } from '@/lib/mouseFocus'
 import { toggled } from '@/lib/text/words'
 import { Button, Field, Icon, IconButton, Menu, Spinner, Kbd, type MenuHandle, type MenuItem, type MenuPage } from '@/ui'
+import { DECISION_LABEL } from './decisionLabel'
 import { ImagePicker } from './ImagePicker'
 import { PolishComparison } from './PolishComparison'
 import { UnknownWordsPicker } from './UnknownWordsPicker'
@@ -19,10 +20,10 @@ const FOLLOW_UP_PRESETS: { action: FollowUpAction; label: string; icon: LucideIc
 ]
 
 const BUTTON_LOOK: Record<DecisionButton, { label: string; kbd: string; primary: boolean }> = {
-  learn: { label: 'Learn', kbd: KEY_LABEL.learn, primary: true },
-  cloze: { label: 'Cloze', kbd: KEY_LABEL.cloze, primary: false },
-  known: { label: 'Know', kbd: KEY_LABEL.known, primary: false },
-  skip: { label: 'Skip', kbd: KEY_LABEL.skip, primary: false },
+  learn: { label: DECISION_LABEL.learn, kbd: KEY_LABEL.learn, primary: true },
+  cloze: { label: DECISION_LABEL.cloze, kbd: KEY_LABEL.cloze, primary: false },
+  known: { label: DECISION_LABEL.known, kbd: KEY_LABEL.known, primary: false },
+  skip: { label: DECISION_LABEL.skip, kbd: KEY_LABEL.skip, primary: false },
 }
 
 const OPENS_EDITOR: Record<ButtonCommand, boolean> = { edit_cloze: true, decide: false }

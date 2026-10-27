@@ -19,6 +19,7 @@ from backend.domain.value_objects.candidate_section import (
     CandidateSection,  # noqa: TC001 — pydantic field type
 )
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
+from backend.domain.value_objects.card_choice import Press  # noqa: TC001 — pydantic field type
 
 
 class ReviewHeaderDTO(BaseModel):
@@ -87,6 +88,13 @@ class ReviewLayoutDTO(BaseModel):
     rows: list[ReviewRowDTO]
 
 
+class UndoPressDTO(BaseModel):
+    """The press that brings a card back to the choice it had before the last press."""
+
+    phrase_id: int
+    button: Press
+
+
 class ReviewUpdateDTO(BaseModel):
     """The one answer of an open review: what changed for the client since `since`, up to
     `revision`."""
@@ -108,3 +116,5 @@ class ReviewUpdateDTO(BaseModel):
     highlights: list[ChunkHighlightsDTO] = Field(default_factory=list)
     # The version of the set's contents: it moves on when the set's sources change.
     contents_version: int = 0
+    # What undoes the press this answers; none for any other change.
+    undo: UndoPressDTO | None = None

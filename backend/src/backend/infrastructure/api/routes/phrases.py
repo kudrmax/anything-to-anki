@@ -93,6 +93,28 @@ def decide_phrase(
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
+@router.post("/{phrase_id}/decision/undo")
+def undo_decision(
+    phrase_id: int,
+    request: DecidePhraseRequest,
+    decide: DecidePhraseUseCase = Depends(  # noqa: B008
+        use_case(Container.decide_phrase_use_case),  # noqa: B008
+    ),
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    mutation: ReviewMutation = Depends(use_case(Container.review_mutation)),  # noqa: B008
+) -> ReviewUpdateDTO:
+    """The press a decision's answer offered to undo it; the focus goes back to the card."""
+    try:
+        with review_expired():
+            return mutation.undo(
+                ctx, phrase_id, lambda: decide.decide(phrase_id, request.button),
+            )
+    except PhraseNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except REFUSED_DECISIONS as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+
 @router.put("/{phrase_id}/cloze")
 def save_cloze(
     phrase_id: int,

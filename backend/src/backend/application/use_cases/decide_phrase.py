@@ -14,8 +14,6 @@ from backend.domain.value_objects.word_status import WordStatus
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from backend.application.dto.source_dtos import CardDTO
-    from backend.application.utils.card_views import CardViews
     from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.stored_candidate import StoredCandidate
@@ -25,6 +23,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.ports.word_state_repository import WordStateRepository
     from backend.domain.services.card_view import CardView
+    from backend.domain.services.decision_rules import ChoiceChange
     from backend.domain.value_objects.card_choice import Press, WordState
     from backend.domain.value_objects.elsewhere import ElsewhereStatus
 
@@ -51,31 +50,28 @@ class DecidePhraseUseCase:
         vocabulary: UserVocabulary,
         effects: DecisionEffects,
         lock: SourceOperationLock,
-        card_views: CardViews,
         unit_of_work: UnitOfWork,
     ) -> None:
         self._unit_of_work = unit_of_work
         self._lock = lock
-        self._card_views = card_views
         self._occurrences = occurrence_repo
         self._candidates = candidate_repo
         self._word_states = word_states
         self._vocabulary = vocabulary
         self._effects = effects
 
-    def decide(self, occurrence_id: int, button: Press) -> CardDTO:
-        """The press, answered with the card as it is after it."""
+    def decide(self, occurrence_id: int, button: Press) -> ChoiceChange:
+        """The press, answered with the card's choice it changed."""
         with self._unit_of_work.write():
-            self.press(occurrence_id, button)
-        return self._card_views.one(occurrence_id)
+            return self.press(occurrence_id, button)
 
     def view(self, occurrence_id: int) -> CardView:
         word, state = self._word(occurrence_id)
         return self._view(word, state, occurrence_id, self._elsewhere(word, state))
 
-    def press(self, occurrence_id: int, button: Press) -> None:
+    def press(self, occurrence_id: int, button: Press) -> ChoiceChange:
         word, state = self._word(occurrence_id)
-        self._press(word, state, occurrence_id, button, self._elsewhere(word, state))
+        return self._press(word, state, occurrence_id, button, self._elsewhere(word, state))
 
     def press_unless_done(self, occurrence_id: int, button: Press) -> None:
         """A press the system makes for the user: on a card done because its word is
@@ -86,7 +82,7 @@ class DecidePhraseUseCase:
     def _press(
         self, word: StoredCandidate, state: WordState, occurrence_id: int, button: Press,
         elsewhere: ElsewhereStatus | None,
-    ) -> None:
+    ) -> ChoiceChange:
         knowledge, now = self._vocabulary.of(word.lemma), self._vocabulary.scope.now
         try:
             outcome = press(state, occurrence_id, button, knowledge, elsewhere, now)
@@ -98,6 +94,8 @@ class DecidePhraseUseCase:
             ) from None
         self._effects.apply(state, outcome, word)
         self._candidates.set_studied_at(state.word_id, studied_at(outcome.word, now))
+        (change,) = outcome.choices
+        return change
 
     def _view(
         self, word: StoredCandidate, state: WordState, occurrence_id: int,

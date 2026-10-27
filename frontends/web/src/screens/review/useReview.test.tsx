@@ -65,6 +65,70 @@ describe('useReview', () => {
     expect(latest.currentId).toBe(2)
   })
 
+  it('offers to undo a press with what the backend says undoes it, named by the card even once it left; the undo goes back to the card', async () => {
+    vi.mocked(api.decidePhrase).mockImplementation(async (_ctx, id) => reviewUpdate({
+      revision: 2, cards: [], removed: [id], done: { [id]: true }, focus_id: id + 1,
+      undo: { phrase_id: id, button: 'learn' },
+    }))
+    vi.spyOn(api, 'undoDecision').mockImplementation(async (_ctx, id) =>
+      reviewUpdate({ revision: 3, cards: [card(id)], done: { [id]: false }, focus_id: id }))
+    loaded = [{ ...card(1), lemma: 'glare' }, card(2)]
+    await render()
+
+    await act(async () => { await latest.press(1, buttons()[0]) })
+    expect(latest.undo.offer?.message).toBe('Learn · glare')
+    expect(latest.currentId).toBe(2)
+
+    await act(async () => { await latest.undo.run() })
+
+    expect(api.undoDecision).toHaveBeenCalledWith(expect.anything(), 1, 'learn')
+    expect(latest.currentId).toBe(1)
+    expect(latest.state.cards.get(1)?.is_done).toBe(false)
+    expect(latest.undo.offer).toBeNull()
+  })
+
+  it('names a press that took the mark off as such', async () => {
+    vi.mocked(api.decidePhrase).mockResolvedValue(reviewUpdate({ undo: { phrase_id: 1, button: 'learn' } }))
+    loaded = [{ ...card(1), lemma: 'glare' }, card(2)]
+    await render()
+
+    await act(async () => { await latest.press(1, buttons({ learn: { pressed: true } })[0]) })
+
+    expect(latest.undo.offer?.message).toBe('Unmarked · glare')
+  })
+
+  it('offers no undo of a press whose answer came after a later press began', async () => {
+    let answerFirst: () => void = () => {}
+    vi.mocked(api.decidePhrase).mockImplementationOnce(async (_ctx, id) => {
+      await new Promise<void>(resolve => { answerFirst = resolve })
+      return reviewUpdate({ revision: 2, focus_id: id + 1, undo: { phrase_id: id, button: 'learn' } })
+    }).mockImplementationOnce(async () => {
+      expect(latest.undo.offer).toBeNull()
+      return reviewUpdate({ revision: 3 })
+    })
+    await render()
+
+    let first: Promise<void> = Promise.resolve()
+    let second: Promise<void> = Promise.resolve()
+    await act(async () => { first = latest.press(1, buttons()[0]) })
+    await flush()
+    await act(async () => { second = latest.press(2, buttons()[0]) })
+    await act(async () => { answerFirst(); await first; await second })
+
+    expect(latest.undo.offer).toBeNull()
+  })
+
+  it('toasts a refused undo', async () => {
+    vi.mocked(api.decidePhrase).mockResolvedValue(reviewUpdate({ undo: { phrase_id: 1, button: 'learn' } }))
+    vi.spyOn(api, 'undoDecision').mockRejectedValue(new ApiError(409, '{"detail":"Already known"}'))
+    await render()
+
+    await act(async () => { await latest.press(1, buttons()[0]) })
+    await act(async () => { await latest.undo.run() })
+
+    expect(latest.toast).toBe('Already known')
+  })
+
   it('opens the review of its scope again, on the current card, when the sort changes', async () => {
     await render()
     await act(async () => { await latest.goTo(2) })

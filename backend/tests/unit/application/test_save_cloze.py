@@ -1,19 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
-from backend.application.utils.card_views import CardViews
-from backend.application.utils.review_cards import ReviewCards
 from backend.domain.entities.candidate_cloze import CandidateCloze
 from backend.domain.entities.candidate_meaning import CandidateMeaning
-from backend.domain.entities.job import Job
 from backend.domain.entities.occurrence import Occurrence
-from backend.domain.entities.source import Source
 from backend.domain.entities.stored_candidate import StoredCandidate
 from backend.domain.exceptions import (
     ActionRefusedError,
@@ -24,6 +19,7 @@ from backend.domain.exceptions import (
 )
 from backend.domain.services.card_view import card_view
 from backend.domain.services.cloze_builder import ClozeBuilder
+from backend.domain.services.decision_rules import ChoiceChange
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_choice import (
     Binding,
@@ -33,18 +29,13 @@ from backend.domain.value_objects.card_choice import (
     Refusal,
 )
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
-from backend.domain.value_objects.job_status import JobStatus
-from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
-from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
-from tests.candidate_sorter_support import candidate_sorter
 from tests.card_support import context
 from tests.decision_support import NOW
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
-from tests.vocabulary_support import user_vocabulary
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.review_card import CardContext
@@ -81,38 +72,17 @@ class TestSaveCloze:
         self.candidate_repo = MagicMock()
         self.occurrence_repo = MagicMock()
         self.cloze_repo = MagicMock()
-        self.job_repo = MagicMock()
-        self.job_repo.get_jobs_for_phrases.return_value = {}
-        self.job_repo.get_jobs_for_candidates.return_value = {}
-        self.report_repo = MagicMock()
-        self.report_repo.reported_phrase_ids.return_value = set()
-        settings = MagicMock()
-        settings.get.return_value = None
         self.candidate_repo.get_by_id.return_value = _word()
         self.occurrence_repo.get.return_value = _phrase()
-        word_states = MagicMock()
-        word_states.of_word.side_effect = lambda _id: self._context().word
         self.decide = MagicMock()
         self.decide.view.side_effect = lambda _id: card_view(
             self._context().word, PHRASE_ID, self._context().knowledge, None, NOW,
         )
-        source_repo = MagicMock()
-        source_repo.get_by_id.return_value = Source(id=5, status=SourceStatus.DONE)
         lock = free_lock()
         self.use_case = SaveClozeUseCase(
             occurrence_repo=self.occurrence_repo,
             candidate_repo=self.candidate_repo,
             cloze_repo=self.cloze_repo,
-            card_views=CardViews(
-                review_cards=ReviewCards(
-                    self.candidate_repo, self.occurrence_repo, word_states,
-                    user_vocabulary(),
-                ),
-                candidate_sorter=candidate_sorter(settings),
-                job_repo=self.job_repo,
-                report_repo=self.report_repo,
-                source_repo=source_repo,
-            ),
             decide_phrase=self.decide,
             builder=ClozeBuilder(),
             lock=lock,
@@ -154,24 +124,14 @@ class TestSaveCloze:
         stored = self.cloze_repo.upsert_for_phrase.call_args.args[1]
         assert stored.custom_hint is None
 
-    def test_saved_card_stays_reported(self) -> None:
-        self.report_repo.reported_phrase_ids.return_value = {PHRASE_ID}
-        dto = self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None)
-        assert dto.reported is True
-        assert dto.section == "ready"  # the answer has the card's own section
+    def test_save_answers_with_the_choice_its_press_changed(self) -> None:
+        change = ChoiceChange(PHRASE_ID, CardChoice.NONE, CardChoice.CLOZE)
+        self.decide.press.return_value = change
+        assert self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None) == change
 
-    def test_saved_card_keeps_the_job_status_of_its_phrase(self) -> None:
-        job = Job(
-            id=7, job_type=JobType.MEANING, candidate_id=1, source_id=5,
-            status=JobStatus.RUNNING, error=None, created_at=datetime(2026, 1, 1, tzinfo=UTC),
-            started_at=None, phrase_id=PHRASE_ID,
-        )
-        self.job_repo.get_jobs_for_phrases.return_value = {
-            PHRASE_ID: {JobType.MEANING.value: job},
-        }
-        dto = self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None)
-        assert dto.meaning is not None
-        assert dto.meaning.status == "running"
+    def test_save_on_a_cloze_card_changes_no_choice(self) -> None:
+        self.occurrence_repo.get.return_value = replace(_phrase(), choice=CardChoice.CLOZE)
+        assert self.use_case.execute(PHRASE_ID, GIVE_UP, [3], ClozeHintKind.NONE, None) is None
 
     def test_save_rejects_missing_phrase(self) -> None:
         self.occurrence_repo.get.return_value = None
