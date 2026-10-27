@@ -14,15 +14,14 @@ from backend.domain.value_objects.card_choice import Press, is_cloze
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 
 if TYPE_CHECKING:
-    from backend.application.dto.source_dtos import CardDTO
     from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
-    from backend.application.utils.card_views import CardViews
     from backend.domain.ports.candidate_cloze_repository import CandidateClozeRepository
     from backend.domain.ports.candidate_repository import CandidateRepository
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.services.cloze_builder import ClozeBuilder
+    from backend.domain.services.decision_rules import ChoiceChange
 
 
 class SaveClozeUseCase:
@@ -37,7 +36,6 @@ class SaveClozeUseCase:
         occurrence_repo: OccurrenceRepository,
         candidate_repo: CandidateRepository,
         cloze_repo: CandidateClozeRepository,
-        card_views: CardViews,
         decide_phrase: DecidePhraseUseCase,
         builder: ClozeBuilder,
         lock: SourceOperationLock,
@@ -48,7 +46,6 @@ class SaveClozeUseCase:
         self._occurrences = occurrence_repo
         self._candidate_repo = candidate_repo
         self._cloze_repo = cloze_repo
-        self._card_views = card_views
         self._decide_phrase = decide_phrase
         self._builder = builder
 
@@ -59,15 +56,14 @@ class SaveClozeUseCase:
         hidden_word_indices: list[int],
         hint_kind: ClozeHintKind,
         custom_hint: str | None,
-    ) -> CardDTO:
-        """Returns the card as it is after saving.
+    ) -> ChoiceChange | None:
+        """Returns the card's choice the save changed; None when the card was a cloze already.
 
         `phrase` is the card phrase the user picked the words in: if the card shows another
         one by now (polish landed or was reverted), the indices point at other words.
         The checks and the press are one write transaction."""
         with self._unit_of_work.write():
-            self._save(occurrence_id, phrase, hidden_word_indices, hint_kind, custom_hint)
-        return self._card_views.one(occurrence_id)
+            return self._save(occurrence_id, phrase, hidden_word_indices, hint_kind, custom_hint)
 
     def _save(
         self,
@@ -76,7 +72,7 @@ class SaveClozeUseCase:
         hidden_word_indices: list[int],
         hint_kind: ClozeHintKind,
         custom_hint: str | None,
-    ) -> None:
+    ) -> ChoiceChange | None:
         occ = self._occurrences.get(occurrence_id)
         word = self._candidate_repo.get_by_id(occ.candidate_id) if occ is not None else None
         if occ is None or word is None:
@@ -99,8 +95,7 @@ class SaveClozeUseCase:
                 f"The {hint_kind.value} hint is unavailable for the hidden words",
             )
 
-        if not cloze_card:
-            self._decide_phrase.press(occurrence_id, Press.CLOZE)
+        change = None if cloze_card else self._decide_phrase.press(occurrence_id, Press.CLOZE)
         self._cloze_repo.upsert_for_phrase(occurrence_id, CandidateCloze(
             candidate_id=occ.candidate_id,
             hidden_word_indices=indices,
@@ -108,3 +103,4 @@ class SaveClozeUseCase:
             custom_hint=custom if hint_kind is ClozeHintKind.CUSTOM else None,
             phrase=phrase,
         ))
+        return change

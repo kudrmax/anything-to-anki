@@ -106,6 +106,20 @@ class TestSaveClozeAPI:
         assert candidate["choice"] == "cloze"
         assert candidate["cloze"]["hidden_word_indices"] == [2, 3]
 
+    def test_the_save_that_makes_a_cloze_offers_its_undo_and_an_edit_none(
+        self, client: TestClient,
+    ) -> None:
+        def save() -> dict[str, object] | None:
+            response = on_review(
+                client, "PUT", f"/phrases/{PHRASE_ID}/cloze",
+                json={"hidden_word_indices": [3], "hint_kind": "none", "phrase": GIVE_UP},
+            )
+            undo: dict[str, object] | None = response.json()["undo"]
+            return undo
+
+        assert save() == {"phrase_id": PHRASE_ID, "button": "cloze"}
+        assert save() is None
+
     def test_a_cloze_in_anki_keeps_its_markup(self, client: TestClient) -> None:
         assert _candidate_in_source(client, SYNCED_PHRASE_ID)["can_edit_cloze"] is False
         response = on_review(

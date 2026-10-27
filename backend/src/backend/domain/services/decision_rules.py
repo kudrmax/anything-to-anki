@@ -20,6 +20,7 @@ from backend.domain.value_objects.card_choice import (
     DECISION_CHOICES,
     KIND_OF_CHOICE,
     OTHER_KIND,
+    PRESS_OF_CHOICE,
     PRESS_OF_KIND,
     Actor,
     Binding,
@@ -121,6 +122,14 @@ class ChoiceChange:
     card_id: int
     before: CardChoice
     after: CardChoice
+
+    @property
+    def undo(self) -> Press | None:
+        """The press that brings the card back: the button of the choice it had, or, when it
+        had none, the one it has now pressed again. None when nothing changed."""
+        if self.before is self.after:
+            return None
+        return PRESS_OF_CHOICE[self.after if self.before is CardChoice.NONE else self.before]
 
 
 @dataclass(frozen=True)

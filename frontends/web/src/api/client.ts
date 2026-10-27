@@ -203,6 +203,12 @@ export const api = {
       body: JSON.stringify({ button }),
     }),
 
+  undoDecision: (ctx: ReviewContext, phraseId: number, button: DecisionButton) =>
+    req<ReviewUpdate>(onReview(`/phrases/${phraseId}/decision/undo`, ctx), {
+      method: 'POST',
+      body: JSON.stringify({ button }),
+    }),
+
   getAnkiStatus: () => req<AnkiStatus>('/anki/status'),
 
   getExportCards: (scope: SetScope = 'all') =>
