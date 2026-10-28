@@ -134,6 +134,7 @@ from backend.infrastructure.adapters.regex_format_detector import RegexFormatDet
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
 from backend.infrastructure.adapters.spacy_document_analyzer import SpacyDocumentAnalyzer
+from backend.infrastructure.adapters.spacy_stop_words import SpacyStopWords
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 from backend.infrastructure.adapters.system_clock import SystemClock
 from backend.infrastructure.adapters.throttled_http_file_downloader import (
@@ -389,6 +390,7 @@ class Container:
             fetch=partial(http_get, user_agent=APP_USER_AGENT),
         )
         self._phrasal_verb_dictionary = JsonPhrasalVerbDictionary()
+        self._stop_words = SpacyStopWords()
         self._fragment_selection_config = FragmentSelectionConfig()
         self._subtitle_extractor = FfmpegSubtitleExtractor()
         self._picture_encoder = PillowCardPictureEncoder()
@@ -516,6 +518,7 @@ class Container:
             cefr_classifier=self._cefr_classifier,
             frequency_provider=self._frequency_provider,
             phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
+            stop_words=self._stop_words,
             fragment_selection_config=self._fragment_selection_config,
             usage_lookup=self._usage_source,
         )
@@ -870,7 +873,6 @@ class Container:
             vocabulary=self._user_vocabulary(session),
             effects=self._decision_effects(session),
             lock=SqlaSourceOperationLock(session),
-            card_views=self._card_views(session),
             unit_of_work=self._unit_of_work(session),
         )
 
@@ -888,7 +890,6 @@ class Container:
             occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
             candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
             cloze_repo=SqlaCandidateClozeRepository(session, self._change_recorder(session)),
-            card_views=self._card_views(session),
             decide_phrase=self.decide_phrase_use_case(session),
             builder=ClozeBuilder(),
             lock=SqlaSourceOperationLock(session),

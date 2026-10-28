@@ -18,7 +18,7 @@ const THEMES: { value: ThemePref; label: string }[] = [
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(level => ({ value: level, label: level }))
 const AUTO_THRESHOLD = 'auto'
 const frequentWordThresholdLabel = ({ value, zipf, examples }: FrequentWordThresholdOption) => {
-  if (value === AUTO_THRESHOLD) return `Auto — now ${zipf?.toFixed(1)}`
+  if (value === AUTO_THRESHOLD) return `Auto — now ${zipf === null ? 'off' : zipf.toFixed(1)}`
   return examples.length > 0 ? `${value} — ${examples.join(', ')}` : 'Off'
 }
 const AI_MODELS = [
@@ -177,12 +177,12 @@ export function Vocabulary({ store, form }: SectionProps) {
   const bootstrap = store.bootstrapStatus
   return (
     <>
-      <DividerRow label="Target CEFR level" hint="Words above this level will be suggested as candidates.">
+      <DividerRow label="Your CEFR level" hint="The level you are learning now. Words of this level and harder are suggested; easier words count as known. A1 — you are just starting.">
         <Segmented value={form.cefr_level} options={CEFR_LEVELS} onChange={level => store.setField('cefr_level', level)} />
       </DividerRow>
       <DividerRow
         label="Frequent words"
-        hint="Words at least this frequent go to the bottom of the list as probably known. Auto learns the value from your Know / Learn marks. Other options show examples of words that go down; lower value — more words go down."
+        hint="Words at least this frequent go to the bottom of the list as probably known. Auto starts from your level and learns from your Know / Learn marks. Other options show examples of words that go down; lower value — more words go down."
       >
         <Select value={form.frequent_word_threshold} onChange={e => store.setField('frequent_word_threshold', e.target.value)}>
           {store.frequentWordThresholds.map(option => (

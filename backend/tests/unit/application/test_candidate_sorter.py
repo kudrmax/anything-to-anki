@@ -124,7 +124,7 @@ class TestCandidateSorter:
             _row(2, "ember", "an ember zephyr", new=("zephyr",), skipped=True),
             _row(3, "cinder", "a cinder quill", new=("quill",)),
             _row(6, "ember", "an ember", CandidateSection.EXTRA),
-            _row(4, "concept", "a concept here", zipf=4.77),
+            _row(4, "available", "available here", zipf=5.28),
             _row(5, "feast", "the feast"),
         ]
         assert self.sorter.progress({7: rows}) == {7: DecisionProgress(decided=2, total=3)}

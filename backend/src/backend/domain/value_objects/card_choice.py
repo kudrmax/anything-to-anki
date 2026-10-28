@@ -89,6 +89,9 @@ CHOICE_OF_PRESS: Mapping[Press, CardChoice] = MappingProxyType(
         Press.KNOWN: CardChoice.KNOWN, Press.SKIP: CardChoice.SKIP,
     },
 )
+PRESS_OF_CHOICE: Mapping[CardChoice, Press] = MappingProxyType(
+    {choice: button for button, choice in CHOICE_OF_PRESS.items()},
+)
 
 
 @dataclass(frozen=True)

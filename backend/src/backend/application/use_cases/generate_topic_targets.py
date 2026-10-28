@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from backend.application.utils.saved_level import saved_level
 from backend.domain.entities.topic_target import TopicTarget
 from backend.domain.exceptions import PermanentAIError, SourceNotFoundError
 from backend.domain.services.topic_phrase_selection import parse_marked_phrase
@@ -20,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 TOPIC_TARGET_COUNT = 20
 MAX_PHRASE_LENGTH = 100
-DEFAULT_CEFR_LEVEL = "B1"
 
 
 class GenerateTopicTargetsUseCase:
@@ -54,9 +54,7 @@ class GenerateTopicTargetsUseCase:
             logger.info("generate_topic_targets: already generated (source_id=%d)", source_id)
             return
 
-        cefr_level = (
-            self._settings_repo.get("cefr_level", DEFAULT_CEFR_LEVEL) or DEFAULT_CEFR_LEVEL
-        )
+        cefr_level = saved_level(self._settings_repo).easier().name
         user_prompt = self._prompts_config.generate_topic_targets_user_template.format(
             query=(source.topic_query or "").strip(),
             cefr_level=cefr_level,

@@ -30,7 +30,7 @@ class TestManageSettingsUseCase:
     def test_get_settings_default(self) -> None:
         self.settings_repo.get.return_value = None
         result = self.use_case.get_settings()
-        assert result.cefr_level == "B1"
+        assert result.cefr_level == "B2"
         assert result.anki_deck_name == "Default"
         assert result.ai_provider == "claude"
         assert result.ai_model == "sonnet"

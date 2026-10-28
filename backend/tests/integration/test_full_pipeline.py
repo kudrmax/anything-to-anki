@@ -163,6 +163,7 @@ class TestFullPipeline:
             phrasal_verb_detector=PhrasalVerbDetector(self.container._phrasal_verb_dictionary),
             fragment_selection_config=self.container._fragment_selection_config,
             usage_lookup=self.container._usage_source,
+            stop_words=self.container._stop_words,
         )
 
         expected = uncached.execute(document, B1)

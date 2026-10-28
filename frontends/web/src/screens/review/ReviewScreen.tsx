@@ -8,7 +8,7 @@ import { pastedPicture } from '@/lib/pastedPicture'
 import { phraseListShownPref, pictureSuggestionsShownPref, sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
 import { ArrowDownWideNarrow, ChevronLeft, ChevronRight, Ellipsis, FileText, Image, ImageOff, List, ListChevronsDownUp, ListChevronsUpDown, PanelRightClose, PanelRightOpen, Sparkles, Upload } from 'lucide-react'
-import { Banner, Button, Empty, Icon, IconButton, Menu, Progress, Spinner, Toast, type MenuItem } from '@/ui'
+import { Banner, Button, Empty, Icon, IconButton, Menu, Progress, Spinner, Toast, ToastStack, UndoToast, type MenuItem } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
 import { generationItems } from './generationItems'
 import { DecisionButtons } from './PhraseActions'
@@ -281,7 +281,10 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
           onCancel={closeSelection}
         />
       )}
-      <Toast message={review.toast} />
+      <ToastStack>
+        <Toast message={review.toast} />
+        <UndoToast offer={review.undo.offer} onUndo={() => void review.undo.run()} />
+      </ToastStack>
     </Page>
   )
 }

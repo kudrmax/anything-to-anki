@@ -104,7 +104,7 @@ def test_patch_returns_at_once_and_status_runs(client: TestClient, held: _HeldCh
     response = client.patch("/api/settings", json={"cefr_level": "C1"})
 
     assert response.status_code == 200
-    assert response.json()["cefr_level"] == "B1"
+    assert response.json()["cefr_level"] == "B2"
     assert _status(client)["running"] is True
 
     held.run()
@@ -139,7 +139,7 @@ def test_reads_work_during_change(client: TestClient, held: _HeldChange) -> None
     response = client.get("/api/settings")
 
     assert response.status_code == 200
-    assert response.json()["cefr_level"] == "B1"
+    assert response.json()["cefr_level"] == "B2"
     held.run()
 
 
@@ -152,7 +152,7 @@ def test_cancel_endpoint(client: TestClient, held: _HeldChange) -> None:
 
     assert _status(client)["outcome"] == "cancelled"
     settings = client.get("/api/settings").json()
-    assert (settings["cefr_level"], settings["anki_deck_name"]) == ("B1", "Default")
+    assert (settings["cefr_level"], settings["anki_deck_name"]) == ("B2", "Default")
     assert client.patch("/api/settings", json={"anki_deck_name": "Free"}).status_code == 200
 
 
@@ -192,7 +192,7 @@ def test_a_running_preview_refuses_the_change(
 
     assert response.status_code == 409
     assert held.pending is None
-    assert client.get("/api/settings").json()["cefr_level"] == "B1"
+    assert client.get("/api/settings").json()["cefr_level"] == "B2"
 
 
 def test_a_running_index_build_refuses_the_change(

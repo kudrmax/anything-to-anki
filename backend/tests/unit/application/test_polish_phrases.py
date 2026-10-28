@@ -122,7 +122,7 @@ def _use_case(
     source_repo = MagicMock()
     source_repo.get_by_id.return_value = source or _source()
     settings_repo = MagicMock()
-    settings_repo.get.return_value = "B1"
+    settings_repo.get.return_value = "B2"
     ai_service = MagicMock()
     ai_service.polish_phrases_batch.return_value = answers
     reset = MagicMock()

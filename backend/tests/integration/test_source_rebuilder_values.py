@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.integration
 
-SAVED_LEVEL = "B1"
+SAVED_LEVEL = "B2"
 NEW_LEVEL = "C1"
 NEW_ZIPF = 4.2
 

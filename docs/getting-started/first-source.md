@@ -4,7 +4,7 @@ This walkthrough takes one text from adding to Anki. It takes about ten minutes.
 
 ## 1. Set your level
 
-Open **Settings → Vocabulary**, choose your **Target CEFR level**, and press **Save settings**. The app suggests words above this level.
+Open **Settings → Vocabulary**, choose **Your CEFR level** — the level you are learning now — and press **Save settings**. The app suggests words of this level and harder.
 
 ## 2. Add a text
 

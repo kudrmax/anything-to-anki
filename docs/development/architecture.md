@@ -62,7 +62,7 @@ Source ─► Text extraction ─► Phrase segmentation ─► Target selection
 ```
 
 1. **Intake** (`application/source_intake`, `infrastructure/readers`). A format detector picks a reader by file extension or by the pasted text: plain, Markdown, HTML, EPUB, SRT, video file or YouTube. The text is normalised: tags and timecodes are removed, slang is spelled out.
-2. **Processing** (`process_source`, `analyze_text`). spaCy parses the text. The app collects the lemmas, phrasal verbs and collocations. It filters out words you know, words at or below your CEFR level, and very frequent words. Then it chooses, for every target, the phrase where everything else is most familiar. Processing runs as one long operation and is saved in one transaction.
+2. **Processing** (`process_source`, `analyze_text`). spaCy parses the text. The app collects the lemmas, phrasal verbs and collocations. It filters out function words, words you know, words below your CEFR level, and very frequent words. Then it chooses, for every target, the phrase where everything else is most familiar. Processing runs as one long operation and is saved in one transaction.
 3. **Generation** (`run_generation`, the worker). Jobs per card: polish and meaning (AI, in batches of 15), media (ffmpeg), pronunciation (dictionary audio), TTS (Kokoro).
 4. **Review** (`open_review`, `decide_phrase`). The backend orders the cards, splits them into sections and applies decisions. Card states are kept in a stored projection.
 5. **Export** (`sync_to_anki`). Notes are added through AnkiConnect, with their media.

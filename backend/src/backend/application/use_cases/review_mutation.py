@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from backend.application.dto.review_dtos import UndoPressDTO
 from backend.application.utils.review_updates import Placement
 from backend.domain.services.review_layout import focus_after_press
 
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.card_state_query import CardStateQuery
     from backend.domain.ports.review_order_store import ReviewOrderStore
     from backend.domain.ports.unit_of_work import UnitOfWork
+    from backend.domain.services.decision_rules import ChoiceChange
     from backend.domain.value_objects.review_order import ReviewOrder
 
 
@@ -42,18 +44,31 @@ class ReviewMutation:
         self._unit_of_work = unit_of_work
 
     def press(
-        self, ctx: ReviewContext, phrase_id: int, action: Callable[[], object],
+        self, ctx: ReviewContext, phrase_id: int, action: Callable[[], ChoiceChange | None],
     ) -> ReviewUpdateDTO:
-        """A button of the card pressed: the focus moves on when the card became done."""
+        """A button of the card pressed: the focus moves on when the card became done. The
+        answer offers the press that undoes it, when it changed the card's choice."""
         with self._store.hold(ctx.review_id) as review:
             with self._unit_of_work.read():
                 was_done = self._card_states.done_of_phrases([phrase_id]).get(phrase_id, False)
-            action()
+            change = action()
 
             def focus(order: ReviewOrder, is_done: Mapping[int, bool]) -> int | None:
                 return focus_after_press(order, phrase_id, was_done, is_done)
 
-            return self._updates.build(ctx, review, focus_by=focus)
+            update = self._updates.build(ctx, review, focus_by=focus)
+        if change is not None and change.undo is not None:
+            update.undo = UndoPressDTO(phrase_id=change.card_id, button=change.undo)
+        return update
+
+    def undo(
+        self, ctx: ReviewContext, phrase_id: int, action: Callable[[], object],
+    ) -> ReviewUpdateDTO:
+        """The press a previous answer offered to undo itself: the focus goes back to the
+        card, and nothing is offered to undo the undo."""
+        with self._store.hold(ctx.review_id) as review:
+            action()
+            return self._updates.build(ctx, review, focus_id=phrase_id)
 
     def replace(
         self, ctx: ReviewContext, old_id: int, action: Callable[[], CardDTO],

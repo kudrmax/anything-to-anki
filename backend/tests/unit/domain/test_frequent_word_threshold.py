@@ -1,7 +1,12 @@
+import itertools
+
 import pytest
+from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.frequent_word_threshold import (
     DEFAULT_FREQUENT_WORD_THRESHOLD,
     FrequentWordThreshold,
+    auto_start_zipf,
+    step_index,
 )
 
 
@@ -27,3 +32,27 @@ class TestFrequentWordThreshold:
     def test_unknown_key_is_rejected(self) -> None:
         with pytest.raises(ValueError):
             FrequentWordThreshold.from_key("3.0")
+
+
+@pytest.mark.unit
+class TestAutoStart:
+    @pytest.mark.parametrize(
+        ("level", "zipf"),
+        [
+            (CEFRLevel.A1, None), (CEFRLevel.A2, 5.5), (CEFRLevel.B1, 5.5),
+            (CEFRLevel.B2, 5.0), (CEFRLevel.C1, 4.5), (CEFRLevel.C2, 4.0),
+        ],
+    )
+    def test_starts_where_a_learner_of_the_level_probably_knows_a_word(
+        self, level: CEFRLevel, zipf: float | None,
+    ) -> None:
+        assert auto_start_zipf(level) == zipf
+
+    def test_a_higher_level_never_starts_higher(self) -> None:
+        """No threshold is higher than any."""
+        starts = [step_index(auto_start_zipf(level)) for level in CEFRLevel]
+        assert all(a >= b for a, b in itertools.pairwise(starts))
+
+    def test_every_start_is_a_step(self) -> None:
+        for level in CEFRLevel:
+            step_index(auto_start_zipf(level))

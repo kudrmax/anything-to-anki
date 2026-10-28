@@ -130,7 +130,7 @@ def test_the_default_value_written_explicitly_is_no_level_change(
     use_case: ManageSettingsUseCase, events: list[str],
 ) -> None:
     use_case.update_settings(
-        UpdateSettingsRequest(cefr_level="B1", frequent_word_threshold="auto"),
+        UpdateSettingsRequest(cefr_level="B2", frequent_word_threshold="auto"),
     )
     assert events == [
         "write", "set cefr_level", f"set {FREQUENT_WORD_THRESHOLD_SETTING}", "committed",

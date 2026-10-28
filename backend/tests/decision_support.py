@@ -127,7 +127,6 @@ class Decisions:
             cloze_repo=SqlaCandidateClozeRepository(
                 self.session, SessionChangeRecorder(self.session),
             ),
-            card_views=MagicMock(),
             decide_phrase=self.decide_phrase(),
             builder=ClozeBuilder(),
             lock=self.lock,
@@ -146,7 +145,5 @@ class Decisions:
             vocabulary=self.vocabulary,
             effects=self.effects(),
             lock=self.lock,
-            # The tests press; the card the API answers with is read by the API tests.
-            card_views=MagicMock(),
             unit_of_work=SqlaUnitOfWork(self.session, self.scope),
         )

@@ -30,6 +30,7 @@ from backend.domain.services.decision_rules import (
     UNKNOWN_MARK_RULES,
     BindingRef,
     BindKey,
+    ChoiceChange,
     Effect,
     MoveKey,
     PressKey,
@@ -350,6 +351,28 @@ class TestPressRows:
             c for c in world.word.cards if c.card_id != ACTED
         ]
         _assert_invariants(world, outcome)
+
+
+@pytest.mark.unit
+class TestUndoPress:
+    """The press that brings the card back: the button of the choice it had, or the one it
+    has now pressed again when it had none."""
+
+    @pytest.mark.parametrize(("before", "after", "undo"), [
+        (CardChoice.NONE, CardChoice.LEARN, Press.LEARN),
+        (CardChoice.NONE, CardChoice.SKIP, Press.SKIP),
+        (CardChoice.LEARN, CardChoice.NONE, Press.LEARN),
+        (CardChoice.KNOWN, CardChoice.LEARN, Press.KNOWN),
+        (CardChoice.SKIP, CardChoice.CLOZE, Press.SKIP),
+        (CardChoice.CLOZE, CardChoice.KNOWN, Press.CLOZE),
+    ])
+    def test_the_undo_of_a_change(
+        self, before: CardChoice, after: CardChoice, undo: Press,
+    ) -> None:
+        assert ChoiceChange(ACTED, before, after).undo is undo
+
+    def test_no_change_has_nothing_to_undo(self) -> None:
+        assert ChoiceChange(ACTED, CardChoice.LEARN, CardChoice.LEARN).undo is None
 
 
 @pytest.mark.unit

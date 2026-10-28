@@ -26,7 +26,7 @@ from backend.domain.value_objects.phrase_origin_kind import DecisionKind, Occurr
 from backend.domain.value_objects.source_role import SourceRole
 from backend.domain.value_objects.word_status import WordStatus
 
-from tests.candidate_sorter_support import section_stamper
+from tests.candidate_sorter_support import no_settings, section_stamper
 from tests.card_support import CARD_SOURCE, card, occurrence, word
 from tests.phrase_support import phrase
 
@@ -96,7 +96,7 @@ class _Setup:
         self.use_case = AddSavedPhraseUseCase(
             source_repo=self.source_repo,
             collected_phrases=CollectedPhrases(
-                self.candidate_repo, self.occurrence_repo, section_stamper(MagicMock()),
+                self.candidate_repo, self.occurrence_repo, section_stamper(no_settings()),
             ),
             candidate_factory=CandidateFactory(
                 text_analyzer=text_analyzer,

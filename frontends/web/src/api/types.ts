@@ -431,6 +431,14 @@ export interface ReviewUpdate {
   highlights: ChunkHighlights[]
   /** Версия оглавления набора: растёт, когда меняется состав его источников. */
   contents_version: number
+  /** Нажатие, которое отменяет то, на которое этот ответ; null — у ответа на другое. */
+  undo: UndoPress | null
+}
+
+/** Нажатие, возвращающее карточке отметку, которая была до последнего нажатия. */
+export interface UndoPress {
+  phrase_id: number
+  button: DecisionButton
 }
 
 /** Что шлёт каждый запрос к открытому ревью: его id, ревизия клиента и показанная карточка. */

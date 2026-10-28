@@ -25,8 +25,8 @@ class TestGetBootstrapWordsUseCase:
         )
 
     def test_computes_grid_levels_from_settings(self) -> None:
-        """User CEFR=B1 -> grid={B2, C1, C2}."""
-        self.settings_repo.get.return_value = "B1"
+        """User CEFR=B2 -> grid={B2, C1, C2}."""
+        self.settings_repo.get.return_value = "B2"
         self.known_word_repo.known_lemmas.return_value = set()
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
@@ -42,8 +42,8 @@ class TestGetBootstrapWordsUseCase:
         assert "run" not in lemmas
 
     def test_grid_shrinks_for_high_cefr(self) -> None:
-        """User CEFR=B2 -> grid={C1, C2}."""
-        self.settings_repo.get.return_value = "B2"
+        """User CEFR=C1 -> grid={C1, C2}."""
+        self.settings_repo.get.return_value = "C1"
         self.known_word_repo.known_lemmas.return_value = set()
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
@@ -56,8 +56,22 @@ class TestGetBootstrapWordsUseCase:
         assert "elaborate" not in lemmas
         assert "nuance" in lemmas
 
+    def test_a_beginner_calibrates_the_first_levels(self) -> None:
+        """User CEFR=A1 -> grid={A1, A2, B1}."""
+        self.settings_repo.get.return_value = "A1"
+        self.known_word_repo.known_lemmas.return_value = set()
+        self.index_repo.get_all_entries.return_value = [
+            _entry("run", CEFRLevel.A1, 5.2),
+            _entry("elaborate", CEFRLevel.B2, 3.8),
+        ]
+
+        lemmas = {w.lemma for w in self.use_case.execute(excluded_lemmas=[])}
+
+        assert "run" in lemmas
+        assert "elaborate" not in lemmas
+
     def test_excludes_known_words(self) -> None:
-        self.settings_repo.get.return_value = "B1"
+        self.settings_repo.get.return_value = "B2"
         self.known_word_repo.known_lemmas.return_value = {"elaborate"}
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
@@ -70,7 +84,7 @@ class TestGetBootstrapWordsUseCase:
         assert "elaborate" not in lemmas
 
     def test_excludes_words_being_learned(self) -> None:
-        self.settings_repo.get.return_value = "B1"
+        self.settings_repo.get.return_value = "B2"
         self.known_word_repo.known_lemmas.return_value = set()
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
@@ -87,7 +101,7 @@ class TestGetBootstrapWordsUseCase:
         assert lemmas == {"elaborate"}
 
     def test_passes_excluded_lemmas(self) -> None:
-        self.settings_repo.get.return_value = "B1"
+        self.settings_repo.get.return_value = "B2"
         self.known_word_repo.known_lemmas.return_value = set()
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
@@ -100,7 +114,7 @@ class TestGetBootstrapWordsUseCase:
         assert "elaborate" not in lemmas
 
     def test_returns_bootstrap_word_dtos(self) -> None:
-        self.settings_repo.get.return_value = "B1"
+        self.settings_repo.get.return_value = "B2"
         self.known_word_repo.known_lemmas.return_value = set()
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
