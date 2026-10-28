@@ -14,6 +14,7 @@
 - [Queue and AI usage](guide/queue-and-usage.md): background jobs and token usage.
 - [Settings](guide/settings.md): every setting.
 - [The macOS app](guide/macos-app.md): the native window, drag and drop, Quick Add.
+- [Updating](guide/updating.md): new versions, the Update button, `make update`, what's new.
 
 ## Reference
 

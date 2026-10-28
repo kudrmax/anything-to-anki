@@ -79,3 +79,7 @@ Words you told the app you don't know. Remove a word (×) to take it off the lis
 How much disk space the screenshots and audio of each video source take. **Del images**, **Del audio** and **Del all** delete them for one source.
 
 Deleting is permanent. Deleted audio makes cards without TTS **Incomplete** for export; you can cut the media again with **✨ → Media**, as long as the video is still on disk.
+
+## Updates
+
+Shows the installed version. **Changelog** opens the full history of releases. **Check for updates** looks for a new release right now, without waiting for the daily check. If there is one, the update window opens; if not, you see "You're on the latest version". See [Updating](updating.md).

@@ -75,6 +75,7 @@ The documentation in `docs/` is part of the product. **A change that adds, remov
 | Queue or Usage | [guide/queue-and-usage.md](../guide/queue-and-usage.md) |
 | A setting | [guide/settings.md](../guide/settings.md) |
 | The macOS app | [guide/macos-app.md](../guide/macos-app.md) |
+| Updates, releases, `make update` | [guide/updating.md](../guide/updating.md) |
 | Installation, `make` targets, `.env`, environment variables | [getting-started/installation.md](../getting-started/installation.md), [reference/commands.md](../reference/commands.md), [reference/configuration.md](../reference/configuration.md) |
 | Dictionary format | [reference/dictionaries.md](../reference/dictionaries.md) |
 | An error message | [reference/troubleshooting.md](../reference/troubleshooting.md) |

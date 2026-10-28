@@ -20,6 +20,7 @@ Everything is run through `make` in the project folder. `make help` lists the co
 | `make up` | Starts the app: AI proxy, app server and worker. Restarts them if they run |
 | `make down` | Stops the app |
 | `make logs` | Shows the logs of all three processes in one stream |
+| `make update` | Moves the copy to the latest release and starts it. If anything fails, the copy returns to the version it had. See [Updating](../guide/updating.md) |
 
 ## Dictionaries
 
