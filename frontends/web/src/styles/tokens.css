@@ -171,6 +171,7 @@
   --card-col-pt: var(--s5);       /* от линии над колонкой до первого блока */
   --card-row-gap: var(--s4);
   --card-divider-my: calc(var(--card-col-pt) - var(--card-row-gap));   /* от линии раскладки до блоков столько же, сколько от линии над колонкой */
+  --card-left-divider-my: var(--card-divider-my);   /* левая колонка на телефоне разносит строки не зазором, а отступом сверху */
   /* размеры картинок в раскладке карточки — множители миниатюры */
   --thumb-scale: 1;
   --thumb-scale-xs: .6;
@@ -218,7 +219,7 @@
   --card-cols-pb: var(--s5);         /* под колонками — линия нижней полосы, большой отступ не нужен */
   --card-left-display: flex;
   --card-left-item-mx: 0px;
-  --card-left-item-mt: 0;
+  --card-left-item-mt: 0px;
   --card-left-first-mt: 0px;
   --card-right-pt: var(--card-col-pt);
   --card-right-bw: var(--bw);
@@ -398,6 +399,7 @@
     --card-left-display: contents;
     --card-left-item-mx: var(--card-pad);
     --card-left-item-mt: var(--s3);
+    --card-left-divider-my: calc(var(--card-col-pt) - var(--card-left-item-mt));
     --card-left-first-mt: var(--s5);
     --card-right-pt: var(--card-pad);
     --card-right-bw: 0px;
