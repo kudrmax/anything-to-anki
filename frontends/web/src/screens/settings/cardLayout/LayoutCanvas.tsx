@@ -1,5 +1,5 @@
-import { Fragment, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from 'react'
-import { ChevronUp, ImageIcon } from 'lucide-react'
+import { Fragment, type CSSProperties, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
+import { ChevronUp } from 'lucide-react'
 import type { CardElement, CardLayoutRow, CardLayoutView } from '@/api/types'
 import { CARD_ELEMENTS, CardBlock, columnTracks, isEmptyBlock, type CardBlockContext } from '@/cardLayout'
 import { phraseParts } from '@/lib/text/phraseParts'
@@ -26,12 +26,6 @@ interface LayoutCanvasProps {
   /** Выбор с клавиатуры: Enter или пробел на блоке или линии. */
   onSelect: (item: DragItem) => void
   onDeselect: () => void
-}
-
-/** Чем блок выглядит в превью, когда образцу карточки нечего в нём показать. */
-function placeholder(element: CardElement, kind: string | undefined): ReactNode {
-  if (kind === 'media') return <span className={css.mediaPlaceholder}><Icon as={ImageIcon} /></span>
-  return <span className={css.placeholder}>{ELEMENT_LABEL[element]}</span>
 }
 
 const isSelectedBlock = (selection: LayoutSelection | null, element: CardElement) =>
@@ -70,11 +64,14 @@ export function LayoutCanvas({ view, ctx, rootRef, drag, selection, startDrag, o
         </div>
       )
     }
+    // Превью показывает ровно то, что показала бы карточка: блока, которому образцу нечего показать, нет, как и на ревью.
+    const blocks = cardRow.elements
+      .map((element, position) => ({ element, position, content: CARD_ELEMENTS[element](ctx) }))
+      .filter(({ content }) => !isEmptyBlock(content))
+    if (blocks.length === 0) return null
     return (
       <div key={rowIndex} {...rowAttrs} className={layoutCss.row}>
-        {cardRow.elements.map((element, position) => {
-          const content = CARD_ELEMENTS[element](ctx)
-          const kind = view.elements.find(entry => entry.element === element)?.kind
+        {blocks.map(({ element, position, content }) => {
           const classes = [css.block, isSelectedBlock(selection, element) && css.selected, isDragged(drag, element) && css.dragged]
           return (
             <CardBlock
@@ -90,7 +87,7 @@ export function LayoutCanvas({ view, ctx, rootRef, drag, selection, startDrag, o
               onPointerDown={startDrag({ kind: 'block', element, placed: true })}
               onKeyDown={onKey({ kind: 'block', element, placed: true })}
             >
-              {isEmptyBlock(content) ? placeholder(element, kind) : content}
+              {content}
               <span className={css.blockLabel} aria-hidden>{ELEMENT_LABEL[element]}</span>
             </CardBlock>
           )
