@@ -2,9 +2,11 @@
 or back where it was and running."""
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import os
 import plistlib
+import signal
 import subprocess
 import time
 from dataclasses import dataclass
@@ -45,7 +47,7 @@ NPM_LOCK := frontends/web/package-lock.json
 down:
 \t@echo $@ >> $(CALLS)
 \t@while [ "$$(cat $(FLAGS)/hold 2>/dev/null)" = hold ]; do sleep 0.05; done
-\t@if [ -f $(FLAGS)/linger ]; then sleep $(LINGER_S) & fi
+\t@if [ -f $(FLAGS)/linger ]; then sleep $(LINGER_S) & echo $$! > $(FLAGS)/linger.pid; fi
 \t@echo stopped > $(FLAGS)/processes
 
 setup-python:
@@ -459,10 +461,16 @@ def test_a_step_that_leaves_a_process_holding_its_output_does_not_stall(copy: Co
     copy.release("1.1.0")
     copy.flag("linger")
 
-    result = subprocess.run(
-        ["/bin/bash", str(SCRIPT)], cwd=copy.root, env=copy.env(),
-        capture_output=True, text=True, timeout=WAIT_S,
-    )
+    try:
+        result = subprocess.run(
+            ["/bin/bash", str(SCRIPT)], cwd=copy.root, env=copy.env(),
+            capture_output=True, text=True, timeout=WAIT_S,
+        )
+    finally:
+        lingering = copy.flags / "linger.pid"
+        if lingering.exists():
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(int(lingering.read_text()), signal.SIGKILL)
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert copy.state() == "done"
@@ -500,6 +508,19 @@ def test_a_copy_stopped_by_a_failed_rollback_is_recovered_first(copy: Copy) -> N
     assert "make _db-restore" in again.stdout
     assert sorted(path.name for path in copy.backup_dir.iterdir()) == kept
     assert copy.calls() == calls
+
+
+def test_a_leftover_backup_without_a_recovery_is_discarded(copy: Copy) -> None:
+    copy.release("1.1.0")
+    leftover = copy.backup_dir / "venv"
+    leftover.mkdir(parents=True)
+
+    result = copy.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "leftover" in result.stdout
+    assert not copy.backup_dir.exists()
+    assert copy.state() == "done"
 
 
 def test_missing_packages_refuse_the_update(copy: Copy) -> None:

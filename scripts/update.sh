@@ -260,15 +260,18 @@ refuse_in_worktree() {
     fi
 }
 
-# A run that left the copy stopped kept the packages its recovery recipe moves back.
-# Another run would replace them, so the recovery comes first.
+# A run that left the copy stopped marks its kept packages with the recovery recipe, which
+# moves them back; another run would replace them, so the recovery comes first. Kept
+# packages without the marker are only a backup whose trashing failed.
 refuse_after_a_stopped_update() {
     [ -e "$BACKUP_DIR" ] || return 0
-    local recovery="its steps are at the end of the earlier run in $LOG_FILE."
-    if [ -f "$RECOVERY_FILE" ]; then recovery=$(cat "$RECOVERY_FILE"); fi
-    refuse "An earlier update did not finish and kept the packages from before it in" \
-        "$BACKUP_DIR. Finish its recovery first: $recovery Then move $BACKUP_DIR to the" \
-        "trash and run 'make update' again."
+    if [ -f "$RECOVERY_FILE" ]; then
+        refuse "An earlier update did not finish and kept the packages from before it in" \
+            "$BACKUP_DIR. Finish its recovery first: $(cat "$RECOVERY_FILE") Then move" \
+            "$BACKUP_DIR to the trash and run 'make update' again."
+    fi
+    echo "Moving the leftover $BACKUP_DIR of an earlier run to the trash."
+    "$TRASH" "$BACKUP_DIR" || refuse "Could not move the leftover $BACKUP_DIR to the trash."
 }
 
 # Both folders are cloned before the update and swapped back on the way back.
