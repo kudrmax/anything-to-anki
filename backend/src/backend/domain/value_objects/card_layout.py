@@ -346,7 +346,6 @@ DEFAULT_CARD_LAYOUT = CardLayout(
                 ),
                 BlockRow((CardElement.SYNONYMS,)),
                 BlockRow((CardElement.DEFINITION,)),
-                DividerRow(),
                 BlockRow((CardElement.NOTES,)),
                 BlockRow((CardElement.EXAMPLES,)),
             ),
