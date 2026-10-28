@@ -55,3 +55,24 @@ class TestFrequencyThresholdCalibrator:
     def test_a_start_off_the_steps_is_refused(self) -> None:
         with pytest.raises(ValueError, match="Not a threshold step"):
             FrequencyThresholdCalibrator().calibrate([], 4.2)
+
+    def test_no_threshold_stays_without_decisions(self) -> None:
+        assert FrequencyThresholdCalibrator().calibrate([], None) is None
+
+    def test_no_threshold_stays_while_the_most_frequent_words_are_mostly_learned(self) -> None:
+        decisions = _decisions(5.8, known=1, learn=4)
+        assert FrequencyThresholdCalibrator().calibrate(decisions, None) is None
+
+    def test_no_threshold_comes_down_once_the_most_frequent_words_are_mostly_known(
+        self,
+    ) -> None:
+        decisions = _decisions(5.8, known=4, learn=1) + _decisions(5.2, known=4, learn=0)
+        assert FrequencyThresholdCalibrator().calibrate(decisions, None) == 5.0
+
+    def test_no_threshold_needs_enough_decisions_to_come_down(self) -> None:
+        decisions = _decisions(6.5, known=3, learn=0)
+        assert FrequencyThresholdCalibrator().calibrate(decisions, None) is None
+
+    def test_a_threshold_never_goes_up_to_none(self) -> None:
+        decisions = [d for z in (5.7, 6.2) for d in _decisions(z, known=0, learn=5)]
+        assert FrequencyThresholdCalibrator().calibrate(decisions, 5.5) == 5.5

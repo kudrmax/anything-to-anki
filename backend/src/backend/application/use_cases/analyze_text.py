@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.cefr_classifier import CEFRClassifier
     from backend.domain.ports.document_analyzer import DocumentAnalyzer
     from backend.domain.ports.frequency_provider import FrequencyProvider
+    from backend.domain.ports.stop_words import StopWords
     from backend.domain.ports.usage_source import UsageSource
     from backend.domain.services.document_layout import DocumentLayout
     from backend.domain.services.fragment_selection.scoring.scorer import (
@@ -86,6 +87,7 @@ class AnalyzeTextUseCase:
         cefr_classifier: CEFRClassifier,
         frequency_provider: FrequencyProvider,
         phrasal_verb_detector: PhrasalVerbDetector,
+        stop_words: StopWords,
         fragment_selection_config: FragmentSelectionConfig | None = None,
         usage_lookup: UsageSource | None = None,
     ) -> None:
@@ -93,6 +95,7 @@ class AnalyzeTextUseCase:
         self._cefr_classifier = cefr_classifier
         self._frequency_provider = frequency_provider
         self._phrasal_verb_detector = phrasal_verb_detector
+        self._stop_words = stop_words
         self._candidate_filter = CandidateFilter()
         self._fragment_config = (
             fragment_selection_config or FragmentSelectionConfig()
@@ -179,6 +182,8 @@ class AnalyzeTextUseCase:
             if not self._candidate_filter.is_relevant_token(token):
                 continue
             lemma = knowledge.lemma_of(token)
+            if self._candidate_filter.is_function_word(lemma, token.pos, self._stop_words):
+                continue
             if knowledge.is_known_or_learning(lemma):
                 continue
             words.setdefault(lemma, []).append(_Occurrence(

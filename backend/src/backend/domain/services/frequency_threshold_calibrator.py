@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from backend.domain.value_objects.frequent_word_threshold import (
@@ -21,7 +22,7 @@ MIN_DECISIONS_PER_BAND: int = 4
 KNOWN_SHARE: float = 0.5
 
 
-def _check_steps(steps: tuple[float, ...], starts: Iterable[float]) -> None:
+def _check_steps(steps: tuple[float, ...], starts: Iterable[float | None]) -> None:
     """The calibrator moves band by band from a start, so it lands only on the steps."""
     for start in starts:
         step_index(start)
@@ -39,16 +40,19 @@ class FrequencyThresholdCalibrator:
     Starts at `start` and moves band by band: down while the band just
     below is mostly known, otherwise up while the band just above is mostly
     unknown. A band with too few decisions stops the move — no guessing.
+    Without a threshold to start from, it only comes down: to the highest
+    step once the words at least that frequent are mostly known, then on.
     """
 
-    def calibrate(self, decisions: Sequence[WordDecision], start: float) -> float:
+    def calibrate(
+        self, decisions: Sequence[WordDecision], start: float | None,
+    ) -> float | None:
         step_index(start)
-        threshold = start
-        while threshold - BAND_WIDTH >= LOWEST_ZIPF:
-            share = self._known_share(decisions, threshold - BAND_WIDTH, threshold)
-            if share is None or share < KNOWN_SHARE:
-                break
-            threshold -= BAND_WIDTH
+        if start is None:
+            if not self._mostly_known(decisions, HIGHEST_ZIPF, math.inf):
+                return None
+            return self._down(decisions, HIGHEST_ZIPF)
+        threshold = self._down(decisions, start)
         if threshold != start:
             return threshold
         while threshold + BAND_WIDTH <= HIGHEST_ZIPF:
@@ -57,6 +61,19 @@ class FrequencyThresholdCalibrator:
                 break
             threshold += BAND_WIDTH
         return threshold
+
+    def _down(self, decisions: Sequence[WordDecision], threshold: float) -> float:
+        while threshold - BAND_WIDTH >= LOWEST_ZIPF and self._mostly_known(
+            decisions, threshold - BAND_WIDTH, threshold,
+        ):
+            threshold -= BAND_WIDTH
+        return threshold
+
+    def _mostly_known(
+        self, decisions: Sequence[WordDecision], low: float, high: float,
+    ) -> bool:
+        share = self._known_share(decisions, low, high)
+        return share is not None and share >= KNOWN_SHARE
 
     @staticmethod
     def _known_share(

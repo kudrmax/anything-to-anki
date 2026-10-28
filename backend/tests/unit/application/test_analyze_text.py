@@ -19,6 +19,7 @@ from backend.application.use_cases.analyze_text import (
 from backend.domain.entities.occurrence import OccurrenceKey
 from backend.domain.entities.token_data import TokenData
 from backend.domain.ports.document_analyzer import AnalyzedDocument, DocumentAnalyzer
+from backend.domain.ports.stop_words import StopWords
 from backend.domain.services.document_layout import DocumentLayout
 from backend.domain.services.long_operation_progress import PartReport, no_report
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbMatch
@@ -59,6 +60,17 @@ def _make_token(
     )
 
 
+class _StopWords(StopWords):
+    def __init__(self, words: frozenset[str] = frozenset()) -> None:
+        self._words = words
+
+    def contains(self, lemma: str) -> bool:
+        return lemma in self._words
+
+
+NO_STOP_WORDS = _StopWords()
+
+
 class _LaidOutTokens(DocumentAnalyzer):
     """A one-paragraph document of the tokens, each placed where its text stands."""
 
@@ -94,6 +106,7 @@ def _create_use_case(
     tokens: list[TokenData] | None = None,
     cefr_map: dict[str, CEFRLevel] | None = None,
     freq_map: dict[str, float] | None = None,
+    stop_words: frozenset[str] = frozenset(),
 ) -> _Analysis:
     analyzer = _LaidOutTokens(tokens or [])
 
@@ -121,6 +134,7 @@ def _create_use_case(
         cefr_classifier=cefr_classifier,
         frequency_provider=frequency_provider,
         phrasal_verb_detector=phrasal_verb_detector,
+        stop_words=_StopWords(stop_words),
     )
     return _Analysis(use_case, analyzer)
 
@@ -150,6 +164,30 @@ class TestAnalyzeTextUseCase:
         assert len([p for p in parts if PARSE_SHARE < p <= words_from]) == COLLECT_STEPS
         assert len([p for p in parts if words_from < p < 1.0]) == 2
         assert parts[-1] == 1.0
+
+    def test_a_function_word_in_any_form_is_no_candidate(self) -> None:
+        """'gonna' splits into 'gon' + 'na', whose lemma is 'to'; 'won't' into 'wo' + 'n't',
+        whose lemma is 'will'. Neither form is a stop word, their words are."""
+        tokens = [
+            _make_token(0, "na", "to", pos="PART", tag="TO"),
+            _make_token(1, "wo", "will", pos="AUX", tag="MD"),
+            _make_token(2, "having", "have", pos="VERB", tag="VBG"),
+            _make_token(3, "glare", "glare"),
+        ]
+        use_case = _create_use_case(tokens=tokens, stop_words=frozenset({"to", "will", "have"}))
+
+        words = use_case.execute(AnalyzeTextRequest(user_level="A1")).words
+
+        assert [w.lemma for w in words] == ["glare"]
+
+    def test_a_stop_word_used_as_a_verb_is_a_candidate(self) -> None:
+        """'owns' is the verb 'own', though 'own' the adjective is a stop word."""
+        tokens = [_make_token(0, "owns", "own", pos="VERB", tag="VBZ")]
+        use_case = _create_use_case(tokens=tokens, stop_words=frozenset({"own"}))
+
+        words = use_case.execute(AnalyzeTextRequest(user_level="A1")).words
+
+        assert [w.lemma for w in words] == ["own"]
 
     def test_filters_below_user_level(self) -> None:
         tokens = [_make_token(0, "happy", "happy")]
@@ -485,6 +523,7 @@ def _analyze_with(
         cefr_classifier=cefr_classifier,
         frequency_provider=frequency_provider,
         phrasal_verb_detector=phrasal_verb_detector,
+        stop_words=NO_STOP_WORDS,
     )
     return use_case.execute(analyzer.document, AnalyzeTextRequest(user_level="B1")).words
 
@@ -561,6 +600,7 @@ class TestAnalyzeTextEveryOccurrence:
             cefr_classifier=cefr_classifier,
             frequency_provider=frequency_provider,
             phrasal_verb_detector=phrasal_verb_detector,
+            stop_words=NO_STOP_WORDS,
         )
         words = use_case.execute(document, AnalyzeTextRequest(user_level="B1")).words
         glare = next(w for w in words if w.lemma == "glare")
