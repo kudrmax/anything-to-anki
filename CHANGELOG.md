@@ -2,6 +2,25 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.2.0 — 2026-10-29
+
+Arrange the Review card your way, and fill incomplete cards before export with one button.
+
+### Card layout editor
+**Settings → Card layout → Open the editor** opens the Review screen on a sample card, with the editor on top. Drag blocks between rows and columns, hide the ones you don't need, add dividers, and click a block to change its size, colour and place in its row. Switch what the sample card has to see how a card looks with or without a video, a picture or a meaning. Changes are saved at once, and **Reset to default** brings back the original layout. Anki cards are not affected.
+![](docs/images/changelog/1.2.0/card-layout-editor.png)
+
+### Generate missing before export
+On the export page, **Generate missing · N cards** fills in what incomplete cards lack, for every source on the page at once: the meaning and the audio of the phrase. Finished cards move to **Ready** on their own. A card it can't fill says why, for example when the video was never downloaded.
+![](docs/images/changelog/1.2.0/generate-missing.png)
+
+### Improvements
+- The Review card has a new default layout. The left column holds the word with its transcription, level, frequency and usage, then the translation, definition, synonyms and the picture; the right column holds the context, examples and the audio buttons.
+- A part with nothing to show is left out of the card, and an empty column gives its room to the others.
+
+### No longer broken
+- On a phone-wide window, Settings and **Update available** no longer slip off the header: a dot on the Settings gear shows that an update is out.
+
 ## 1.1.0 — 2026-10-28
 
 The update screen now shows what is happening.
