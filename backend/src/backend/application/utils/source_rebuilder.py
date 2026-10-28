@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
 from backend.application.utils.occurrence_builder import OccurrenceBuilder
+from backend.application.utils.saved_level import saved_level
 from backend.domain.exceptions import SourceHasNoDocumentError, SourceNotFoundError
 from backend.domain.services.card_view import stored_chosen_to_learn
 from backend.domain.services.document_time import is_timed, time_of
@@ -41,7 +42,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_USER_LEVEL = "B1"
 
 
 @dataclass(frozen=True)
@@ -152,8 +152,7 @@ class SourceRebuilder:
 
     def _saved_values(self) -> AnalysisValues:
         return AnalysisValues(
-            user_level=self._settings_repo.get("cefr_level", DEFAULT_USER_LEVEL)
-            or DEFAULT_USER_LEVEL,
+            user_level=saved_level(self._settings_repo).name,
             frequent_word_zipf=self._threshold_resolver.resolve().zipf,
         )
 

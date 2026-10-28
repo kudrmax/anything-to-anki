@@ -39,8 +39,8 @@ class TestAutoStart:
     @pytest.mark.parametrize(
         ("level", "zipf"),
         [
-            (CEFRLevel.A1, 5.5), (CEFRLevel.A2, 5.5), (CEFRLevel.B1, 5.0),
-            (CEFRLevel.B2, 4.5), (CEFRLevel.C1, 4.0), (CEFRLevel.C2, 4.0),
+            (CEFRLevel.A1, 5.5), (CEFRLevel.A2, 5.5), (CEFRLevel.B1, 5.5),
+            (CEFRLevel.B2, 5.0), (CEFRLevel.C1, 4.5), (CEFRLevel.C2, 4.0),
         ],
     )
     def test_starts_where_a_learner_of_the_level_probably_knows_a_word(

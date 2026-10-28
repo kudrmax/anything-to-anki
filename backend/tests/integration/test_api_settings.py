@@ -80,7 +80,7 @@ class TestSettingsAPI:
         response = client.get("/api/settings")
         assert response.status_code == 200
         data = response.json()
-        assert data["cefr_level"] == "B1"
+        assert data["cefr_level"] == "B2"
         assert data["anki_deck_name"] == "Default"
         assert data["ai_provider"] == "claude"
         assert data["ai_model"] == "sonnet"
@@ -174,6 +174,6 @@ class TestFrequentWordThresholdSetting:
         assert response.status_code == 200
         options = response.json()
         assert [o["value"] for o in options] == ["auto", "4.0", "4.5", "5.0", "5.5", "off"]
-        assert options[0]["zipf"] == 5.0  # no decisions yet, the default level B1
+        assert options[0]["zipf"] == 5.0  # no decisions yet, the default level B2
         assert "concept" in options[2]["examples"]
         assert options[-1]["zipf"] is None

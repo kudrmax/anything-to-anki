@@ -5,6 +5,7 @@ import re
 from typing import TYPE_CHECKING
 
 from backend.application.utils.candidate_filter import CandidateFilter, keep_all
+from backend.application.utils.saved_level import saved_level
 from backend.domain.exceptions import TargetNotInPhraseError
 from backend.domain.value_objects.fragment_surroundings import FragmentSurroundings
 
@@ -29,7 +30,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 POLISH_CONTEXT_CHARS = 500
-DEFAULT_CEFR_LEVEL = "B1"
 _BOLD_MARKERS = re.compile(r"\*{2}(.+?)\*{2}")
 _WRAPPING_QUOTES = "\"'“”"
 
@@ -131,9 +131,7 @@ class PhrasePolishUseCase:
         return unanswered
 
     def _system_prompt(self) -> str:
-        cefr_level = (
-            self._settings_repo.get("cefr_level", DEFAULT_CEFR_LEVEL) or DEFAULT_CEFR_LEVEL
-        )
+        cefr_level = saved_level(self._settings_repo).easier().name
         return self._prompts_config.polish_phrase_system.format(cefr_level=cefr_level)
 
     def _phrase_prompt(self, card: GenerationCard, document: Document | None) -> str:

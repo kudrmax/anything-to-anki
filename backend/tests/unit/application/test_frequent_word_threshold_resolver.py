@@ -30,7 +30,7 @@ class TestFrequentWordThresholdResolver:
         assert resolved.zipf == 3.5
 
     @pytest.mark.parametrize(
-        ("level", "zipf"), [("A2", 5.5), ("B1", 5.0), ("B2", 4.5), ("C1", 4.0)],
+        ("level", "zipf"), [("A2", 5.5), ("B1", 5.5), ("B2", 5.0), ("C1", 4.5), ("C2", 4.0)],
     )
     def test_auto_without_decisions_starts_at_the_level(self, level: str, zipf: float) -> None:
         assert threshold_resolver(_settings("auto", level)).resolve().zipf == zipf

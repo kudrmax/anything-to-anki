@@ -211,10 +211,10 @@ class AnalyzeTextUseCase:
         occurrences: _Occurrences,
         user_level: CEFRLevel,
     ) -> WordDTO | None:
-        """The word, unless its level is not above the user's."""
+        """The word, unless its level is below the user's."""
         form = _most_frequent_form(found)
         breakdown = self._cefr_classifier.classify_detailed(lemma, form.tag)
-        if not self._candidate_filter.is_above_user_level(breakdown.final_level, user_level):
+        if not self._candidate_filter.is_learned_at_user_level(breakdown.final_level, user_level):
             return None
         return self._dto(
             lemma, form, found, occurrences, breakdown=breakdown, is_phrasal_verb=False,

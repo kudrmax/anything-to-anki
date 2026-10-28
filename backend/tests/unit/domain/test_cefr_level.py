@@ -9,21 +9,30 @@ class TestCEFRLevel:
         assert CEFRLevel.C2.value == 6.0
         assert CEFRLevel.UNKNOWN.value == 7.0
 
-    def test_is_above_higher_level(self) -> None:
-        assert CEFRLevel.B2.is_above(CEFRLevel.B1) is True
-        assert CEFRLevel.C1.is_above(CEFRLevel.B1) is True
-        assert CEFRLevel.C2.is_above(CEFRLevel.A1) is True
+    def test_a_harder_word_is_learned(self) -> None:
+        assert CEFRLevel.B2.is_learned_at(CEFRLevel.B1) is True
+        assert CEFRLevel.C1.is_learned_at(CEFRLevel.B1) is True
+        assert CEFRLevel.C2.is_learned_at(CEFRLevel.A1) is True
 
-    def test_is_above_same_level(self) -> None:
-        assert CEFRLevel.B1.is_above(CEFRLevel.B1) is False
+    def test_a_word_of_the_level_is_learned(self) -> None:
+        assert CEFRLevel.B1.is_learned_at(CEFRLevel.B1) is True
+        assert CEFRLevel.A1.is_learned_at(CEFRLevel.A1) is True
 
-    def test_is_above_lower_level(self) -> None:
-        assert CEFRLevel.A1.is_above(CEFRLevel.B1) is False
-        assert CEFRLevel.A2.is_above(CEFRLevel.B2) is False
+    def test_an_easier_word_is_not_learned(self) -> None:
+        assert CEFRLevel.A1.is_learned_at(CEFRLevel.B1) is False
+        assert CEFRLevel.A2.is_learned_at(CEFRLevel.B2) is False
 
-    def test_unknown_is_always_above(self) -> None:
-        assert CEFRLevel.UNKNOWN.is_above(CEFRLevel.C2) is True
-        assert CEFRLevel.UNKNOWN.is_above(CEFRLevel.A1) is True
+    def test_a_word_of_no_known_level_is_always_learned(self) -> None:
+        assert CEFRLevel.UNKNOWN.is_learned_at(CEFRLevel.C2) is True
+        assert CEFRLevel.UNKNOWN.is_learned_at(CEFRLevel.A1) is True
+
+    def test_easier_is_the_level_below(self) -> None:
+        assert CEFRLevel.B2.easier() is CEFRLevel.B1
+        assert CEFRLevel.A2.easier() is CEFRLevel.A1
+        assert CEFRLevel.C2.easier() is CEFRLevel.C1
+
+    def test_nothing_is_easier_than_a1(self) -> None:
+        assert CEFRLevel.A1.easier() is CEFRLevel.A1
 
     def test_from_float_exact(self) -> None:
         assert CEFRLevel.from_float(1.0) is CEFRLevel.A1

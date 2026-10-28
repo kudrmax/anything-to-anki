@@ -35,12 +35,13 @@ class Newness(StrEnum):
 
 def newness(word: NewnessFacts, vocabulary: Vocabulary, user_level: CEFRLevel) -> Newness:
     """Always new if the user said they don't know it or is learning it; new unless frequent
-    if it is a content word above the user's level they did not say they know; else never."""
+    if it is a content word of the user's level or above they did not say they know; else
+    never."""
     if vocabulary.is_unknown(word.lemma) or vocabulary.is_learning(word.lemma):
         return Newness.ALWAYS
     if not word.content or vocabulary.is_known(word.lemma):
         return Newness.NEVER
-    return Newness.IF_RARE if word.level.is_above(user_level) else Newness.NEVER
+    return Newness.IF_RARE if word.level.is_learned_at(user_level) else Newness.NEVER
 
 
 def is_new_at(word_newness: Newness, zipf: float, frequent_zipf: float | None) -> bool:
@@ -100,6 +101,6 @@ class UserKnowledge:
 
     def is_new(self, word: Word) -> bool:
         """New if the user said they don't know it or is learning it, or it is a content word
-        above the user's level, not frequent, and not one they said they know."""
+        of the user's level or above, not frequent, and not one they said they know."""
         word_newness = newness(word, self.vocabulary, self.user_level)
         return is_new_at(word_newness, word.zipf, self.frequent_zipf)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.dto.bootstrap_dtos import BootstrapWordDTO
+from backend.application.utils.saved_level import saved_level
 from backend.domain.services.bootstrap_word_selector import BootstrapWordSelector
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
@@ -12,6 +13,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.settings_repository import SettingsRepository
 
 _CEFR_ORDER = [CEFRLevel.A1, CEFRLevel.A2, CEFRLevel.B1, CEFRLevel.B2, CEFRLevel.C1, CEFRLevel.C2]
+GRID_LEVELS = 3
 
 
 class GetBootstrapWordsUseCase:
@@ -28,9 +30,7 @@ class GetBootstrapWordsUseCase:
         self._settings_repo = settings_repo
 
     def execute(self, excluded_lemmas: list[str]) -> list[BootstrapWordDTO]:
-        user_cefr_str = self._settings_repo.get("cefr_level", "B1") or "B1"
-        user_cefr = CEFRLevel.from_str(user_cefr_str)
-        grid_levels = self._compute_grid_levels(user_cefr)
+        grid_levels = self._compute_grid_levels(saved_level(self._settings_repo))
 
         if not grid_levels:
             return []
@@ -58,9 +58,9 @@ class GetBootstrapWordsUseCase:
 
     @staticmethod
     def _compute_grid_levels(user_level: CEFRLevel) -> set[CEFRLevel]:
+        """The user's level and the ones above it, GRID_LEVELS in all at most."""
         try:
             idx = _CEFR_ORDER.index(user_level)
         except ValueError:
             return set()
-        above = _CEFR_ORDER[idx + 1 : idx + 4]
-        return set(above)
+        return set(_CEFR_ORDER[idx : idx + GRID_LEVELS])

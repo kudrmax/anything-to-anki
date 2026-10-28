@@ -88,7 +88,7 @@ def seed_world(session: Session) -> None:
     shown, and a word with two shown phrases."""
     insert_source(session, ONE)
     insert_source(session, TWO)
-    session.execute(text("INSERT INTO settings (key, value) VALUES ('cefr_level', 'B2')"))
+    session.execute(text("INSERT INTO settings (key, value) VALUES ('cefr_level', 'C1')"))
     insert_card_word(session, GLARE, ONE, "glare", with_levels(
         phrase(
             "He glared at the ominous lighthouse", "glare",

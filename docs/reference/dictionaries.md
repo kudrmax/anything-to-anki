@@ -6,7 +6,7 @@ The app reads dictionary data from the folder set in `DICTIONARIES_DIR` in `.env
 
 | Data | Used for | Without it |
 |---|---|---|
-| CEFR levels (`cefr/*.json`) | Deciding which words are above your level; the level shown on cards; calibration | The app falls back to its built-in CEFR list ([cefrpy](https://pypi.org/project/cefrpy/)), which knows fewer words. Calibration has no words |
+| CEFR levels (`cefr/*.json`) | Deciding which words are at your level or harder; the level shown on cards; calibration | The app falls back to its built-in CEFR list ([cefrpy](https://pypi.org/project/cefrpy/)), which knows fewer words. Calibration has no words |
 | Pronunciation audio (`audio.json`) | **US / UK** buttons on cards, and the `AudioTargetUS/UK` Anki fields | No dictionary pronunciations. TTS still works |
 | IPA (`ipa.json`) | Transcription from the dictionary | The AI transcription is still shown |
 | Usage labels (`usage.json`) | Labels such as *formal* and *informal*; the [usage priority](../guide/vocabulary.md#word-order-in-review) | All words count as neutral |

@@ -24,15 +24,18 @@ def _knowledge(
 
 
 class TestIsNew:
-    def test_rare_word_above_the_level_is_new(self) -> None:
+    def test_rare_word_harder_than_the_level_is_new(self) -> None:
         assert _knowledge().is_new(_word("gull")) is True
 
     def test_known_word_is_not_new(self) -> None:
         known = Vocabulary.of(known={"gull"}, unknown=set())
         assert _knowledge(known).is_new(_word("gull")) is False
 
-    def test_word_at_the_users_level_is_not_new(self) -> None:
-        assert _knowledge(level=CEFRLevel.C1).is_new(_word("gull")) is False
+    def test_rare_word_of_the_users_level_is_new(self) -> None:
+        assert _knowledge(level=CEFRLevel.C1).is_new(_word("gull")) is True
+
+    def test_word_easier_than_the_users_level_is_not_new(self) -> None:
+        assert _knowledge(level=CEFRLevel.C2).is_new(_word("gull")) is False
 
     def test_frequent_word_is_not_new(self) -> None:
         assert _knowledge().is_new(_word("gull", zipf=5.0)) is False

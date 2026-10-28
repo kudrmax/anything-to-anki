@@ -122,7 +122,7 @@ Double-clicking the phrase also edits it.
 
 ### Polish
 
-Book and article sentences are often long and hard to understand without context. **Polish** asks AI to rewrite the phrase into a short, simple one (about 5–12 words) at your level. The target stays in exactly the same form and meaning. An easy phrase comes back unchanged.
+Book and article sentences are often long and hard to understand without context. **Polish** asks AI to rewrite the phrase into a short, simple one (about 5–12 words) that reads easily at your level. The target stays in exactly the same form and meaning. An easy phrase comes back unchanged.
 
 - Run it for all cards with **✨ → Phrases**, or for one card with **Regenerate → Polish**.
 - On a polished card, **Regenerate → Polish** opens a comparison with the original. It offers **Revert to original**, **Use polished phrase** and **Polish again**.

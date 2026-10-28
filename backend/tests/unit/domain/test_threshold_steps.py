@@ -101,10 +101,11 @@ class TestNewness:
         function = _word("gull", CEFRLevel.C2, 2.0, content=False)
         assert newness(function, EMPTY_VOCABULARY, CEFRLevel.B1) is Newness.NEVER
 
-    def test_a_word_above_the_level_is_new_if_rare(self) -> None:
+    def test_a_word_of_the_level_or_harder_is_new_if_rare(self) -> None:
         word = _word("gull", CEFRLevel.C1, 3.0, content=True)
         assert newness(word, EMPTY_VOCABULARY, CEFRLevel.B1) is Newness.IF_RARE
-        assert newness(word, EMPTY_VOCABULARY, CEFRLevel.C1) is Newness.NEVER
+        assert newness(word, EMPTY_VOCABULARY, CEFRLevel.C1) is Newness.IF_RARE
+        assert newness(word, EMPTY_VOCABULARY, CEFRLevel.C2) is Newness.NEVER
 
     def test_newness_agrees_with_is_new_everywhere(self) -> None:
         cases = itertools.product(
