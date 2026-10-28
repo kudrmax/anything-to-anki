@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.changelog import ChangelogEntry, ChangelogSection
-    from backend.domain.value_objects.update_progress import UpdateProgress
+    from backend.domain.value_objects.update_progress import UpdateProgress, UpdateStep
 
 
 class ChangelogSectionDTO(BaseModel):
@@ -48,14 +48,30 @@ class UpdateStatusDTO(BaseModel):
 
 
 UpdateState = Literal["idle", "running", "failed", "done"]
+UpdateStepStatus = Literal["done", "current", "pending", "failed"]
+
+
+class UpdateStepDTO(BaseModel):
+    title: str
+    status: UpdateStepStatus
+
+    @classmethod
+    def from_step(cls, step: UpdateStep) -> UpdateStepDTO:
+        return cls(title=step.title, status=step.status.value)
 
 
 class UpdateStateDTO(BaseModel):
-    """How the update started from the app is going; `log_tail` is filled once it failed."""
+    """How the update started from the app is going; `log_tail` is filled once it failed,
+    `steps` are its stages in order (empty when unknown)."""
 
     state: UpdateState
     log_tail: str
+    steps: list[UpdateStepDTO]
 
     @classmethod
     def from_progress(cls, progress: UpdateProgress) -> UpdateStateDTO:
-        return cls(state=progress.state.value, log_tail=progress.log_tail)
+        return cls(
+            state=progress.state.value,
+            log_tail=progress.log_tail,
+            steps=[UpdateStepDTO.from_step(step) for step in progress.steps],
+        )

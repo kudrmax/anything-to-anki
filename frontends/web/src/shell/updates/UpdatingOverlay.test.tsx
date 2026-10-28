@@ -7,8 +7,31 @@ import { AVAILABLE, Page } from './updatesTestKit'
 
 const POLL_MS = 2_000
 const LOG_HEIGHT = 480
-const running: UpdateRunProgress = { state: 'running', log_tail: '' }
-const failed: UpdateRunProgress = { state: 'failed', log_tail: 'make: *** [update] Error 1' }
+const running: UpdateRunProgress = { state: 'running', log_tail: '', steps: [] }
+const failed: UpdateRunProgress = { state: 'failed', log_tail: 'make: *** [update] Error 1', steps: [] }
+const installing: UpdateRunProgress = {
+  state: 'running',
+  log_tail: '',
+  steps: [
+    { title: 'Downloading v1.3.0', status: 'done' },
+    { title: 'Saving a backup', status: 'done' },
+    { title: 'Installing v1.3.0', status: 'current' },
+    { title: 'Starting the new version', status: 'pending' },
+  ],
+}
+const rollingBack: UpdateRunProgress = {
+  state: 'running',
+  log_tail: '',
+  steps: [
+    { title: 'Downloading v1.3.0', status: 'done' },
+    { title: 'Installing v1.3.0', status: 'failed' },
+    { title: 'Rolling back to v1.2.0', status: 'current' },
+  ],
+}
+
+const stepItems = () => [...document.body.querySelectorAll<HTMLElement>('[aria-label="Update steps"] li')]
+const steps = () => stepItems().map(item => [item.textContent, item.dataset.status])
+const step = (title: string) => stepItems().find(item => item.textContent === title)
 
 describe('updating', () => {
   let page: Page
@@ -48,6 +71,48 @@ describe('updating', () => {
 
     expect(page.text).toContain('Updating…')
     expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('shows each stage of the update and which one runs now', async () => {
+    await startUpdate()
+
+    vi.mocked(api.getUpdateState).mockResolvedValue(installing)
+    await tick()
+
+    expect(steps()).toEqual([
+      ['Downloading v1.3.0', 'done'],
+      ['Saving a backup', 'done'],
+      ['Installing v1.3.0', 'current'],
+      ['Starting the new version', 'pending'],
+    ])
+    expect(step('Installing v1.3.0')?.querySelector('[role=status]')).not.toBeNull()
+    expect(step('Downloading v1.3.0')?.querySelector('svg')).not.toBeNull()
+    expect(step('Starting the new version')?.querySelector('svg, [role=status]')).toBeNull()
+  })
+
+  it('marks the stage that failed while it rolls back', async () => {
+    await startUpdate()
+
+    vi.mocked(api.getUpdateState).mockResolvedValue(rollingBack)
+    await tick()
+
+    expect(steps()).toEqual([
+      ['Downloading v1.3.0', 'done'],
+      ['Installing v1.3.0', 'failed'],
+      ['Rolling back to v1.2.0', 'current'],
+    ])
+    expect(step('Installing v1.3.0')?.querySelector('svg')).not.toBeNull()
+  })
+
+  it('keeps the last stage it got while the server does not answer', async () => {
+    await startUpdate()
+    vi.mocked(api.getUpdateState).mockResolvedValue(installing)
+    await tick()
+
+    vi.mocked(api.getUpdateState).mockRejectedValue(new TypeError('Failed to fetch'))
+    await tick()
+
+    expect(steps()[2]).toEqual(['Installing v1.3.0', 'current'])
   })
 
   it('says from the start what to do if the app does not come back', async () => {
@@ -90,7 +155,7 @@ describe('updating', () => {
   it('reloads the page once the update is done, even on the same version', async () => {
     await startUpdate()
 
-    vi.mocked(api.getUpdateState).mockResolvedValue({ state: 'done', log_tail: '' })
+    vi.mocked(api.getUpdateState).mockResolvedValue({ state: 'done', log_tail: '', steps: [] })
     await tick()
 
     expect(reload).toHaveBeenCalledTimes(1)

@@ -29,7 +29,7 @@ export class Page {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     this.host = document.body.appendChild(document.createElement('div'))
     this.root = createRoot(this.host)
-    vi.spyOn(api, 'getUpdateState').mockResolvedValue({ state: 'idle', log_tail: '' })
+    vi.spyOn(api, 'getUpdateState').mockResolvedValue({ state: 'idle', log_tail: '', steps: [] })
   }
 
   async render(children: ReactNode, reload: () => void = () => {}, path = '/'): Promise<void> {

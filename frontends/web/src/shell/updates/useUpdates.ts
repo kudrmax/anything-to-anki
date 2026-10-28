@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { api, ApiError } from '@/api/client'
 import { LONG_OPERATION_STATUS } from '@/api/longOperationSignal'
-import type { UpdateStatus } from '@/api/types'
+import type { UpdateStatus, UpdateStep } from '@/api/types'
 import { messageOf } from '@/lib/apiError'
 
 // Often enough to reload soon after the server is back, rare enough not to load it.
@@ -12,8 +12,8 @@ const ALREADY_RUNNING_STATUS = 409
 /** Итог явной проверки, когда попап обновления не открылся. */
 export type CheckOutcome = 'latest' | 'failed'
 
-/** Обновление, запущенное из приложения: идёт или упало с концом лога. */
-export type UpdateRun = { phase: 'running' } | { phase: 'failed'; logTail: string }
+/** Обновление, запущенное из приложения: идёт по этапам или упало с концом лога. */
+export type UpdateRun = { phase: 'running'; steps: UpdateStep[] } | { phase: 'failed'; logTail: string }
 
 export interface UpdatesState {
   /** Последнее, что backend сказал о релизах; null — ещё не ответил. */
@@ -51,7 +51,7 @@ export function useUpdatesController(reload: () => void = reloadPage): UpdatesSt
 
   useEffect(() => {
     api.getUpdates(false).then(setStatus, () => {})
-    api.getUpdateState().then(state => { if (state.state === 'running') setRun({ phase: 'running' }) }, () => {})
+    api.getUpdateState().then(state => { if (state.state === 'running') setRun({ phase: 'running', steps: state.steps }) }, () => {})
   }, [])
 
   const checkNow = useCallback(async (): Promise<CheckOutcome | null> => {
@@ -86,7 +86,7 @@ export function useUpdatesController(reload: () => void = reloadPage): UpdatesSt
       }
     }
     setOfferOpen(false)
-    setRun({ phase: 'running' })
+    setRun({ phase: 'running', steps: [] })
   }, [current])
 
   const running = run?.phase === 'running'
@@ -98,6 +98,7 @@ export function useUpdatesController(reload: () => void = reloadPage): UpdatesSt
       const changed = versionNow !== null && versionBefore.current !== null && versionNow !== versionBefore.current
       if (changed || (state.status === 'fulfilled' && state.value.state === 'done')) reload()
       else if (state.status === 'fulfilled' && state.value.state === 'failed') setRun({ phase: 'failed', logTail: state.value.log_tail })
+      else if (state.status === 'fulfilled' && state.value.state === 'running') setRun({ phase: 'running', steps: state.value.steps })
     }
     const timer = setInterval(() => void poll(), POLL_INTERVAL_MS)
     return () => clearInterval(timer)

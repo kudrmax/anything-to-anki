@@ -8,11 +8,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 from backend.domain.exceptions import UpdateAlreadyRunningError
-from backend.domain.value_objects.update_progress import UpdateState
+from backend.domain.value_objects.update_progress import (
+    UpdateState,
+    UpdateStep,
+    UpdateStepStatus,
+)
 from backend.infrastructure.adapters.release.script_update_runner import (
     ERROR_FILE,
     LOG_FILE,
     LOG_TAIL_LINES,
+    PROGRESS_FILE,
     SCRIPT_LOCK_FD,
     SCRIPT_LOCK_FILE,
     START_LOCK_FILE,
@@ -284,3 +289,52 @@ def test_the_lock_check_waits_for_the_start_lock(tmp_path: Path) -> None:
     thread.join(WAIT_S)
 
     assert checked.is_set()
+
+
+def _write(tmp_path: Path, relative_path: str, text: str) -> None:
+    path = tmp_path / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+@pytest.mark.unit
+def test_steps_come_from_the_progress_file_in_order(tmp_path: Path) -> None:
+    _write(tmp_path, STATE_FILE, "done")
+    _write(tmp_path, PROGRESS_FILE, "done\tDownloading v1.2.0\ncurrent\tSaving a backup\n")
+
+    steps = ScriptUpdateRunner(tmp_path).state().steps
+
+    assert steps == (
+        UpdateStep("Downloading v1.2.0", UpdateStepStatus.DONE),
+        UpdateStep("Saving a backup", UpdateStepStatus.CURRENT),
+    )
+
+
+@pytest.mark.unit
+def test_a_failed_update_keeps_its_steps(tmp_path: Path) -> None:
+    _write(tmp_path, STATE_FILE, "failed")
+    _write(tmp_path, PROGRESS_FILE, "failed\tInstalling v1.2.0\ndone\tRolling back to v1.1.0\n")
+
+    progress = ScriptUpdateRunner(tmp_path).state()
+
+    assert [step.status for step in progress.steps] == [
+        UpdateStepStatus.FAILED, UpdateStepStatus.DONE,
+    ]
+
+
+@pytest.mark.unit
+def test_without_a_progress_file_there_are_no_steps(tmp_path: Path) -> None:
+    assert ScriptUpdateRunner(tmp_path).state().steps == ()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("garbled", [
+    "done\tDownloading v1.2.0\nhalfway\tSaving a backup\n",
+    "done Downloading v1.2.0\n",
+    "current\t \n",
+])
+def test_a_garbled_progress_file_gives_no_steps(tmp_path: Path, garbled: str) -> None:
+    _write(tmp_path, STATE_FILE, "done")
+    _write(tmp_path, PROGRESS_FILE, garbled)
+
+    assert ScriptUpdateRunner(tmp_path).state().steps == ()

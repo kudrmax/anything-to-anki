@@ -17,6 +17,15 @@ To look right now, open **Settings → Updates** and press **Check for updates**
 1. Click **Update available**. The window lists every version newer than yours, with what changed.
 2. Press **Update**.
 3. **Updating…** covers the app while it installs the release and restarts. Don't close the app. A page opened or reloaded while the update runs shows **Updating…** too.
+
+   Under it is the list of stages. Finished ones have a check mark, the one running now has a spinner:
+
+   - **Downloading v1.2.0** (it says **Checking for the new version** until the version is known)
+   - **Saving a backup**: the installed packages, then the app stops and the database is copied
+   - **Installing v1.2.0**: the release and its Python packages, and the macOS app when it changed
+   - **Starting the new version**
+
+   If a stage fails, it is marked with a cross, the stages after it are dropped and **Rolling back to v1.1.0** is added as the running stage.
 4. The page reloads and shows **What's new**. Close it and it won't appear again.
 
 ![The update window with the Update button](../images/updating/update-window.png)
@@ -37,7 +46,7 @@ Run `make update` in the project folder to see what went wrong.
 
 ### If the app does not come back
 
-While the update runs, the app's server is down, so the window can't tell a slow update from one that stopped. **Updating…** always shows a line for that case: if the app doesn't come back, run `make up` in the project folder (with a **Copy** button). The log is in `.logs/update.log`.
+While the app is stopped, `make update` answers the page on the app's port with a small status server of its own, so the list keeps moving. It stops just before the app starts again; if it can't start, for example because the port is taken, the update goes on and the list stays on the last stage it showed. The window still can't tell a slow update from one that stopped. **Updating…** always shows a line for that case: if the app doesn't come back, run `make up` in the project folder (with a **Copy** button). The log is in `.logs/update.log`.
 
 The app stays stopped only when the way back itself failed. Then the end of `.logs/update.log` says what is left to do by hand: where the database from before the update is and the commands that finish the rollback.
 

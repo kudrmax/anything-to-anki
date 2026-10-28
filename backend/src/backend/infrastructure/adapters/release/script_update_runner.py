@@ -10,7 +10,12 @@ from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import UpdateAlreadyRunningError
 from backend.domain.ports.update_runner import UpdateRunner
-from backend.domain.value_objects.update_progress import UpdateProgress, UpdateState
+from backend.domain.value_objects.update_progress import (
+    UpdateProgress,
+    UpdateState,
+    UpdateStep,
+    UpdateStepStatus,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -22,6 +27,10 @@ PID_FILE = ".pids/update.pid"
 START_LOCK_FILE = ".pids/update.lock"
 SCRIPT_LOCK_FILE = ".pids/update.script.lock"
 ERROR_FILE = ".pids/update.error"
+# update.sh rewrites it whole on every change: one stage per line, its status, a tab, its
+# title.
+PROGRESS_FILE = ".pids/update.progress"
+PROGRESS_SEPARATOR = "\t"
 LOG_FILE = ".logs/update.log"
 # Enough of the run's end to see the rollback, short enough for the app's popup.
 LOG_TAIL_LINES = 40
@@ -82,9 +91,10 @@ class ScriptUpdateRunner(UpdateRunner):
         if state is UpdateState.RUNNING and not self._script_lock_held():
             self._write_state(UpdateState.FAILED)
             state = UpdateState.FAILED
+        steps = self._steps()
         if state is UpdateState.FAILED:
-            return UpdateProgress(state, self._failure_report())
-        return UpdateProgress(state)
+            return UpdateProgress(state, self._failure_report(), steps)
+        return UpdateProgress(state, steps=steps)
 
     def _spawn(self, script_lock: int) -> None:
         self._write_state(UpdateState.RUNNING)
@@ -137,6 +147,20 @@ class ScriptUpdateRunner(UpdateRunner):
 
     def _write_state(self, state: UpdateState) -> None:
         (self._project_dir / STATE_FILE).write_text(state.value, encoding="utf-8")
+
+    def _steps(self) -> tuple[UpdateStep, ...]:
+        """The stages from the progress file; none when it is missing or garbled."""
+        steps = []
+        for line in self._read(PROGRESS_FILE).splitlines():
+            status, separator, title = line.partition(PROGRESS_SEPARATOR)
+            try:
+                step_status = UpdateStepStatus(status)
+            except ValueError:
+                return ()
+            if not separator or not title.strip():
+                return ()
+            steps.append(UpdateStep(title.strip(), step_status))
+        return tuple(steps)
 
     def _failure_report(self) -> str:
         """What broke as the script summed it up, then the end of this run's log."""

@@ -167,7 +167,9 @@ def test_updates_lists_the_changes_with_html(client: TestClient) -> None:
 def test_update_starts_and_state_is_readable(client: TestClient, runner: _NoUpdateRunner) -> None:
     assert client.post("/api/update").status_code == 202
     assert runner.started == 1
-    assert client.get("/api/update/state").json() == {"state": "idle", "log_tail": ""}
+    assert client.get("/api/update/state").json() == {
+        "state": "idle", "log_tail": "", "steps": [],
+    }
 
 
 @pytest.mark.integration
