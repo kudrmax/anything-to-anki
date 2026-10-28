@@ -988,6 +988,8 @@ export interface BootstrapStatus {
   word_count: number
 }
 
+export type CalibrationOrder = 'review' | 'spread'
+
 export interface BootstrapWord {
   lemma: string
   cefr_level: string

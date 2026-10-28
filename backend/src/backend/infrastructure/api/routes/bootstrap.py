@@ -65,7 +65,7 @@ def get_bootstrap_words(
         use_case(Container.get_bootstrap_words_use_case),  # noqa: B008
     ),
 ) -> list[BootstrapWordDTO]:
-    return words.execute(excluded_lemmas=request.excluded)
+    return words.execute(excluded_lemmas=request.excluded, order=request.order)
 
 
 @router.post("/known")

@@ -4,6 +4,8 @@ from datetime import datetime  # noqa: TC003
 
 from pydantic import BaseModel
 
+from backend.domain.value_objects.calibration_order import CalibrationOrder
+
 
 class BootstrapStatusDTO(BaseModel):
     """Status of the bootstrap calibration data."""
@@ -23,9 +25,10 @@ class BootstrapWordDTO(BaseModel):
 
 
 class GetBootstrapWordsRequest(BaseModel):
-    """Request for bootstrap words with exclusion list."""
+    """Request for bootstrap words: the order to pick them in and the words to skip."""
 
     excluded: list[str] = []
+    order: CalibrationOrder = CalibrationOrder.REVIEW
 
 
 class SaveBootstrapWordsRequest(BaseModel):

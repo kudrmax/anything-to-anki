@@ -4,6 +4,7 @@ import type {
   AnkiTemplates,
   BootstrapStatus,
   BootstrapWord,
+  CalibrationOrder,
   CandidateSection,
   CandidateSortOrder,
   CardLayoutEdit,
@@ -445,10 +446,10 @@ export const api = {
   startBootstrapBuild: () =>
     req<{ status: string }>('/api/bootstrap/build', { method: 'POST' }),
 
-  getBootstrapWords: (excluded: string[]) =>
+  getBootstrapWords: (excluded: string[], order: CalibrationOrder) =>
     req<BootstrapWord[]>('/api/bootstrap/words', {
       method: 'POST',
-      body: JSON.stringify({ excluded }),
+      body: JSON.stringify({ excluded, order }),
     }),
 
   saveBootstrapKnown: (lemmas: string[]) =>
