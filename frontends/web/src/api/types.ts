@@ -484,11 +484,30 @@ export interface CardPreview {
   tts_audio_url: string | null
   /** Обязательные части, которых у карточки нет. */
   missing: MissingCardPart[]
+  /** Недостающие части, которые сейчас генерируются. */
+  generating: MissingCardPart[]
+  /** Недостающие части, которые догенерация пропускает, и почему. */
+  cannot_fill: CardPartSkip[]
   /** Карточка уйдёт в Anki как cloze; в sentence скрытые слова выделены <b>. */
   is_cloze: boolean
 }
 
 export type MissingCardPart = 'meaning' | 'audio' | 'cloze'
+
+export type CardFillSkip =
+  | 'video_not_downloaded' | 'video_downloading' | 'no_phrase_time' | 'source_busy' | 'cloze_needs_choice'
+
+export interface CardPartSkip {
+  part: MissingCardPart
+  reason: CardFillSkip
+}
+
+/** Что сделает догенерация неполных карточек: сколько получат генерацию, сколько уже генерируются, сколько пропущено и почему. */
+export interface ExportFill {
+  fillable: number
+  generating: number
+  skipped: { reason: CardFillSkip; cards: number }[]
+}
 
 export type ExportGroup = 'ready' | 'incomplete'
 
@@ -514,6 +533,7 @@ export interface GlobalExport {
   ready: ExportSection[]
   incomplete: ExportSection[]
   exported_count: number
+  fill: ExportFill
 }
 
 export interface SyncResult {

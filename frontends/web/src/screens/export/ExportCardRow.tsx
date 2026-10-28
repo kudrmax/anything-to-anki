@@ -1,16 +1,15 @@
 import type { MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { CardPreview, MissingCardPart } from '@/api/types'
+import type { CardPreview } from '@/api/types'
 import { reviewPath, sourceScope } from '@/lib/scope'
 import type { AudioPlayer } from '@/lib/useAudioPlayer'
 import { Badge, MediaThumb } from '@/ui'
 import phrase from '@/ui/phrase.module.css'
 import css from './export.module.css'
+import { missingLine } from './fillLabels'
 
 /** Backend отдаёт значение готовым HTML: определение, затем пояснения через <br>. */
 const PARAGRAPH_BREAK = /<br\s*\/?>/i
-
-const MISSING_LABEL: Record<MissingCardPart, string> = { meaning: 'No meaning', audio: 'No audio', cloze: 'No cloze words' }
 
 interface ExportCardRowProps {
   card: CardPreview
@@ -38,7 +37,7 @@ export function ExportCardRow({ card, sourceId, withMedia, player }: ExportCardR
         </div>
         {definition && <p className={css.definition} dangerouslySetInnerHTML={{ __html: definition }} />}
         {card.missing.length > 0 && (
-          <p className={css.missing}>{card.missing.map(part => MISSING_LABEL[part]).join(' · ')}</p>
+          <p className={css.missing}>{missingLine(card)}</p>
         )}
       </div>
       <div className={css.translation}>{card.translation}</div>

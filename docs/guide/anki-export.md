@@ -22,6 +22,16 @@ The cards are split into two groups:
 - **Ready**: the card has a meaning and audio of the phrase (a video clip or TTS). A cloze card also needs hidden words.
 - **Incomplete**: something is missing. The row says what: **No meaning**, **No audio** or **No cloze words**. Click a row to open the card in Review and fill it in.
 
+**Generate missing · N cards** generates what the incomplete cards lack, for every source on the page at once: the meaning, and the audio of the phrase (a clip cut from the video for a video, TTS for anything else). While it runs, the rows say **Generating meaning** or **Generating audio**, and finished cards move to **Ready** on their own.
+
+Some parts can't be generated, and the button skips them. The line under **Incomplete** counts the skipped cards, and the row says why:
+
+- **video not downloaded**: the video of the source was deleted or never downloaded, so there is nothing to cut the clip from. Download the video again to get the clip.
+- **video still downloading**: the clip waits for the download to finish.
+- **phrase not timed in the video**: the phrase has no time in the subtitles.
+- **source is busy**: the source is being processed or rebuilt. Try again when it's done.
+- **pick them on the card**: the hidden words of a cloze card are your choice. Open the card and pick them.
+
 **Export incomplete · N cards** sends incomplete cards anyway. The missing parts are left empty in Anki.
 
 ### What happens after export

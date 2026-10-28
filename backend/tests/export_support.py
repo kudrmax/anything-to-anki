@@ -11,8 +11,10 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from backend.application.use_cases.sync_to_anki import SyncToAnkiUseCase
+from backend.application.utils.card_fill import CardFillPlanner
 from backend.application.utils.decision_effects import DecisionEffects
 from backend.application.utils.export_queue import ExportCard, ExportQueue
+from backend.application.utils.generation_targets import MeaningTarget, MediaTarget, TTSTarget
 from backend.domain.entities.occurrence import Occurrence
 from backend.domain.ports.anki_sync_repository import AnkiSyncRepository
 from backend.domain.ports.word_state_repository import WordStateRepository
@@ -53,6 +55,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.stored_candidate import StoredCandidate
     from backend.domain.ports.anki_connector import AnkiConnector
     from backend.domain.ports.settings_repository import SettingsRepository
+    from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.services.decision_rules import BindingRef
     from backend.domain.value_objects.anki_binding import AnkiBinding
     from backend.domain.value_objects.phrase import Phrase
@@ -236,3 +239,23 @@ def with_phrase(card: ExportCard, **changes: object) -> ExportCard:
 def with_word(card: ExportCard, **changes: object) -> ExportCard:
     """The card with its word changed."""
     return replace(card, word=replace(card.word, **changes))  # type: ignore[arg-type]
+
+
+def fill_planner(
+    source_repo: SourceRepository,
+    job_repo: MagicMock | None = None,
+    lock: MagicMock | None = None,
+) -> CardFillPlanner:
+    """The planner of filling in incomplete cards, by the real targets. `job_repo`: no jobs
+    and no video downloading unless given; `lock`: every source free unless given."""
+    if job_repo is None:
+        job_repo = MagicMock()
+        job_repo.get_jobs_for_phrases.return_value = {}
+        job_repo.get_jobs_for_candidates.return_value = {}
+        job_repo.has_active_jobs_for_source.return_value = False
+    return CardFillPlanner(
+        targets=[MeaningTarget(MagicMock()), MediaTarget(), TTSTarget()],
+        source_repo=source_repo,
+        job_repo=job_repo,
+        lock=lock or free_lock(),
+    )
