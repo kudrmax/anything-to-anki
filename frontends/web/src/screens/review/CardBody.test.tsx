@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { CardElement, CardLayoutRow, CardLayoutView } from '@/api/types'
-import type { CardBlockContext } from '@/cardLayout'
+import { CardLayoutEditingContext, type CardBlockContext, type CardLayoutEditing, type DragItem } from '@/cardLayout'
 import { CardBody } from './CardBody'
 import { reviewCard } from './reviewFixtures'
 
@@ -78,5 +78,34 @@ describe('CardBody', () => {
     const [first] = Array.from(host.children)
     expect(shown(first)).toEqual(['target'])
     expect(first.children).toHaveLength(1)
+  })
+
+  it('in the layout editor lets blocks and lines be picked and dragged, and names a block on hover', () => {
+    const picked: DragItem[] = []
+    const editing: CardLayoutEditing = {
+      selection: { kind: 'block', element: 'target' },
+      dragged: null,
+      startDrag: item => () => { picked.push(item) },
+      select: item => { picked.push(item) },
+      labelOf: element => `Label ${element}`,
+      setRoot: () => {},
+    }
+    act(() => root.render(
+      <CardLayoutEditingContext.Provider value={editing}>
+        <CardBody view={view([blocks('target'), { kind: 'divider' }])} ctx={ctx()} detailsOpen={false} onToggleDetails={() => {}} />
+      </CardLayoutEditingContext.Provider>,
+    ))
+
+    const target = host.querySelector('[data-element="target"]')!
+    expect([target.getAttribute('role'), target.getAttribute('aria-pressed'), target.textContent]).toEqual(['button', 'true', 'glareLabel target'])
+    const line = host.querySelector('hr')!
+    act(() => { line.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })) })
+    act(() => { target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })) })
+    expect(picked).toEqual([{ kind: 'divider', column: 0, row: 1 }, { kind: 'block', element: 'target', placed: true }])
+  })
+
+  it('on the review is a plain card: nothing to pick or drag', () => {
+    render(view([blocks('target'), { kind: 'divider' }]))
+    expect([host.querySelector('[role="button"][data-element]'), host.querySelector('hr')?.getAttribute('role')]).toEqual([null, null])
   })
 })

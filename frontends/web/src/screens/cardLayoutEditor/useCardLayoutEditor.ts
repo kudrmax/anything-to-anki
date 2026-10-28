@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { CardElement, CardLayoutEdit, CardLayoutView } from '@/api/types'
+import type { CardLayoutEdit, CardLayoutView } from '@/api/types'
+import type { LayoutSelection } from '@/cardLayout'
 
-/** Выбранное на превью: блок или линия. */
-export type LayoutSelection = { kind: 'block'; element: CardElement } | { kind: 'divider'; column: number; row: number }
-
-/** Раскладка в настройках: каждая правка сразу уходит на сервер, он возвращает новую раскладку. */
+/** Раскладка в редакторе: каждая правка сразу уходит на сервер, он возвращает новую раскладку. */
 export function useCardLayoutEditor() {
   const [view, setView] = useState<CardLayoutView | null>(null)
   const [error, setError] = useState<string | null>(null)

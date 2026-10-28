@@ -1,5 +1,6 @@
 import { useCallback, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
-import { findTarget, type DragItem, type DropTarget } from './layoutDrag'
+import type { DragItem } from '@/cardLayout'
+import { findTarget, type DropTarget } from './layoutDrag'
 
 /** Пока указатель сдвинулся меньше, это щелчок, а не перетаскивание. */
 const DRAG_THRESHOLD = 4

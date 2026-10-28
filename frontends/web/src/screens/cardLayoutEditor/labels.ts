@@ -70,10 +70,10 @@ export const SPACE_OPTIONS: { value: BlockSpace; label: string }[] = [
 ]
 
 export const SPACE_SIDES: { side: BlockSide; label: string }[] = [
-  { side: 'top', label: 'Space above' },
-  { side: 'bottom', label: 'Space below' },
-  { side: 'left', label: 'Space on the left' },
-  { side: 'right', label: 'Space on the right' },
+  { side: 'top', label: 'Above' },
+  { side: 'bottom', label: 'Below' },
+  { side: 'left', label: 'Left' },
+  { side: 'right', label: 'Right' },
 ]
 
 export const WIDTH_OPTIONS: { value: ColumnWidth; label: string }[] = [

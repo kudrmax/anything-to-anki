@@ -28,5 +28,3 @@
 .learningGroup + .learningGroup { margin-top: var(--s7); }
 .learningWord { display: inline-flex; align-items: center; height: var(--h); padding: 0 var(--gap); border-radius: var(--rc); box-shadow: inset 0 0 0 var(--bw) var(--line); color: var(--tx2); font-size: var(--fs-c); white-space: nowrap; }
 .nav::-webkit-scrollbar { display: none; }
-
-.wide { grid-template-columns: var(--settings-cols-wide); }

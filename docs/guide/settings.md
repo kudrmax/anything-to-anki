@@ -41,16 +41,19 @@ Changing the level or the frequent-words threshold re-analyses every source. See
 
 ## Card layout
 
-Arrange the body of the card on the [Review](review.md) screen: everything between the phrase and the bottom bar. The phrase, **Learn** / **Cloze** / **Know** / **Skip** and the card tools stay where they are. Changes are saved at once, without **Save settings**, and apply to Review the next time you open it. Anki cards are not affected.
+Arrange the body of the card on the [Review](review.md) screen: everything between the phrase and the bottom bar. The phrase, **Learn** / **Cloze** / **Know** / **Skip** and the card tools stay where they are. Changes are saved at once and apply to Review the next time you open it. Anki cards are not affected.
 
-The section shows a sample card. On it:
+**Open the editor** opens the Review screen itself on a sample source, with the card layout editor in a window on top. The sample has four cards: a full one, one without a picture (with the picture suggestions on, it shows them), one whose meaning has more than two lines, and one without a meaning (it shows **Generate meaning**). Switch between them with the arrows or the phrase list, and show or hide the source text, the phrase list and the picture suggestions with their buttons, as on Review. The other buttons do nothing on the sample.
 
-- **Sample card has** switches what the sample card has: **Meaning**, **US / UK audio**, **TTS**, **Video frame**, **Picture**, **Picture choice** (the suggested pictures shown while no picture is chosen; it turns **Picture** off, and the other way round). Turn one off to see the card without it, for example **Meaning** off shows **Generate meaning** in place of the meaning. The sample shows exactly what a card in that state shows: a block with nothing to show is not drawn, so to move **Generate meaning**, turn **Meaning** off first. Blocks in **Hidden blocks** can always be dragged.
+On the card:
+
 - **Drag a block** between rows to give it a row of its own, or next to another block to put them in one row. Blocks in a row wrap when the column is too narrow.
 - **Drag a block to Hidden blocks** to hide it. Drag it back onto the card to show it again; it keeps its style.
 - **Drag Divider** from **Add** between rows to add a line across the column. Drag a line to move it, or to **Hidden blocks** to remove it.
-- **Click a block** to change how it looks: **Size** (XS to XL), **Colour** (**Main**, **Grey**, **Light grey**, **Accent**) and **Bold** for text; **Size** for the video frame and picture; **In its row** (**Left** or **Right**) and **Vertically** (**Text line**, the default, puts blocks of different sizes on one line of text; **Top**, **Middle**, **Bottom**) for every block. Blocks set to **Right** stand together at the right end of the row.
-- **Columns**: up to three. The menu above each column sets its width (**Narrow**, **Normal**, **Wide**); × removes the column and moves its blocks to the column before it. **Add column** adds one on the right.
+- **Click a block** to change how it looks: **Size** (XS to XL), **Colour** (**Main**, **Grey**, **Light grey**, **Accent**) and **Bold** for text; **Size** for the video frame and picture; for every block **In its row** (**Left** or **Right**), **Vertically** (**Text line**, the default, puts blocks of different sizes on one line of text; **Top**, **Middle**, **Bottom**) and **Space around** (extra room **Above**, **Below**, **Left** and **Right**). Blocks set to **Right** stand together at the right end of the row.
+- **Columns** in the window: up to three, each with its width (**Narrow**, **Normal**, **Wide**); × removes a column and moves its blocks to the column before it. **Add column** adds one on the right.
+
+The phone button in the window shows the same Review screen as it is on a phone; change the layout on the desktop screen. **×** closes the editor.
 
 **Reset to default** brings back the original layout. On a phone the first column is shown on the card and the other columns fold into **Details**.
 

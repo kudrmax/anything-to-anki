@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import type { CardLayoutView } from '@/api/types'
+import { CardLayoutViewContext } from './editing'
 
-/** Сохранённая раскладка карточки; null — пока не загрузилась. */
+/** Раскладка карточки: сохранённая или та, что сейчас правят в редакторе; null — пока не загрузилась. */
 export function useCardLayout(): CardLayoutView | null {
-  const [view, setView] = useState<CardLayoutView | null>(null)
+  const edited = useContext(CardLayoutViewContext)
+  const [saved, setSaved] = useState<CardLayoutView | null>(null)
+  const fromEditor = edited !== undefined
   useEffect(() => {
-    api.getCardLayout().then(setView).catch(() => {})
-  }, [])
-  return view
+    if (!fromEditor) api.getCardLayout().then(setSaved).catch(() => {})
+  }, [fromEditor])
+  return fromEditor ? edited : saved
 }

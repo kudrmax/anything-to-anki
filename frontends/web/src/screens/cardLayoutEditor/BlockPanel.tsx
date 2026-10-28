@@ -3,7 +3,7 @@ import type { CardLayoutEdit, CardLayoutView } from '@/api/types'
 import { kindOf, styleOf } from '@/cardLayout'
 import { Button, Segmented, Switch } from '@/ui'
 import { ALIGN_OPTIONS, ELEMENT_HINT, ELEMENT_LABEL, SIZE_OPTIONS, SPACE_OPTIONS, SPACE_SIDES, TONE_OPTIONS, VALIGN_OPTIONS } from './labels'
-import type { LayoutSelection } from './useCardLayoutEditor'
+import type { LayoutSelection } from '@/cardLayout'
 import css from './cardLayoutEditor.module.css'
 
 interface BlockPanelProps {
@@ -69,11 +69,16 @@ export function BlockPanel({ view, selection, edit, editAndDeselect }: BlockPane
       <Option label="Vertically">
         <Segmented value={style.valign} options={VALIGN_OPTIONS} onChange={valign => edit({ kind: 'restyle_block', element, valign })} />
       </Option>
-      {SPACE_SIDES.map(({ side, label }) => (
-        <Option key={side} label={label}>
-          <Segmented value={style[`space_${side}`]} options={SPACE_OPTIONS} onChange={space => edit({ kind: 'restyle_block', element, [`space_${side}`]: space })} />
-        </Option>
-      ))}
+      <div className={css.option}>
+        <span className={css.optionLabel}>Space around</span>
+        <div className={css.spaceGrid}>
+          {SPACE_SIDES.map(({ side, label }) => (
+            <Option key={side} label={label}>
+              <Segmented value={style[`space_${side}`]} options={SPACE_OPTIONS} onChange={space => edit({ kind: 'restyle_block', element, [`space_${side}`]: space })} />
+            </Option>
+          ))}
+        </div>
+      </div>
       {!hidden && (
         <div className={css.panelActions}>
           <Button variant="link" onClick={() => edit({ kind: 'hide_block', element })}>Hide block</Button>
