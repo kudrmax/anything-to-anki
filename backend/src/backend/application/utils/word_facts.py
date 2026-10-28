@@ -19,6 +19,9 @@ PLURAL_ONLY_MARGIN_ZIPF: float = 0.5
 INFLECTED_VERB_TAGS: frozenset[str] = frozenset({"VBG", "VBD", "VBN"})
 VERB_ENDINGS: tuple[str, ...] = ("ing", "ed")
 PLURAL_NOUN_TAG = "NNS"
+COMPARISON_TAGS: frozenset[str] = frozenset({"JJR", "JJS", "RBR", "RBS"})
+# Ends a stem drops before -er/-est: "late" → "later", "happy" → "happier".
+COMPARISON_DROPPED_ENDINGS: tuple[str, ...] = ("e", "y")
 VOWELS = frozenset("aeiou")
 NEVER_DOUBLED_CONSONANTS = frozenset("wxy")
 SILENT_E = "e"
@@ -56,7 +59,8 @@ class WordFacts:
 
         - a non-word lemma falls back to the word as written ("syphili");
         - a lost silent "e" is restored ("hoping" → "hop" → "hope");
-        - a plural-only noun keeps its "s" ("pants" → "pant" → "pants").
+        - a plural-only noun keeps its "s" ("pants" → "pant" → "pants");
+        - an irregular comparison is a word of its own ("better" → "well" → "better").
         """
         lemma = token.lemma.lower()
         surface = token.text.lower()
@@ -71,6 +75,8 @@ class WordFacts:
             token.tag == PLURAL_NOUN_TAG
             and self.zipf(surface) - self.zipf(lemma) >= PLURAL_ONLY_MARGIN_ZIPF
         ):
+            return surface
+        if token.tag in COMPARISON_TAGS and not _is_regular_comparison(lemma, surface):
             return surface
         return lemma
 
@@ -96,6 +102,13 @@ class WordFacts:
         if not _ends_consonant_vowel_consonant(lemma):
             return False
         return self.zipf(lemma + SILENT_E) >= MIN_RESTORED_WORD_ZIPF
+
+
+def _is_regular_comparison(lemma: str, surface: str) -> bool:
+    """The form is built on the word: "bigger" on "big", "happier" on "happy". "better" is
+    not built on "good" or "well", which a learner learns apart."""
+    stem = lemma[:-1] if lemma.endswith(COMPARISON_DROPPED_ENDINGS) else lemma
+    return surface.startswith(stem)
 
 
 def _ends_consonant_vowel_consonant(word: str) -> bool:
