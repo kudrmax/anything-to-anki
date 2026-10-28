@@ -2,6 +2,17 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.1.0 — 2026-10-28
+
+The update screen now shows what is happening.
+
+### Update stages
+While the app updates, you see each stage: downloading the release, saving a backup, installing, starting the new version. Each stage is checked off as it ends, and you see them even while the app restarts.
+![](docs/images/changelog/1.1.0/update-stages.png)
+
+### No longer broken
+- A card's usage label (formal, informal…) now matches the one that orders your cards.
+
 ## 1.0.1 — 2026-10-28
 
 Small fixes after the first release.
