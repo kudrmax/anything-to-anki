@@ -6,7 +6,7 @@ import type { CardBlockContext } from '@/cardLayout'
 import { CardBody } from './CardBody'
 import { reviewCard } from './reviewFixtures'
 
-const STYLE = { size: 'm', tone: 'primary', bold: false, align: 'start' } as const
+const STYLE = { size: 'm', tone: 'primary', bold: false, align: 'start', valign: 'middle' } as const
 const ELEMENTS: CardElement[] = ['target', 'translation', 'synonyms', 'transcription', 'picture']
 
 const view = (...columns: CardLayoutRow[][]): CardLayoutView => ({

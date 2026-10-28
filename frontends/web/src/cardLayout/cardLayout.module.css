@@ -4,6 +4,8 @@
 /* блок шириной в свой текст: рядом с ним видно, куда встанет соседний; списки — во всю колонку, их кнопки у края */
 .row > .block:only-child:is([data-element="examples"], [data-element="notes"]) { flex: 1 1 auto; }
 .block[data-align="end"] { margin-left: auto; }
+.block[data-valign="top"] { align-self: flex-start; }
+.block[data-valign="bottom"] { align-self: flex-end; }
 /* линия во всю колонку, как у колонки шапки и нижней полосы */
 .divider { border: 0; border-top: var(--bw) solid var(--line); margin-block: var(--card-divider-my); }
 

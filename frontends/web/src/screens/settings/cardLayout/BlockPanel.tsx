@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import type { CardLayoutEdit, CardLayoutView } from '@/api/types'
 import { kindOf, styleOf } from '@/cardLayout'
 import { Button, Segmented, Switch } from '@/ui'
-import { ALIGN_OPTIONS, ELEMENT_HINT, ELEMENT_LABEL, SIZE_OPTIONS, TONE_OPTIONS } from './labels'
+import { ALIGN_OPTIONS, ELEMENT_HINT, ELEMENT_LABEL, SIZE_OPTIONS, TONE_OPTIONS, VALIGN_OPTIONS } from './labels'
 import type { LayoutSelection } from './useCardLayoutEditor'
 import css from './cardLayoutEditor.module.css'
 
@@ -65,6 +65,9 @@ export function BlockPanel({ view, selection, edit, editAndDeselect }: BlockPane
       )}
       <Option label="In its row">
         <Segmented value={style.align} options={ALIGN_OPTIONS} onChange={align => edit({ kind: 'restyle_block', element, align })} />
+      </Option>
+      <Option label="Vertically">
+        <Segmented value={style.valign} options={VALIGN_OPTIONS} onChange={valign => edit({ kind: 'restyle_block', element, valign })} />
       </Option>
       {!hidden && (
         <div className={css.panelActions}>

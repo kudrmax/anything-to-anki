@@ -21,6 +21,7 @@ export function CardBlock({ element, view, children, className, ...rest }: CardB
       data-tone={style?.tone}
       data-bold={style?.bold}
       data-align={style?.align}
+      data-valign={style?.valign}
       {...rest}
     >
       {children}

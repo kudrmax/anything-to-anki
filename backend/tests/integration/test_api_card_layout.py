@@ -84,8 +84,15 @@ class TestCardLayoutAPI:
             json={"kind": "restyle_block", "element": "translation", "tone": "muted"},
         ).json()
         assert style_of(view, "translation") == {
-            "size": "xl", "tone": "muted", "bold": True, "align": "start",
+            "size": "xl", "tone": "muted", "bold": True, "align": "start", "valign": "middle",
         }
+
+    def test_restyle_vertical_position(self, client: TestClient) -> None:
+        view = client.post(
+            "/api/card-layout/edits",
+            json={"kind": "restyle_block", "element": "tts", "valign": "bottom"},
+        ).json()
+        assert style_of(view, "tts")["valign"] == "bottom"
 
     def test_reset(self, client: TestClient) -> None:
         default = client.get("/api/card-layout").json()
@@ -114,4 +121,5 @@ class TestCardLayoutAPI:
         view = client.get("/api/card-layout").json()
         assert first_column(view) == [{"kind": "blocks", "elements": ["target"]}]
         assert style_of(view, "target")["size"] == "s"
+        assert style_of(view, "target")["valign"] == "middle"
         assert "translation" in view["hidden"]

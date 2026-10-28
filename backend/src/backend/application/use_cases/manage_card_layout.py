@@ -53,7 +53,7 @@ class ManageCardLayoutUseCase:
             case RestyleBlockEdit():
                 changes = {
                     name: value
-                    for name in ("size", "tone", "bold", "align")
+                    for name in ("size", "tone", "bold", "align", "valign")
                     if (value := getattr(edit, name)) is not None
                 }
                 style = replace(layout.styles[edit.element], **changes)

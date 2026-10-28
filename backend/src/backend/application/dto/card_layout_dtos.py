@@ -11,6 +11,7 @@ from backend.domain.value_objects.card_layout import (
     BlockSize,
     BlockStyle,
     BlockTone,
+    BlockVAlign,
     CardColumn,
     CardElement,
     CardLayout,
@@ -25,13 +26,20 @@ class BlockStyleDTO(BaseModel):
     tone: BlockTone
     bold: bool
     align: BlockAlign
+    # Layouts saved before the vertical position existed keep blocks in the middle, as they were.
+    valign: BlockVAlign = BlockVAlign.MIDDLE
 
     @classmethod
     def of(cls, style: BlockStyle) -> BlockStyleDTO:
-        return cls(size=style.size, tone=style.tone, bold=style.bold, align=style.align)
+        return cls(
+            size=style.size, tone=style.tone, bold=style.bold,
+            align=style.align, valign=style.valign,
+        )
 
     def to_domain(self) -> BlockStyle:
-        return BlockStyle(size=self.size, tone=self.tone, bold=self.bold, align=self.align)
+        return BlockStyle(
+            size=self.size, tone=self.tone, bold=self.bold, align=self.align, valign=self.valign,
+        )
 
 
 class BlockRowDTO(BaseModel):
@@ -154,6 +162,7 @@ class RestyleBlockEdit(BaseModel):
     tone: BlockTone | None = None
     bold: bool | None = None
     align: BlockAlign | None = None
+    valign: BlockVAlign | None = None
 
 
 class InsertDividerEdit(BaseModel):

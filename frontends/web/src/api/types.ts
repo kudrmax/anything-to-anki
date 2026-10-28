@@ -1054,6 +1054,7 @@ export type CardElementKind = 'text' | 'media' | 'control'
 export type BlockSize = 'xs' | 's' | 'm' | 'l' | 'xl'
 export type BlockTone = 'accent' | 'primary' | 'secondary' | 'muted'
 export type BlockAlign = 'start' | 'end'
+export type BlockVAlign = 'top' | 'middle' | 'bottom'
 export type ColumnWidth = 'narrow' | 'normal' | 'wide'
 
 export interface BlockStyle {
@@ -1061,6 +1062,7 @@ export interface BlockStyle {
   tone: BlockTone
   bold: boolean
   align: BlockAlign
+  valign: BlockVAlign
 }
 
 export type CardLayoutRow = { kind: 'blocks'; elements: CardElement[] } | { kind: 'divider' }
