@@ -30,6 +30,8 @@ The right column holds reference material:
 - **Usage**, such as formal or informal, if the word is not neutral.
 - **Synonyms**, a **definition**, and **examples**. **Use as phrase** on an example makes it the card's phrase.
 
+This is the default layout. You can move, restyle and hide everything between the phrase and the bottom bar in [Settings → Card layout](settings.md#card-layout).
+
 The meaning, translation, synonyms, examples and IPA come from AI. Pronunciations and CEFR levels come from the [dictionaries](../reference/dictionaries.md). Everything else is computed locally.
 
 ## Deciding

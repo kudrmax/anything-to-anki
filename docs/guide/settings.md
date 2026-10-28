@@ -39,6 +39,35 @@ Changing the level or the frequent-words threshold re-analyses every source. See
 | **Auto-play audio** | On | Plays the card's audio when it opens. Stored in the browser |
 | **Default cloze hint** | No hint | The hint preselected when you make a [cloze card](review.md#cloze-cards) |
 
+## Card layout
+
+Arrange the body of the card on the [Review](review.md) screen: everything between the phrase and the bottom bar. The phrase, **Learn** / **Cloze** / **Know** / **Skip** and the card tools stay where they are. Changes are saved at once, without **Save settings**, and apply to Review the next time you open it. Anki cards are not affected.
+
+The section shows a sample card. On it:
+
+- **Drag a block** between rows to give it a row of its own, or next to another block to put them in one row. Blocks in a row wrap when the column is too narrow.
+- **Drag a block to Hidden blocks** to hide it. Drag it back onto the card to show it again; it keeps its style.
+- **Drag Divider** from **Add** between rows to add a line across the column. Drag a line to move it, or to **Hidden blocks** to remove it.
+- **Click a block** to change how it looks: **Size** (XS to XL), **Colour** (**Main**, **Grey**, **Light grey**, **Accent**) and **Bold** for text; **Size** for the video frame and picture; **In its row** (**Left** or **Right**) for every block.
+- **Columns**: up to three. The menu above each column sets its width (**Narrow**, **Normal**, **Wide**); × removes the column and moves its blocks to the column before it. **Add column** adds one on the right.
+
+**Reset to default** brings back the original layout. On a phone the first column is shown on the card and the other columns fold into **Details**.
+
+| Block | What it shows |
+|---|---|
+| **Target word** | The word, phrasal verb or collocation |
+| **Translation** | Translation of the target |
+| **Context** | Second line of the meaning: what the target means in this phrase |
+| **Definition** | First line of the meaning |
+| **More meaning** | The rest of the meaning |
+| **Synonyms**, **Examples**, **Transcription** | As named. Hover an example to use it as the phrase |
+| **US / UK audio**, **TTS audio** | Pronunciation and text-to-speech buttons |
+| **Level and frequency** | CEFR level or phrasal verb, frequency and register |
+| **Video frame**, **Picture** | The clip from the video and the picture of the target, or picture suggestions |
+| **Generate meaning** | Progress, **Generate meaning** or **Retry** while the card has no meaning |
+
+A block with nothing to show on a card is left out on that card.
+
 ## AI model
 
 **Claude**: **Haiku**, **Sonnet** (default) or **Opus**. The model is used for every AI feature: meanings, follow-ups, polish and topic words. Each option is the latest model of that family available to your Claude Code login.

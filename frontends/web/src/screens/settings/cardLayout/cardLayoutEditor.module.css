@@ -1,0 +1,57 @@
+/* конструктор карточки: превью слева, настройки выбранного и скрытые блоки справа */
+.hint { margin-bottom: var(--s5); font-size: var(--fs-s); line-height: var(--lh); color: var(--tx3); }
+.editor { display: grid; grid-template-columns: var(--layout-editor-cols); gap: var(--s6); align-items: start; }
+.main { min-width: 0; display: flex; flex-direction: column; gap: var(--s3); }
+
+/* ширины колонок — над превью, ровно над своими колонками */
+.columnBar { display: grid; grid-template-columns: var(--card-cols); }
+.columnTools { display: flex; align-items: center; gap: var(--s1); min-width: 0; padding-inline: var(--s3); }
+.widthSelect { width: auto; min-width: 0; height: var(--h-s); font-size: var(--fs-s); }
+
+/* превью повторяет карточку ревью на десктопе */
+.frame { position: relative; display: grid; grid-template-columns: var(--card-cols); grid-template-rows: auto 1fr auto; background: var(--card); box-shadow: inset 0 0 0 var(--bw) var(--line); border-radius: var(--r); user-select: none; }
+.fixedHead, .fixedFoot { grid-column: 1 / -1; opacity: var(--o-off); pointer-events: none; }
+.fixedHead { padding: var(--s6) var(--card-pad) var(--s5); border-bottom: var(--bw) solid var(--line); }
+.fixedFoot { display: flex; gap: var(--s3); padding: var(--s3); border-top: var(--bw) solid var(--line); }
+.phrase { margin-top: var(--focus-leading-trim); font-size: var(--fs-focus); line-height: var(--lh-focus); letter-spacing: var(--ls-focus); }
+.column { display: flex; flex-direction: column; gap: var(--s4); min-width: 0; min-height: var(--layout-column-min-h); padding: var(--s5) var(--card-pad); }
+.column + .column { border-left: var(--bw) solid var(--line); }
+
+/* блок и линия: тянутся и выбираются; содержимое образца не нажимается */
+.block { position: relative; border-radius: var(--r-s); cursor: grab; touch-action: none; outline: var(--bw) dashed transparent; outline-offset: var(--s1); transition: outline-color var(--t), opacity var(--t); }
+.block > * { pointer-events: none; }
+.block:hover, .block:focus-visible, .divider:hover, .divider:focus-visible { outline-color: var(--tx3); }
+.dragging .block, .dragging .divider { cursor: grabbing; }
+.dragging .block:hover, .dragging .divider:hover { outline-color: transparent; }
+.block.selected, .divider.selected { outline-style: solid; outline-color: var(--ac); }
+.dragged { opacity: var(--o-dim); }
+.divider { margin-inline: calc(-1 * var(--card-pad)); padding: var(--s2) var(--card-pad); border-radius: var(--r-s); cursor: grab; touch-action: none; outline: var(--bw) dashed transparent; outline-offset: calc(-1 * var(--bw)); }
+.divider > hr { margin-inline: calc(-1 * var(--card-pad)); }
+.divider.selected > hr { border-top-color: var(--ac); }
+
+/* образцу нечего показать — блок подписан */
+.placeholder { display: inline-flex; align-items: center; padding: 0 var(--s3); border: var(--dash-bw) dashed var(--line); border-radius: var(--r-s); font-size: var(--fs-s); font-weight: var(--fw); line-height: var(--lh-label); color: var(--tx3); }
+.mediaPlaceholder { display: grid; place-items: center; width: calc(var(--thumb-w) * var(--thumb-scale)); height: calc(var(--thumb-h) * var(--thumb-scale)); border-radius: var(--rc); background: var(--media-grad); color: var(--on-media); opacity: var(--o-visuals); }
+
+/* куда встанет то, что тянут */
+.dropLine { position: absolute; left: var(--x); top: var(--y); width: var(--w); height: var(--hh); border-radius: var(--r-xs); background: var(--ac); pointer-events: none; }
+.ghost { position: fixed; z-index: var(--z-drag); left: 0; top: 0; transform: translate(var(--gx), var(--gy)) translate(var(--s3), var(--s3)); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx); background: var(--soft); box-shadow: var(--dock-shadow); pointer-events: none; white-space: nowrap; }
+
+/* справа: выбранный блок, скрытые блоки, действия */
+.side { position: sticky; top: 0; display: flex; flex-direction: column; gap: var(--s5); min-width: 0; }
+.panel { display: flex; flex-direction: column; gap: var(--s4); }
+.panelTitle { font-size: var(--fs-b); font-weight: var(--fw-m); }
+.panelHint { margin-top: calc(-1 * var(--s3)); font-size: var(--fs-s); line-height: var(--lh); color: var(--tx3); }
+.side > .panelHint { margin-top: 0; }
+.option { display: flex; flex-direction: column; gap: var(--s2); }
+.optionLabel { font-size: var(--fs-xs); color: var(--tx3); }
+.panelActions { display: flex; gap: var(--s3); }
+.tray { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s4); border-radius: var(--r); box-shadow: inset 0 0 0 var(--bw) var(--line); transition: box-shadow var(--t); }
+.trayActive { box-shadow: inset 0 0 0 var(--bw) var(--ac); }
+.trayLabel { font-size: var(--fs-xs); color: var(--tx3); }
+.trayItems { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.trayItem { display: inline-flex; align-items: center; gap: var(--s2); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx2); background: var(--soft); cursor: grab; touch-action: none; user-select: none; }
+.trayItem:hover { color: var(--tx); }
+.trayItem.selected { box-shadow: inset 0 0 0 var(--bw) var(--ac); }
+.trayEmpty { font-size: var(--fs-s); color: var(--tx3); }
+.sideActions { display: flex; flex-wrap: wrap; gap: var(--s4); }

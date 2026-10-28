@@ -1,8 +1,9 @@
 /* тело карточки по раскладке: колонка — строки, строка — блоки в линию, при нехватке места переносятся */
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); min-width: 0; }
 .block { flex: 0 1 auto; min-width: 0; }
-.row > .block:only-child { flex: 1 1 auto; }
-.block[data-align="end"] { margin-left: auto; text-align: end; }
+/* блок шириной в свой текст: рядом с ним видно, куда встанет соседний; списки — во всю колонку, их кнопки у края */
+.row > .block:only-child:is([data-element="examples"], [data-element="notes"]) { flex: 1 1 auto; }
+.block[data-align="end"] { margin-left: auto; }
 /* линия во всю колонку, как у колонки шапки и нижней полосы */
 .divider { border: 0; border-top: var(--bw) solid var(--line); margin-block: var(--card-divider-my); }
 

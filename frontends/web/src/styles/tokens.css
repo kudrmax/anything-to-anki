@@ -155,6 +155,8 @@
   --usage-axis-trim: calc(var(--fs-xs) / -2);   /* подпись шкалы встаёт серединой на линию */
   --usage-table-cols: minmax(var(--usage-feature-w), 1fr) repeat(6, var(--usage-num-w)) var(--usage-share-w);
   --settings-panel-w: 720px;
+  --layout-editor-cols: minmax(0, 1fr) 280px;
+  --layout-column-min-h: calc(var(--h) * 3);   /* в пустую колонку есть куда бросить блок */
   --section-leading-trim: calc((1 - var(--lh-tight)) * var(--fs-h1) / 2);
   --stats-cols: repeat(2, minmax(0, 1fr));
   --dash-bw: 1.5px;
@@ -279,6 +281,7 @@
   --export-media-areas: "main translation media";
   --export-row-gap: var(--s5);
   --settings-cols: var(--settings-nav-w) minmax(0, var(--settings-panel-w));
+  --settings-cols-wide: var(--settings-nav-w) minmax(0, 1fr);   /* раздел с превью карточки: ей нужна ширина карточки ревью */
   --settings-nav-position: sticky;
   --settings-nav-dir: column;
   --settings-nav-trim: calc(var(--s4) * -1);
@@ -312,7 +315,7 @@
   --ls-tight: -.02em; --ls-caps: .07em; --ls-focus: -.012em;
 
   /* слои и прозрачность */
-  --z-menu: 20; --z-modal: 30; --z-toast: 40; --z-block: 50;
+  --z-menu: 20; --z-modal: 30; --z-toast: 40; --z-block: 50; --z-drag: 60;
   --offscreen: -9999px;  /* картинка перетаскивания собирается вне экрана */
   --o-disabled: .5; --o-off: .45; --o-kbd: .6; --o-dim: .35; --o-visuals: .6;
   --shadow-pop: 0 14px 36px -12px color-mix(in srgb, black 60%, transparent);
@@ -455,6 +458,8 @@
     --export-media-areas: "main" "translation" "media";
     --export-row-gap: var(--s3) var(--s4);
     --settings-cols: minmax(0, 1fr);
+    --settings-cols-wide: minmax(0, 1fr);
+    --layout-editor-cols: minmax(0, 1fr);
     --settings-nav-position: static;
     --settings-nav-dir: row;
     --settings-nav-trim: 0px;

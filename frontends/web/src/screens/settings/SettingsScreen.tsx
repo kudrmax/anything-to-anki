@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Page, PageHeader } from '@/shell'
 import { Button, Empty, Spinner, Text } from '@/ui'
 import { AiModel, Anki, Appearance, Books, KnownWords, LearningWordsList, MediaStorage, Pictures, ReviewPrefs, Tts, UnknownWords, Vocabulary } from './SettingsSections'
+import { CardLayoutSection } from './cardLayout/CardLayoutSection'
 import { useSettings } from './useSettings'
 import css from './settings.module.css'
 
@@ -15,6 +16,8 @@ interface Section {
   /** Раздел меняет сохраняемые настройки: под ним кнопка Save. */
   saved?: boolean
   count?: number
+  /** Разделу нужна ширина карточки ревью. */
+  wide?: boolean
 }
 
 export function SettingsScreen() {
@@ -35,6 +38,7 @@ export function SettingsScreen() {
     { id: 'anki', title: 'Anki', content: <Anki store={store} form={form} />, saved: true },
     { id: 'vocabulary', title: 'Vocabulary', content: <Vocabulary store={store} form={form} />, saved: true },
     { id: 'review', title: 'Review', content: <ReviewPrefs store={store} form={form} />, saved: true },
+    { id: 'card-layout', title: 'Card layout', content: <CardLayoutSection />, wide: true },
     { id: 'ai-model', title: 'AI model', content: <AiModel store={store} form={form} />, saved: true },
     { id: 'tts', title: 'Text-to-speech', content: <Tts store={store} form={form} />, saved: true },
     { id: 'pictures', title: 'Pictures', content: <Pictures store={store} form={form} />, saved: true },
@@ -48,8 +52,8 @@ export function SettingsScreen() {
   const open = (id: string) => setParams({ [SECTION_PARAM]: id }, { replace: true })
 
   return (
-    <Page wide header={<PageHeader title="Settings" />}>
-      <div className={css.layout}>
+    <Page wide fill={active.wide} header={<PageHeader title="Settings" />}>
+      <div className={active.wide ? `${css.layout} ${css.wide}` : css.layout}>
         <nav className={css.nav}>
           {sections.map(section => (
             <button
