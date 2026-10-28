@@ -83,3 +83,5 @@ Deleting is permanent. Deleted audio makes cards without TTS **Incomplete** for 
 ## Updates
 
 Shows the installed version. **Changelog** opens the full history of releases. **Check for updates** looks for a new release right now, without waiting for the daily check. If there is one, the update window opens; if not, you see "You're on the latest version". See [Updating](updating.md).
+
+![Settings → Updates](../images/updating/settings-updates.png)

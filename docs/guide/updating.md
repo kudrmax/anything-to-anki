@@ -6,7 +6,11 @@ AnythingToAnki is released in versions. The app checks for a new one and updates
 
 Once a day the app looks for a release newer than the one you run. If it finds one, a quiet **Update available** appears in the header. It stays until you update.
 
+![Update available in the header](../images/updating/indicator.png)
+
 To look right now, open **Settings → Updates** and press **Check for updates**, or choose **Check for Updates…** in the macOS app's menu. If nothing is new, you see "You're on the latest version".
+
+![Settings → Updates with Changelog and Check for updates](../images/updating/settings-updates.png)
 
 ## Updating
 
@@ -14,6 +18,8 @@ To look right now, open **Settings → Updates** and press **Check for updates**
 2. Press **Update**.
 3. **Updating…** covers the app while it installs the release and restarts. Don't close the app.
 4. The page reloads and shows **What's new**. Close it and it won't appear again.
+
+![The update window with the Update button](../images/updating/update-window.png)
 
 **Update** is refused while a long operation runs, such as a big import. Wait for it to finish and try again.
 
