@@ -467,6 +467,22 @@ def test_lock_handed_over_by_the_app_is_kept(copy: Copy) -> None:
     assert copy.state() == "done"
 
 
+def test_a_tag_moved_on_origin_does_not_stop_the_update(copy: Copy) -> None:
+    copy.release("1.1.0")
+    assert copy.run().returncode == 0
+    (copy.publisher / "notes.txt").write_text("moved")
+    git(copy.publisher, "add", "-A")
+    git(copy.publisher, "commit", "-m", "moved")
+    git(copy.publisher, "tag", "--force", "v1.1.0")
+    git(copy.publisher, "push", "--quiet", "--force", "origin", "HEAD", "--tags")
+    copy.release("1.2.0")
+
+    result = copy.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert copy.head() == copy.tag_commit("v1.2.0")
+
+
 def test_uncommitted_changes_refuse_the_update(copy: Copy) -> None:
     copy.release("1.1.0")
     (copy.root / "VERSION").write_text("edited")

@@ -4,7 +4,9 @@ import { LONG_OPERATION_STATUS } from '@/api/longOperationSignal'
 import type { UpdateStatus } from '@/api/types'
 import { messageOf } from '@/lib/apiError'
 
+// Often enough to reload soon after the server is back, rare enough not to load it.
 const POLL_INTERVAL_MS = 2_000
+// HTTP Conflict: the backend says an update already runs.
 const ALREADY_RUNNING_STATUS = 409
 
 /** Итог явной проверки, когда попап обновления не открылся. */

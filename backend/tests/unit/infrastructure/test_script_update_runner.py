@@ -136,6 +136,21 @@ def test_start_clears_the_cause_of_the_previous_failure(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
+def test_the_update_never_waits_for_a_git_password(tmp_path: Path) -> None:
+    marker = tmp_path / "env"
+    code = (
+        "import os, sys\n"
+        f"open({str(marker)!r}, 'w').write(os.environ.get('GIT_TERMINAL_PROMPT', '') + ' '"
+        " + str(sys.stdin.read() == ''))\n"
+    )
+    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", code])
+
+    runner.start()
+
+    _wait_for(marker, "0 True")
+
+
+@pytest.mark.unit
 def test_unknown_state_word_counts_as_idle(tmp_path: Path) -> None:
     (tmp_path / ".pids").mkdir()
     (tmp_path / STATE_FILE).write_text("garbage")

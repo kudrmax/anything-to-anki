@@ -32,6 +32,14 @@ def test_reads_version_and_changelog(project: Path) -> None:
     assert release.changelog_text() == "# Changelog\n"
 
 
+def test_version_is_the_one_read_at_start(project: Path) -> None:
+    release = FileInstalledRelease(project)
+
+    (project / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "9.9.9"\n')
+
+    assert release.version() == AppVersion(2, 3, 4)
+
+
 def test_serves_changelog_images(project: Path) -> None:
     assert FileInstalledRelease(project).asset("docs/images/changelog/2.3.4/shot.png") == PNG_BYTES
 

@@ -30,6 +30,8 @@ RUN_HEADER = "=== make update"
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 # update.sh keeps the lock it finds open on this descriptor instead of taking its own.
 SCRIPT_LOCK_FD = 9
+# Runs unattended: a git asking for a password would hang the update.
+NON_INTERACTIVE = {"GIT_TERMINAL_PROMPT": "0"}
 
 
 class ScriptUpdateRunner(UpdateRunner):
@@ -84,6 +86,7 @@ class ScriptUpdateRunner(UpdateRunner):
                 stderr=subprocess.DEVNULL,
                 pass_fds=(script_lock,),
                 start_new_session=True,
+                env={**os.environ, **NON_INTERACTIVE},
             )
         except OSError:
             self._write_state(UpdateState.FAILED)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -13,9 +14,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# A fetch over a slow link takes seconds; past this the check gives up instead of hanging.
 DEFAULT_TIMEOUT_S = 20
 TAG_PATTERN = "v*"
 CHANGELOG_FILE = "CHANGELOG.md"
+# Runs unattended: a git asking for a password would hang the request.
+NON_INTERACTIVE = {"GIT_TERMINAL_PROMPT": "0"}
 
 
 class GitReleaseSource(ReleaseSource):
@@ -27,7 +31,7 @@ class GitReleaseSource(ReleaseSource):
 
     def latest(self) -> AppVersion | None:
         try:
-            self._git("fetch", "--tags", "--quiet", "origin")
+            self._git("fetch", "--tags", "--force", "--quiet", "origin")
             tags = self._git("tag", "--list", TAG_PATTERN).decode().split()
         except (subprocess.SubprocessError, OSError) as error:
             logger.warning("Could not learn the latest release: %s", error)
@@ -59,7 +63,9 @@ class GitReleaseSource(ReleaseSource):
         completed = subprocess.run(
             ["git", *args],
             cwd=self._project_dir,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
+            env={**os.environ, **NON_INTERACTIVE},
             check=True,
             timeout=self._timeout_s,
         )

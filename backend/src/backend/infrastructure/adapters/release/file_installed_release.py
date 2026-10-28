@@ -15,14 +15,16 @@ CHANGELOG_FILE = "CHANGELOG.md"
 
 
 class FileInstalledRelease(InstalledRelease):
-    """The release checked out in the project folder."""
+    """The release checked out in the project folder. Its version is the one the server
+    started with: a checkout under a running server does not change the code it runs."""
 
     def __init__(self, project_dir: Path) -> None:
         self._project_dir = project_dir
+        with (project_dir / PYPROJECT_FILE).open("rb") as pyproject:
+            self._version = AppVersion.parse(tomllib.load(pyproject)["project"]["version"])
 
     def version(self) -> AppVersion:
-        with (self._project_dir / PYPROJECT_FILE).open("rb") as pyproject:
-            return AppVersion.parse(tomllib.load(pyproject)["project"]["version"])
+        return self._version
 
     def changelog_text(self) -> str:
         return (self._project_dir / CHANGELOG_FILE).read_text(encoding="utf-8")

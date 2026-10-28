@@ -98,3 +98,16 @@ def test_changelog_that_is_not_utf8_is_unavailable(tmp_path: Path) -> None:
     git(repo, "tag", "v1.0.0")
 
     assert GitReleaseSource(repo).changelog_text(AppVersion(1, 0, 0)) is None
+
+
+def test_a_tag_moved_on_origin_does_not_break_the_check(installed: Path, publisher: Path) -> None:
+    source = GitReleaseSource(installed)
+    assert source.latest() == AppVersion(1, 1, 0)
+    (publisher / "notes.txt").write_text("moved")
+    git(publisher, "commit", "-am", "moved")
+    git(publisher, "tag", "--force", "v1.1.0")
+    git(publisher, "push", "--force", "origin", "HEAD", "--tags")
+    release(publisher, "v1.2.0", "third")
+    git(publisher, "push", "origin", "HEAD", "--tags")
+
+    assert source.latest() == AppVersion(1, 2, 0)
