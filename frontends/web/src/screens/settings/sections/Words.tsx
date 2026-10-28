@@ -9,11 +9,8 @@ import { MyWords, type WordListKind } from './MyWords'
 import type { SectionProps } from './types'
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(level => ({ value: level, label: level }))
-const AUTO_THRESHOLD = 'auto'
-const frequentWordThresholdLabel = ({ value, zipf, examples }: FrequentWordThresholdOption) => {
-  if (value === AUTO_THRESHOLD) return `Auto — now ${zipf === null ? 'off' : zipf.toFixed(1)}`
-  return examples.length > 0 ? `${value} — ${examples.join(', ')}` : 'Off'
-}
+const frequentWordThresholdLabel = ({ value, examples }: FrequentWordThresholdOption) =>
+  examples.length > 0 ? `${value} — ${examples.join(', ')}` : 'Off'
 const USAGE_GROUP_LABELS: Record<string, string> = {
   neutral: 'Standard, unmarked words',
   informal: 'Slang, casual speech',
@@ -39,7 +36,7 @@ export function Words({ store, form, list, onList }: WordsProps) {
         </DividerRow>
         <DividerRow
           label="Frequent words"
-          hint="Words this common go to the bottom of the list. Auto learns from your Know and Learn marks."
+          hint="Words at least this common go to the bottom of the list as probably known. Each option shows examples; a lower value moves more words down."
         >
           <Select value={form.frequent_word_threshold} onChange={e => store.change('frequent_word_threshold', e.target.value)}>
             {store.frequentWordThresholds.map(option => (

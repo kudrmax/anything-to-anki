@@ -37,14 +37,11 @@ Very common words are probably known to you, even at your level or harder. **Set
 
 | Option | Example words at that level |
 |---|---|
-| **Auto** (default) | Starts from your level, then learns from your **Learn** and **Know** presses |
 | 4.0 | naked, divorce, awkward, hilarious |
 | 4.5 | concept, classic, assume, weird |
 | 5.0 | career, issue, available, figure out |
 | 5.5 | end up, find out, come in, get out |
-| **Off** | Nothing goes down for being frequent |
-
-Auto starts where a learner of your level probably knows a word: 5.5 at A2 and B1, 5.0 at B2, 4.5 at C1, 4.0 at C2. At A1 it starts with nothing going down, since a beginner may not know even the most common words; it comes down to 5.5 once you mark most of the words that common **Know**. A beginner keeps everyday words of their level on top; an advanced learner sends the common ones down. Then it moves one step at a time: down while the words just below are mostly marked **Know**, up while the words just above are mostly marked **Learn**. A step needs at least four marked words to move.
+| **Off** (default) | Nothing goes down for being frequent |
 
 The numbers are [Zipf frequencies](https://github.com/rspeer/wordfreq#usage): 6 is a very common word, 3 is a rare one. Changing this setting re-analyses every source, like a level change.
 

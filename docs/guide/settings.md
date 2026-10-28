@@ -27,7 +27,7 @@ Every change is saved on its own: **Saved** shows next to the section title for 
 | Setting | Default | What it does |
 |---|---|---|
 | **Your level** | B2 | The CEFR level you are learning. Words of this level and harder are suggested |
-| **Frequent words** | Auto | How common a word must be to count as probably known |
+| **Frequent words** | Off | How common a word must be to count as probably known |
 | **Calibration** | — | Builds a word list and opens [calibration](vocabulary.md#calibration) |
 
 See [Your vocabulary and level](vocabulary.md).

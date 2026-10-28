@@ -2,6 +2,13 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.3.2 — 2026-10-29
+
+The Auto option for frequent words is gone.
+
+### Improvements
+- **Settings → Vocabulary → Frequent words** no longer has **Auto**. Auto could jump a whole step after a few **Learn** presses and suddenly move hundreds of cards in or out of **Ready**. If you had Auto, the setting is now **Off**: nothing goes down for being frequent. Pick 4.0–5.5 yourself if you want common words moved down. Press **Find words again** on a source to re-sort its cards.
+
 ## 1.3.1 — 2026-10-29
 
 Loading indicators move again.

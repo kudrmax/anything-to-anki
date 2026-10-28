@@ -157,8 +157,8 @@ class TestSettingsAPI:
 
 @pytest.mark.integration
 class TestFrequentWordThresholdSetting:
-    def test_default_is_auto(self, client: TestClient) -> None:
-        assert client.get("/api/settings").json()["frequent_word_threshold"] == "auto"
+    def test_default_is_off(self, client: TestClient) -> None:
+        assert client.get("/api/settings").json()["frequent_word_threshold"] == "off"
 
     def test_update(self, client: TestClient) -> None:
         response = client.patch("/api/settings", json={"frequent_word_threshold": "off"})
@@ -180,7 +180,6 @@ class TestFrequentWordThresholdSetting:
         response = client.get("/api/settings/frequent-word-thresholds")
         assert response.status_code == 200
         options = response.json()
-        assert [o["value"] for o in options] == ["auto", "4.0", "4.5", "5.0", "5.5", "off"]
-        assert options[0]["zipf"] == 5.0  # no decisions yet, the default level B2
-        assert "concept" in options[2]["examples"]
+        assert [o["value"] for o in options] == ["4.0", "4.5", "5.0", "5.5", "off"]
+        assert "concept" in options[1]["examples"]
         assert options[-1]["zipf"] is None

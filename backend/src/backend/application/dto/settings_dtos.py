@@ -139,7 +139,7 @@ class UpdateSettingsRequest(BaseModel):
 class FrequentWordThresholdDTO(BaseModel):
     """One option of the frequent word threshold setting.
 
-    `zipf` is the threshold itself; for Auto — its current calibrated value.
+    `zipf` is the threshold itself; None for Off.
     """
 
     value: str

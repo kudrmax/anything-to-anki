@@ -4,8 +4,6 @@ import pytest
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 
-from tests.candidate_sorter_support import threshold_resolver
-
 
 class FakeSettingsRepo:
     def __init__(self) -> None:
@@ -23,7 +21,7 @@ class TestUsageGroupOrderSettings:
     def test_default_order(self) -> None:
         repo = FakeSettingsRepo()
         uc = ManageSettingsUseCase(
-            repo, threshold_resolver(repo), MagicMock(), MagicMock(),  # type: ignore[arg-type]
+            repo, MagicMock(), MagicMock(),  # type: ignore[arg-type]
         )
         settings = uc.get_settings()
         assert settings.usage_group_order == [
@@ -34,7 +32,7 @@ class TestUsageGroupOrderSettings:
     def test_update_order(self) -> None:
         repo = FakeSettingsRepo()
         uc = ManageSettingsUseCase(
-            repo, threshold_resolver(repo), MagicMock(), MagicMock(),  # type: ignore[arg-type]
+            repo, MagicMock(), MagicMock(),  # type: ignore[arg-type]
         )
         new_order = ["informal", "neutral", "formal", "specialized",
                      "connotation", "old-fashioned", "offensive", "other"]
@@ -45,7 +43,7 @@ class TestUsageGroupOrderSettings:
     def test_round_trip_preserves_order(self) -> None:
         repo = FakeSettingsRepo()
         uc = ManageSettingsUseCase(
-            repo, threshold_resolver(repo), MagicMock(), MagicMock(),  # type: ignore[arg-type]
+            repo, MagicMock(), MagicMock(),  # type: ignore[arg-type]
         )
         order = ["offensive", "other", "neutral", "informal",
                  "formal", "specialized", "connotation", "old-fashioned"]
