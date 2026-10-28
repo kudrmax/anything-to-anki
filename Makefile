@@ -1,4 +1,4 @@
-.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths card-states-check bench-db bench-review app test-macos _check_env _check_setup _up _up-worktree _down _down-worktree
+.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths card-states-check bench-db bench-review app test-macos update _db-snapshot _db-restore _check_env _check_setup _up _up-worktree _down _down-worktree
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # -include не падает если файла нет; если .env создаётся правилом ниже,
@@ -386,6 +386,19 @@ down-worktree:  ## Stop the worktree
 
 _down-worktree:
 	$(call stop_worktree)
+
+# Без with_copy_lock: скрипт сам вызывает make down и make up, которые берут замок.
+# make — через свою переменную: строку с $(MAKE) make выполняет даже под make -n.
+UPDATE_MAKE := $(MAKE)
+update:  ## Update to the latest release (rolls back on failure)
+	@MAKE="$(UPDATE_MAKE)" scripts/update.sh
+
+# Копия базы для make update: путь к копии — последняя строка вывода.
+_db-snapshot: _check_setup
+	@.venv/bin/python -m backend.cli.db_snapshot take
+
+_db-restore: _check_setup
+	@.venv/bin/python -m backend.cli.db_snapshot restore "$(SNAPSHOT)"
 
 logs:  ## Logs of app + worker + ai_proxy in one stream
 	@trap 'kill 0' INT TERM; \
