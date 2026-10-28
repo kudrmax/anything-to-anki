@@ -1,7 +1,7 @@
 /* подобранные картинки на карточке: клик ставит картинку */
 .block { display: flex; flex-direction: column; gap: var(--s2); }
 .label { font-size: var(--fs-xs); color: var(--tx3); }
-.grid { display: grid; grid-template-columns: var(--suggestion-cols); gap: var(--s3); }
+.grid { display: grid; grid-template-columns: repeat(var(--suggestion-count), minmax(0, calc(var(--suggestion-tile-w) * var(--thumb-scale)))); gap: var(--s3); }
 .tile { position: relative; aspect-ratio: var(--image-option-ratio); overflow: hidden; padding: var(--s1); border: var(--dash-bw) dashed var(--suggestion-line); border-radius: var(--rc); transition: border-color var(--t); }
 .tile:hover:not(:disabled) { border-color: var(--ac); }
 .tile:disabled { opacity: var(--o-disabled); }

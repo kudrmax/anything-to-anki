@@ -1,7 +1,7 @@
 import { Fragment, type CSSProperties, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
 import { ChevronUp } from 'lucide-react'
 import type { CardElement, CardLayoutRow, CardLayoutView } from '@/api/types'
-import { CARD_ELEMENTS, CardBlock, columnTracks, isEmptyBlock, type CardBlockContext } from '@/cardLayout'
+import { CARD_ELEMENTS, CardBlock, columnTracks, inRowOrder, isEmptyBlock, type CardBlockContext } from '@/cardLayout'
 import { phraseParts } from '@/lib/text/phraseParts'
 import { Button, Icon } from '@/ui'
 import { BLOCK_ATTR, COLUMN_ATTR, ROW_ATTR, ROW_KIND_ATTR, type DragItem } from './layoutDrag'
@@ -65,9 +65,9 @@ export function LayoutCanvas({ view, ctx, rootRef, drag, selection, startDrag, o
       )
     }
     // Превью показывает ровно то, что показала бы карточка: блока, которому образцу нечего показать, нет, как и на ревью.
-    const blocks = cardRow.elements
+    const blocks = inRowOrder(view, cardRow.elements
       .map((element, position) => ({ element, position, content: CARD_ELEMENTS[element](ctx) }))
-      .filter(({ content }) => !isEmptyBlock(content))
+      .filter(({ content }) => !isEmptyBlock(content)))
     if (blocks.length === 0) return null
     return (
       <div key={rowIndex} {...rowAttrs} className={layoutCss.row}>

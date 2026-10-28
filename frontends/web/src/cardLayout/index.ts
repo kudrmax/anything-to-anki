@@ -1,5 +1,5 @@
 export { CardBlock } from './CardBlock'
-export { columnTracks, isEmptyBlock, kindOf, styleOf } from './layoutView'
+export { columnTracks, inRowOrder, isEmptyBlock, kindOf, styleOf } from './layoutView'
 export type { CardBlockContext, CardMedia } from './CardBlockContext'
 export { CARD_ELEMENTS } from './cardElements'
 export { PictureSuggestionsView } from './PictureSuggestionsView'

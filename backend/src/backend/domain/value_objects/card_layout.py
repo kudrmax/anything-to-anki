@@ -65,8 +65,9 @@ class BlockAlign(StrEnum):
 
 
 class BlockVAlign(StrEnum):
-    """Where a block stands in its row's height: top, middle or bottom."""
+    """Where a block stands in its row's height: on the row's text line, top, middle or bottom."""
 
+    BASELINE = "baseline"
     TOP = "top"
     MIDDLE = "middle"
     BOTTOM = "bottom"
@@ -105,7 +106,7 @@ class BlockStyle:
     tone: BlockTone = BlockTone.PRIMARY
     bold: bool = False
     align: BlockAlign = BlockAlign.START
-    valign: BlockVAlign = BlockVAlign.MIDDLE
+    valign: BlockVAlign = BlockVAlign.BASELINE
 
 
 @dataclass(frozen=True)

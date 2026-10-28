@@ -56,6 +56,7 @@ export const ALIGN_OPTIONS: { value: BlockAlign; label: string }[] = [
 ]
 
 export const VALIGN_OPTIONS: { value: BlockVAlign; label: string }[] = [
+  { value: 'baseline', label: 'Text line' },
   { value: 'top', label: 'Top' },
   { value: 'middle', label: 'Middle' },
   { value: 'bottom', label: 'Bottom' },

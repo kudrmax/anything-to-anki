@@ -46,14 +46,16 @@ const childrenWith = (parent: Element, attr: string): HTMLElement[] =>
 
 /** Место в строке блоков: перед первым блоком той же линии, правее середины которого указатель. */
 function joinAt(root: DOMRect, row: HTMLElement, x: number, y: number): { position: number; line: Line } {
-  const blocks = childrenWith(row, BLOCK_ATTR).map(block => block.getBoundingClientRect())
-  const onLine = blocks.map((rect, i) => ({ rect, i })).filter(({ rect }) => y >= rect.top && y <= rect.bottom)
-  const line = onLine.length > 0 ? onLine : blocks.map((rect, i) => ({ rect, i })).slice(-1)
+  // Место берётся из самого блока: пустые блоки не рисуются, а прижатые вправо стоят в конце строки.
+  const blocks = childrenWith(row, BLOCK_ATTR)
+    .map(block => ({ rect: block.getBoundingClientRect(), position: Number(block.getAttribute(BLOCK_ATTR)) }))
+  const onLine = blocks.filter(({ rect }) => y >= rect.top && y <= rect.bottom)
+  const line = onLine.length > 0 ? onLine : blocks.slice(-1)
   const before = line.find(({ rect }) => x < rect.left + rect.width / 2)
   const edge = before ?? line[line.length - 1]
   const lineX = before ? edge.rect.left : edge.rect.right
   return {
-    position: before ? before.i : edge.i + 1,
+    position: before ? before.position : edge.position + 1,
     line: { x: lineX - root.left - LINE / 2, y: edge.rect.top - root.top, width: LINE, height: edge.rect.height },
   }
 }

@@ -26,8 +26,8 @@ class BlockStyleDTO(BaseModel):
     tone: BlockTone
     bold: bool
     align: BlockAlign
-    # Layouts saved before the vertical position existed keep blocks in the middle, as they were.
-    valign: BlockVAlign = BlockVAlign.MIDDLE
+    # Layouts saved before the vertical position existed: blocks stand on the row's text line.
+    valign: BlockVAlign = BlockVAlign.BASELINE
 
     @classmethod
     def of(cls, style: BlockStyle) -> BlockStyleDTO:

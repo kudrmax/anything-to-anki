@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { CardLayoutRow, CardLayoutView } from '@/api/types'
-import { CARD_ELEMENTS, CardBlock, isEmptyBlock, type CardBlockContext } from '@/cardLayout'
+import { CARD_ELEMENTS, CardBlock, inRowOrder, isEmptyBlock, type CardBlockContext } from '@/cardLayout'
 import { Icon } from '@/ui'
 import layoutCss from '@/cardLayout/cardLayout.module.css'
 import css from './review.module.css'
@@ -14,9 +14,9 @@ interface CardBodyProps {
 
 function Row({ row, view, ctx }: { row: CardLayoutRow; view: CardLayoutView; ctx: CardBlockContext }) {
   if (row.kind === 'divider') return <hr className={layoutCss.divider} />
-  const blocks = row.elements
+  const blocks = inRowOrder(view, row.elements
     .map(element => ({ element, content: CARD_ELEMENTS[element](ctx) }))
-    .filter(({ content }) => !isEmptyBlock(content))
+    .filter(({ content }) => !isEmptyBlock(content)))
   if (blocks.length === 0) return null
   return (
     <div className={layoutCss.row}>

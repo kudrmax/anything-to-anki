@@ -1,10 +1,17 @@
-/* тело карточки по раскладке: колонка — строки, строка — блоки в линию, при нехватке места переносятся */
-.row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); min-width: 0; }
+/* тело карточки по раскладке: колонка — строки, строка — блоки в линию, при нехватке места переносятся;
+   блоки стоят на одной линии текста, как бы ни отличались размером */
+.row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s3); min-width: 0; }
 .block { flex: 0 1 auto; min-width: 0; }
 /* блок шириной в свой текст: рядом с ним видно, куда встанет соседний; списки — во всю колонку, их кнопки у края */
 .row > .block:only-child:is([data-element="examples"], [data-element="notes"]) { flex: 1 1 auto; }
-.block[data-align="end"] { margin-left: auto; }
+/* подобранные картинки сжимаются и остаются в строке рядом с соседями; под них уходят, только когда места совсем мало */
+.block:has(> [data-picture-choice]) { flex: 1 1 0; min-width: calc(var(--picture-choice-min-w) * var(--thumb-scale)); }
+/* прижатые вправо блоки стоят в конце строки (см. inRowOrder): от остальных их отделяет только первый */
+.block[data-align="end"]:first-child, .block:not([data-align="end"]) + .block[data-align="end"] { margin-left: auto; }
+/* у картинок и кадра своей строки текста нет: на линию текста они встают низом */
+.block[data-kind="media"][data-valign="baseline"] { align-self: last baseline; }
 .block[data-valign="top"] { align-self: flex-start; }
+.block[data-valign="middle"] { align-self: center; }
 .block[data-valign="bottom"] { align-self: flex-end; }
 /* линия во всю колонку, как у колонки шапки и нижней полосы */
 .divider { border: 0; border-top: var(--bw) solid var(--line); margin-block: var(--card-divider-my); }

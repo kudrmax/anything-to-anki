@@ -75,7 +75,9 @@
   --thumb-h: 72px;
   --meaning-image-h: 180px;
   --image-option-ratio: 4 / 3;
-  --suggestion-cols: repeat(5, minmax(0, calc(var(--thumb-h) * 4 / 3)));
+  --suggestion-count: 5;
+  --suggestion-tile-w: calc(var(--thumb-h) * 4 / 3);   /* умножается на размер блока картинки */
+  --picture-choice-min-w: calc(var(--thumb-h) * 3);   /* подобранные картинки в строке не уже этого */
   --field-area: 128px;
   --add-area: 96px;        /* поле карточки Add в колонке Sources */
   --add-plus: var(--icon-l);
