@@ -35,6 +35,7 @@ from backend.infrastructure.adapters.local_file_reader import LocalFileReader
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
 from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
 from backend.infrastructure.adapters.spacy_document_analyzer import SpacyDocumentAnalyzer
+from backend.infrastructure.adapters.spacy_stop_words import SpacyStopWords
 from backend.infrastructure.adapters.spacy_text_analyzer import SpaCyTextAnalyzer
 from backend.infrastructure.adapters.wordfreq_frequency_provider import (
     WordfreqFrequencyProvider,
@@ -80,6 +81,7 @@ def use_case() -> AnalyzeTextUseCase:
         cefr_classifier=make_voting_classifier(),
         frequency_provider=WordfreqFrequencyProvider(),
         phrasal_verb_detector=PhrasalVerbDetector(JsonPhrasalVerbDictionary()),
+        stop_words=SpacyStopWords(),
     )
 
 

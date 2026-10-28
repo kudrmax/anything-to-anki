@@ -55,11 +55,11 @@ class FrequentWordThresholdResolver:
             return threshold
         return threshold.calibrated(self._auto_zipf(level))
 
-    def auto_zipf(self) -> float:
-        """What Auto gives at the saved level."""
+    def auto_zipf(self) -> float | None:
+        """What Auto gives at the saved level; None — no threshold."""
         return self._auto_zipf(saved_level(self._settings_repo))
 
-    def _auto_zipf(self, level: CEFRLevel) -> float:
+    def _auto_zipf(self, level: CEFRLevel) -> float | None:
         return self._calibrator.calibrate(
             self._decision_repo.list_all(), auto_start_zipf(level),
         )

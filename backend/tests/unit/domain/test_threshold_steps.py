@@ -72,8 +72,10 @@ class TestSteps:
             for zipf in ZIPF_STEPS
             for i in range(MIN_DECISIONS_PER_BAND)
         ]
-        calibrated = FrequencyThresholdCalibrator().calibrate(decisions, auto_start_zipf(level))
-        assert calibrated == (LOWEST_ZIPF if known else HIGHEST_ZIPF)
+        start = auto_start_zipf(level)
+        calibrated = FrequencyThresholdCalibrator().calibrate(decisions, start)
+        unknown_end = None if start is None else HIGHEST_ZIPF
+        assert calibrated == (LOWEST_ZIPF if known else unknown_end)
         step_index(calibrated)
 
 

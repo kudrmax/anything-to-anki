@@ -13,8 +13,9 @@ THRESHOLD_STEPS: tuple[float | None, ...] = (2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 
 # Where a learner of each level probably knows a word of their level or above; Auto starts
 # here. Measured on real sources: the words being learned are mostly rarer than this, while
 # the ones at least this frequent are mostly everyday words and verb + preposition pairs.
-AUTO_START_ZIPF: dict[CEFRLevel, float] = {
-    CEFRLevel.A1: 5.5,
+# A beginner knows hardly any word, the most frequent ones included: no threshold.
+AUTO_START_ZIPF: dict[CEFRLevel, float | None] = {
+    CEFRLevel.A1: None,
     CEFRLevel.A2: 5.5,
     CEFRLevel.B1: 5.5,
     CEFRLevel.B2: 5.0,
@@ -31,8 +32,9 @@ def step_index(zipf: float | None) -> int:
     return THRESHOLD_STEPS.index(zipf)
 
 
-def auto_start_zipf(level: CEFRLevel) -> float:
-    """Where Auto starts for a user of this level, before any of their decisions."""
+def auto_start_zipf(level: CEFRLevel) -> float | None:
+    """Where Auto starts for a user of this level, before any of their decisions; None — no
+    threshold."""
     return AUTO_START_ZIPF[level]
 
 
@@ -62,7 +64,7 @@ class FrequentWordThreshold:
     def covers(self, zipf: float) -> bool:
         return is_frequent(zipf, self.zipf)
 
-    def calibrated(self, zipf: float) -> FrequentWordThreshold:
+    def calibrated(self, zipf: float | None) -> FrequentWordThreshold:
         return replace(self, zipf=zipf)
 
     @classmethod

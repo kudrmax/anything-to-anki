@@ -4,7 +4,7 @@ The app suggests only words that are new to you. It decides what is new from thr
 
 ## Level
 
-**Settings → Vocabulary → Your CEFR level** is the level you are learning now, from A1 to C2. The default is **B2**. Words of your level and harder are suggested for learning; easier words are treated as known. If you are in the middle of A2, choose **A2**. If you are just starting and know only a few dozen words, choose **A1**.
+**Settings → Vocabulary → Your CEFR level** is the level you are learning now, from A1 to C2. The default is **B2**. Words of your level and harder are suggested for learning; easier words are treated as known. Function words such as *to*, *have* or *will* are never suggested. If you are in the middle of A2, choose **A2**. If you are just starting and know only a few dozen words, choose **A1**.
 
 Set it before you add your first sources. Changing it later re-analyses **every** source: the app runs **Find words again** on all of them as one operation, behind the progress overlay. Your decisions are kept.
 
@@ -44,7 +44,7 @@ Very common words are probably known to you, even at your level or harder. **Set
 | 5.5 | end up, find out, come in, get out |
 | **Off** | Nothing goes down for being frequent |
 
-Auto starts where a learner of your level probably knows a word: 5.5 at A1, A2 and B1, 5.0 at B2, 4.5 at C1, 4.0 at C2. A beginner keeps everyday words of their level on top; an advanced learner sends the common ones down. Then it moves one step at a time: down while the words just below are mostly marked **Know**, up while the words just above are mostly marked **Learn**. A step needs at least four marked words to move.
+Auto starts where a learner of your level probably knows a word: 5.5 at A2 and B1, 5.0 at B2, 4.5 at C1, 4.0 at C2. At A1 it starts with nothing going down, since a beginner may not know even the most common words; it comes down to 5.5 once you mark most of the words that common **Know**. A beginner keeps everyday words of their level on top; an advanced learner sends the common ones down. Then it moves one step at a time: down while the words just below are mostly marked **Know**, up while the words just above are mostly marked **Learn**. A step needs at least four marked words to move.
 
 The numbers are [Zipf frequencies](https://github.com/rspeer/wordfreq#usage): 6 is a very common word, 3 is a rare one. Changing this setting re-analyses every source, like a level change.
 

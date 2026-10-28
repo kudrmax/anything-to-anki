@@ -18,7 +18,7 @@ const THEMES: { value: ThemePref; label: string }[] = [
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(level => ({ value: level, label: level }))
 const AUTO_THRESHOLD = 'auto'
 const frequentWordThresholdLabel = ({ value, zipf, examples }: FrequentWordThresholdOption) => {
-  if (value === AUTO_THRESHOLD) return `Auto — now ${zipf?.toFixed(1)}`
+  if (value === AUTO_THRESHOLD) return `Auto — now ${zipf === null ? 'off' : zipf.toFixed(1)}`
   return examples.length > 0 ? `${value} — ${examples.join(', ')}` : 'Off'
 }
 const AI_MODELS = [
