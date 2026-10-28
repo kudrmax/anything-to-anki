@@ -69,10 +69,37 @@ final class ServerLauncherTests: XCTestCase {
         let launcher = makeLauncher(probe: FakeProbe(upAfter: 0), runner: runner)
 
         _ = await launcher.start()
+        let owns = await launcher.ownsServers
         await launcher.stop()
 
+        XCTAssertFalse(owns)
         let observed5 = await runner.commands
         XCTAssertEqual(observed5, [])
+    }
+
+    func testAdoptedRunningServersAreStoppedOnQuit() async {
+        let runner = FakeRunner()
+        let launcher = makeLauncher(probe: FakeProbe(upAfter: 0), runner: runner, adoptRunningServers: true)
+
+        let outcome = await launcher.start()
+        let owns = await launcher.ownsServers
+        await launcher.stop()
+
+        XCTAssertEqual(outcome, .ready)
+        XCTAssertTrue(owns)
+        let observed = await runner.commands
+        XCTAssertEqual(observed, ["make down"])
+    }
+
+    func testAdoptingStartsServersThatAreDown() async {
+        let runner = FakeRunner()
+        let launcher = makeLauncher(probe: FakeProbe(upAfter: 1), runner: runner, adoptRunningServers: true)
+
+        _ = await launcher.start()
+        await launcher.stop()
+
+        let observed = await runner.commands
+        XCTAssertEqual(observed, ["make up", "make down"])
     }
 
     func testStopsProcessesStartedEvenIfServerNeverCameUp() async {
@@ -157,13 +184,14 @@ final class ServerLauncherTests: XCTestCase {
         XCTAssertEqual(outcome, .failed(message: "The server failed to start (exit code 1)", outputTail: "Building\nboom"))
     }
 
-    private func makeLauncher(probe: FakeProbe, runner: FakeRunner) -> ServerLauncher {
+    private func makeLauncher(probe: FakeProbe, runner: FakeRunner, adoptRunningServers: Bool = false) -> ServerLauncher {
         ServerLauncher(
             projectDir: projectDir,
             probe: probe,
             runner: runner,
             sleeper: InstantSleeper(),
-            policy: LaunchPolicy(pollInterval: .milliseconds(1), attempts: 10, outputTailLines: 20)
+            policy: LaunchPolicy(pollInterval: .milliseconds(1), attempts: 10, outputTailLines: 20),
+            adoptRunningServers: adoptRunningServers
         )
     }
 }
