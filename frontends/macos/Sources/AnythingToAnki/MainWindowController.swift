@@ -64,11 +64,24 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         onClose?()
     }
 
-    func windowDidEnterFullScreen(_ notification: Notification) {
-        updateTitlebarInsets()
+    /// Full screen slides the title bar in as an opaque bar over the top of the window, so there
+    /// the page goes back under it, and the bar pushes the page down instead of covering its top bar.
+    func windowWillEnterFullScreen(_ notification: Notification) {
+        setPageUnderTitlebar(false)
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {
+        setPageUnderTitlebar(true)
+    }
+
+    func windowDidFailToEnterFullScreen(_ window: NSWindow) {
+        setPageUnderTitlebar(true)
+    }
+
+    private func setPageUnderTitlebar(_ under: Bool) {
+        guard let window else { return }
+        if under { window.styleMask.insert(.fullSizeContentView) } else { window.styleMask.remove(.fullSizeContentView) }
+        window.toolbar?.isVisible = under
         updateTitlebarInsets()
     }
 
@@ -119,11 +132,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         updateTitlebarInsets()
     }
 
-    /// Full screen hides the window controls, so the page's top bar takes the whole width there.
     private func updateTitlebarInsets() {
         guard let window else { return }
+        guard window.styleMask.contains(.fullSizeContentView) else {
+            return webController.setTitlebarInsets(TitlebarInsets(height: titlebarHeight, leading: 0, trailing: 0))
+        }
         window.layoutIfNeeded()
-        let controls = window.styleMask.contains(.fullScreen) ? [] : [NSWindow.ButtonType.closeButton, .zoomButton]
+        let controls = [NSWindow.ButtonType.closeButton, .zoomButton]
             .compactMap { window.standardWindowButton($0) }
             .map { $0.convert($0.bounds, to: nil) }
         // The controls get as much room after them as they have before them.
