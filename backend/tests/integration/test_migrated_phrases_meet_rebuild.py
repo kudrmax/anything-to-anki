@@ -94,7 +94,7 @@ def _alembic_config(db_url: str) -> Config:
 
 def _analysis() -> list[WordDTO]:
     return Container().analyze_text_use_case().execute(
-        DOCUMENT, AnalyzeTextRequest(user_level="B1"),
+        DOCUMENT, AnalyzeTextRequest(user_level="B2"),
     ).words
 
 

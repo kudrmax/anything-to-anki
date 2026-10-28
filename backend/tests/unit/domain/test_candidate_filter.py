@@ -47,7 +47,7 @@ class TestCandidateFilter:
     def test_excludes_non_alpha(self) -> None:
         assert self.filter.is_relevant_token(_make_token(is_alpha=False)) is False
 
-    def test_is_above_user_level(self) -> None:
-        assert self.filter.is_above_user_level(CEFRLevel.C1, CEFRLevel.B1) is True
-        assert self.filter.is_above_user_level(CEFRLevel.B1, CEFRLevel.B1) is False
-        assert self.filter.is_above_user_level(CEFRLevel.A1, CEFRLevel.B1) is False
+    def test_is_learned_at_user_level(self) -> None:
+        assert self.filter.is_learned_at_user_level(CEFRLevel.C1, CEFRLevel.B1) is True
+        assert self.filter.is_learned_at_user_level(CEFRLevel.B1, CEFRLevel.B1) is True
+        assert self.filter.is_learned_at_user_level(CEFRLevel.A2, CEFRLevel.B1) is False

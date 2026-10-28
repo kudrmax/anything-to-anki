@@ -177,7 +177,7 @@ export function Vocabulary({ store, form }: SectionProps) {
   const bootstrap = store.bootstrapStatus
   return (
     <>
-      <DividerRow label="Target CEFR level" hint="Words above this level will be suggested as candidates.">
+      <DividerRow label="Your CEFR level" hint="The level you are learning now. Words of this level and harder are suggested; easier words count as known. A1 — you are just starting.">
         <Segmented value={form.cefr_level} options={CEFR_LEVELS} onChange={level => store.setField('cefr_level', level)} />
       </DividerRow>
       <DividerRow

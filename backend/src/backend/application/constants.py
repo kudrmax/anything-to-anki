@@ -14,7 +14,7 @@ DEFAULT_USAGE_GROUP_ORDER: list[str] = [
 ]
 
 CEFR_LEVEL_SETTING: str = "cefr_level"
-DEFAULT_CEFR_LEVEL: str = "B1"
+DEFAULT_CEFR_LEVEL: str = "B2"
 FREQUENT_WORD_THRESHOLD_SETTING: str = "frequent_word_threshold"
 USAGE_GROUP_ORDER_SETTING: str = "usage_group_order"
 

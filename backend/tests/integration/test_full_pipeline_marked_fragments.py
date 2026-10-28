@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 FIXTURES = Path(__file__).parent / "fixtures"
 HPMOR = (FIXTURES / "hpmor_excerpt.txt").read_text()
 LYRICS = (FIXTURES / "evil_morty_lyrics.txt").read_text()
-USER_LEVEL = "A1"  # matches the level used when the source was originally analyzed
+USER_LEVEL = "A2"  # the level the source was first analyzed at, then saved as A1
 
 
 pytestmark = pytest.mark.integration

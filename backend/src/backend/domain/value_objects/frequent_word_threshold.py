@@ -10,15 +10,15 @@ OFF_KEY = "off"
 FALLBACK_ZIPF: float = 4.5
 # Every zipf a threshold can take, the last one — no threshold: frequency is ignored.
 THRESHOLD_STEPS: tuple[float | None, ...] = (2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, None)
-# Where a learner of each level probably knows a word above it; Auto starts here. Measured
-# on real sources: the words of the next level are mostly rarer than this, while the ones
-# at least this frequent are mostly everyday words and verb + preposition pairs.
+# Where a learner of each level probably knows a word of their level or above; Auto starts
+# here. Measured on real sources: the words being learned are mostly rarer than this, while
+# the ones at least this frequent are mostly everyday words and verb + preposition pairs.
 AUTO_START_ZIPF: dict[CEFRLevel, float] = {
     CEFRLevel.A1: 5.5,
     CEFRLevel.A2: 5.5,
-    CEFRLevel.B1: 5.0,
-    CEFRLevel.B2: 4.5,
-    CEFRLevel.C1: 4.0,
+    CEFRLevel.B1: 5.5,
+    CEFRLevel.B2: 5.0,
+    CEFRLevel.C1: 4.5,
     CEFRLevel.C2: 4.0,
     CEFRLevel.UNKNOWN: 4.0,
 }

@@ -23,6 +23,6 @@ class CandidateFilter:
             return False
         return token.is_alpha
 
-    def is_above_user_level(self, cefr: CEFRLevel, user_level: CEFRLevel) -> bool:
-        """Check if a word's CEFR level is above the user's current level."""
-        return cefr.is_above(user_level)
+    def is_learned_at_user_level(self, cefr: CEFRLevel, user_level: CEFRLevel) -> bool:
+        """Check if a word's CEFR level is the user's level or above."""
+        return cefr.is_learned_at(user_level)

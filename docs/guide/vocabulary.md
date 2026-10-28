@@ -4,7 +4,7 @@ The app suggests only words that are new to you. It decides what is new from thr
 
 ## Level
 
-**Settings → Vocabulary → Target CEFR level** is your English level, from A1 to C2. The default is **B1**. Words above your level are suggested for learning; words at or below it are treated as known.
+**Settings → Vocabulary → Your CEFR level** is the level you are learning now, from A1 to C2. The default is **B2**. Words of your level and harder are suggested for learning; easier words are treated as known. If you are in the middle of A2, choose **A2**. If you are just starting and know only a few dozen words, choose **A1**.
 
 Set it before you add your first sources. Changing it later re-analyses **every** source: the app runs **Find words again** on all of them as one operation, behind the progress overlay. Your decisions are kept.
 
@@ -33,7 +33,7 @@ Words you marked **Learn** or **Cloze** are **learning**. They are not suggested
 
 ## Frequent words
 
-Very common words are probably known to you, even above your level. **Settings → Vocabulary → Frequent words** sets how common a word must be to go to the **Probably known** section in Review. These words are moved down, not removed.
+Very common words are probably known to you, even at your level or harder. **Settings → Vocabulary → Frequent words** sets how common a word must be to go to the **Probably known** section in Review. These words are moved down, not removed.
 
 | Option | Example words at that level |
 |---|---|
@@ -44,7 +44,7 @@ Very common words are probably known to you, even above your level. **Settings �
 | 5.5 | end up, find out, come in, get out |
 | **Off** | Nothing goes down for being frequent |
 
-Auto starts where a learner of your level probably knows a word: 5.5 at A1 and A2, 5.0 at B1, 4.5 at B2, 4.0 at C1 and C2. A beginner keeps everyday words of the next level on top; an advanced learner sends the common ones down. Then it moves one step at a time: down while the words just below are mostly marked **Know**, up while the words just above are mostly marked **Learn**. A step needs at least four marked words to move.
+Auto starts where a learner of your level probably knows a word: 5.5 at A1, A2 and B1, 5.0 at B2, 4.5 at C1, 4.0 at C2. A beginner keeps everyday words of their level on top; an advanced learner sends the common ones down. Then it moves one step at a time: down while the words just below are mostly marked **Know**, up while the words just above are mostly marked **Learn**. A step needs at least four marked words to move.
 
 The numbers are [Zipf frequencies](https://github.com/rspeer/wordfreq#usage): 6 is a very common word, 3 is a rare one. Changing this setting re-analyses every source, like a level change.
 
@@ -54,10 +54,10 @@ A new user knows thousands of words above their level that the app doesn't know 
 
 1. Open **Settings → Vocabulary → Vocabulary calibration** and press **Prepare**. The app builds a word list from the dictionaries; this takes a moment.
 2. Press **Calibrate**.
-3. Each round shows up to 15 words from the three levels above yours. Tap every word you know, then press **Next N words**.
+3. Each round shows up to 15 words of your level and the two above it. Tap every word you know, then press **Next N words**.
 4. Press **Finish** when you are done.
 
-Words you don't tap are not marked at all; they may come back in a later session. At level C2 there is nothing to calibrate.
+Words you don't tap are not marked at all; they may come back in a later session.
 
 Calibration needs the CEFR [dictionaries](../reference/dictionaries.md).
 

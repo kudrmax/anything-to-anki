@@ -37,7 +37,7 @@ class TestGenerateTopicTargets:
         self.topic_target_repo = MagicMock()
         self.topic_target_repo.has_targets.return_value = False
         self.settings_repo = MagicMock()
-        self.settings_repo.get.return_value = "B2"
+        self.settings_repo.get.return_value = "C1"
         self.ai_service = MagicMock()
         self.use_case = GenerateTopicTargetsUseCase(
             source_repo=self.source_repo,

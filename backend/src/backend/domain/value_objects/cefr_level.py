@@ -14,11 +14,19 @@ class CEFRLevel(enum.Enum):
     C2 = 6.0
     UNKNOWN = 7.0
 
-    def is_above(self, user_level: CEFRLevel) -> bool:
-        """Check if this level is strictly above the given user level."""
+    def is_learned_at(self, user_level: CEFRLevel) -> bool:
+        """A word of this level is still being learned by a user at `user_level`: it is of
+        that level or above. A word of no known level always is."""
         if self is CEFRLevel.UNKNOWN:
             return True
-        return bool(self.value > user_level.value)
+        return bool(self.value >= user_level.value)
+
+    def easier(self) -> CEFRLevel:
+        """The level just below, the one a user learning this level reads with ease; A1 for
+        A1, which has none below."""
+        if self in (CEFRLevel.A1, CEFRLevel.UNKNOWN):
+            return self
+        return CEFRLevel(self.value - 1)
 
     @classmethod
     def from_float(cls, value: float) -> CEFRLevel:
