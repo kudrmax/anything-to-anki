@@ -2,8 +2,9 @@
    блоки стоят на одной линии текста, как бы ни отличались размером */
 .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s3); min-width: 0; }
 .block { flex: 0 1 auto; min-width: 0; }
-/* блок шириной в свой текст: рядом с ним видно, куда встанет соседний; списки — во всю колонку, их кнопки у края */
-.row > .block:only-child:is([data-element="examples"], [data-element="notes"]) { flex: 1 1 auto; }
+/* блок шириной в свой текст; абзацы занимают остаток строки и переносят текст, а соседи стоят рядом —
+   под абзац они уходят, только когда ему остаётся слишком узкая полоса */
+.block:is([data-element="definition"], [data-element="context"], [data-element="notes"], [data-element="examples"]) { flex: 1 1 0; min-width: var(--paragraph-block-min-w); }
 /* подобранные картинки занимают остаток строки рядом с соседями; под них уходят, только когда не помещается и одна */
 .block[data-element="picture_choice"] { flex: 1 1 0; min-width: calc(var(--suggestion-tile-w) * var(--thumb-scale)); }
 /* прижатые вправо блоки стоят в конце строки (см. inRowOrder): от остальных их отделяет только первый */

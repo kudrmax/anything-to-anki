@@ -172,6 +172,7 @@
   --card-col-wide: 5fr;
   --card-col-pt: var(--s5);       /* от линии над колонкой до первого блока */
   --card-row-gap: var(--s4);
+  --paragraph-block-min-w: 240px;   /* уже — соседи абзаца уходят под него */
   --block-space-s: var(--s3);   /* добавочные отступы блока раскладки */
   --block-space-m: var(--s5);
   --block-space-l: var(--s7);
