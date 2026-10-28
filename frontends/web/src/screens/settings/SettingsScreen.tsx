@@ -5,7 +5,7 @@ import { Empty, Spinner, Text } from '@/ui'
 import { Anki } from './sections/Anki'
 import { Cards } from './sections/Cards'
 import { General } from './sections/General'
-import { MyWords, type WordListKind } from './sections/MyWords'
+import type { WordListKind } from './sections/MyWords'
 import { Sources } from './sections/Sources'
 import { Words } from './sections/Words'
 import { SaveStatus } from './SaveStatus'
@@ -21,9 +21,9 @@ const MOVED_SECTIONS: Record<string, { section: string; list?: WordListKind }> =
   appearance: { section: 'general' },
   updates: { section: 'general' },
   vocabulary: { section: 'words' },
-  'known-words': { section: 'my-words', list: 'known' },
-  learning: { section: 'my-words', list: 'learning' },
-  'unknown-words': { section: 'my-words', list: 'unknown' },
+  'known-words': { section: 'words', list: 'known' },
+  learning: { section: 'words', list: 'learning' },
+  'unknown-words': { section: 'words', list: 'unknown' },
   review: { section: 'cards' },
   'card-layout': { section: 'cards' },
   'ai-model': { section: 'cards' },
@@ -57,12 +57,11 @@ export function SettingsScreen() {
   const sectionId = moved?.section ?? requested
   const listParam = moved?.list ?? params.get(LIST_PARAM)
   const list = WORD_LISTS.find(kind => kind === listParam) ?? 'known'
-  const openList = (next: WordListKind) => setParams({ [SECTION_PARAM]: 'my-words', [LIST_PARAM]: next }, { replace: true })
+  const openList = (next: WordListKind) => setParams({ [SECTION_PARAM]: 'words', [LIST_PARAM]: next }, { replace: true })
 
   const sections: Section[] = [
     { id: 'general', title: 'General', content: <General /> },
-    { id: 'words', title: 'Words', content: <Words store={store} form={form} /> },
-    { id: 'my-words', title: 'My words', content: <MyWords store={store} list={list} onList={openList} /> },
+    { id: 'words', title: 'Words', content: <Words store={store} form={form} list={list} onList={openList} /> },
     { id: 'cards', title: 'Cards', content: <Cards store={store} form={form} /> },
     { id: 'anki', title: 'Anki', content: <Anki store={store} form={form} /> },
     { id: 'sources', title: 'Sources', content: <Sources store={store} form={form} /> },

@@ -39,7 +39,7 @@ Some parts can't be generated, and the button skips them. The line under **Incom
 - Each word is exported **once**: one note per word, with the phrase where you decided it.
 - Every note gets the tag `anything-to-anki`. Media files (screenshots, audio, pictures) are copied into Anki.
 - A word that is already in Anki (same note type, same target) is not added twice. It is counted as **already in Anki**.
-- An exported word counts as **Learning**. **30 days after export** it becomes **Known** and is no longer suggested in new sources. You can see these words in [Settings → My words → Learning](settings.md#my-words).
+- An exported word counts as **Learning**. **30 days after export** it becomes **Known** and is no longer suggested in new sources. You can see these words in [Settings → Words → Your words → Learning](settings.md#your-words).
 
 Changes you make in the app after export (a new meaning, new audio) **do not** reach notes already in Anki. Edit the note in Anki instead.
 

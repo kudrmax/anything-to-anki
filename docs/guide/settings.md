@@ -5,8 +5,7 @@ Open **Settings** in the top right corner, or press `⌘,` (`Ctrl+,` outside mac
 | Section | What is in it |
 |---|---|
 | [General](#general) | Theme, version and updates |
-| [Words](#words) | Your level, frequent words, calibration, usage priority |
-| [My words](#my-words) | Known, learning and unknown words |
+| [Words](#words) | Your level, frequent words, calibration, usage priority, your known, learning and unknown words |
 | [Cards](#cards) | Card layout, AI model, audio, pictures, cloze hint |
 | [Anki](#anki) | Deck, note types, fields and templates |
 | [Sources](#sources) | Default titles, media storage |
@@ -33,9 +32,9 @@ Every change is saved on its own: **Saved** shows next to the section title for 
 
 See [Your vocabulary and level](vocabulary.md).
 
-**Usage priority** (default: neutral first): words from groups higher up are suggested first. Drag to reorder.
+**Usage priority** (default: neutral first, folded): words from groups higher up are suggested first. Open it and drag to reorder.
 
-## My words
+### Your words
 
 Three tabs, each with the number of words in it. Each tab is a table, newest first, with a search box over all of its words. It shows 50 words; **Show 50 more** adds the next ones.
 

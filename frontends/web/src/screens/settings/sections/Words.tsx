@@ -5,6 +5,7 @@ import type { FrequentWordThresholdOption } from '@/api/types'
 import { Button, DividerRow, Icon, Modal, Segmented, Select, Spinner, Text } from '@/ui'
 import css from '../settings.module.css'
 import { Group } from './Group'
+import { MyWords, type WordListKind } from './MyWords'
 import type { SectionProps } from './types'
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(level => ({ value: level, label: level }))
@@ -24,7 +25,12 @@ const USAGE_GROUP_LABELS: Record<string, string> = {
   other: 'Literary, trademark, etc.',
 }
 
-export function Words({ store, form }: SectionProps) {
+interface WordsProps extends SectionProps {
+  list: WordListKind
+  onList: (list: WordListKind) => void
+}
+
+export function Words({ store, form, list, onList }: WordsProps) {
   return (
     <>
       <Group>
@@ -44,6 +50,9 @@ export function Words({ store, form }: SectionProps) {
         <Calibration store={store} form={form} />
       </Group>
       <UsagePriority store={store} form={form} />
+      <Group title="Your words">
+        <MyWords store={store} list={list} onList={onList} />
+      </Group>
       <AnalysisConfirm store={store} />
     </>
   )
@@ -91,10 +100,10 @@ function Calibration({ store }: SectionProps) {
       {bootstrap?.status === 'none' && <Button onClick={() => void store.buildBootstrap()}>Prepare</Button>}
       {bootstrap?.status === 'error' && <Button onClick={() => void store.buildBootstrap()}>Retry</Button>}
       {bootstrap?.status === 'ready' && (
-        <>
+        <div className={css.actions}>
           <Button variant="link" onClick={() => void store.buildBootstrap()}>Rebuild</Button>
           <Button onClick={() => navigate('/calibrate')}>Calibrate</Button>
-        </>
+        </div>
       )}
     </DividerRow>
   )
@@ -115,7 +124,7 @@ function UsagePriority({ store, form }: SectionProps) {
   }
 
   return (
-    <Group title="Usage priority" hint="Words from groups higher up are suggested first. Drag to reorder.">
+    <Group collapsible title="Usage priority" hint="Words from groups higher up are suggested first. Drag to reorder.">
       {order.map((group, index) => (
         <DividerRow
           key={group}

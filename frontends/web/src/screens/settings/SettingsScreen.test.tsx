@@ -45,7 +45,7 @@ describe('Settings sections', () => {
     'opens the word list that took over %s', (old, list) => {
       open(`?section=${old}`)
 
-      expect(current()).toBe('My words')
+      expect(current()).toBe('Words')
       expect(tab()).toBe(list)
     },
   )
