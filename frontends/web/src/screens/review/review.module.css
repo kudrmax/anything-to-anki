@@ -19,16 +19,6 @@
 .phraseEdit > textarea, .phraseEdit::after { grid-area: 1 / 1; padding: 0; border: none; background: none; color: inherit; font: inherit; letter-spacing: inherit; overflow-wrap: anywhere; resize: none; overflow: hidden; outline: none; }
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
 /* подсказки картинок: пунктирные слоты с подписью — их предлагают, а не добавили; клик ставит картинку на карточку */
-.pictureSuggestionsBlock { display: flex; flex-direction: column; gap: var(--s2); }
-.pictureSuggestionsLabel { font-size: var(--fs-xs); color: var(--tx3); }
-.pictureSuggestions { display: grid; grid-template-columns: var(--suggestion-cols); gap: var(--s3); }
-.pictureSuggestion { position: relative; aspect-ratio: var(--image-option-ratio); overflow: hidden; padding: var(--s1); border: var(--dash-bw) dashed var(--suggestion-line); border-radius: var(--rc); transition: border-color var(--t); }
-.pictureSuggestion:hover:not(:disabled) { border-color: var(--ac); }
-.pictureSuggestion:disabled { opacity: var(--o-disabled); }
-.pictureSuggestion img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: calc(var(--rc) - var(--s1)); opacity: var(--o-visuals); transition: opacity var(--t); }
-.pictureSuggestion:hover:not(:disabled) img { opacity: 1; }
-.pictureSuggestionAdd { position: absolute; inset: var(--s1); display: flex; align-items: center; justify-content: center; border-radius: calc(var(--rc) - var(--s1)); color: var(--on-media); background: var(--suggestion-veil); opacity: 0; transition: opacity var(--t); }
-.pictureSuggestion:hover:not(:disabled) .pictureSuggestionAdd { opacity: 1; }
 .cardFoot { grid-column: 1 / -1; order: var(--card-foot-order); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); padding: var(--card-foot-pad); border-top: var(--card-foot-bw) solid var(--line); }
 .footDecisions { display: var(--desktop-flex); align-items: center; gap: var(--s3); }
 .footRest { flex: 1 1 auto; display: flex; align-items: center; gap: var(--s4); }

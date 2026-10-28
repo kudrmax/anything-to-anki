@@ -7,7 +7,7 @@ import { BlockPanel } from './BlockPanel'
 import { LayoutCanvas } from './LayoutCanvas'
 import { ELEMENT_LABEL, WIDTH_OPTIONS } from './labels'
 import { editFor, TRAY_ATTR, type DragItem, type DropTarget } from './layoutDrag'
-import { ALL_SAMPLE_PARTS, SAMPLE_PARTS, sampleContext, type SamplePart } from './sampleCard'
+import { DEFAULT_SAMPLE_PARTS, SAMPLE_PARTS, sampleContext, toggleSamplePart, type SamplePart } from './sampleCard'
 import { useCardLayoutEditor } from './useCardLayoutEditor'
 import { useLayoutDrag } from './useLayoutDrag'
 import css from './cardLayoutEditor.module.css'
@@ -22,13 +22,9 @@ export function CardLayoutSection() {
   const editor = useCardLayoutEditor()
   const { view, selection, select, edit, editAndDeselect } = editor
   const canvasRef = useRef<HTMLDivElement>(null)
-  const [parts, setParts] = useState(ALL_SAMPLE_PARTS)
+  const [parts, setParts] = useState(DEFAULT_SAMPLE_PARTS)
   const ctx = useMemo(() => sampleContext(parts), [parts])
-  const togglePart = (part: SamplePart) => setParts(current => {
-    const next = new Set(current)
-    if (!next.delete(part)) next.add(part)
-    return next
-  })
+  const togglePart = (part: SamplePart) => setParts(current => toggleSamplePart(current, part))
 
   const onClick = useCallback((item: DragItem) => {
     if (item.kind === 'block') select({ kind: 'block', element: item.element })

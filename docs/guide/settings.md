@@ -45,11 +45,11 @@ Arrange the body of the card on the [Review](review.md) screen: everything betwe
 
 The section shows a sample card. On it:
 
-- **Sample card has** switches what the sample card has: **Meaning**, **US / UK audio**, **TTS**, **Video frame**, **Picture**. Turn one off to see the card without it, for example **Meaning** off shows **Generate meaning** in place of the meaning. The sample shows exactly what a card in that state shows: a block with nothing to show is not drawn, so to move **Generate meaning**, turn **Meaning** off first. Blocks in **Hidden blocks** can always be dragged.
+- **Sample card has** switches what the sample card has: **Meaning**, **US / UK audio**, **TTS**, **Video frame**, **Picture**, **Picture choice** (the suggested pictures shown while no picture is chosen; it turns **Picture** off, and the other way round). Turn one off to see the card without it, for example **Meaning** off shows **Generate meaning** in place of the meaning. The sample shows exactly what a card in that state shows: a block with nothing to show is not drawn, so to move **Generate meaning**, turn **Meaning** off first. Blocks in **Hidden blocks** can always be dragged.
 - **Drag a block** between rows to give it a row of its own, or next to another block to put them in one row. Blocks in a row wrap when the column is too narrow.
 - **Drag a block to Hidden blocks** to hide it. Drag it back onto the card to show it again; it keeps its style.
 - **Drag Divider** from **Add** between rows to add a line across the column. Drag a line to move it, or to **Hidden blocks** to remove it.
-- **Click a block** to change how it looks: **Size** (XS to XL), **Colour** (**Main**, **Grey**, **Light grey**, **Accent**) and **Bold** for text; **Size** for the video frame and picture; **In its row** (**Left** or **Right**) for every block.
+- **Click a block** to change how it looks: **Size** (XS to XL), **Colour** (**Main**, **Grey**, **Light grey**, **Accent**) and **Bold** for text; **Size** for the video frame and picture; **In its row** (**Left** or **Right**) and **Vertically** (**Top**, **Middle**, **Bottom**) for every block.
 - **Columns**: up to three. The menu above each column sets its width (**Narrow**, **Normal**, **Wide**); × removes the column and moves its blocks to the column before it. **Add column** adds one on the right.
 
 **Reset to default** brings back the original layout. On a phone the first column is shown on the card and the other columns fold into **Details**.

@@ -1,5 +1,6 @@
-import type { CardPhrase, StoredCandidate } from '@/api/types'
-import type { CardBlockContext } from '@/cardLayout'
+import { createElement } from 'react'
+import type { CardPhrase, ImageOption, StoredCandidate } from '@/api/types'
+import { PictureSuggestionsView, type CardBlockContext } from '@/cardLayout'
 
 const PHRASE: CardPhrase = {
   text: 'He glared at me across the table.',
@@ -43,7 +44,7 @@ export const SAMPLE_CARD = {
 } as StoredCandidate
 
 /** Что может быть у карточки: превью показывает образец, у которого есть только выбранное. */
-export type SamplePart = 'meaning' | 'pronunciation' | 'tts' | 'video' | 'picture'
+export type SamplePart = 'meaning' | 'pronunciation' | 'tts' | 'video' | 'picture' | 'picture_choice'
 
 export const SAMPLE_PARTS: { part: SamplePart; label: string }[] = [
   { part: 'meaning', label: 'Meaning' },
@@ -51,12 +52,29 @@ export const SAMPLE_PARTS: { part: SamplePart; label: string }[] = [
   { part: 'tts', label: 'TTS' },
   { part: 'video', label: 'Video frame' },
   { part: 'picture', label: 'Picture' },
+  { part: 'picture_choice', label: 'Picture choice' },
 ]
 
-export const ALL_SAMPLE_PARTS: ReadonlySet<SamplePart> = new Set(SAMPLE_PARTS.map(({ part }) => part))
+/** Картинка либо выбрана, либо из подобранных ещё выбирают: у карточки не бывает обоих сразу. */
+const EXCLUSIVE_PARTS: Partial<Record<SamplePart, SamplePart>> = { picture: 'picture_choice', picture_choice: 'picture' }
+
+export const DEFAULT_SAMPLE_PARTS: ReadonlySet<SamplePart> = new Set(
+  SAMPLE_PARTS.map(({ part }) => part).filter(part => part !== 'picture_choice'),
+)
+
+/** Включает или выключает часть образца; включённая часть выключает ту, что с ней не бывает. */
+export function toggleSamplePart(parts: ReadonlySet<SamplePart>, part: SamplePart): ReadonlySet<SamplePart> {
+  const next = new Set(parts)
+  if (next.delete(part)) return next
+  next.add(part)
+  const exclusive = EXCLUSIVE_PARTS[part]
+  if (exclusive) next.delete(exclusive)
+  return next
+}
 
 const SAMPLE_FRAME_URL = '/sample-frame.svg'
 const SAMPLE_PICTURE_URL = '/sample-picture.svg'
+const SAMPLE_SUGGESTIONS: ImageOption[] = [1, 2, 3, 4, 5].map(n => ({ url: `/sample-pictures/${n}.svg`, provider: 'bing' }))
 
 /** Превью ничего не делает: кнопки карточки в нём только для вида. */
 const SAMPLE_ACTIONS: Omit<CardBlockContext, 'candidate' | 'media'> = {
@@ -89,5 +107,8 @@ export function sampleContext(parts: ReadonlySet<SamplePart>): CardBlockContext 
       audioUrl: has('video') ? `/media/${SOURCE_ID}/${AUDIO}` : null,
       meaningImageUrl: has('picture') ? SAMPLE_PICTURE_URL : null,
     },
+    pictureSuggestions: has('picture_choice')
+      ? createElement(PictureSuggestionsView, { options: SAMPLE_SUGGESTIONS, placeholders: SAMPLE_SUGGESTIONS.length, applying: false, onPick: () => {} })
+      : null,
   }
 }
