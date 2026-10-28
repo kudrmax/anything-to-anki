@@ -22,7 +22,9 @@ interface ChangelogModalProps {
   note?: ReactNode
 }
 
-const releaseDay = (isoDay: string) => new Date(`${isoDay}T00:00:00`).toLocaleDateString()
+const RELEASE_DAY_FORMAT: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' }
+
+const releaseDay = (isoDay: string) => new Date(`${isoDay}T00:00:00`).toLocaleDateString(undefined, RELEASE_DAY_FORMAT)
 
 export function ChangelogModal({ mode, entries, onClose, action, note }: ChangelogModalProps) {
   return (
