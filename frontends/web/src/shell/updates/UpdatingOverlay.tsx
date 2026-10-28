@@ -108,10 +108,12 @@ function ByHand({ command, waitFor }: { command: string; waitFor: string }) {
         </Text>
       </li>
       <li>
-        <Text size="s">
-          Click <b>Copy</b>, click in the Terminal window, press <Kbd>⌘</Kbd> <Kbd>V</Kbd>, then <Kbd>Return</Kbd>.
-        </Text>
-        <CommandLine command={command} />
+        <div className={css.byHandStep}>
+          <Text size="s">
+            Click <b>Copy</b>, click in the Terminal window, press <Kbd>⌘</Kbd> <Kbd>V</Kbd>, then <Kbd>Return</Kbd>.
+          </Text>
+          <CommandLine command={command} />
+        </div>
       </li>
       <li><Text size="s">{waitFor} Then reload this page.</Text></li>
     </ol>

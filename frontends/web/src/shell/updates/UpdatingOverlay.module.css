@@ -17,8 +17,8 @@
 .mark > span { display: inline-flex; }
 .fallback { display: flex; flex-direction: column; gap: var(--s3); }
 .byHand { display: flex; flex-direction: column; gap: var(--s3); margin: 0; padding-left: var(--s5); }
-.byHand > li { display: flex; flex-direction: column; gap: var(--s3); }
 .byHand > li::marker { color: var(--tx2); font-size: var(--fs-s); }
+.byHandStep { display: flex; flex-direction: column; gap: var(--s3); }
 .title { font-size: var(--fs-h2); font-weight: var(--fw-b); letter-spacing: var(--ls-tight); }
 .log { max-height: var(--trace-max); overflow: auto; padding: var(--s4); border-radius: var(--rc); background: var(--soft); font: var(--fs-xs)/var(--lh) var(--mono); color: var(--tx2); white-space: pre-wrap; }
 .command { display: flex; align-items: center; gap: var(--gap); }
