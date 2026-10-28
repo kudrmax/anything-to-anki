@@ -5,10 +5,17 @@ from __future__ import annotations
 import os
 import plistlib
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+from backend.domain.value_objects.app_version import AppVersion
+from backend.infrastructure.adapters.release.git_release_source import GitReleaseSource
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 pytestmark = pytest.mark.integration
 
@@ -16,29 +23,42 @@ SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "update.sh"
 IDENTITY = ["-c", "user.name=Test", "-c", "user.email=test@example.com"]
 OLD_DB = "schema 1.0.0"
 
-# Every target records itself; `up` also records the database it found and "migrates" it,
-# and fails on the version written in the FAIL_UP file. The snapshot fails while
-# FAIL_SNAPSHOT exists.
+# Every target records itself. `up` records the database it found, "migrates" it and
+# leaves the copy's processes running, even when it then fails; `down` stops them. A
+# restore refuses to run over running processes. Files in FLAGS switch failures on:
+# fail_up (fails on the version written in it), fail_snapshot, fail_restore; hold makes
+# `down` wait while it says "hold"; spawn makes `up` leave a real background process.
 FAKE_MAKEFILE = """\
 VERSION := $(shell cat VERSION)
 
-down setup-python app:
+down:
+\t@echo $@ >> $(CALLS)
+\t@while [ "$$(cat $(FLAGS)/hold 2>/dev/null)" = hold ]; do sleep 0.05; done
+\t@echo stopped > $(FLAGS)/processes
+
+setup-python app:
 \t@echo $@ >> $(CALLS)
 
 _db-snapshot:
 \t@echo $@ >> $(CALLS)
-\t@if [ -f $(FAIL_SNAPSHOT) ]; then echo "snapshot broke"; exit 1; fi
-\t@cp data/app.db $(SNAPSHOT_DIR)/snapshot.db
-\t@echo $(SNAPSHOT_DIR)/snapshot.db
+\t@if [ -f $(FLAGS)/fail_snapshot ]; then echo "snapshot broke"; exit 1; fi
+\t@if [ -f data/app.db ]; then \\
+\t    cp data/app.db $(FLAGS)/snapshot.db && echo $(FLAGS)/snapshot.db; \\
+\telse echo NO_DATABASE; fi
 
 _db-restore:
-\t@echo "$@ $(SNAPSHOT)" >> $(CALLS)
-\t@cp $(SNAPSHOT) data/app.db
+\t@echo "$@ $(VERSION) $(SNAPSHOT)" >> $(CALLS)
+\t@if [ "$$(cat $(FLAGS)/processes)" = running ]; then echo "restore while running"; exit 1; fi
+\t@if [ -f $(FLAGS)/fail_restore ]; then echo "restore broke"; exit 1; fi
+\t@if [ "$(SNAPSHOT)" = --none ]; then mv data/app.db $(FLAGS)/aside.db; \\
+\telse cp $(SNAPSHOT) data/app.db; fi
 
 up:
-\t@echo "up $(VERSION) db=$$(cat data/app.db)" >> $(CALLS)
-\t@echo "schema $(VERSION)" > data/app.db
-\t@if [ -f $(FAIL_UP) ] && [ "$$(cat $(FAIL_UP))" = "$(VERSION)" ]; then echo broke; exit 1; fi
+\t@echo "up $(VERSION) db=$$(cat data/app.db 2>/dev/null)" >> $(CALLS)
+\t@echo running > $(FLAGS)/processes
+\t@mkdir -p data && echo "schema $(VERSION)" > data/app.db
+\t@if [ -f $(FLAGS)/spawn ]; then sleep 5 </dev/null >/dev/null 2>&1 & fi
+\t@if [ "$$(cat $(FLAGS)/fail_up 2>/dev/null)" = "$(VERSION)" ]; then echo broke; exit 1; fi
 """
 
 
@@ -54,10 +74,8 @@ class Copy:
     root: Path
     publisher: Path
     calls_file: Path
-    fail_up: Path
-    fail_snapshot: Path
+    flags: Path
     apps_dir: Path
-    snapshot_dir: Path
 
     def release(self, version: str, *, macos_change: bool = False) -> None:
         (self.publisher / "VERSION").write_text(version)
@@ -70,21 +88,36 @@ class Copy:
         git(self.publisher, "tag", f"v{version}")
         git(self.publisher, "push", "--quiet", "origin", "HEAD", "--tags")
 
-    def run(self) -> subprocess.CompletedProcess[str]:
+    def flag(self, name: str, value: str = "") -> None:
+        (self.flags / name).write_text(value)
+
+    def env(self) -> dict[str, str]:
         env = {
             **os.environ,
             "CALLS": str(self.calls_file),
-            "FAIL_UP": str(self.fail_up),
-            "FAIL_SNAPSHOT": str(self.fail_snapshot),
-            "SNAPSHOT_DIR": str(self.snapshot_dir),
+            "FLAGS": str(self.flags),
             "UPDATE_APPS_DIR": str(self.apps_dir),
             "MAKE": "make",
         }
         env.pop("MAKEFLAGS", None)
         env.pop("MAKELEVEL", None)
-        return subprocess.run(
-            ["/bin/bash", str(SCRIPT)], cwd=self.root, env=env, capture_output=True, text=True,
+        return env
+
+    def start(self) -> subprocess.Popen[str]:
+        return subprocess.Popen(
+            ["/bin/bash", str(SCRIPT)], cwd=self.root, env=self.env(),
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         )
+
+    def run(self) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["/bin/bash", str(SCRIPT)], cwd=self.root, env=self.env(),
+            capture_output=True, text=True,
+        )
+
+    @property
+    def snapshot(self) -> Path:
+        return self.flags / "snapshot.db"
 
     def calls(self) -> list[str]:
         if not self.calls_file.exists():
@@ -119,17 +152,16 @@ def copy(tmp_path: Path) -> Copy:
     git(publisher, "checkout", "--quiet", "-b", "master")
     (publisher / "Makefile").write_text(FAKE_MAKEFILE)
     (publisher / ".gitignore").write_text("data/\n.pids/\n")
-    snapshot_dir = tmp_path / "snapshots"
-    snapshot_dir.mkdir()
+    flags = tmp_path / "flags"
+    flags.mkdir()
     result = Copy(
         root=tmp_path / "installed",
         publisher=publisher,
         calls_file=tmp_path / "calls.txt",
-        fail_up=tmp_path / "FAIL_UP",
-        fail_snapshot=tmp_path / "FAIL_SNAPSHOT",
+        flags=flags,
         apps_dir=tmp_path / "Applications",
-        snapshot_dir=snapshot_dir,
     )
+    result.flag("processes", "running")
     result.release("1.0.0")
     git(tmp_path, "clone", "--quiet", str(bare), str(result.root))
     (result.root / "data").mkdir()
@@ -174,21 +206,23 @@ def test_moves_to_the_highest_release_tag_and_starts(copy: Copy) -> None:
 def test_failed_start_of_the_new_version_rolls_back_to_the_old_one(copy: Copy) -> None:
     old_head = copy.head()
     copy.release("1.1.0")
-    copy.fail_up.write_text("1.1.0")
+    copy.flag("fail_up", "1.1.0")
 
     result = copy.run()
 
     assert result.returncode == 1
     assert copy.head() == old_head
     assert git(copy.root, "symbolic-ref", "--short", "HEAD") == "master"
-    snapshot = copy.snapshot_dir / "snapshot.db"
+    # The failed start left processes running: they stop before the restore, and the
+    # restore runs on the old code, the code that took the copy.
     assert copy.calls() == [
         "down",
         "_db-snapshot",
         "setup-python",
         f"up 1.1.0 db={OLD_DB}",
-        f"_db-restore {snapshot}",
+        "down",
         "setup-python",
+        f"_db-restore 1.0.0 {copy.snapshot}",
         f"up 1.0.0 db={OLD_DB}",
     ]
     assert copy.db() == OLD_DB
@@ -198,13 +232,13 @@ def test_failed_start_of_the_new_version_rolls_back_to_the_old_one(copy: Copy) -
 def test_failure_before_checkout_starts_the_old_version_again(copy: Copy) -> None:
     old_head = copy.head()
     copy.release("1.1.0")
-    copy.fail_snapshot.write_text("")
+    copy.flag("fail_snapshot")
 
     result = copy.run()
 
     assert result.returncode == 1
     assert copy.head() == old_head
-    assert copy.calls() == ["down", "_db-snapshot", f"up 1.0.0 db={OLD_DB}"]
+    assert copy.calls() == ["down", "_db-snapshot", "down", f"up 1.0.0 db={OLD_DB}"]
     assert copy.state() == "failed"
 
 
@@ -241,7 +275,9 @@ def test_app_of_this_copy_is_rebuilt_when_its_code_changed(copy: Copy) -> None:
     result = copy.run()
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert copy.calls() == ["down", "_db-snapshot", "setup-python", "app", f"up 1.1.0 db={OLD_DB}"]
+    assert copy.calls() == [
+        "down", "_db-snapshot", "setup-python", "app", f"up 1.1.0 db={OLD_DB}",
+    ]
 
 
 def test_app_is_not_rebuilt_when_its_code_did_not_change(copy: Copy) -> None:
@@ -269,9 +305,119 @@ def test_app_of_another_copy_is_not_rebuilt(copy: Copy, tmp_path: Path) -> None:
 def test_rebuilt_app_is_rebuilt_back_on_rollback(copy: Copy) -> None:
     copy.install_app(copy.root)
     copy.release("1.1.0", macos_change=True)
-    copy.fail_up.write_text("1.1.0")
+    copy.flag("fail_up", "1.1.0")
 
     result = copy.run()
 
     assert result.returncode == 1
-    assert copy.calls()[-3:] == ["setup-python", "app", f"up 1.0.0 db={OLD_DB}"]
+    assert copy.calls()[-4:] == [
+        "setup-python", f"_db-restore 1.0.0 {copy.snapshot}", "app", f"up 1.0.0 db={OLD_DB}",
+    ]
+
+
+def test_failed_restore_leaves_the_copy_stopped_and_says_where_the_copy_is(copy: Copy) -> None:
+    copy.release("1.1.0")
+    copy.flag("fail_up", "1.1.0")
+    copy.flag("fail_restore")
+
+    result = copy.run()
+
+    assert result.returncode == 1
+    assert copy.calls()[-1] == f"_db-restore 1.0.0 {copy.snapshot}"
+    assert str(copy.snapshot) in result.stderr
+    assert "stopped" in result.stderr
+    assert copy.state() == "failed"
+
+
+def test_copy_without_a_database_sets_the_new_one_aside_on_rollback(copy: Copy) -> None:
+    (copy.root / "data" / "app.db").rename(copy.flags / "nothing-here")
+    copy.release("1.1.0")
+    copy.flag("fail_up", "1.1.0")
+
+    result = copy.run()
+
+    assert result.returncode == 1
+    assert copy.calls()[-2:] == ["_db-restore 1.0.0 --none", "up 1.0.0 db="]
+    assert (copy.flags / "aside.db").read_text().strip() == "schema 1.1.0"
+
+
+def test_garbage_snapshot_path_does_not_switch_versions(copy: Copy) -> None:
+    makefile = copy.root / "Makefile"
+    makefile.write_text(makefile.read_text().replace(
+        "cp data/app.db $(FLAGS)/snapshot.db && echo $(FLAGS)/snapshot.db",
+        "echo /nowhere/snapshot.db",
+    ))
+    git(copy.root, "commit", "--quiet", "-am", "snapshot prints garbage")
+    copy.release("1.1.0")
+    old_head = copy.head()
+
+    result = copy.run()
+
+    assert result.returncode == 1
+    assert copy.head() == old_head
+    assert copy.calls() == ["down", "_db-snapshot", "down", f"up 1.0.0 db={OLD_DB}"]
+
+
+def test_second_update_at_the_same_time_refuses_and_leaves_the_first_alone(
+    copy: Copy,
+) -> None:
+    copy.release("1.1.0")
+    copy.flag("hold", "hold")
+    first = copy.start()
+    try:
+        _wait_for(lambda: "down" in copy.calls())
+        state_of_first = copy.state()
+
+        second = copy.run()
+
+        assert second.returncode == 1
+        assert "already running" in second.stderr
+        assert copy.state() == state_of_first == "running"
+    finally:
+        copy.flag("hold", "go")
+        first.wait(timeout=30)
+    assert first.returncode == 0
+    assert copy.state() == "done"
+
+
+def test_lock_of_a_dead_run_does_not_block(copy: Copy) -> None:
+    (copy.root / ".pids").mkdir()
+    (copy.root / ".pids" / "update.script.lock").write_text("999999")
+    copy.release("1.1.0")
+
+    result = copy.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_servers_left_running_do_not_hold_the_lock(copy: Copy) -> None:
+    copy.release("1.1.0")
+    copy.flag("spawn")
+    assert copy.run().returncode == 0
+
+    again = copy.run()
+
+    assert again.returncode == 0, again.stdout + again.stderr
+    assert "Already up to date" in again.stdout
+
+
+def test_script_and_release_source_pick_the_same_latest_tag(copy: Copy) -> None:
+    copy.release("1.2.0")
+    copy.release("1.10.0")
+    git(copy.publisher, "tag", "v2.0.0-rc1")
+    git(copy.publisher, "tag", "not-a-release")
+    git(copy.publisher, "push", "--quiet", "origin", "--tags")
+    git(copy.root, "checkout", "--quiet", "v1.0.0")
+
+    result = copy.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert copy.head() == copy.tag_commit("v1.10.0")
+    assert GitReleaseSource(copy.root).latest() == AppVersion(1, 10, 0)
+
+
+def _wait_for(condition: Callable[[], bool], timeout: float = 10.0) -> None:
+    deadline = time.monotonic() + timeout
+    while not condition():
+        assert time.monotonic() < deadline, "timed out"
+        time.sleep(0.05)

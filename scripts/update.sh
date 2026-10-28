@@ -1,6 +1,7 @@
 #!/bin/bash
 # Moves this copy to the latest release tag. After `make down` any failure brings the copy
-# back to the commit, database and app it had, and starts it again.
+# back to the commit, database and app it had, and starts it again. When the way back is
+# not certain, the copy stays stopped and the output says what to do.
 #
 # Runs in the copy's folder. Ends by writing `done` or `failed` to .pids/update.state,
 # which the app reads after the restart.
@@ -15,10 +16,12 @@ main() {
     APPS_DIR="${UPDATE_APPS_DIR:-$HOME/Applications}"
     STATE_FILE=.pids/update.state
     PID_FILE=.pids/update.pid
+    LOCK_FILE=.pids/update.script.lock
     RELEASE_TAG_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+$'
     MACOS_DIR=frontends/macos
     PLIST_BUDDY=/usr/libexec/PlistBuddy
     APP_DIR_KEY=A2AProjectDir
+    NO_DATABASE=NO_DATABASE
 
     stopped=0
     snapshot_taken=0
@@ -29,6 +32,7 @@ main() {
 
     trap on_signal INT TERM HUP
 
+    take_lock
     write_state running
     printf '%s' "$$" > "$PID_FILE"
 
@@ -58,6 +62,10 @@ main() {
     stopped=1
     make_step down || roll_back
     snapshot=$(make_step --silent _db-snapshot | tail -n 1) || roll_back
+    if [ "$snapshot" != "$NO_DATABASE" ] && [ ! -f "$snapshot" ]; then
+        echo "ERROR: the database copy was not made (got '$snapshot')." >&2
+        roll_back
+    fi
     snapshot_taken=1
     checked_out=1
     git checkout --quiet "$tag" || roll_back
@@ -70,6 +78,23 @@ main() {
 
     echo "Updated to $tag."
     finish done
+}
+
+# A second update in the same copy would stop and switch it under the first one. The lock
+# is flock on descriptor 9, which this shell keeps open: the kernel drops it when the
+# shell dies, so a crashed run never blocks the next. make runs with 9 closed, or servers
+# started by `make up` would hold the lock after the update ends.
+take_lock() {
+    mkdir -p .pids
+    exec 9>>"$LOCK_FILE"
+    if ! /usr/bin/perl -MFcntl=:flock \
+        -e 'open(my $fh, ">&=", 9) or exit 2; flock($fh, LOCK_EX | LOCK_NB) or exit 1'
+    then
+        echo "ERROR: another 'make update' is already running in this copy" \
+            "(PID $(cat "$LOCK_FILE" 2>/dev/null)). Wait for it to finish." >&2
+        exit 1
+    fi
+    printf '%s' "$$" > "$LOCK_FILE"
 }
 
 write_state() {
@@ -89,7 +114,12 @@ refuse() {
 }
 
 make_step() {
-    "$MAKE" --no-print-directory "$@"
+    "$MAKE" --no-print-directory "$@" 9>&-
+}
+
+# A credential helper daemon started by fetch must not inherit the lock either.
+git() {
+    command git "$@" 9>&-
 }
 
 require_clean_tree() {
@@ -128,27 +158,47 @@ app_of_this_copy_installed() {
     return 1
 }
 
+restore_argument() {
+    if [ "$snapshot" = "$NO_DATABASE" ]; then echo --none; else echo "$snapshot"; fi
+}
+
+# Stops the copy without starting it: something on the way back failed, and starting the
+# old code on a database it may not know is worse than a stopped copy.
+leave_stopped() {
+    echo "ERROR: rollback failed at: $1. The copy is stopped." >&2
+    if [ "$snapshot_taken" = 1 ]; then
+        echo "The database from before the update: $snapshot" >&2
+        echo "To finish by hand: make down; git checkout --force $old_ref;" \
+            "make setup-python; make _db-restore SNAPSHOT=$(restore_argument); make up" >&2
+    else
+        echo "The database was not changed. To finish by hand:" \
+            "make down; git checkout --force $old_ref; make up" >&2
+    fi
+    finish failed
+}
+
 roll_back() {
     trap '' INT TERM HUP
     echo "Update failed. Rolling back to $old_ref..." >&2
-    local broken=""
-    if [ "$snapshot_taken" = 1 ]; then
-        make_step _db-restore SNAPSHOT="$snapshot" || broken="$broken database"
-    fi
+    # A failed start can leave the new version's processes running, a migration among them.
+    make_step down || leave_stopped "make down"
     if [ "$checked_out" = 1 ]; then
         # The tree was clean at the start: only a half-done checkout can have changed it.
-        git checkout --quiet --force "$old_ref" || broken="$broken checkout"
-        make_step setup-python || broken="$broken setup-python"
-        if [ "$app_built" = 1 ]; then
-            make_step app || broken="$broken app"
-        fi
+        git checkout --quiet --force "$old_ref" || leave_stopped "git checkout"
+        make_step setup-python || leave_stopped "make setup-python"
     fi
-    make_step up || broken="$broken up"
-    if [ -n "$broken" ]; then
-        echo "ERROR: rollback failed at:$broken. See the output above; 'make up' starts the copy." >&2
-    else
-        echo "Rolled back to $old_ref and started." >&2
+    if [ "$snapshot_taken" = 1 ]; then
+        make_step _db-restore SNAPSHOT="$(restore_argument)" || leave_stopped "database restore"
     fi
+    local broken=""
+    if [ "$app_built" = 1 ]; then
+        make_step app || broken=" The macOS app was not rebuilt: run 'make app'."
+    fi
+    if ! make_step up; then
+        echo "ERROR: the old version did not start. See the output above, then run 'make up'." >&2
+        finish failed
+    fi
+    echo "Rolled back to $old_ref and started.$broken" >&2
     finish failed
 }
 

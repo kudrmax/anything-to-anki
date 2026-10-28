@@ -39,6 +39,10 @@ define print_lan_url
 	if [ -n "$$ip" ]; then printf "  📱 http://%s:%s\n" "$$ip" "$(1)"; fi
 endef
 
+# Убрать файл $(1) в корзину, если он есть: удаление в проекте — только через trash.
+# Неудача только предупреждает: остановка копии не должна падать из-за корзины.
+trash_if_exists = { [ ! -e $(1) ] || trash $(1) || echo "WARNING: could not move $(1) to the trash"; }
+
 # Убить процесс по PID-файлу. $(1) — путь к PID-файлу, $(2) — название для лога.
 define kill_by_pid
 	@if [ -f $(1) ]; then \
@@ -47,7 +51,7 @@ define kill_by_pid
 	        kill $$pid; \
 	        echo "Stopped $(2) (PID $$pid)"; \
 	    fi; \
-	    rm -f $(1); \
+	    $(call trash_if_exists,$(1)); \
 	fi
 endef
 
@@ -67,7 +71,7 @@ define stop_worker
 	            echo "Stopped worker (PID $$pid)"; \
 	        fi; \
 	    fi; \
-	    rm -f $(1); \
+	    $(call trash_if_exists,$(1)); \
 	fi
 endef
 
@@ -86,7 +90,7 @@ define with_copy_lock
 	    echo "Waiting for another make up/down in this copy (PID $$(cat $(COPY_LOCK) 2>/dev/null))..."; \
 	    sleep 1; \
 	done; \
-	trap 'rm -f $(COPY_LOCK)' EXIT; \
+	trap '$(call trash_if_exists,$(COPY_LOCK))' EXIT; \
 	$(MAKE) --no-print-directory $(1)
 endef
 
@@ -141,7 +145,7 @@ define wait_started
 	for i in $$(seq 1 $(START_WAIT_TICKS)); do \
 	    if ! kill -0 $$pid 2>/dev/null; then \
 	        echo "ERROR: $(4) exited on start. Last lines of $(3):"; \
-	        tail -n 20 $(3); rm -f $(1); exit 1; \
+	        tail -n 20 $(3); $(call trash_if_exists,$(1)); exit 1; \
 	    fi; \
 	    if lsof -a -p $$pid -i :$(2) -sTCP:LISTEN >/dev/null 2>&1; then \
 	        echo "$(4) started on port $(2) (PID $$pid)"; exit 0; \
@@ -197,7 +201,7 @@ endef
 define stop_ai_proxy
 	$(call kill_by_pid,$(AI_PID),ai_proxy)
 	$(call kill_own_on_port,$(AI_PROXY_PORT),ai_proxy,$(CURDIR))
-	@rm -f $(AI_PID)
+	@$(call trash_if_exists,$(AI_PID))
 endef
 
 # Автосоздание .env из .env.example.
@@ -306,7 +310,7 @@ _check_dictionaries_dir:
 	fi
 
 dict-rebuild: _check_setup _check_dictionaries_dir  ## Rebuild the dictionary cache from scratch
-	@rm -f $${DICTIONARIES_DIR}/.cache/dict.db 2>/dev/null || true
+	@$(call trash_if_exists,$${DICTIONARIES_DIR}/.cache/dict.db)
 	.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR}
 
 dict-update: _check_setup _check_dictionaries_dir  ## Rebuild the dictionary cache if the JSON files changed
