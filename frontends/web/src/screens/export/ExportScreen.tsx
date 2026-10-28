@@ -6,6 +6,7 @@ import { useAudioPlayer, type AudioPlayer } from '@/lib/useAudioPlayer'
 import { Page, PageHeader } from '@/shell'
 import { Banner, Button, Empty, Spinner, Stat, StatGrid, StatusDot, Text } from '@/ui'
 import { ExportCardRow } from './ExportCardRow'
+import { fillHint } from './fillLabels'
 import { useExport } from './useExport'
 import css from './export.module.css'
 
@@ -89,11 +90,18 @@ function ExportView({ scope }: { scope: SetScope }) {
           <header className={css.exportGroupHead}>
             <div>
               <h2 className={css.exportGroupTitle}>{title}<span>{counts[group]}</span></h2>
-              <Text tone="muted" size="s">{hint}</Text>
+              <Text tone="muted" size="s">{(group === 'incomplete' && fillHint(exporter.fillState)) || hint}</Text>
             </div>
-            <Button variant={variant} busy={exporter.syncing === group} disabled={!exporter.canSync(group)} onClick={() => void exporter.sync(group)}>
-              {action} · {cardsLabel(counts[group])}
-            </Button>
+            <div className={css.exportGroupActions}>
+              {group === 'incomplete' && exporter.fillState.fillable > 0 && (
+                <Button variant="soft" busy={exporter.filling} onClick={() => void exporter.fill()}>
+                  Generate missing · {cardsLabel(exporter.fillState.fillable)}
+                </Button>
+              )}
+              <Button variant={variant} busy={exporter.syncing === group} disabled={!exporter.canSync(group)} onClick={() => void exporter.sync(group)}>
+                {action} · {cardsLabel(counts[group])}
+              </Button>
+            </div>
           </header>
           <ExportSections sections={groups[group]} withMedia={withMedia} player={player} />
         </section>

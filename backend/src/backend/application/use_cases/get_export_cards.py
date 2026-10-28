@@ -1,14 +1,23 @@
 from __future__ import annotations
 
+from collections import Counter
 from itertools import groupby
 from typing import TYPE_CHECKING
 
-from backend.application.dto.anki_dtos import CardPreviewDTO, ExportSectionDTO, GlobalExportDTO
+from backend.application.dto.anki_dtos import (
+    CardPartSkipDTO,
+    CardPreviewDTO,
+    ExportFillDTO,
+    ExportSectionDTO,
+    FillSkipCountDTO,
+    GlobalExportDTO,
+)
 from backend.application.utils.highlight import highlight_all_forms, highlight_target, line_breaks
 from backend.domain.services.export_readiness import missing_parts
 from backend.domain.value_objects.export_group import ExportGroup
 
 if TYPE_CHECKING:
+    from backend.application.utils.card_fill import CardFillPlanner, FillPlan
     from backend.application.utils.export_queue import ExportBatch, ExportCard, ExportQueue
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.domain.ports.source_repository import SourceRepository
@@ -18,7 +27,7 @@ if TYPE_CHECKING:
 
 class GetExportCardsUseCase:
     """Builds card previews for 'learn' words not yet exported, each by the phrase of its
-    decision: ready and incomplete apart."""
+    decision: ready and incomplete apart, with what filling in the incomplete ones would do."""
 
     def __init__(
         self,
@@ -26,8 +35,10 @@ class GetExportCardsUseCase:
         source_repo: SourceRepository,
         cloze_builder: ClozeBuilder,
         scope_resolver: SourceScopeResolver,
+        fill_planner: CardFillPlanner,
         media_base_url: str = "/media",
     ) -> None:
+        self._fill_planner = fill_planner
         self._export_queue = export_queue
         self._source_repo = source_repo
         self._cloze_builder = cloze_builder
@@ -42,24 +53,27 @@ class GetExportCardsUseCase:
         return self._build(batch).model_copy(update={"title": self._scope_resolver.title(scope)})
 
     def _build(self, batch: ExportBatch) -> GlobalExportDTO:
+        incomplete = batch.in_group(ExportGroup.INCOMPLETE)
+        plan = self._fill_planner.plan(incomplete)
         return GlobalExportDTO(
-            ready=self._build_sections(batch.in_group(ExportGroup.READY)),
-            incomplete=self._build_sections(batch.in_group(ExportGroup.INCOMPLETE)),
+            ready=self._build_sections(batch.in_group(ExportGroup.READY), plan),
+            incomplete=self._build_sections(incomplete, plan),
             exported_count=batch.exported_count,
+            fill=_fill_summary(incomplete, plan),
         )
 
-    def _build_sections(self, cards: list[ExportCard]) -> list[ExportSectionDTO]:
+    def _build_sections(self, cards: list[ExportCard], plan: FillPlan) -> list[ExportSectionDTO]:
         sections: list[ExportSectionDTO] = []
         for src_id, group in groupby(cards, key=lambda c: c.word.source_id):
             source = self._source_repo.get_by_id(src_id)
             sections.append(ExportSectionDTO(
                 source_id=src_id,
                 source_title=source.title if source and source.title else f"Source #{src_id}",
-                cards=[self._build_card(c) for c in group],
+                cards=[self._build_card(c, plan) for c in group],
             ))
         return sections
 
-    def _build_card(self, card: ExportCard) -> CardPreviewDTO:
+    def _build_card(self, card: ExportCard, plan: FillPlan) -> CardPreviewDTO:
         candidate = card.word
         decision = card.phrase
         screenshot_url: str | None = None
@@ -122,5 +136,20 @@ class GetExportCardsUseCase:
             pronunciation_uk_url=pronunciation_uk_url,
             tts_audio_url=tts_audio_url,
             missing=[part.value for part in missing_parts(decision)],
+            generating=list(plan.of(card.phrase_id).generating),
+            cannot_fill=[
+                CardPartSkipDTO(part=skip.part, reason=skip.reason)
+                for skip in plan.of(card.phrase_id).skipped
+            ],
             is_cloze=cloze is not None,
         )
+
+
+def _fill_summary(cards: list[ExportCard], plan: FillPlan) -> ExportFillDTO:
+    fills = [plan.of(card.phrase_id) for card in cards]
+    skipped = Counter(reason for fill in fills for reason in {s.reason for s in fill.skipped})
+    return ExportFillDTO(
+        fillable=sum(bool(fill.queued) for fill in fills),
+        generating=sum(bool(fill.generating) for fill in fills),
+        skipped=[FillSkipCountDTO(reason=r, cards=n) for r, n in skipped.items()],
+    )

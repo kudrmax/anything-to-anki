@@ -217,6 +217,9 @@ export const api = {
   getExportCards: (scope: SetScope = 'all') =>
     req<GlobalExport>(`/export/cards?${new URLSearchParams({ scope: String(scope) })}`),
 
+  fillMissing: (scope: SetScope = 'all') =>
+    req<GlobalExport>(`/export/fill-missing?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
+
   syncToAnki: (group: ExportGroup, scope: SetScope = 'all') =>
     req<SyncResult>(`/export/sync-to-anki?${new URLSearchParams({ group, scope: String(scope) })}`, { method: 'POST' }),
 

@@ -273,6 +273,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.enqueue_topic_generation import (
         EnqueueTopicGenerationUseCase,
     )
+    from backend.application.use_cases.fill_incomplete_cards import FillIncompleteCardsUseCase
     from backend.application.use_cases.generate_topic_targets import GenerateTopicTargetsUseCase
     from backend.application.use_cases.generate_tts import GenerateTTSUseCase
     from backend.application.use_cases.get_ai_usage_stats import GetAIUsageStatsUseCase
@@ -295,6 +296,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.run_media_extraction_job import MediaExtractionUseCase
     from backend.application.use_cases.search_target_images import SearchTargetImagesUseCase
     from backend.application.use_cases.suggest_target_images import SuggestTargetImagesUseCase
+    from backend.application.utils.card_fill import CardFillPlanner
     from backend.application.utils.generation_targets import GenerationCards, GenerationTarget
     from backend.application.utils.job_phrases import JobPhrases
     from backend.application.utils.meaning_image_placer import MeaningImagePlacer
@@ -1273,6 +1275,28 @@ class Container:
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
             cloze_builder=ClozeBuilder(),
             scope_resolver=self._scope_resolver(session),
+            fill_planner=self._card_fill_planner(session),
+        )
+
+    def fill_incomplete_cards_use_case(self, session: Session) -> FillIncompleteCardsUseCase:
+        from backend.application.use_cases.fill_incomplete_cards import (
+            FillIncompleteCardsUseCase,
+        )
+        return FillIncompleteCardsUseCase(
+            export_queue=self._export_queue(session),
+            scope_resolver=self._scope_resolver(session),
+            planner=self._card_fill_planner(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def _card_fill_planner(self, session: Session) -> CardFillPlanner:
+        from backend.application.utils.card_fill import CardFillPlanner
+        return CardFillPlanner(
+            targets=self._generation_targets(session),
+            source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
+            lock=SqlaSourceOperationLock(session),
         )
 
     def _export_queue(self, session: Session) -> ExportQueue:
