@@ -1,6 +1,6 @@
-/* конструктор карточки: превью слева, настройки выбранного и скрытые блоки справа */
+/* конструктор карточки: превью шириной с карточку ревью, под ним настройки выбранного и скрытые блоки */
 .hint { margin-bottom: var(--s5); font-size: var(--fs-s); line-height: var(--lh); color: var(--tx3); }
-.editor { display: grid; grid-template-columns: var(--layout-editor-cols); gap: var(--s6); align-items: start; }
+.editor { display: flex; flex-direction: column; gap: var(--s6); width: var(--layout-preview-w); }
 .main { min-width: 0; display: flex; flex-direction: column; gap: var(--s3); }
 
 /* ширины колонок — над превью, ровно над своими колонками */
@@ -38,7 +38,8 @@
 .ghost { position: fixed; z-index: var(--z-drag); left: 0; top: 0; transform: translate(var(--gx), var(--gy)) translate(var(--s3), var(--s3)); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx); background: var(--soft); box-shadow: var(--dock-shadow); pointer-events: none; white-space: nowrap; }
 
 /* справа: выбранный блок, скрытые блоки, действия */
-.side { position: sticky; top: 0; display: flex; flex-direction: column; gap: var(--s5); min-width: 0; }
+.side { display: grid; grid-template-columns: var(--layout-side-cols); gap: var(--s5) var(--s6); align-items: start; min-width: 0; }
+.side > :first-child { grid-row: span 3; }
 .panel { display: flex; flex-direction: column; gap: var(--s4); }
 .panelTitle { font-size: var(--fs-b); font-weight: var(--fw-m); }
 .panelHint { margin-top: calc(-1 * var(--s3)); font-size: var(--fs-s); line-height: var(--lh); color: var(--tx3); }
