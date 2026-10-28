@@ -38,13 +38,16 @@ class ChangelogEntryDTO(BaseModel):
 class UpdateStatusDTO(BaseModel):
     """What the installed copy knows about newer releases. `entries` are the changes the
     update would bring; `check_failed` is set when an explicit check could not reach the
-    releases."""
+    releases. `restart_command` and `update_command` are what a person types in a terminal
+    when the update from the app hangs or fails."""
 
     current: str
     latest: str | None
     available: bool
     entries: list[ChangelogEntryDTO]
     check_failed: bool
+    restart_command: str
+    update_command: str
 
 
 UpdateState = Literal["idle", "running", "failed", "done"]

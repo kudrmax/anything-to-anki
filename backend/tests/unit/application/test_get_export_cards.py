@@ -19,7 +19,7 @@ from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.word_status import WordStatus
 
-from tests.export_support import ExportCards, export_card, in_anki, with_phrase
+from tests.export_support import ExportCards, export_card, fill_planner, in_anki, with_phrase
 from tests.phrase_support import phrase
 from tests.source_order_support import added_order
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
@@ -98,6 +98,7 @@ class TestGetExportCardsExecute:
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
             scope_resolver=sources_scope_resolver(1, 2, 99),
+            fill_planner=fill_planner(self.source_repo),
         )
 
     def test_returns_only_learn_candidates(self) -> None:
@@ -272,6 +273,7 @@ class TestGetExportCardsExecute:
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
             scope_resolver=sources_scope_resolver(1, 2, 99),
+            fill_planner=fill_planner(self.source_repo),
             media_base_url="/custom/media",
         )
         self.cards.put([
@@ -381,6 +383,7 @@ class TestGetExportCardsAllScope:
             source_repo=self.source_repo,
             cloze_builder=ClozeBuilder(),
             scope_resolver=sources_scope_resolver(1, 2, 99),
+            fill_planner=fill_planner(self.source_repo),
         )
 
     def test_groups_by_source(self) -> None:
@@ -456,6 +459,7 @@ class TestGetExportCardsCollectionScope:
                 InMemoryCollectionRepository([Collection(id=5, name="IELTS")]),
                 added_order(),
             ),
+            fill_planner=fill_planner(InMemorySourceRepository(sources)),
         )
 
     def test_scope_limits_cards_and_names_the_scope(self) -> None:
@@ -505,6 +509,7 @@ def test_sections_follow_the_order_of_the_set() -> None:
         source_repo=InMemorySourceRepository(sources),
         cloze_builder=ClozeBuilder(),
         scope_resolver=resolver,
+        fill_planner=fill_planner(InMemorySourceRepository(sources)),
     )
 
     for scope in (SourceScope.collection(5), SourceScope.all()):

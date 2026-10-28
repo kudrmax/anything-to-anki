@@ -14,8 +14,12 @@ export const ENTRY: ChangelogEntry = {
   sections: [{ title: 'New', html: '<ul><li>An <strong>Update</strong> button</li></ul>' }],
 }
 
+export const RESTART_COMMAND = "cd '/Users/me/My App' && make down && make up"
+export const UPDATE_COMMAND = "cd '/Users/me/My App' && make update"
+
 export const status = (changes: Partial<UpdateStatus> = {}): UpdateStatus => ({
-  current: '1.2.0', latest: '1.2.0', available: false, entries: [], check_failed: false, ...changes,
+  current: '1.2.0', latest: '1.2.0', available: false, entries: [], check_failed: false,
+  restart_command: RESTART_COMMAND, update_command: UPDATE_COMMAND, ...changes,
 })
 
 export const AVAILABLE = status({ latest: '1.3.0', available: true, entries: [ENTRY] })

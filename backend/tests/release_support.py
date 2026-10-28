@@ -9,7 +9,9 @@ from backend.domain.exceptions import LongOperationInProgressError
 from backend.domain.ports.installed_release import InstalledRelease
 from backend.domain.ports.release_source import ReleaseSource
 from backend.domain.ports.unit_of_work import UnitOfWork
+from backend.domain.ports.update_runner import UpdateRunner
 from backend.domain.value_objects.app_version import AppVersion
+from backend.domain.value_objects.update_progress import UpdateProgress, UpdateState
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -57,6 +59,30 @@ class FakeReleaseSource(ReleaseSource):
 
     def asset(self, version: AppVersion, path: str) -> bytes | None:
         return self._assets.get(f"{version}/{path}")
+
+
+RESTART_COMMAND = "cd /copy && make down && make up"
+UPDATE_COMMAND = "cd /copy && make update"
+
+
+class FakeUpdateRunner(UpdateRunner):
+    """Never spawns anything: counts the starts and reports the state it is given."""
+
+    def __init__(self, state: UpdateState = UpdateState.IDLE) -> None:
+        self.current = state
+        self.started = 0
+
+    def start(self) -> None:
+        self.started += 1
+
+    def state(self) -> UpdateProgress:
+        return UpdateProgress(self.current)
+
+    def restart_command(self) -> str:
+        return RESTART_COMMAND
+
+    def update_command(self) -> str:
+        return UPDATE_COMMAND
 
 
 class PlainUnitOfWork(UnitOfWork):

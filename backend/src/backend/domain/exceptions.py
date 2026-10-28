@@ -534,6 +534,10 @@ class UncommittedWorkError(DomainError):
         super().__init__("Changes were made outside write(): the session has pending work")
 
 
+class CardLayoutEditError(DomainError):
+    """Raised when an edit of the card layout points outside it or would break it."""
+
+
 class UpdateAlreadyRunningError(DomainError):
     """Raised when an update is started while the previous one still runs."""
 

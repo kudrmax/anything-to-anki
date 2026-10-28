@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CLOSE_QUICK_ADD_HANDLER, FILE_DROP_EVENT, nativeHost, PICK_FILE_HANDLER, quickAddPanel } from './nativeHost'
+import { CLOSE_QUICK_ADD_HANDLER, FILE_DROP_EVENT, nativeHost, PICK_FILE_HANDLER, quickAddPanel, TITLEBAR_HANDLER, windowTitlebar } from './nativeHost'
 
 const hostWindow = (reply: unknown) => {
   const postMessage = vi.fn().mockResolvedValue(reply)
@@ -69,3 +69,19 @@ describe('quickAddPanel', () => {
   })
 })
 
+
+describe('windowTitlebar', () => {
+  it('is absent in a plain browser', () => {
+    expect(windowTitlebar({} as Window)).toBeNull()
+  })
+
+  it('asks the macOS app to drag and to double-click its title bar', () => {
+    const postMessage = vi.fn().mockResolvedValue(null)
+    const win = { webkit: { messageHandlers: { [TITLEBAR_HANDLER]: { postMessage } } } } as unknown as Window
+
+    windowTitlebar(win)?.drag()
+    windowTitlebar(win)?.doubleClick()
+
+    expect(postMessage.mock.calls).toEqual([['drag'], ['doubleClick']])
+  })
+})

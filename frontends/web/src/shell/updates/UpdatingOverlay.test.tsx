@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError } from '@/api/client'
 import type { UpdateRunProgress } from '@/api/types'
 import { UpdateIndicator } from './UpdateIndicator'
-import { AVAILABLE, Page } from './updatesTestKit'
+import { AVAILABLE, Page, RESTART_COMMAND, UPDATE_COMMAND } from './updatesTestKit'
 
 const POLL_MS = 2_000
 const LOG_HEIGHT = 480
@@ -14,18 +14,17 @@ const installing: UpdateRunProgress = {
   log_tail: '',
   steps: [
     { title: 'Downloading v1.3.0', status: 'done' },
-    { title: 'Saving a backup', status: 'done' },
     { title: 'Installing v1.3.0', status: 'current' },
     { title: 'Starting the new version', status: 'pending' },
   ],
 }
-const rollingBack: UpdateRunProgress = {
+const startFailed: UpdateRunProgress = {
   state: 'running',
   log_tail: '',
   steps: [
     { title: 'Downloading v1.3.0', status: 'done' },
-    { title: 'Installing v1.3.0', status: 'failed' },
-    { title: 'Rolling back to v1.2.0', status: 'current' },
+    { title: 'Installing v1.3.0', status: 'done' },
+    { title: 'Starting the new version', status: 'failed' },
   ],
 }
 
@@ -81,7 +80,6 @@ describe('updating', () => {
 
     expect(steps()).toEqual([
       ['Downloading v1.3.0', 'done'],
-      ['Saving a backup', 'done'],
       ['Installing v1.3.0', 'current'],
       ['Starting the new version', 'pending'],
     ])
@@ -90,18 +88,18 @@ describe('updating', () => {
     expect(step('Starting the new version')?.querySelector('svg, [role=status]')).toBeNull()
   })
 
-  it('marks the stage that failed while it rolls back', async () => {
+  it('marks the stage that failed', async () => {
     await startUpdate()
 
-    vi.mocked(api.getUpdateState).mockResolvedValue(rollingBack)
+    vi.mocked(api.getUpdateState).mockResolvedValue(startFailed)
     await tick()
 
     expect(steps()).toEqual([
       ['Downloading v1.3.0', 'done'],
-      ['Installing v1.3.0', 'failed'],
-      ['Rolling back to v1.2.0', 'current'],
+      ['Installing v1.3.0', 'done'],
+      ['Starting the new version', 'failed'],
     ])
-    expect(step('Installing v1.3.0')?.querySelector('svg')).not.toBeNull()
+    expect(step('Starting the new version')?.querySelector('svg')).not.toBeNull()
   })
 
   it('keeps the last stage it got while the server does not answer', async () => {
@@ -112,18 +110,19 @@ describe('updating', () => {
     vi.mocked(api.getUpdateState).mockRejectedValue(new TypeError('Failed to fetch'))
     await tick()
 
-    expect(steps()[2]).toEqual(['Installing v1.3.0', 'current'])
+    expect(steps()[1]).toEqual(['Installing v1.3.0', 'current'])
   })
 
-  it('says from the start what to do if the app does not come back', async () => {
+  it('says from the start how to restart the app by hand if the update hangs', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
     await startUpdate()
 
-    expect(page.text).toContain('.logs/update.log')
-    expect(page.text).toContain('make up')
+    expect(page.text).toContain('Nothing has changed for 10 minutes?')
+    expect(page.text).toContain('Open the Terminal app')
+    expect(page.text).toContain(RESTART_COMMAND)
     await page.click('Copy')
-    expect(writeText).toHaveBeenCalledWith('make up')
+    expect(writeText).toHaveBeenCalledWith(RESTART_COMMAND)
   })
 
   it('shows the update again when the page opens while it runs', async () => {
@@ -198,10 +197,11 @@ describe('updating', () => {
 
     expect(page.text).not.toContain('Updating…')
     expect(page.text).toContain('make: *** [update] Error 1')
-    expect(page.text).toContain('make update')
+    expect(page.text).toContain('Open the Terminal app')
+    expect(page.text).toContain(UPDATE_COMMAND)
     expect(scrolledTo).toHaveBeenLastCalledWith(LOG_HEIGHT)
     await page.click('Copy')
-    expect(writeText).toHaveBeenCalledWith('make update')
+    expect(writeText).toHaveBeenCalledWith(UPDATE_COMMAND)
     expect(page.button('Copied')).toBeDefined()
 
     await page.click('Close')

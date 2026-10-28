@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Page, PageHeader } from '@/shell'
 import { Button, Empty, Spinner, Text } from '@/ui'
-import { AiModel, Anki, Appearance, Books, KnownWords, LearningWordsList, MediaStorage, Pictures, ReviewPrefs, Tts, UnknownWords, Vocabulary } from './SettingsSections'
+import { AiModel, Anki, Appearance, Books, CardLayout, KnownWords, LearningWordsList, MediaStorage, Pictures, ReviewPrefs, Tts, UnknownWords, Vocabulary } from './SettingsSections'
 import { Updates } from './UpdatesSection'
 import { useSettings } from './useSettings'
 import css from './settings.module.css'
@@ -36,6 +36,7 @@ export function SettingsScreen() {
     { id: 'anki', title: 'Anki', content: <Anki store={store} form={form} />, saved: true },
     { id: 'vocabulary', title: 'Vocabulary', content: <Vocabulary store={store} form={form} />, saved: true },
     { id: 'review', title: 'Review', content: <ReviewPrefs store={store} form={form} />, saved: true },
+    { id: 'card-layout', title: 'Card layout', content: <CardLayout /> },
     { id: 'ai-model', title: 'AI model', content: <AiModel store={store} form={form} />, saved: true },
     { id: 'tts', title: 'Text-to-speech', content: <Tts store={store} form={form} />, saved: true },
     { id: 'pictures', title: 'Pictures', content: <Pictures store={store} form={form} />, saved: true },

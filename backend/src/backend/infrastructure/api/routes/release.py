@@ -55,6 +55,8 @@ class UpdateStatusView(BaseModel):
     available: bool
     entries: list[ChangelogEntryView]
     check_failed: bool
+    restart_command: str
+    update_command: str
 
 
 def _html(body_markdown: str) -> str:
@@ -93,6 +95,8 @@ def check_for_updates(
         available=status.available,
         entries=[_entry_view(entry) for entry in status.entries],
         check_failed=status.check_failed,
+        restart_command=status.restart_command,
+        update_command=status.update_command,
     )
 
 

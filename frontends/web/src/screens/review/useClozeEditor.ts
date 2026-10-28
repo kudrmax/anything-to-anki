@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api } from '@/api/client'
+import { useReviewApi } from './reviewApi'
 import type { ClozeDraft, ClozeHintKind, ClozePreview, StoredCandidate } from '@/api/types'
 import { clozeSaveRequest } from './clozeDraft'
 import type { Review } from './useReview'
@@ -15,6 +15,7 @@ const isAbort = (e: unknown): boolean => e instanceof DOMException && e.name ===
  * Сменилась фраза карточки (polish, откат, фоновая генерация) — черновик сбрасывается к умолчаниям новой фразы.
  */
 export function useClozeEditor(candidate: StoredCandidate, review: Review) {
+  const api = useReviewApi()
   const active = review.clozeEditingId === candidate.phrase_id
   const [draft, setDraft] = useState<ClozeDraft | null>(null)
   const [preview, setPreview] = useState<ClozePreview | null>(null)
@@ -38,7 +39,7 @@ export function useClozeEditor(candidate: StoredCandidate, review: Review) {
     } finally {
       if (inFlight.current === controller) inFlight.current = null
     }
-  }, [candidate.phrase_id])
+  }, [api, candidate.phrase_id])
 
   const phrase = candidate.phrase.text
   useEffect(() => {

@@ -7,6 +7,8 @@ import { QueueScreen } from '@/screens/queue/QueueScreen'
 import { UsageScreen } from '@/screens/usage/UsageScreen'
 import { SettingsScreen } from '@/screens/settings/SettingsScreen'
 import { CalibrateScreen } from '@/screens/calibrate/CalibrateScreen'
+import { CardLayoutEditorScreen } from '@/screens/cardLayoutEditor/CardLayoutEditorScreen'
+import { CARD_LAYOUT_PATH } from '@/screens/cardLayoutEditor/paths'
 import { QUICK_ADD_PATH, QuickAddScreen } from '@/screens/quickAdd/QuickAddScreen'
 import { OldSourceExport, OldSourceReview } from './legacyRoutes'
 
@@ -25,6 +27,7 @@ export function App() {
           <Route path="/usage" element={<ErrorBoundary><UsageScreen /></ErrorBoundary>} />
           <Route path="/export" element={<ErrorBoundary><ExportScreen /></ErrorBoundary>} />
           <Route path="/review" element={<ErrorBoundary><ReviewScreen /></ErrorBoundary>} />
+          <Route path={CARD_LAYOUT_PATH} element={<ErrorBoundary><CardLayoutEditorScreen /></ErrorBoundary>} />
           <Route path="/" element={<ErrorBoundary><SourcesScreen /></ErrorBoundary>} />
         </Route>
       </Routes>

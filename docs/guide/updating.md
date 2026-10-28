@@ -4,7 +4,7 @@ AnythingToAnki is released in versions. The app checks for a new one and updates
 
 ## Finding out about a new version
 
-Once a day the app looks for a release newer than the one you run. If it finds one, a quiet **Update available** appears in the header. It stays until you update.
+Once a day the app looks for a release newer than the one you run. If it finds one, a quiet **Update available** appears in the header. It stays until you update. On a phone-wide window the header has no room for it: a dot on the Settings gear shows instead, and **Settings → Updates** says which version is out.
 
 ![Update available in the header](../images/updating/indicator.png)
 
@@ -21,11 +21,10 @@ To look right now, open **Settings → Updates** and press **Check for updates**
    Under it is the list of stages. Finished ones have a check mark, the one running now has a spinner:
 
    - **Downloading v1.2.0** (it says **Checking for the new version** until the version is known)
-   - **Saving a backup**: the installed packages, then the app stops and the database is copied
-   - **Installing v1.2.0**: the release and its Python packages, and the macOS app when it changed
-   - **Starting the new version**
+   - **Installing v1.2.0**: the app stops and switches to the release, and the macOS app is rebuilt when it changed
+   - **Starting the new version**: the Python and frontend packages the release needs are installed, then the app starts and migrates the database
 
-   If a stage fails, it is marked with a cross, the stages after it are dropped and **Rolling back to v1.1.0** is added as the running stage.
+   If a stage fails, it is marked with a cross and the stages after it are dropped.
 4. The page reloads and shows **What's new**. Close it and it won't appear again.
 
 ![The update window with the Update button](../images/updating/update-window.png)
@@ -38,17 +37,35 @@ While a long operation runs, such as a big import, pressing **Update** shows the
 
 **Settings → Updates → Changelog** opens the whole history at any time. The same text is in `CHANGELOG.md` and on the project's GitHub Releases page.
 
+## If the update hangs
+
+**Updating…** always says what to do if nothing changes for 10 minutes: restart the app by hand. You don't need to know the terminal for it:
+
+1. Open the Terminal app: press ⌘ Space, type **Terminal** and press Return.
+2. In the update window, click **Copy** next to the command. Click in the Terminal window, press ⌘ V, then Return. The command goes to the app's folder, stops the app and starts it again.
+3. Wait until Terminal shows the line that starts with →, then reload the page.
+
+The command is `cd` into the app's own folder, followed by `make down && make up`. The window shows it with the real folder of your copy.
+
+If Terminal shows an error instead, the full log of the update is in `.logs/update.log` in the app's folder, and `make logs` shows it too.
+
+While the app is stopped, `make update` answers the page on the app's port with a small status server of its own, so the list keeps moving. It stops just before the app starts again; if it can't start, for example because the port is taken, the update goes on and the list stays on the last stage it showed.
+
+## If Update does nothing (versions 1.2.0 and older)
+
+Up to version 1.2.0 the **Update** button stopped working after the first update made with it: the window flashed and closed, and the app stayed on its version. One command in Terminal unsticks such a copy and installs the latest release. It finds the app's folder by itself through the running app, so you don't need to know where the app is:
+
+```bash
+pid=$(pgrep -nf backend.infrastructure.api.app) && cd "$(lsof -a -d cwd -Fn -p "$pid" | sed -n 's/^n//p')" && make down && make update
+```
+
+Open the Terminal app (⌘ Space, type **Terminal**, Return), paste the line and press Return. Wait until it says **Updated to** and the new version, then reload the app's page. The app must be running. If you restarted your Mac since the last update, the copy is not stuck any more: just press **Update**.
+
 ## If the update fails
 
-The window says **Update failed**. It names the step that failed with its last lines of output, then the end of the update's log, and the command `make update` with a **Copy** button. Your copy is back on the old version and running. The full log is in `.logs/update.log`, and `make logs` shows it too.
+The window says **Update failed**. It shows what failed and the end of the update's log, then the same three steps as above with the command that runs the update by hand, `cd <the app's folder> && make update`. Terminal then shows every step of the update and the error. The full log is in `.logs/update.log`, and `make logs` shows it too.
 
-Run `make update` in the project folder to see what went wrong.
-
-### If the app does not come back
-
-While the app is stopped, `make update` answers the page on the app's port with a small status server of its own, so the list keeps moving. It stops just before the app starts again; if it can't start, for example because the port is taken, the update goes on and the list stays on the last stage it showed. The window still can't tell a slow update from one that stopped. **Updating…** always shows a line for that case: if the app doesn't come back, run `make up` in the project folder (with a **Copy** button). The log is in `.logs/update.log`.
-
-The app stays stopped only when the way back itself failed. Then the end of `.logs/update.log` says what is left to do by hand: where the database from before the update is and the commands that finish the rollback.
+The update does not go back to the previous version. It stops at the step that failed, the way it would if you typed the commands yourself. The database is copied to `data/backups/` before the new version migrates it.
 
 ## From the terminal
 
@@ -56,22 +73,14 @@ The app stays stopped only when the way back itself failed. Then the end of `.lo
 make update
 ```
 
-`make update` does what the button does:
+`make update` does what the button does, and what you would type by hand:
 
-1. Refuses if you changed tracked files in the project folder. Commit or undo your changes first. It also refuses in a git worktree: run it in the main checkout.
-2. Fetches the releases. If you already have the latest one, it prints "Already up to date" and changes nothing. This is also the case when you run the development version from `master`, which is never older than the last release.
-3. Keeps a copy of the installed packages, stops the app, saves a copy of the database, switches to the latest release and installs its Python packages. The frontend packages are installed when the app starts.
+1. Refuses if you changed tracked files in the project folder. Commit or undo your changes first. It also refuses in a git worktree: run it in the main checkout. And it refuses while another update runs in the same folder.
+2. Fetches the releases (`git fetch --tags`). If you already have the latest one, it prints "Already up to date" and changes nothing. This is also the case when you run the development version from `master`, which is never older than the last release.
+3. Stops the app (`make down`) and switches to the latest release (`git checkout <tag>`).
 4. Rebuilds the macOS app if you built it and it changed.
-5. Starts the app. The database is migrated on start.
-
-## Rollback
-
-After `make update` the copy is on the new version and running, or on the old version and running. If a step fails, the command puts back the previous version, its packages and the database copy, starts the app again and exits with an error. The packages come from a copy of `.venv` and `frontends/web/node_modules` kept before the update, so the way back needs no network.
-
-`make update` refuses to start if either folder is missing; run `make setup` first. If the frontend packages were out of date before the update (`package-lock.json` changed and the app was not started since), they are put back as they were, and starting the old version installs them again, as `make up` always does. That one step needs the network.
-
-One case leaves the app stopped: a step of the way back itself fails, for example the database copy can't be restored. Starting the old version on a database it may not know would be worse, so the command stops and prints where the database copy and the kept packages are and the commands that finish the job. Until you finish them and move `.pids/update-backup` to the trash, `make update` refuses to run and repeats those commands.
+5. Starts the app (`make up`). `make up` installs the Python and frontend packages when the release changed them, and the database is migrated on start.
 
 ## macOS app
 
-When the update changes the app itself, a note in its title bar says **Restart to finish the update** with a **Restart** button. See [The macOS app](macos-app.md#updates).
+When the update changes the app itself, a note at the right end of its top bar says **Restart to finish the update** with a **Restart** button. See [The macOS app](macos-app.md#updates).

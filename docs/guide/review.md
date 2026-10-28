@@ -14,21 +14,18 @@ The best cards are phrases where the target is the only new thing and everything
 
 The phrase is at the top, with the target in bold. Below it, the left column holds what you decide by:
 
-- **Lemma**: the dictionary form of the target.
+- **Lemma**: the dictionary form of the target, with its **IPA** transcription, its **CEFR level** (A1–C2) or **phrasal verb**, its **frequency** in English (ultra common, common, mid, low or rare) and its **usage**, such as formal or informal, next to it: the word's group that comes first in [Usage priority](vocabulary.md#word-order-in-review), the one the word is sorted by; nothing is shown when that group is neutral. Hover the level to see how each dictionary rated it. 🎯 marks words in the "sweet spot": frequent enough to be useful, rare enough to be worth learning.
 - **Translation**: a short translation of the target in this context. The translation is into **Russian**; to change the language, see [Configuration](../reference/configuration.md#translation-language).
-- **Context**: what is going on in the phrase, retold in simple English.
-- **Video frame and clip** (video sources only): a screenshot and the audio of the phrase, cut from the video. ▶ plays it.
-- **Picture** of the word, if you added one. Otherwise, **Suggested pictures · click to add** shows the first results of a picture search; the Picture icon in the header turns them off.
+- A **definition** and **synonyms**.
+- **Picture** of the word, if you added one; otherwise **Suggested pictures · click to add** shows the first results of a picture search, and the Picture icon in the header turns them off. Next to it, the **video frame and clip** (video sources only): a screenshot and the audio of the phrase, cut from the video. ▶ plays it. They stand at the bottom of the column.
 
-The right column holds reference material:
+The right column holds the rest:
 
-- **IPA** transcription.
-- **US / UK** buttons that play a dictionary recording of the word.
-- **TTS** button that plays the phrase read aloud by a synthetic voice.
-- **CEFR level** (A1–C2) of the word, or **phrasal verb**. Hover the level to see how each dictionary rated it. 🎯 marks words in the "sweet spot": frequent enough to be useful, rare enough to be worth learning.
-- **Frequency** of the word in English: ultra common, common, mid, low or rare.
-- **Usage**, such as formal or informal: the word's group that comes first in [Usage priority](vocabulary.md#word-order-in-review), the one the word is sorted by. Nothing is shown when that group is neutral.
-- **Synonyms**, a **definition**, and **examples**. **Use as phrase** on an example makes it the card's phrase.
+- **Context**: what is going on in the phrase, retold in simple English, and anything more the meaning adds.
+- **Examples**. **Use as phrase** on an example makes it the card's phrase.
+- **US / UK** buttons that play a dictionary recording of the word, and **TTS** that plays the phrase read aloud by a synthetic voice, at the bottom right.
+
+This is the default layout. You can move, restyle and hide everything between the phrase and the bottom bar in the card layout editor: [Settings → Card layout](settings.md#card-layout).
 
 The meaning, translation, synonyms, examples and IPA come from AI. Pronunciations and CEFR levels come from the [dictionaries](../reference/dictionaries.md). Everything else is computed locally.
 

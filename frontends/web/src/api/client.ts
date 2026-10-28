@@ -6,6 +6,8 @@ import type {
   BootstrapWord,
   CandidateSection,
   CandidateSortOrder,
+  CardLayoutEdit,
+  CardLayoutView,
   DecisionButton,
   CleanupMediaKind,
   ClozeDraft,
@@ -217,10 +219,17 @@ export const api = {
   getExportCards: (scope: SetScope = 'all') =>
     req<GlobalExport>(`/export/cards?${new URLSearchParams({ scope: String(scope) })}`),
 
+  fillMissing: (scope: SetScope = 'all') =>
+    req<GlobalExport>(`/export/fill-missing?${new URLSearchParams({ scope: String(scope) })}`, { method: 'POST' }),
+
   syncToAnki: (group: ExportGroup, scope: SetScope = 'all') =>
     req<SyncResult>(`/export/sync-to-anki?${new URLSearchParams({ group, scope: String(scope) })}`, { method: 'POST' }),
 
   getSettings: () => req<Settings>('/api/settings'),
+
+  getCardLayout: () => req<CardLayoutView>('/api/card-layout'),
+  editCardLayout: (edit: CardLayoutEdit) =>
+    req<CardLayoutView>('/api/card-layout/edits', { method: 'POST', body: JSON.stringify(edit) }),
 
   getLongOperation: () => req<LongOperationStatus>('/api/long-operation'),
   cancelLongOperation: () => req<LongOperationStatus>('/api/long-operation/cancel', { method: 'POST' }),

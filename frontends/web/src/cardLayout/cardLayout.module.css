@@ -1,0 +1,83 @@
+/* тело карточки по раскладке: колонка — строки, строка — блоки в линию, при нехватке места переносятся;
+   блоки стоят на одной линии текста, как бы ни отличались размером */
+.row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s3); min-width: 0; }
+.block { flex: 0 1 auto; min-width: 0; }
+/* блок шириной в свой текст; абзацы занимают остаток строки и переносят текст, а соседи стоят рядом —
+   под абзац они уходят, только когда ему остаётся слишком узкая полоса */
+.block:is([data-element="definition"], [data-element="context"], [data-element="notes"], [data-element="examples"]) { flex: 1 1 0; min-width: var(--paragraph-block-min-w); }
+/* подобранные картинки занимают остаток строки рядом с соседями; под них уходят, только когда не помещается и одна */
+.block[data-element="picture_choice"] { flex: 1 1 0; min-width: calc(var(--suggestion-tile-w) * var(--thumb-scale)); }
+/* прижатые вправо блоки стоят в конце строки (см. inRowOrder): от остальных их отделяет только первый */
+.block[data-align="end"]:first-child, .block:not([data-align="end"]) + .block[data-align="end"] { margin-left: auto; }
+/* у картинок и кадра своей строки текста нет: на линию текста они встают низом */
+.block[data-kind="media"][data-valign="baseline"] { align-self: last baseline; }
+.block[data-valign="top"] { align-self: flex-start; }
+.block[data-valign="middle"] { align-self: center; }
+.block[data-valign="bottom"] { align-self: flex-end; }
+/* линия во всю колонку, как у колонки шапки и нижней полосы */
+.divider { border: 0; border-top: var(--bw) solid var(--line); margin-block: var(--card-divider-my); }
+
+/* блок встаёт на линию текста своими буквами, а не иконкой: иконки стоят по центру своей строки */
+.block :is(.chips, .wordFacts, .cefr, .status, .textButton) { align-items: baseline; }
+.block :is(.chips, .wordFacts, .cefr, .status, .textButton) > svg { align-self: center; }
+/* у кнопки с текстом своя высота: строка с иконкой и текстом стоит по её центру */
+.block .textButton { flex-wrap: wrap; align-content: center; }
+
+/* стиль блока */
+/* добавочный отступ со стороны блока, сверх обычного зазора между блоками */
+.block[data-space-top="s"] { margin-top: var(--block-space-s); }
+.block[data-space-top="m"] { margin-top: var(--block-space-m); }
+.block[data-space-top="l"] { margin-top: var(--block-space-l); }
+.block[data-space-right="s"] { margin-right: var(--block-space-s); }
+.block[data-space-right="m"] { margin-right: var(--block-space-m); }
+.block[data-space-right="l"] { margin-right: var(--block-space-l); }
+.block[data-space-bottom="s"] { margin-bottom: var(--block-space-s); }
+.block[data-space-bottom="m"] { margin-bottom: var(--block-space-m); }
+.block[data-space-bottom="l"] { margin-bottom: var(--block-space-l); }
+.block[data-space-left="s"] { margin-left: var(--block-space-s); }
+.block[data-space-left="m"] { margin-left: var(--block-space-m); }
+.block[data-space-left="l"] { margin-left: var(--block-space-l); }
+.block[data-kind="text"][data-size="xs"] { font-size: var(--fs-xs); }
+.block[data-kind="text"][data-size="s"] { font-size: var(--fs-s); }
+.block[data-kind="text"][data-size="m"] { font-size: var(--fs-m); }
+.block[data-kind="text"][data-size="l"] { font-size: var(--fs-b); }
+.block[data-kind="text"][data-size="xl"] { font-size: var(--fs-h1); }
+.block[data-kind="text"][data-tone="accent"] { color: var(--ac); }
+.block[data-kind="text"][data-tone="primary"] { color: var(--tx); }
+.block[data-kind="text"][data-tone="secondary"] { color: var(--tx2); }
+.block[data-kind="text"][data-tone="muted"] { color: var(--tx3); }
+.block[data-kind="text"][data-bold="true"] { font-weight: var(--fw-m); }
+.block[data-kind="media"][data-size="xs"] { --thumb-scale: var(--thumb-scale-xs); }
+.block[data-kind="media"][data-size="s"] { --thumb-scale: var(--thumb-scale-s); }
+.block[data-kind="media"][data-size="l"] { --thumb-scale: var(--thumb-scale-l); }
+.block[data-kind="media"][data-size="xl"] { --thumb-scale: var(--thumb-scale-xl); }
+/* картинки — для настроения, а не для решения: тише текста */
+.dimmed { opacity: var(--o-visuals); transition: opacity var(--t); }
+.dimmed:hover { opacity: 1; }
+.block[data-kind="control"] { font-size: var(--fs-s); color: var(--tx3); }
+
+/* элементы */
+.lemma { line-height: var(--lh-tight); letter-spacing: var(--ls-focus); }
+.block[data-bold="false"] .lemmaMark { font-weight: inherit; }
+.translation { line-height: var(--lh); letter-spacing: var(--ls-focus); }
+.context { line-height: var(--lh-read); }
+.context b { font-weight: var(--fw-m); }
+.context .richTarget { color: var(--ac); }
+.definition, .notes { line-height: var(--lh-read); }
+.notes { display: flex; flex-direction: column; gap: var(--s4); }
+.examples { list-style: none; display: flex; flex-direction: column; gap: var(--s3); line-height: var(--lh); }
+.definition b, .notes b, .examples b { font-weight: var(--fw-m); color: var(--tx); }
+.transcription { font-family: var(--mono); }
+.chips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s3); }
+.cefr { display: inline-flex; align-items: center; gap: var(--s2); }
+/* факты о слове — справка: тихо, через пробел; ближе друг к другу, чем к соседним блокам строки */
+.wordFacts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.status { display: inline-flex; align-items: center; gap: var(--s2); }
+.meaningImage { display: block; max-width: 100%; max-height: calc(var(--thumb-h) * var(--thumb-scale)); width: auto; object-fit: contain; border-radius: var(--rc); }
+
+/* пример: при наведении его можно поставить вместо фразы; кнопка встаёт поверх строки и не отнимает места у текста */
+.example { position: relative; padding-left: var(--s5); }
+.example::before { content: '·'; position: absolute; left: 0; font-weight: var(--fw-m); color: var(--tx3); }
+.useExample { display: var(--use-example-display); position: var(--use-example-position); top: 0; right: 0; margin-left: var(--s3); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-xs); line-height: var(--lh-label); color: var(--ac); background: var(--use-example-bg); box-shadow: 0 0 var(--s3) var(--s2) var(--card); opacity: var(--reveal); transition: opacity var(--t); }
+.example:hover .useExample, .useExample:focus-visible { opacity: 1; }
+.exampleOpen .useExample { display: inline-flex; opacity: 1; }

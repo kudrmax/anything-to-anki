@@ -5,6 +5,11 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
+from backend.domain.value_objects.card_fill_skip import CardFillSkip  # noqa: TC001 — Pydantic
+from backend.domain.value_objects.missing_card_part import (
+    MissingCardPart,  # noqa: TC001 — Pydantic
+)
+
 if TYPE_CHECKING:
     from backend.application.utils.anki_note_types import NoteTypeCheck
 
@@ -41,6 +46,13 @@ class AnkiStatusDTO(BaseModel):
     note_type_problems: list[NoteTypeCheckDTO] = []
 
 
+class CardPartSkipDTO(BaseModel):
+    """A missing part of a card that filling in can't generate now, and why."""
+
+    part: MissingCardPart
+    reason: CardFillSkip
+
+
 class CardPreviewDTO(BaseModel):
     """Preview of a generated Anki card: the word's phrase of the decision."""
 
@@ -59,6 +71,8 @@ class CardPreviewDTO(BaseModel):
     pronunciation_uk_url: str | None = None
     tts_audio_url: str | None = None
     missing: list[str] = []  # required parts the card lacks: 'meaning', 'audio'
+    generating: list[MissingCardPart] = []  # missing parts a job is making right now
+    cannot_fill: list[CardPartSkipDTO] = []  # missing parts filling in skips
     is_cloze: bool = False
 
 
@@ -70,12 +84,28 @@ class ExportSectionDTO(BaseModel):
     cards: list[CardPreviewDTO]
 
 
+class FillSkipCountDTO(BaseModel):
+    reason: CardFillSkip
+    cards: int
+
+
+class ExportFillDTO(BaseModel):
+    """What filling in the incomplete cards would do: `fillable` cards get a job, the
+    `generating` ones are being made, `skipped` counts the cards with a part it can't make,
+    by reason."""
+
+    fillable: int = 0
+    generating: int = 0
+    skipped: list[FillSkipCountDTO] = []
+
+
 class GlobalExportDTO(BaseModel):
     """Cards still waiting for export: ready ones and incomplete ones, each grouped by source."""
 
     ready: list[ExportSectionDTO]
     incomplete: list[ExportSectionDTO]
     exported_count: int = 0  # 'learn' cards in scope that are already in Anki
+    fill: ExportFillDTO = ExportFillDTO()
     title: str | None = None  # name of the scope the cards were collected for
 
 

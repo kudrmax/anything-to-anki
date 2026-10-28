@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, ApiError, ReviewExpiredError } from '@/api/client'
+import { ApiError, ReviewExpiredError } from '@/api/client'
+import { useReviewApi } from './reviewApi'
 import type { CandidateSection, Closes, GenerationOverview, ReviewContext, ReviewUpdate, SetScope, StoredCandidate, TextPlace } from '@/api/types'
 import type { SortOrder } from '@/lib/preferences'
 import {
@@ -47,6 +48,7 @@ interface PendingRows {
  * Каждый запрос шлёт ревизию клиента и текущую карточку; истёкшее ревью открывается заново на текущей.
  */
 export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requestedId: number | null) {
+  const api = useReviewApi()
   const [state, setState] = useState<ReviewState>(initialState)
   const stateRef = useRef(state)
   const commit = useCallback((change: (s: ReviewState) => ReviewState): boolean => {
@@ -95,7 +97,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     requested_id: requested,
     open_sections: [...openedSections.current],
     text_chunks: chunkRefs(textRef.current),
-  }), [scope, sortOrder])
+  }), [api, scope, sortOrder])
 
   const applyOpened = useCallback((update: ReviewUpdate) => {
     commitText(t => applyText(t, update))
@@ -190,7 +192,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     } catch {
       // Панель генерации просто не покажет свежие числа до следующей попытки.
     }
-  }, [scope])
+  }, [api, scope])
 
   // Открытие — на карточке ссылки, после смены сортировки — на текущей; ✨ грузится рядом и его не ждёт,
   // текст — после открытия, по оглавлению.
@@ -221,7 +223,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
       .finally(() => { pending.current = pending.current.filter(p => p !== entry) })
     pending.current.push(entry)
     return entry.done
-  }, [send, apply])
+  }, [api, send, apply])
 
   const pendingText = useRef(new Map<string, Promise<boolean>>())
   /** Кусок источника, где лежит блок или символ; true — ответ пришёл. Тот же запрос дважды разом не уходит. */
@@ -239,7 +241,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
       .finally(() => { pendingText.current.delete(key) })
     pendingText.current.set(key, done)
     return done
-  }, [send, apply])
+  }, [api, send, apply])
 
   /** Кусок, где лежит блок, — если его ещё нет. */
   const ensureBlock = useCallback(async (sourceId: number, block: number): Promise<boolean> => {
@@ -286,7 +288,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
       if (contentsRequest.current) void contentsRequest.current.then(() => checkContents.current(update))
       else refresh()
     }
-  }, [send, commitText, loadFirstText])
+  }, [api, send, commitText, loadFirstText])
 
   useEffect(() => {
     recenter.current = () => {
@@ -297,7 +299,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
         .then(update => { apply(update, { window: true, keepCurrent: true }) })
         .catch(e => { if (isNotFound(e)) setGone(true) })
     }
-  }, [send, apply])
+  }, [api, send, apply])
 
   // Сервер раскрывает раздел текущей карточки сам: ушли с неё — он узнаёт об этом сразу после перехода,
   // а ответ сворачивает раздел, если список изменился. Переход не ждёт ответа.
@@ -311,7 +313,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
         .then(update => { apply(update) })
         .catch(e => { if (isNotFound(e)) setGone(true) })
     }, CURRENT_SYNC_DELAY_MS)
-  }, [commit, send, apply])
+  }, [api, commit, send, apply])
 
   /** К карточке: загруженная становится текущей сразу, дальняя приходит с окном вокруг неё. */
   const goTo = useCallback(async (phraseId: number) => {
@@ -323,7 +325,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     await around()
     // Ответ, который обогнало изменение, устарел: окно просим ещё раз.
     if (stateRef.current.currentId !== phraseId) await around()
-  }, [send, apply, moveTo])
+  }, [api, send, apply, moveTo])
 
   /** Соседняя карточка видимого списка; строки рядом догружаются, если их ещё нет. Шаги идут по очереди. */
   const stepping = useRef<Promise<void>>(Promise.resolve())
@@ -352,7 +354,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
     if (open) openedSections.current.add(section)
     else openedSections.current.delete(section)
     apply(await send(ctx => api.setReviewSection(ctx, section, open)), { window: true })
-  }, [send, apply])
+  }, [api, send, apply])
 
   const poll = useCallback(async (withGeneration: boolean) => {
     try {
@@ -362,7 +364,7 @@ export function useReviewWindow(scope: SetScope, sortOrder: SortOrder, requested
       return
     }
     if (withGeneration) await loadGeneration()
-  }, [send, apply, loadGeneration])
+  }, [api, send, apply, loadGeneration])
 
   // Пока идёт генерация или источник набора занят операцией, ревью спрашивает, что изменилось.
   const inProgress = generation?.in_progress ?? false

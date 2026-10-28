@@ -1,10 +1,9 @@
 """Answers the page on the copy's port while `make update` has the app stopped, so the page
 can show how far the update got.
 
-update.sh starts it after `make down` and stops it before `make up`. It runs on the system
-Python with the standard library only: the copy's .venv is being replaced under it. It
-also stops by itself once the update's lock is free, so a killed update never leaves it
-holding the port.
+update.sh starts it after `make down`; `make up` stops it right before the app takes the
+port, and update.sh stops it on every other way out. It runs on the system Python with the
+standard library only: the copy's .venv may be reinstalled under it.
 
 `GET /api/update/state` answers as the app does, from the same files; anything else is
 503, so the page keeps waiting for the real server.
@@ -12,9 +11,7 @@ holding the port.
 from __future__ import annotations
 
 import argparse
-import fcntl
 import json
-import threading
 from dataclasses import asdict, dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -23,7 +20,6 @@ from pathlib import Path
 STATE_PATH = "/api/update/state"
 STATE_FILE = ".pids/update.state"
 PROGRESS_FILE = ".pids/update.progress"
-SCRIPT_LOCK_FILE = ".pids/update.script.lock"
 PROGRESS_SEPARATOR = "\t"
 UPDATE_STATES = ("idle", "running", "failed", "done")
 STEP_STATUSES = ("done", "current", "pending", "failed")
@@ -47,12 +43,6 @@ class UpdateFiles:
         steps = [asdict(step) for step in self._steps()]
         body = {"state": self._state(), "log_tail": "", "steps": steps}
         return json.dumps(body).encode("utf-8")
-
-    def wait_until_update_ends(self) -> None:
-        """Blocks while update.sh holds its lock; returns once it is free."""
-        with (self._project_dir / SCRIPT_LOCK_FILE).open("a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_SH)
-            fcntl.flock(lock, fcntl.LOCK_UN)
 
     def _state(self) -> str:
         word = self._read(STATE_FILE).strip()
@@ -109,12 +99,6 @@ def main() -> None:
     files = UpdateFiles(Path.cwd())
     server = ThreadingHTTPServer((arguments.host, arguments.port), handler_for(files))
     server.daemon_threads = True
-
-    def stop_when_the_update_ends() -> None:
-        files.wait_until_update_ends()
-        server.shutdown()
-
-    threading.Thread(target=stop_when_the_update_ends, daemon=True).start()
     server.serve_forever()
     server.server_close()
 

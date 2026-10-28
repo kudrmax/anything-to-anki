@@ -1,6 +1,7 @@
 /* группа экспорта: готовые или неполные карточки со своей кнопкой */
 .exportGroup + .exportGroup { margin-top: var(--s8); }
 .exportGroupHead { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); flex-wrap: wrap; padding-bottom: var(--s4); border-bottom: var(--bw) solid var(--line); }
+.exportGroupActions { display: flex; gap: var(--s3); flex-wrap: wrap; }
 .exportGroupTitle { font-size: var(--fs-t); font-weight: var(--fw-m); }
 .exportGroupTitle span { margin-left: var(--s3); font-size: var(--fs-s); font-weight: var(--fw); color: var(--tx3); }
 .exportGroupHead + .group { margin-top: var(--s4); }

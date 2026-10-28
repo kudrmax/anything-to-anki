@@ -484,11 +484,30 @@ export interface CardPreview {
   tts_audio_url: string | null
   /** Обязательные части, которых у карточки нет. */
   missing: MissingCardPart[]
+  /** Недостающие части, которые сейчас генерируются. */
+  generating: MissingCardPart[]
+  /** Недостающие части, которые догенерация пропускает, и почему. */
+  cannot_fill: CardPartSkip[]
   /** Карточка уйдёт в Anki как cloze; в sentence скрытые слова выделены <b>. */
   is_cloze: boolean
 }
 
 export type MissingCardPart = 'meaning' | 'audio' | 'cloze'
+
+export type CardFillSkip =
+  | 'video_not_downloaded' | 'video_downloading' | 'no_phrase_time' | 'source_busy' | 'cloze_needs_choice'
+
+export interface CardPartSkip {
+  part: MissingCardPart
+  reason: CardFillSkip
+}
+
+/** Что сделает догенерация неполных карточек: сколько получат генерацию, сколько уже генерируются, сколько пропущено и почему. */
+export interface ExportFill {
+  fillable: number
+  generating: number
+  skipped: { reason: CardFillSkip; cards: number }[]
+}
 
 export type ExportGroup = 'ready' | 'incomplete'
 
@@ -514,6 +533,7 @@ export interface GlobalExport {
   ready: ExportSection[]
   incomplete: ExportSection[]
   exported_count: number
+  fill: ExportFill
 }
 
 export interface SyncResult {
@@ -1045,6 +1065,70 @@ export interface LongOperationStatus {
   error: string | null
 }
 
+/** Часть тела карточки, которую раскладывает пользователь. Фраза сверху и полоса решений снизу — не элементы. */
+export type CardElement =
+  | 'target' | 'translation' | 'context' | 'definition' | 'notes' | 'synonyms' | 'examples'
+  | 'transcription' | 'pronunciation' | 'tts' | 'word_facts' | 'video_frame' | 'picture' | 'picture_choice' | 'meaning_status'
+
+/** Что меняет стиль элемента: у текста — размер, тон и жирность, у медиа — размер, у кнопок — ничего. */
+export type CardElementKind = 'text' | 'media' | 'control'
+export type BlockSize = 'xs' | 's' | 'm' | 'l' | 'xl'
+export type BlockTone = 'accent' | 'primary' | 'secondary' | 'muted'
+export type BlockAlign = 'start' | 'end'
+export type BlockVAlign = 'baseline' | 'top' | 'middle' | 'bottom'
+export type BlockSpace = 'none' | 's' | 'm' | 'l'
+export type BlockSide = 'top' | 'right' | 'bottom' | 'left'
+export type ColumnWidth = 'narrow' | 'normal' | 'wide'
+
+export interface BlockStyle {
+  size: BlockSize
+  tone: BlockTone
+  bold: boolean
+  align: BlockAlign
+  valign: BlockVAlign
+  space_top: BlockSpace
+  space_right: BlockSpace
+  space_bottom: BlockSpace
+  space_left: BlockSpace
+}
+
+/** К какой строке линия прилипает, когда строки уходят к низу колонки. */
+export type DividerSticks = 'above' | 'below'
+export type CardLayoutRow = { kind: 'blocks'; elements: CardElement[] } | { kind: 'divider'; sticks: DividerSticks }
+
+export interface CardLayoutColumn {
+  width: ColumnWidth
+  rows: CardLayoutRow[]
+}
+
+export interface CardLayout {
+  columns: CardLayoutColumn[]
+  styles: { element: CardElement; style: BlockStyle }[]
+}
+
+export interface CardLayoutView {
+  layout: CardLayout
+  /** can_hide: false — блок всегда на карточке, его показывает своя кнопка на ревью. */
+  elements: { element: CardElement; kind: CardElementKind; can_hide: boolean }[]
+  hidden: CardElement[]
+  can_add_column: boolean
+  can_remove_column: boolean
+}
+
+/** Правка раскладки; места считаются по раскладке до правки. */
+export type CardLayoutEdit =
+  | { kind: 'move_block'; element: CardElement; column: number; row: number; position: number | null }
+  | { kind: 'hide_block'; element: CardElement }
+  | { kind: 'restyle_block'; element: CardElement } & Partial<BlockStyle>
+  | { kind: 'insert_divider'; column: number; row: number }
+  | { kind: 'remove_divider'; column: number; row: number }
+  | { kind: 'stick_divider'; column: number; row: number; sticks: DividerSticks }
+  | { kind: 'move_row'; column: number; row: number; to_column: number; to_row: number }
+  | { kind: 'add_column' }
+  | { kind: 'remove_column'; column: number }
+  | { kind: 'resize_column'; column: number; width: ColumnWidth }
+  | { kind: 'reset' }
+
 /** Раздел записи changelog: заголовок и тело, уже отрисованное сервером в HTML. */
 export interface ChangelogSection {
   title: string
@@ -1067,6 +1151,10 @@ export interface UpdateStatus {
   entries: ChangelogEntry[]
   /** Явная проверка не достучалась до релизов. */
   check_failed: boolean
+  /** Команда для терминала: остановить и запустить копию руками, если обновление зависло. */
+  restart_command: string
+  /** Команда для терминала: запустить обновление руками, если оно упало. */
+  update_command: string
 }
 
 export type UpdateRunState = 'idle' | 'running' | 'failed' | 'done'
