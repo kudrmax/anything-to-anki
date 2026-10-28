@@ -1,4 +1,4 @@
-.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths card-states-check bench-db bench-review app test-macos update _db-snapshot _db-restore _stop-update-status-server _check_env _check_setup _up _up-worktree _down _down-worktree
+.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths card-states-check bench-db bench-review app test-macos update _stop-update-status-server _check_env _check_setup _up _up-worktree _down _down-worktree
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # -include не падает если файла нет; если .env создаётся правилом ниже,
@@ -25,6 +25,10 @@ PYTHON_VERSION  := 3.12
 LOCK_FILE       := requirements.lock
 SPACY_MODEL     := en_core_web_sm
 SPACY_MODEL_URL := https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+# Отметка «Python-зависимости поставлены»: `make up` ставит их заново, когда любой из
+# файлов со списком зависимостей новее неё — например, после переключения на новый релиз.
+PY_DEPS_STAMP   := .venv/.deps-installed
+PY_DEPS_FILES   := $(LOCK_FILE) pyproject.toml backend/pyproject.toml
 
 # Цвет баннера: зелёный для prod, жёлтый для всего остального (dev и т.п.).
 # Чисто визуальная разметка — совпадает с цветом бейджа в UI.
@@ -295,13 +299,11 @@ setup-python:  ## Create the venv if missing and install Python dependencies
 	elif ! grep -q "^home = $$(uv python dir)" .venv/pyvenv.cfg; then \
 	    echo "WARNING: .venv is not built on uv-managed Python. Recreate it: trash .venv && make setup"; \
 	fi
-	@.venv/bin/pip install -c $(LOCK_FILE) -e "backend/[dev,tts]"
-	@.venv/bin/pip install -c $(LOCK_FILE) -e ".[ai-proxy]"
-	@if .venv/bin/python -c "import $(SPACY_MODEL)" 2>/dev/null; then \
-	    echo "$(SPACY_MODEL): already installed"; \
-	else \
-	    .venv/bin/pip install --no-cache-dir "$(SPACY_MODEL_URL)"; \
-	fi
+	$(call install_python_deps)
+
+$(PY_DEPS_STAMP): $(PY_DEPS_FILES)
+	@echo "Installing Python dependencies..."
+	$(call install_python_deps)
 
 # Версии зафиксированы в $(LOCK_FILE), чтобы dev- и prod-копия ставили одно и
 # то же: без него каждая копия получала то, что было свежим в день установки.
@@ -332,6 +334,17 @@ dict-rebuild: _check_setup _check_dictionaries_dir  ## Rebuild the dictionary ca
 dict-update: _check_setup _check_dictionaries_dir  ## Rebuild the dictionary cache if the JSON files changed
 	@.venv/bin/python -m backend.cli.build_dict_cache $${DICTIONARIES_DIR} --if-changed
 
+define install_python_deps
+	@.venv/bin/pip install -c $(LOCK_FILE) -e "backend/[dev,tts]"
+	@.venv/bin/pip install -c $(LOCK_FILE) -e ".[ai-proxy]"
+	@if .venv/bin/python -c "import $(SPACY_MODEL)" 2>/dev/null; then \
+	    echo "$(SPACY_MODEL): already installed"; \
+	else \
+	    .venv/bin/pip install --no-cache-dir "$(SPACY_MODEL_URL)"; \
+	fi
+	@touch $(PY_DEPS_STAMP)
+endef
+
 # Зависимости фронтенда ставятся заново, если package-lock.json новее установленных
 # (например, после git pull) — иначе сборка падает на новых пакетах.
 # npm ci ставит ровно то, что в lock-файле, и не переписывает его: рабочая копия остаётся чистой.
@@ -343,7 +356,7 @@ endef
 up:  ## Start (ai_proxy + app + worker)
 	$(call with_copy_lock,_up)
 
-_up: _check_env _check_setup dict-update
+_up: _check_env _check_setup $(PY_DEPS_STAMP) dict-update
 	$(call install_frontend_deps)
 	@echo "Building frontend..."
 	@cd frontends/web && VITE_INSTANCE_ENV_NAME=$(INSTANCE_ENV_NAME) npm run build
@@ -364,7 +377,7 @@ _up: _check_env _check_setup dict-update
 up-worktree:  ## Start this worktree (WORKTREE_PORT; stops the previous one)
 	$(call with_copy_lock,_up-worktree)
 
-_up-worktree: _check_env _check_setup dict-update
+_up-worktree: _check_env _check_setup $(PY_DEPS_STAMP) dict-update
 	$(call install_frontend_deps)
 	@echo "Building frontend..."
 	@cd frontends/web && VITE_INSTANCE_ENV_NAME=worktree npm run build
@@ -411,19 +424,12 @@ _down-worktree:
 # Без with_copy_lock: скрипт сам вызывает make down и make up, которые берут замок.
 # make — через свою переменную: строку с $(MAKE) make выполняет даже под make -n.
 UPDATE_MAKE := $(MAKE)
-update:  ## Update to the latest release (rolls back on failure)
+update:  ## Update to the latest release: git fetch, make down, git checkout <tag>, make up
 	@MAKE="$(UPDATE_MAKE)" scripts/update.sh
 
 # Тот же шаг, что делает _up перед стартом app, отдельно.
 _stop-update-status-server:
 	$(call stop_update_status_server)
-
-# Копия базы для make update: путь к копии — последняя строка вывода.
-_db-snapshot: _check_setup
-	@.venv/bin/python -m backend.cli.db_snapshot take
-
-_db-restore: _check_setup
-	@.venv/bin/python -m backend.cli.db_snapshot restore "$(SNAPSHOT)"
 
 logs:  ## Logs of app + worker + ai_proxy + make update in one stream
 	@trap 'kill 0' INT TERM; \

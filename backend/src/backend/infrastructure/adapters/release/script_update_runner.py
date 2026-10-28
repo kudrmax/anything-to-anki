@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import fcntl
 import os
 import re
+import shlex
 import subprocess
 import threading
-from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import UpdateAlreadyRunningError
@@ -18,95 +17,83 @@ from backend.domain.value_objects.update_progress import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
     from pathlib import Path
 
-UPDATE_COMMAND = ("make", "update")
+UPDATE_SCRIPT = "scripts/update.sh"
 STATE_FILE = ".pids/update.state"
 PID_FILE = ".pids/update.pid"
-START_LOCK_FILE = ".pids/update.lock"
-SCRIPT_LOCK_FILE = ".pids/update.script.lock"
 ERROR_FILE = ".pids/update.error"
 # update.sh rewrites it whole on every change: one stage per line, its status, a tab, its
 # title.
 PROGRESS_FILE = ".pids/update.progress"
 PROGRESS_SEPARATOR = "\t"
 LOG_FILE = ".logs/update.log"
-# Enough of the run's end to see the rollback, short enough for the app's popup.
+# Enough of the run's end to see what broke, short enough for the app's popup.
 LOG_TAIL_LINES = 40
 # update.sh starts every run's log with this.
 RUN_HEADER = "=== make update"
 # Colours and cursor moves of make and npm output, which a browser shows as garbage.
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
-# update.sh keeps the lock it finds open on this descriptor instead of taking its own.
-SCRIPT_LOCK_FD = 9
 # Runs unattended: a git asking for a password would hang the update.
 NON_INTERACTIVE = {"GIT_TERMINAL_PROMPT": "0"}
 
 
 class ScriptUpdateRunner(UpdateRunner):
-    """Runs `make update` in the project folder, detached: the script restarts the app, so
-    it must outlive it. It reports through the state file, whose one word it ends with.
+    """Runs update.sh in the project folder as a process of its own: the script stops and
+    restarts the app, so it must outlive it. The script reports through the state file,
+    whose one word it ends with.
 
-    The update is running exactly while the flock on the script's lock file is held. This
-    runner takes it before the script starts and hands it to the script, which holds it
-    to its end: an update whose lock is free while the state says `running` has failed.
-    Checking the lock takes it shared for a moment; that happens under the start lock,
-    which a script started from the terminal also takes around its own attempt."""
+    The update is running while the process in the pid file is alive and is update.sh;
+    a pid file left by a run that died, or whose pid another process got since, does not
+    count. The app writes the pid as soon as the script starts; the script writes its own
+    when run from the terminal."""
 
-    def __init__(self, project_dir: Path, command: Sequence[str] = UPDATE_COMMAND) -> None:
+    def __init__(self, project_dir: Path, script: str = UPDATE_SCRIPT) -> None:
         self._project_dir = project_dir
-        self._command = tuple(command)
+        self._script = script
+        # Two clicks at once must not both see the update as not running.
+        self._starting = threading.Lock()
 
     def start(self) -> None:
-        (self._project_dir / LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
-        with self._start_lock():
+        with self._starting:
             if self._state().state is UpdateState.RUNNING:
                 raise UpdateAlreadyRunningError
-            script_lock = os.open(
-                self._project_dir / SCRIPT_LOCK_FILE, os.O_WRONLY | os.O_CREAT | os.O_APPEND,
-            )
-            try:
-                try:
-                    fcntl.flock(script_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                except BlockingIOError as error:
-                    raise UpdateAlreadyRunningError from error
-                self._spawn(script_lock)
-            finally:
-                os.close(script_lock)
+            self._spawn()
 
     def state(self) -> UpdateProgress:
-        with self._start_lock():
+        with self._starting:
             return self._state()
 
-    @contextmanager
-    def _start_lock(self) -> Iterator[None]:
-        (self._project_dir / START_LOCK_FILE).parent.mkdir(parents=True, exist_ok=True)
-        with (self._project_dir / START_LOCK_FILE).open("a") as start_lock:
-            fcntl.flock(start_lock, fcntl.LOCK_EX)
-            yield
+    def restart_command(self) -> str:
+        return f"cd {shlex.quote(str(self._project_dir))} && make down && make up"
+
+    def update_command(self) -> str:
+        return f"cd {shlex.quote(str(self._project_dir))} && make update"
 
     def _state(self) -> UpdateProgress:
         state = self._read_state()
-        if state is UpdateState.RUNNING and not self._script_lock_held():
-            self._write_state(UpdateState.FAILED)
-            state = UpdateState.FAILED
+        # The script writes its last word before it exits: read again once it is gone.
+        if state is UpdateState.RUNNING and not self._script_alive():
+            state = self._read_state()
+            if state is UpdateState.RUNNING:
+                self._write_state(UpdateState.FAILED)
+                state = UpdateState.FAILED
         steps = self._steps()
         if state is UpdateState.FAILED:
             return UpdateProgress(state, self._failure_report(), steps)
         return UpdateProgress(state, steps=steps)
 
-    def _spawn(self, script_lock: int) -> None:
+    def _spawn(self) -> None:
+        (self._project_dir / LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
         self._write_state(UpdateState.RUNNING)
         (self._project_dir / ERROR_FILE).write_text("", encoding="utf-8")
         try:
             process = subprocess.Popen(  # noqa: S603 — a fixed command, no user input
-                self._handing_over(script_lock),
+                ["/bin/bash", self._script],
                 cwd=self._project_dir,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                pass_fds=(script_lock,),
                 start_new_session=True,
                 env={**os.environ, **NON_INTERACTIVE},
             )
@@ -116,30 +103,16 @@ class ScriptUpdateRunner(UpdateRunner):
         (self._project_dir / PID_FILE).write_text(str(process.pid), encoding="utf-8")
         threading.Thread(target=process.wait, daemon=True).start()
 
-    def _handing_over(self, script_lock: int) -> list[str]:
-        """The command run with the lock moved to the descriptor the script looks at.
-
-        The move is an `exec` of its own: macOS /bin/sh, given `exec cmd 9>&N`, keeps a
-        copy of the lock on descriptor 10 in the command, which the script never closes."""
-        moves = "" if script_lock == SCRIPT_LOCK_FD else (
-            f"exec {SCRIPT_LOCK_FD}>&{script_lock} {script_lock}>&-; "
+    def _script_alive(self) -> bool:
+        try:
+            pid = int(self._read(PID_FILE).strip())
+        except ValueError:
+            return False
+        result = subprocess.run(  # noqa: S603 — a fixed command and a number
+            ["/bin/ps", "-o", "command=", "-p", str(pid)],
+            capture_output=True, text=True, check=False,
         )
-        return ["/bin/sh", "-c", f'{moves}exec "$@"', "update", *self._command]
-
-    def _script_lock_held(self) -> bool:
-        try:
-            probe = os.open(self._project_dir / SCRIPT_LOCK_FILE, os.O_RDONLY)
-        except FileNotFoundError:
-            return False
-        try:
-            fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return True
-        else:
-            fcntl.flock(probe, fcntl.LOCK_UN)
-            return False
-        finally:
-            os.close(probe)
+        return os.path.basename(self._script) in result.stdout
 
     def _read_state(self) -> UpdateState:
         try:
@@ -149,6 +122,7 @@ class ScriptUpdateRunner(UpdateRunner):
             return UpdateState.IDLE
 
     def _write_state(self, state: UpdateState) -> None:
+        (self._project_dir / STATE_FILE).parent.mkdir(parents=True, exist_ok=True)
         (self._project_dir / STATE_FILE).write_text(state.value, encoding="utf-8")
 
     def _steps(self) -> tuple[UpdateStep, ...]:

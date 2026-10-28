@@ -4,8 +4,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.domain.ports.update_runner import UpdateRunner
-from backend.domain.value_objects.update_progress import UpdateProgress, UpdateState
+from backend.domain.value_objects.update_progress import UpdateState
 from backend.infrastructure.api import dependencies
 from backend.infrastructure.api.app import app
 from backend.infrastructure.api.dependencies import get_db_session, get_session_factory
@@ -15,7 +14,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from tests.release_support import FakeInstalledRelease, FakeReleaseSource, changelog
+from tests.release_support import (
+    RESTART_COMMAND,
+    UPDATE_COMMAND,
+    FakeInstalledRelease,
+    FakeReleaseSource,
+    FakeUpdateRunner,
+    changelog,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -31,20 +37,6 @@ IMAGE_TEXT = (
 )
 
 
-class _NoUpdateRunner(UpdateRunner):
-    """Never spawns anything: counts the starts and reports the state it is given."""
-
-    def __init__(self) -> None:
-        self.started = 0
-        self.current = UpdateState.IDLE
-
-    def start(self) -> None:
-        self.started += 1
-
-    def state(self) -> UpdateProgress:
-        return UpdateProgress(self.current)
-
-
 @pytest.fixture()
 def factory() -> sessionmaker[Session]:
     engine = create_engine(
@@ -55,14 +47,14 @@ def factory() -> sessionmaker[Session]:
 
 
 @pytest.fixture()
-def runner() -> _NoUpdateRunner:
-    return _NoUpdateRunner()
+def runner() -> FakeUpdateRunner:
+    return FakeUpdateRunner()
 
 
 @pytest.fixture()
 def client(
     factory: sessionmaker[Session],
-    runner: _NoUpdateRunner,
+    runner: FakeUpdateRunner,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[TestClient, None, None]:
     container = dependencies.get_container()
@@ -164,7 +156,16 @@ def test_updates_lists_the_changes_with_html(client: TestClient) -> None:
 
 
 @pytest.mark.integration
-def test_update_starts_and_state_is_readable(client: TestClient, runner: _NoUpdateRunner) -> None:
+def test_updates_carry_the_commands_to_run_by_hand(client: TestClient) -> None:
+    """The page shows them while the app is stopped, so it gets them before the click."""
+    status = client.get("/api/updates").json()
+
+    assert status["restart_command"] == RESTART_COMMAND
+    assert status["update_command"] == UPDATE_COMMAND
+
+
+@pytest.mark.integration
+def test_update_starts_and_state_is_readable(client: TestClient, runner: FakeUpdateRunner) -> None:
     assert client.post("/api/update").status_code == 202
     assert runner.started == 1
     assert client.get("/api/update/state").json() == {
@@ -174,7 +175,7 @@ def test_update_starts_and_state_is_readable(client: TestClient, runner: _NoUpda
 
 @pytest.mark.integration
 def test_update_during_a_long_operation_is_423(
-    client: TestClient, factory: sessionmaker[Session], runner: _NoUpdateRunner,
+    client: TestClient, factory: sessionmaker[Session], runner: FakeUpdateRunner,
 ) -> None:
     with factory() as session:
         session.add(LongOperationLockModel(id=1, started_at=datetime.now(tz=UTC)))
@@ -185,7 +186,7 @@ def test_update_during_a_long_operation_is_423(
 
 
 @pytest.mark.integration
-def test_update_while_one_runs_is_409(client: TestClient, runner: _NoUpdateRunner) -> None:
+def test_update_while_one_runs_is_409(client: TestClient, runner: FakeUpdateRunner) -> None:
     runner.current = UpdateState.RUNNING
 
     assert client.post("/api/update").status_code == 409
