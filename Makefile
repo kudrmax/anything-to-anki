@@ -1,4 +1,4 @@
-.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths card-states-check bench-db bench-review app test-macos _check_env _check_setup _up _up-worktree _down _down-worktree
+.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths card-states-check bench-db bench-review app test-macos update _db-snapshot _db-restore _check_env _check_setup _up _up-worktree _down _down-worktree
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # -include не падает если файла нет; если .env создаётся правилом ниже,
@@ -13,6 +13,7 @@ APP_PID := .pids/app.pid
 APP_LOG := .logs/app.log
 WRK_PID := .pids/worker.pid
 WRK_LOG := .logs/worker.log
+UPD_LOG := .logs/update.log
 # Сколько тиков по 0.25 с ждать остановки воркера (5 секунд).
 WORKER_STOP_TICKS := 20
 # Сколько тиков по 0.25 с ждать освобождения порта (10 секунд).
@@ -387,11 +388,25 @@ down-worktree:  ## Stop the worktree
 _down-worktree:
 	$(call stop_worktree)
 
-logs:  ## Logs of app + worker + ai_proxy in one stream
+# Без with_copy_lock: скрипт сам вызывает make down и make up, которые берут замок.
+# make — через свою переменную: строку с $(MAKE) make выполняет даже под make -n.
+UPDATE_MAKE := $(MAKE)
+update:  ## Update to the latest release (rolls back on failure)
+	@MAKE="$(UPDATE_MAKE)" scripts/update.sh
+
+# Копия базы для make update: путь к копии — последняя строка вывода.
+_db-snapshot: _check_setup
+	@.venv/bin/python -m backend.cli.db_snapshot take
+
+_db-restore: _check_setup
+	@.venv/bin/python -m backend.cli.db_snapshot restore "$(SNAPSHOT)"
+
+logs:  ## Logs of app + worker + ai_proxy + make update in one stream
 	@trap 'kill 0' INT TERM; \
 	tail -F $(APP_LOG) 2>/dev/null | sed -l 's/^/app             | /' & \
 	tail -F $(WRK_LOG) 2>/dev/null | sed -l 's/^/worker          | /' & \
 	tail -F $(AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy        | /' & \
+	tail -F $(UPD_LOG) 2>/dev/null | sed -l 's/^/update          | /' & \
 	wait
 
 logs-worktree:  ## Logs of the worktree (app + worker + ai_proxy)

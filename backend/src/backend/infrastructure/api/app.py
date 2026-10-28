@@ -29,6 +29,7 @@ from backend.infrastructure.api.routes import (
     long_operation,
     operations,
     phrases,
+    release,
     review,
     settings,
     sources,
@@ -155,6 +156,7 @@ app.include_router(generation.router)
 app.include_router(queue_router)
 app.include_router(collections.router)
 app.include_router(bootstrap.router)
+app.include_router(release.router)
 
 # Browsers must re-check the page on every open: it names the bundle of the
 # current build, and a cached copy keeps an old frontend alive after a deploy.

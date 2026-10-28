@@ -532,3 +532,10 @@ class UncommittedWorkError(DomainError):
 
     def __init__(self) -> None:
         super().__init__("Changes were made outside write(): the session has pending work")
+
+
+class UpdateAlreadyRunningError(DomainError):
+    """Raised when an update is started while the previous one still runs."""
+
+    def __init__(self) -> None:
+        super().__init__("An update is already running")

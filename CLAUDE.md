@@ -29,7 +29,7 @@
 
 1. **anything-to-anki** — приложение. Весь код пишется сюда.
    - `~/projects/anything-to-anki` — dev, работать здесь.
-   - `~/projects/anything-to-anki-prod` — prod, код не править: только `git pull && make down && make up`.
+   - `~/projects/anything-to-anki-prod` — prod, код не править. Обновляется кнопкой **Update** в приложении или `make update`; релизы выпускает скилл `release` по команде Макса.
 
 2. **anything-to-anki-dicts** (`~/projects/anything-to-anki-dicts`) — словарные данные, не код. Приложение читает папку `unified/`; она общая для dev и prod.
 
@@ -69,7 +69,7 @@ Clean Architecture: `domain ◄── application ◄── infrastructure`, `fr
 >
 > - Разработка, эксперименты, ветки — **только в dev-копии**
 > - Реальное использование продукта — **только в prod-копии**
-> - Обновление prod: `cd ../anything-to-anki-prod && git pull && make down && make up`
+> - Обновление prod: кнопка **Update** в приложении или `make update` в prod-копии (переводит на последний релиз-тег). Релиз выпускается скиллом `release` по команде Макса, мерж в master prod не обновляет
 > - Никаких правок кода в prod-копии — только `git`-операции и `make`
 > - Никаких `cp data/... ../anything-to-anki-prod/data/...` между копиями
 

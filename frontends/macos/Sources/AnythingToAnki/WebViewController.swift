@@ -4,8 +4,10 @@ import WebKit
 
 final class WebViewController: NSViewController {
     static let openSettingsEvent = "nativeopensettings"
+    static let checkForUpdatesEvent = "nativecheckforupdates"
 
     var onLoadFailed: ((String) -> Void)?
+    var onPageLoaded: (() -> Void)?
 
     private let config: AppConfig
     private lazy var filePicker = FilePickerBridge(isAppFrame: { [config] frame in
@@ -51,10 +53,19 @@ final class WebViewController: NSViewController {
 
     /// The page owns its routes, so the menu only tells it to open settings.
     func openSettings() {
+        dispatchPageEvent(Self.openSettingsEvent)
+    }
+
+    /// The page checks and shows the result itself, as its own Check for updates button does.
+    func checkForUpdates() {
+        dispatchPageEvent(Self.checkForUpdatesEvent)
+    }
+
+    private func dispatchPageEvent(_ name: String) {
         guard webView.url.map(config.isAppURL) == true else { return }
         webView.callAsyncJavaScript(
             "window.dispatchEvent(new CustomEvent(name))",
-            arguments: ["name": Self.openSettingsEvent],
+            arguments: ["name": name],
             in: nil,
             in: .page
         )
@@ -101,6 +112,10 @@ extension WebViewController: WKNavigationDelegate {
         else { return decisionHandler(.allow) }
         openExternally(url)
         decisionHandler(.cancel)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        onPageLoaded?()
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

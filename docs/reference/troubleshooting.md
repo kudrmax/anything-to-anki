@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start with the logs. They show the app server, the worker and the AI proxy in one stream:
+Start with the logs. They show the app server, the worker, the AI proxy and `make update` in one stream:
 
 ```bash
 make logs

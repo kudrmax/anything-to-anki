@@ -1,0 +1,19 @@
+/* записи changelog, как в Obsidian: версия и день, сводка, разделы */
+.entry + .entry { margin-top: var(--s8); padding-top: var(--s8); border-top: var(--bw) solid var(--line-soft); }
+.heading { display: flex; flex-direction: column; gap: var(--s2); }
+.version { font-size: var(--fs-focus); line-height: var(--lh-tight); font-weight: var(--fw-b); letter-spacing: var(--ls-tight); color: var(--tx); }
+.summary { margin-top: var(--s5); font-size: var(--fs-b); line-height: var(--lh-read); color: var(--tx); }
+.section { margin-top: var(--s7); }
+.sectionTitle { font-size: var(--fs-t); line-height: var(--lh-tight); font-weight: var(--fw-b); letter-spacing: var(--ls-tight); color: var(--tx); margin-bottom: var(--s4); }
+.body { font-size: var(--fs-m); line-height: var(--lh-read); color: var(--tx2); }
+.body p + p, .body p + ul, .body ul + p, .body p + ol, .body ol + p { margin-top: var(--s4); }
+.body ul, .body ol { padding-left: var(--s6); }
+.body ul { list-style: disc; }
+.body ol { list-style: decimal; }
+.body li::marker { color: var(--tx3); }
+.body li + li { margin-top: var(--s3); }
+.body strong { color: var(--tx); font-weight: var(--fw-b); }
+.body code { font-family: var(--mono); font-size: var(--fs-s); }
+.body a { color: var(--ac); }
+.body img { display: block; max-width: 100%; height: auto; margin-top: var(--s5); border-radius: var(--rc); border: var(--bw) solid var(--line-soft); }
+.body p:has(> img:only-child) { margin-block: var(--s5); }

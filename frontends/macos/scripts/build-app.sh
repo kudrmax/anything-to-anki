@@ -46,6 +46,7 @@ plutil -replace CFBundleVersion -string "$version" "$plist"
 plutil -replace NSServices.0.NSMenuItem.default -string "Add to $app_name" "$plist"
 plutil -replace A2AProjectDir -string "$project_dir" "$plist"
 plutil -replace A2APort -string "$port" "$plist"
+plutil -replace A2AMacosTree -string "$(git -C "$project_dir" rev-parse HEAD:frontends/macos)" "$plist"
 plutil -replace A2AMenuBarIcon -bool $([[ $menu_bar_icon == 1 ]] && echo YES || echo NO) "$plist"
 plutil -lint -s "$plist"
 

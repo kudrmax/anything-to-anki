@@ -19,7 +19,8 @@ public enum LaunchOutcome: Equatable, Sendable {
     case failed(message: String, outputTail: String)
 }
 
-/// Brings the local server up through `make`, and takes it down on exit only if it started it.
+/// Brings the local server up through `make`, and takes it down on exit only if it started it
+/// or adopted the running one from the instance it replaced on restart.
 ///
 /// Starts are single-flight, and stopping waits for an in-flight `make up`: killing it midway
 /// would leave whatever it already spawned running with nobody to stop it.
@@ -33,17 +34,29 @@ public actor ServerLauncher {
     private let runner: CommandRunner
     private let sleeper: Sleeper
     private let policy: LaunchPolicy
+    private let adoptRunningServers: Bool
     private var ownsProcesses = false
     private var inFlightStart: Task<LaunchOutcome, Never>?
     private var inFlightStop: Task<Void, Never>?
 
-    public init(projectDir: URL, probe: HealthProbe, runner: CommandRunner, sleeper: Sleeper, policy: LaunchPolicy) {
+    public init(
+        projectDir: URL,
+        probe: HealthProbe,
+        runner: CommandRunner,
+        sleeper: Sleeper,
+        policy: LaunchPolicy,
+        adoptRunningServers: Bool = false
+    ) {
         self.projectDir = projectDir
         self.probe = probe
         self.runner = runner
         self.sleeper = sleeper
         self.policy = policy
+        self.adoptRunningServers = adoptRunningServers
     }
+
+    /// Whether quitting runs `make down`: what a restarted instance has to take over.
+    public var ownsServers: Bool { ownsProcesses }
 
     public func start() async -> LaunchOutcome {
         if inFlightStop != nil { return .failed(message: "The app is quitting", outputTail: "") }
@@ -63,7 +76,10 @@ public actor ServerLauncher {
     }
 
     private func performStart() async -> LaunchOutcome {
-        if await probe.isUp() { return .ready }
+        if await probe.isUp() {
+            if adoptRunningServers { ownsProcesses = true }
+            return .ready
+        }
 
         ownsProcesses = true
         let result = await runner.run(Self.upCommand, in: projectDir)
