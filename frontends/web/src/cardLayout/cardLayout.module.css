@@ -17,8 +17,10 @@
 .divider { border: 0; border-top: var(--bw) solid var(--line); margin-block: var(--card-divider-my); }
 
 /* блок встаёт на линию текста своими буквами, а не иконкой: иконки стоят по центру своей строки */
-.block :is(.chips, .wordFacts, .cefr, .status, button) { align-items: baseline; }
-.block :is(.chips, .wordFacts, .cefr, .status, button) > svg { align-self: center; }
+.block :is(.chips, .wordFacts, .cefr, .status, .textButton) { align-items: baseline; }
+.block :is(.chips, .wordFacts, .cefr, .status, .textButton) > svg { align-self: center; }
+/* у кнопки с текстом своя высота: строка с иконкой и текстом стоит по её центру */
+.block .textButton { flex-wrap: wrap; align-content: center; }
 
 /* стиль блока */
 .block[data-kind="text"][data-size="xs"] { font-size: var(--fs-xs); }

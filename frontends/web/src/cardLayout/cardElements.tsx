@@ -30,7 +30,7 @@ function meaningLines(candidate: StoredCandidate) {
 
 function audioChip(ctx: CardBlockContext, label: string, url: string | null, title: string) {
   return url && (
-    <Chip small on={ctx.playingUrl === url} title={title} onClick={() => ctx.togglePlay(url)}>
+    <Chip small className={css.textButton} on={ctx.playingUrl === url} title={title} onClick={() => ctx.togglePlay(url)}>
       <Icon as={Volume2} size="s" />{label}{url === ctx.keyAudioUrl && <Kbd>{KEY_LABEL.audio}</Kbd>}
     </Chip>
   )
@@ -90,7 +90,7 @@ function meaningStatus({ candidate, generating, generate }: CardBlockContext): R
     <div className={css.status}>
       <StatusText status={candidate.meaning?.status} error={candidate.meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
       {action && (
-        <Button variant="accent-link" busy={generating} onClick={generate}>
+        <Button variant="accent-link" className={css.textButton} busy={generating} onClick={generate}>
           {action === 'retry' ? 'Retry' : 'Generate meaning'}
         </Button>
       )}
