@@ -20,6 +20,7 @@ from backend.domain.value_objects.card_layout import (
     CardLayout,
     ColumnWidth,
     DividerRow,
+    DividerSticks,
     ElementKind,
 )
 
@@ -51,6 +52,8 @@ class BlockRowDTO(BaseModel):
 
 class DividerRowDTO(BaseModel):
     kind: Literal["divider"] = "divider"
+    # Layouts saved before lines could choose go with the row below, as they did.
+    sticks: DividerSticks = DividerSticks.BELOW
 
 
 CardRowDTO = Annotated[BlockRowDTO | DividerRowDTO, Field(discriminator="kind")]
@@ -81,7 +84,7 @@ class CardLayoutDTO(BaseModel):
                     rows=[
                         BlockRowDTO(elements=list(row.elements))
                         if isinstance(row, BlockRow)
-                        else DividerRowDTO()
+                        else DividerRowDTO(sticks=row.sticks)
                         for row in column.rows
                     ],
                 )
@@ -101,7 +104,7 @@ class CardLayoutDTO(BaseModel):
                     rows=tuple(
                         BlockRow(tuple(row.elements))
                         if isinstance(row, BlockRowDTO)
-                        else DividerRow()
+                        else DividerRow(row.sticks)
                         for row in column.rows
                     ),
                 )
@@ -188,6 +191,15 @@ class RemoveDividerEdit(BaseModel):
     row: int
 
 
+class StickDividerEdit(BaseModel):
+    """Sets which row a line goes with when rows move to the bottom of the column."""
+
+    kind: Literal["stick_divider"] = "stick_divider"
+    column: int
+    row: int
+    sticks: DividerSticks
+
+
 class MoveRowEdit(BaseModel):
     """Moves a whole row before row `to_row` of column `to_column`, counted before the move."""
 
@@ -223,6 +235,7 @@ CardLayoutEdit = Annotated[
     | RestyleBlockEdit
     | InsertDividerEdit
     | RemoveDividerEdit
+    | StickDividerEdit
     | MoveRowEdit
     | AddColumnEdit
     | RemoveColumnEdit

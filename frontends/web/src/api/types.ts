@@ -1071,7 +1071,9 @@ export interface BlockStyle {
   space_left: BlockSpace
 }
 
-export type CardLayoutRow = { kind: 'blocks'; elements: CardElement[] } | { kind: 'divider' }
+/** К какой строке линия прилипает, когда строки уходят к низу колонки. */
+export type DividerSticks = 'above' | 'below'
+export type CardLayoutRow = { kind: 'blocks'; elements: CardElement[] } | { kind: 'divider'; sticks: DividerSticks }
 
 export interface CardLayoutColumn {
   width: ColumnWidth
@@ -1099,6 +1101,7 @@ export type CardLayoutEdit =
   | { kind: 'restyle_block'; element: CardElement } & Partial<BlockStyle>
   | { kind: 'insert_divider'; column: number; row: number }
   | { kind: 'remove_divider'; column: number; row: number }
+  | { kind: 'stick_divider'; column: number; row: number; sticks: DividerSticks }
   | { kind: 'move_row'; column: number; row: number; to_column: number; to_row: number }
   | { kind: 'add_column' }
   | { kind: 'remove_column'; column: number }

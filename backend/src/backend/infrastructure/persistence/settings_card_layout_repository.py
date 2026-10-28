@@ -20,6 +20,7 @@ from backend.domain.value_objects.card_layout import (
     CardLayout,
     ColumnWidth,
     DividerRow,
+    DividerSticks,
 )
 
 if TYPE_CHECKING:
@@ -39,6 +40,7 @@ class _StoredBlocks(BaseModel):
 
 class _StoredDivider(BaseModel):
     kind: Literal["divider"]
+    sticks: DividerSticks = DividerSticks.BELOW
 
 
 class _StoredColumn(BaseModel):
@@ -72,7 +74,7 @@ class _StoredLayout(BaseModel):
         rows: list[CardRow] = []
         for row in column.rows:
             if isinstance(row, _StoredDivider):
-                rows.append(DividerRow())
+                rows.append(DividerRow(row.sticks))
                 continue
             known = tuple(CardElement(e) for e in row.elements if e in _KNOWN_ELEMENTS)
             if known:

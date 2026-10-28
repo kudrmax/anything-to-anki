@@ -1,4 +1,4 @@
-import type { BlockAlign, BlockSide, BlockSize, BlockSpace, BlockTone, BlockVAlign, CardElement, ColumnWidth } from '@/api/types'
+import type { BlockAlign, BlockSide, BlockSize, BlockSpace, BlockTone, BlockVAlign, CardElement, ColumnWidth, DividerSticks } from '@/api/types'
 
 export const ELEMENT_LABEL: Record<CardElement, string> = {
   target: 'Target word',
@@ -76,6 +76,11 @@ export const SPACE_SIDES: { side: BlockSide; label: string }[] = [
   { side: 'bottom', label: 'Below' },
   { side: 'left', label: 'Left' },
   { side: 'right', label: 'Right' },
+]
+
+export const STICKS_OPTIONS: { value: DividerSticks; label: string }[] = [
+  { value: 'above', label: 'Row above' },
+  { value: 'below', label: 'Row below' },
 ]
 
 export const WIDTH_OPTIONS: { value: ColumnWidth; label: string }[] = [

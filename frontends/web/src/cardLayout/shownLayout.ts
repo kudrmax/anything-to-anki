@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { CardElement, CardLayoutView, ColumnWidth } from '@/api/types'
+import type { CardElement, CardLayoutView, ColumnWidth, DividerSticks } from '@/api/types'
 import type { CardBlockContext } from './CardBlockContext'
 import { CARD_ELEMENTS } from './cardElements'
 import { inRowOrder, isEmptyBlock, styleOf } from './layoutView'
@@ -12,7 +12,7 @@ export interface ShownBlock {
 }
 
 export type ShownRow =
-  | { kind: 'divider'; index: number }
+  | { kind: 'divider'; index: number; sticks: DividerSticks }
   | { kind: 'blocks'; index: number; blocks: ShownBlock[] }
 
 export interface ShownColumn {
@@ -21,7 +21,8 @@ export interface ShownColumn {
   width: ColumnWidth
   rows: ShownRow[]
   /**
-   * С какой строки всё уходит к низу колонки: с первой строки, где есть блок «Bottom», или с линии прямо над ней.
+   * С какой строки всё уходит к низу колонки: с первой строки, где есть блок «Bottom», или с линии прямо над ней,
+   * если линия прилипает к строке под ней.
    * Как «Right» прижимает блок к правому краю строки. null — к низу ничего не прижато.
    */
   bottomFrom: number | null
@@ -38,7 +39,7 @@ export function shownColumns(view: CardLayoutView, ctx: CardBlockContext, keepEm
     let pendingDivider: ShownRow | null = null
     column.rows.forEach((row, rowIndex) => {
       if (row.kind === 'divider') {
-        if (rows.length > 0) pendingDivider = { kind: 'divider', index: rowIndex }
+        if (rows.length > 0) pendingDivider = { kind: 'divider', index: rowIndex, sticks: row.sticks }
         return
       }
       const blocks = inRowOrder(view, row.elements
@@ -50,7 +51,9 @@ export function shownColumns(view: CardLayoutView, ctx: CardBlockContext, keepEm
       rows.push({ kind: 'blocks', index: rowIndex, blocks })
     })
     const firstBottom = rows.findIndex(row => row.kind === 'blocks' && row.blocks.some(b => styleOf(view, b.element)?.valign === 'bottom'))
-    const bottomFrom = firstBottom < 0 ? null : rows[firstBottom - 1]?.kind === 'divider' ? firstBottom - 1 : firstBottom
+    const above = rows[firstBottom - 1]
+    const lineGoesDown = above?.kind === 'divider' && above.sticks === 'below'
+    const bottomFrom = firstBottom < 0 ? null : lineGoesDown ? firstBottom - 1 : firstBottom
     return { index, width: column.width, rows, bottomFrom }
   })
   const shown = keepEmptyColumns ? columns : columns.filter(column => column.rows.length > 0)

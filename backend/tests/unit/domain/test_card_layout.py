@@ -16,6 +16,7 @@ from backend.domain.value_objects.card_layout import (
     CardRow,
     ColumnWidth,
     DividerRow,
+    DividerSticks,
 )
 
 E = CardElement
@@ -213,3 +214,15 @@ class TestAlwaysShown:
     def test_saved_layout_that_has_it_stays_as_it_is(self) -> None:
         saved = (CardColumn(ColumnWidth.NORMAL, (blocks(E.PICTURE_CHOICE, E.TARGET),)),)
         assert rows(CardLayout.restored(saved, DEFAULT_CARD_LAYOUT.styles)) == saved[0].rows
+
+
+class TestDividerSticks:
+    def test_a_line_goes_with_the_row_below_until_told_otherwise(self) -> None:
+        card = layout((blocks(E.TARGET), DividerRow(), blocks(E.TRANSLATION)))
+        assert rows(card)[1] == DividerRow(DividerSticks.BELOW)
+        stuck = card.stick_divider(0, 1, DividerSticks.ABOVE)
+        assert rows(stuck)[1] == DividerRow(DividerSticks.ABOVE)
+
+    def test_only_a_line_sticks(self) -> None:
+        with pytest.raises(CardLayoutEditError):
+            layout((blocks(E.TARGET),)).stick_divider(0, 0, DividerSticks.ABOVE)

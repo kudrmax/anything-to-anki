@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import type { CardLayoutEdit, CardLayoutView } from '@/api/types'
 import { kindOf, styleOf } from '@/cardLayout'
 import { Button, Segmented, Switch } from '@/ui'
-import { ALIGN_OPTIONS, ELEMENT_HINT, ELEMENT_LABEL, SIZE_OPTIONS, SPACE_OPTIONS, SPACE_SIDES, TONE_OPTIONS, VALIGN_OPTIONS } from './labels'
+import { ALIGN_OPTIONS, ELEMENT_HINT, ELEMENT_LABEL, SIZE_OPTIONS, SPACE_OPTIONS, SPACE_SIDES, STICKS_OPTIONS, TONE_OPTIONS, VALIGN_OPTIONS } from './labels'
 import type { LayoutSelection } from '@/cardLayout'
 import css from './cardLayoutEditor.module.css'
 
@@ -26,10 +26,17 @@ function Option({ label, children }: { label: string; children: ReactNode }) {
 /** Настройки выбранного на превью: стиль блока или удаление линии. */
 export function BlockPanel({ view, selection, edit, editAndDeselect }: BlockPanelProps) {
   if (selection.kind === 'divider') {
+    const { column, row } = selection
+    const line = view.layout.columns[column]?.rows[row]
     return (
       <div className={css.panel}>
         <p className={css.panelTitle}>Divider</p>
         <p className={css.panelHint}>A line across the column.</p>
+        {line?.kind === 'divider' && (
+          <Option label="Sticks to">
+            <Segmented value={line.sticks} options={STICKS_OPTIONS} onChange={sticks => edit({ kind: 'stick_divider', column, row, sticks })} />
+          </Option>
+        )}
         <div className={css.panelActions}>
           <Button variant="danger-link" onClick={() => editAndDeselect({ kind: 'remove_divider', column: selection.column, row: selection.row })}>
             Remove divider

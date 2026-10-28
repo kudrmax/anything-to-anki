@@ -6,7 +6,7 @@ import { shownColumns } from './shownLayout'
 
 const STYLE = { size: 'm', tone: 'primary', bold: false, align: 'start', valign: 'baseline', space_top: 'none', space_right: 'none', space_bottom: 'none', space_left: 'none' } as const
 const ELEMENTS: CardElement[] = ['target', 'translation', 'picture', 'synonyms']
-const DIVIDER: CardLayoutRow = { kind: 'divider' }
+const DIVIDER: CardLayoutRow = { kind: 'divider', sticks: 'below' }
 const blocks = (...elements: CardElement[]): CardLayoutRow => ({ kind: 'blocks', elements })
 
 const view = (...columns: CardLayoutRow[][]): CardLayoutView => ({
@@ -67,5 +67,10 @@ describe('shownColumns', () => {
     expect(noLine.bottomFrom).toBe(1)
     const [none] = shownColumns(view([blocks('target')]), ctx)
     expect(none.bottomFrom).toBeNull()
+  })
+
+  it('leaves a line that sticks to the row above where it is: only the rows below go down', () => {
+    const [column] = shownColumns(view([blocks('target'), { kind: 'divider', sticks: 'above' }, blocks('translation')]), ctx)
+    expect(column.bottomFrom).toBe(2)
   })
 })

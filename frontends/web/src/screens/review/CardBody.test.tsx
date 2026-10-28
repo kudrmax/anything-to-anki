@@ -55,7 +55,7 @@ describe('CardBody', () => {
   const shown = (column: Element) => Array.from(column.querySelectorAll('[data-element]')).map(block => block.getAttribute('data-element'))
 
   it('shows the elements where the layout puts them, rows of blocks side by side', () => {
-    render(view([blocks('translation'), { kind: 'divider' }, blocks('target')], [blocks('transcription', 'synonyms')]))
+    render(view([blocks('translation'), { kind: 'divider', sticks: 'below' }, blocks('target')], [blocks('transcription', 'synonyms')]))
 
     const [first, , second] = Array.from(host.children)
     expect(shown(first)).toEqual(['translation', 'target'])
@@ -90,7 +90,7 @@ describe('CardBody', () => {
       labelOf: element => `Label ${element}`,
       setRoot: () => {},
     }
-    const editedView = view([blocks('target'), { kind: 'divider' }, blocks('translation')])
+    const editedView = view([blocks('target'), { kind: 'divider', sticks: 'below' }, blocks('translation')])
     act(() => root.render(
       <CardLayoutEditingContext.Provider value={editing}>
         <CardBody view={editedView} columns={shownColumns(editedView, ctx())} detailsOpen={false} onToggleDetails={() => {}} />
@@ -106,7 +106,7 @@ describe('CardBody', () => {
   })
 
   it('on the review is a plain card: nothing to pick or drag', () => {
-    render(view([blocks('target'), { kind: 'divider' }, blocks('translation')]))
+    render(view([blocks('target'), { kind: 'divider', sticks: 'below' }, blocks('translation')]))
     expect([host.querySelector('[role="button"][data-element]'), host.querySelector('hr')?.getAttribute('role')]).toEqual([null, null])
   })
 })

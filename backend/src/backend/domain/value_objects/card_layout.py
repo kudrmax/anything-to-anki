@@ -83,6 +83,13 @@ class BlockSpace(StrEnum):
     L = "l"
 
 
+class DividerSticks(StrEnum):
+    """Which row a line goes with when rows move to the bottom of the column."""
+
+    ABOVE = "above"
+    BELOW = "below"
+
+
 class ColumnWidth(StrEnum):
     NARROW = "narrow"
     NORMAL = "normal"
@@ -138,6 +145,8 @@ class BlockRow:
 @dataclass(frozen=True)
 class DividerRow:
     """A line across the column."""
+
+    sticks: DividerSticks = DividerSticks.BELOW
 
 
 type CardRow = BlockRow | DividerRow
@@ -283,6 +292,14 @@ class CardLayout:
         if not 0 <= row < len(rows) or not isinstance(rows[row], DividerRow):
             raise CardLayoutEditError(f"Row {row} of column {column} is not a divider")
         del rows[row]
+        return self._built(columns)
+
+    def stick_divider(self, column: int, row: int, sticks: DividerSticks) -> CardLayout:
+        columns = self._editable()
+        rows = self._rows_at(columns, column)
+        if not 0 <= row < len(rows) or not isinstance(rows[row], DividerRow):
+            raise CardLayoutEditError(f"Row {row} of column {column} is not a divider")
+        rows[row] = DividerRow(sticks)
         return self._built(columns)
 
     def move_row(self, column: int, row: int, to: BlockPlace) -> CardLayout:

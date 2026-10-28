@@ -15,6 +15,7 @@ from backend.application.dto.card_layout_dtos import (
     ResetLayoutEdit,
     ResizeColumnEdit,
     RestyleBlockEdit,
+    StickDividerEdit,
 )
 from backend.domain.value_objects.card_layout import DEFAULT_CARD_LAYOUT, BlockPlace
 
@@ -58,6 +59,8 @@ class ManageCardLayoutUseCase:
                 return layout.insert_divider(edit.column, edit.row)
             case RemoveDividerEdit():
                 return layout.remove_divider(edit.column, edit.row)
+            case StickDividerEdit():
+                return layout.stick_divider(edit.column, edit.row, edit.sticks)
             case MoveRowEdit():
                 to = BlockPlace(edit.to_column, edit.to_row)
                 return layout.move_row(edit.column, edit.row, to)

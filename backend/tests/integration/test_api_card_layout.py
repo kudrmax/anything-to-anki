@@ -66,7 +66,7 @@ class TestCardLayoutAPI:
         view = client.get("/api/card-layout").json()
         assert view["hidden"] == []
         assert first_column(view)[:2] == [
-            {"kind": "blocks", "elements": ["target"]}, {"kind": "divider"},
+            {"kind": "blocks", "elements": ["target"]}, {"kind": "divider", "sticks": "below"},
         ]
         assert {"element": "picture", "kind": "media", "can_hide": True} in view["elements"]
         always_shown = {"element": "picture_choice", "kind": "media", "can_hide": False}
@@ -110,6 +110,13 @@ class TestCardLayoutAPI:
             json={"kind": "restyle_block", "element": "tts", "valign": "bottom"},
         ).json()
         assert style_of(view, "tts")["valign"] == "bottom"
+
+    def test_stick_a_line_to_the_row_above(self, client: TestClient) -> None:
+        view = client.post(
+            "/api/card-layout/edits",
+            json={"kind": "stick_divider", "column": 0, "row": 1, "sticks": "above"},
+        ).json()
+        assert first_column(view)[1] == {"kind": "divider", "sticks": "above"}
 
     def test_reset(self, client: TestClient) -> None:
         default = client.get("/api/card-layout").json()
