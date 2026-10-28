@@ -90,10 +90,10 @@ If they differ, ask Max to restart the dev copy and wait. Do not restart it your
 
 - Use a headless browser (Playwright or similar). Never the browser pane Max is watching.
 - Every big feature and every notable item gets a screenshot.
-- On each screenshot draw an arrow or a frame where to look, with `annotate.js` from this folder. Inject the file into the page, then call it before the screenshot:
+- On each screenshot highlight where to look with `annotate.js` from this folder: it dims the rest of the page and rings the element in the app's accent colour, with an optional caption in the app's font. Never draw red frames or outlined text. Inject the file into the page, then call it before the screenshot:
 
 ```js
-window.__annotate({ selector: '[data-testid="…"]', kind: 'frame', label: 'Optional text' })  // or kind: 'arrow'
+window.__annotate({ selector: '[data-testid="…"]', label: 'Optional caption' })
 // take the screenshot
 window.__clearAnnotations()
 ```

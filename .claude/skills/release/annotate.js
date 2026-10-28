@@ -1,18 +1,21 @@
-// Draws an arrow or a frame over an element before a screenshot.
-// Inject with the page's evaluate, then call window.__annotate({selector, kind, label}).
+// Points at an element before a screenshot: the rest of the page is dimmed, the element keeps
+// its light and gets a soft ring in the app's accent colour; an optional caption sits next to it
+// in the app's own type. Inject with the page's evaluate, then call
+// window.__annotate({selector, label}).
 (() => {
-  const COLOR = '#e5484d'
-  const STROKE = 3
-  const PAD = 6
-  const ARROW_LENGTH = 70
-  const ARROW_HEAD = 14
-  const LABEL_SIZE = 16
-  // Room between a label and what it points at.
-  const LABEL_GAP = 8
+  // How much the page around the element is dimmed.
+  const DIM = 0.6
+  // Room between the element and the ring.
+  const PAD = 14
+  const RADIUS = 14
+  const RING = 2
+  const GLOW = 12
+  const CAPTION_SIZE = 14
+  const CAPTION_PAD_X = 12
+  const CAPTION_PAD_Y = 7
+  const CAPTION_GAP = 12
   // Nothing is drawn closer than this to the viewport's edge.
-  const MARGIN = 8
-  // How far right the arrow's tail leans, as a share of its length.
-  const ARROW_SLANT = 0.6
+  const MARGIN = 12
   const OVERLAY_ID = '__annotations'
   const SVG_NS = 'http://www.w3.org/2000/svg'
 
@@ -22,79 +25,61 @@
     return node
   }
 
-  const overlay = () => {
-    let root = document.getElementById(OVERLAY_ID)
-    if (root) return root
-    root = svg('svg', { id: OVERLAY_ID, width: '100%', height: '100%' })
-    root.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647'
-    document.body.appendChild(root)
-    return root
-  }
-
-  // Every label sits inside the viewport and off the target: below it when there is room,
-  // otherwise above it.
-  const label = (root, text, box, anchorX, anchorY) => {
-    if (!text) return
-    const node = svg('text', {
-      x: 0, y: 0, fill: COLOR, 'font-size': LABEL_SIZE, 'font-weight': 600,
-      'font-family': 'system-ui, sans-serif', 'paint-order': 'stroke', stroke: '#fff', 'stroke-width': 4,
-    })
-    node.textContent = text
-    root.appendChild(node)
-    const { width, height } = node.getBBox()
-    const x = clamp(anchorX, MARGIN, window.innerWidth - MARGIN - width)
-    let y = clamp(anchorY, MARGIN + height, window.innerHeight - MARGIN)
-    if (overlaps({ left: x, right: x + width, top: y - height, bottom: y }, box)) {
-      const above = box.top - PAD - LABEL_GAP
-      const below = box.bottom + PAD + LABEL_GAP + height
-      y = above - height >= MARGIN ? above : clamp(below, MARGIN + height, window.innerHeight - MARGIN)
-    }
-    node.setAttribute('x', String(x))
-    node.setAttribute('y', String(y))
-  }
+  const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 
   const clamp = (value, min, max) => Math.max(min, Math.min(value, max))
 
-  const overlaps = (a, b) =>
-    a.left < b.right + PAD && a.right > b.left - PAD && a.top < b.bottom + PAD && a.bottom > b.top - PAD
-
-  const frame = (root, box, text) => {
+  const spotlight = (root, hole, accent) => {
+    const mask = svg('mask', { id: `${OVERLAY_ID}-hole` })
+    mask.appendChild(svg('rect', { x: 0, y: 0, width: '100%', height: '100%', fill: '#fff' }))
+    mask.appendChild(svg('rect', { ...hole, rx: RADIUS, fill: '#000' }))
+    const glow = svg('filter', { id: `${OVERLAY_ID}-glow`, x: '-50%', y: '-50%', width: '200%', height: '200%' })
+    glow.appendChild(svg('feDropShadow', { dx: 0, dy: 0, stdDeviation: GLOW / 2, 'flood-color': accent, 'flood-opacity': 0.6 }))
+    const defs = svg('defs', {})
+    defs.append(mask, glow)
+    root.appendChild(defs)
     root.appendChild(svg('rect', {
-      x: box.left - PAD, y: box.top - PAD, width: box.width + 2 * PAD, height: box.height + 2 * PAD,
-      rx: 6, fill: 'none', stroke: COLOR, 'stroke-width': STROKE,
+      x: 0, y: 0, width: '100%', height: '100%', fill: '#000', 'fill-opacity': DIM, mask: `url(#${OVERLAY_ID}-hole)`,
     }))
-    label(root, text, box, box.left - PAD, box.top - PAD - LABEL_GAP)
+    root.appendChild(svg('rect', {
+      ...hole, rx: RADIUS, fill: 'none', stroke: accent, 'stroke-width': RING, filter: `url(#${OVERLAY_ID}-glow)`,
+    }))
   }
 
-  // The arrow comes from below the target, or from above when the target is near the bottom.
-  const arrow = (root, box, text) => {
-    const fromBelow = box.bottom + PAD + ARROW_LENGTH + LABEL_SIZE + MARGIN <= window.innerHeight
-    const tipX = box.left + box.width / 2
-    const tipY = fromBelow ? box.bottom + PAD : box.top - PAD
-    const tailX = clamp(tipX + ARROW_LENGTH * ARROW_SLANT, MARGIN, window.innerWidth - MARGIN)
-    const tailY = fromBelow ? tipY + ARROW_LENGTH : tipY - ARROW_LENGTH
-    root.appendChild(svg('line', {
-      x1: tailX, y1: tailY, x2: tipX, y2: tipY, stroke: COLOR, 'stroke-width': STROKE, 'stroke-linecap': 'round',
-    }))
-    const angle = Math.atan2(tipY - tailY, tipX - tailX)
-    const wing = (offset) => [
-      tipX - ARROW_HEAD * Math.cos(angle + offset),
-      tipY - ARROW_HEAD * Math.sin(angle + offset),
-    ]
-    const [ax, ay] = wing(Math.PI / 6)
-    const [bx, by] = wing(-Math.PI / 6)
-    root.appendChild(svg('polygon', { points: `${tipX},${tipY} ${ax},${ay} ${bx},${by}`, fill: COLOR }))
-    label(root, text, box, tailX + LABEL_GAP, fromBelow ? tailY + LABEL_SIZE : tailY - LABEL_GAP)
+  // The caption sits below the element when there is room, otherwise above it.
+  const caption = (root, text, hole) => {
+    if (!text) return
+    const group = svg('g', {})
+    const pill = svg('rect', { rx: 8, fill: token('--card'), stroke: token('--line'), 'stroke-width': 1 })
+    const words = svg('text', {
+      fill: token('--tx'), 'font-size': CAPTION_SIZE, 'font-weight': 500,
+      'font-family': getComputedStyle(document.body).fontFamily, 'dominant-baseline': 'middle',
+    })
+    words.textContent = text
+    group.append(pill, words)
+    root.appendChild(group)
+    const width = words.getBBox().width + 2 * CAPTION_PAD_X
+    const height = CAPTION_SIZE + 2 * CAPTION_PAD_Y
+    const x = clamp(hole.x, MARGIN, window.innerWidth - MARGIN - width)
+    const below = hole.y + hole.height + CAPTION_GAP
+    const y = below + height <= window.innerHeight - MARGIN ? below : hole.y - CAPTION_GAP - height
+    Object.entries({ x, y, width, height }).forEach(([key, value]) => pill.setAttribute(key, String(value)))
+    words.setAttribute('x', String(x + CAPTION_PAD_X))
+    words.setAttribute('y', String(y + height / 2))
   }
 
-  window.__annotate = ({ selector, kind = 'arrow', label: text }) => {
+  window.__annotate = ({ selector, label: text }) => {
     const target = document.querySelector(selector)
     if (!target) throw new Error(`annotate: no element for ${selector}`)
     target.scrollIntoView({ block: 'center', inline: 'center' })
     const box = target.getBoundingClientRect()
-    const root = overlay()
-    if (kind === 'frame') frame(root, box, text)
-    else arrow(root, box, text)
+    window.__clearAnnotations()
+    const root = svg('svg', { id: OVERLAY_ID, width: '100%', height: '100%' })
+    root.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647'
+    document.body.appendChild(root)
+    const hole = { x: box.left - PAD, y: box.top - PAD, width: box.width + 2 * PAD, height: box.height + 2 * PAD }
+    spotlight(root, hole, token('--ac'))
+    caption(root, text, hole)
   }
 
   window.__clearAnnotations = () => document.getElementById(OVERLAY_ID)?.remove()
