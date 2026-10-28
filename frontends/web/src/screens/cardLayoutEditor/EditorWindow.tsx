@@ -2,16 +2,20 @@ import type { CSSProperties, PointerEvent } from 'react'
 import { Columns3, Minus, Monitor, Smartphone, X } from 'lucide-react'
 import type { ColumnWidth } from '@/api/types'
 import type { DragItem } from '@/cardLayout'
-import { Button, Icon, IconButton, Select, Text } from '@/ui'
+import { Button, Chip, Icon, IconButton, Select, Text } from '@/ui'
 import { BlockPanel } from './BlockPanel'
 import { ELEMENT_LABEL, WIDTH_OPTIONS } from './labels'
 import { EDITOR_WINDOW_ATTR, TRAY_ATTR } from './layoutDrag'
+import { SAMPLE_PARTS, type SamplePart } from './sampleParts'
 import type { CardLayoutEditor } from './useCardLayoutEditor'
 import { useFloatingWindow } from './useFloatingWindow'
 import css from './cardLayoutEditor.module.css'
 
 interface EditorWindowProps {
   editor: CardLayoutEditor
+  /** Что есть у карточки образца. */
+  parts: ReadonlySet<SamplePart>
+  onTogglePart: (part: SamplePart) => void
   startDrag: (item: DragItem) => (e: PointerEvent) => void
   /** Над окном скрытых тянут блок или линию: отпустить — спрятать. */
   trayActive: boolean
@@ -21,7 +25,7 @@ interface EditorWindowProps {
 }
 
 /** Окно поверх экрана ревью: выбранный блок, скрытые блоки, колонки. */
-export function EditorWindow({ editor, startDrag, trayActive, phone, onTogglePhone, onDone }: EditorWindowProps) {
+export function EditorWindow({ editor, parts, onTogglePart, startDrag, trayActive, phone, onTogglePhone, onDone }: EditorWindowProps) {
   const { view, selection, select, edit, editAndDeselect } = editor
   const { offset, startMove } = useFloatingWindow()
   if (!view) return null
@@ -40,6 +44,17 @@ export function EditorWindow({ editor, startDrag, trayActive, phone, onTogglePho
       </div>
 
       <div className={css.windowBody}>
+        {!phone && (
+          <div className={css.section}>
+            <p className={css.sectionLabel}>Sample card has</p>
+            <div className={css.trayItems}>
+              {SAMPLE_PARTS.map(({ part, label }) => (
+                <Chip key={part} small on={parts.has(part)} onClick={() => onTogglePart(part)}>{label}</Chip>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!phone && (
           <div {...{ [TRAY_ATTR]: '' }} className={trayActive ? `${css.tray} ${css.trayActive}` : css.tray}>
             <p className={css.sectionLabel}>Hidden blocks</p>

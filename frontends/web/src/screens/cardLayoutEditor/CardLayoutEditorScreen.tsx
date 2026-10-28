@@ -10,7 +10,9 @@ import { EditorWindow } from './EditorWindow'
 import { ELEMENT_LABEL } from './labels'
 import { EDITOR_WINDOW_ATTR, editFor, type DropTarget } from './layoutDrag'
 import { CARD_LAYOUT_PATH, PHONE_FRAME, PHONE_FRAME_PARAM } from './paths'
-import { SAMPLE_REVIEW_API, SAMPLE_SCOPE } from './sampleReview'
+import { pictureSuggestionsShownPref } from '@/lib/preferences'
+import { DEFAULT_SAMPLE_PARTS, samplePartsKey, toggleSamplePart, type SamplePart } from './sampleParts'
+import { SAMPLE_SCOPE, sampleReviewApi } from './sampleReview'
 import { useBlockedActions } from './useBlockedActions'
 import { useCardLayoutEditor } from './useCardLayoutEditor'
 import { useLayoutDrag } from './useLayoutDrag'
@@ -21,11 +23,12 @@ const SETTINGS_SECTION = `${SETTINGS_PATH}?section=card-layout`
 const KEEPS_SELECTION = `[${BLOCK_ATTR}], [${ROW_ATTR}], [${EDITOR_WINDOW_ATTR}]`
 
 /** Экран ревью на образце: тот же код, что у ревью; решать на нём нечего, работают только кнопки вида. */
-function SampleReview() {
+function SampleReview({ parts }: { parts: ReadonlySet<SamplePart> }) {
   const screenRef = useRef<HTMLDivElement>(null)
   useBlockedActions(screenRef)
+  const api = useMemo(() => sampleReviewApi(parts), [parts])
   return (
-    <ReviewApiContext.Provider value={SAMPLE_REVIEW_API}>
+    <ReviewApiContext.Provider value={api}>
       <div ref={screenRef} className={css.screen}>
         <ReviewView scope={SAMPLE_SCOPE} requestedId={null} />
       </div>
@@ -53,6 +56,13 @@ export function CardLayoutEditorScreen() {
   const { view, selection, select, edit } = editor
   const rootRef = useRef<HTMLElement | null>(null)
   const [phone, setPhone] = useState(false)
+  const [parts, setParts] = useState(DEFAULT_SAMPLE_PARTS)
+  // Подобранные картинки на ревью видны, когда включены их подсказки: выбор картинки их и включает, как кнопка в шапке.
+  const togglePart = (part: SamplePart) => {
+    const next = toggleSamplePart(parts, part)
+    if (next.has('picture_choice')) pictureSuggestionsShownPref.write(true)
+    setParts(next)
+  }
 
   const onClick = useCallback((item: DragItem) => {
     if (item.kind === 'block') select({ kind: 'block', element: item.element })
@@ -90,7 +100,7 @@ export function CardLayoutEditorScreen() {
     setRoot: root => { rootRef.current = root },
   }), [selection, drag, start, onClick])
 
-  if (params.get(PHONE_FRAME_PARAM) === PHONE_FRAME) return <SampleReview />
+  if (params.get(PHONE_FRAME_PARAM) === PHONE_FRAME) return <SampleReview parts={DEFAULT_SAMPLE_PARTS} />
 
   const target = drag?.target
   const line = target && target.kind !== 'tray' ? target.line : null
@@ -98,9 +108,11 @@ export function CardLayoutEditorScreen() {
   return (
     <CardLayoutViewContext.Provider value={view}>
       <CardLayoutEditingContext.Provider value={editing}>
-        {phone ? <PhoneReview /> : <SampleReview />}
+        {phone ? <PhoneReview /> : <SampleReview key={samplePartsKey(parts)} parts={parts} />}
         <EditorWindow
           editor={editor}
+          parts={parts}
+          onTogglePart={togglePart}
           startDrag={start}
           trayActive={target?.kind === 'tray'}
           phone={phone}
