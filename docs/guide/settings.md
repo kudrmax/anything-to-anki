@@ -49,7 +49,7 @@ The section shows a sample card. On it:
 - **Drag a block** between rows to give it a row of its own, or next to another block to put them in one row. Blocks in a row wrap when the column is too narrow.
 - **Drag a block to Hidden blocks** to hide it. Drag it back onto the card to show it again; it keeps its style.
 - **Drag Divider** from **Add** between rows to add a line across the column. Drag a line to move it, or to **Hidden blocks** to remove it.
-- **Click a block** to change how it looks: **Size** (XS to XL), **Colour** (**Main**, **Grey**, **Light grey**, **Accent**) and **Bold** for text; **Size** for the video frame and picture; **In its row** (**Left** or **Right**) and **Vertically** (**Top**, **Middle**, **Bottom**) for every block.
+- **Click a block** to change how it looks: **Size** (XS to XL), **Colour** (**Main**, **Grey**, **Light grey**, **Accent**) and **Bold** for text; **Size** for the video frame and picture; **In its row** (**Left** or **Right**) and **Vertically** (**Text line**, the default, puts blocks of different sizes on one line of text; **Top**, **Middle**, **Bottom**) for every block. Blocks set to **Right** stand together at the right end of the row.
 - **Columns**: up to three. The menu above each column sets its width (**Narrow**, **Normal**, **Wide**); × removes the column and moves its blocks to the column before it. **Add column** adds one on the right.
 
 **Reset to default** brings back the original layout. On a phone the first column is shown on the card and the other columns fold into **Details**.
