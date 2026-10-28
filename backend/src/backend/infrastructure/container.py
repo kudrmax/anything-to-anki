@@ -17,6 +17,7 @@ from backend.application.use_cases.add_source import AddSourceUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
 from backend.application.use_cases.change_level import ChangeLevelUseCase
+from backend.application.use_cases.check_for_updates import CheckForUpdatesUseCase
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.application.use_cases.create_topic import CreateTopicUseCase
 from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
@@ -27,6 +28,7 @@ from backend.application.use_cases.describe_input import DescribeInputUseCase
 from backend.application.use_cases.favorite_collection import FavoriteCollectionUseCase
 from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
+from backend.application.use_cases.get_changelog import GetChangelogUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
@@ -99,6 +101,7 @@ from backend.application.utils.user_vocabulary import UserVocabulary
 from backend.domain.ports.cefr_source import (
     CEFRSource,  # noqa: TC001 — used at runtime in list[CEFRSource]
 )
+from backend.domain.services.changelog_parser import ChangelogParser
 from backend.domain.services.cloze_builder import ClozeBuilder
 from backend.domain.services.input_kind_classifier import InputKindClassifier
 from backend.domain.services.phrasal_verb_detector import PhrasalVerbDetector
@@ -131,6 +134,8 @@ from backend.infrastructure.adapters.local_media_files import LocalMediaFiles
 from backend.infrastructure.adapters.pillow_card_picture_encoder import PillowCardPictureEncoder
 from backend.infrastructure.adapters.regex_format_detector import RegexFormatDetector
 from backend.infrastructure.adapters.regex_text_cleaner import RegexTextCleaner
+from backend.infrastructure.adapters.release.file_installed_release import FileInstalledRelease
+from backend.infrastructure.adapters.release.git_release_source import GitReleaseSource
 from backend.infrastructure.adapters.slang_normalizer import SlangNormalizer
 from backend.infrastructure.adapters.spacy_document_analyzer import SpacyDocumentAnalyzer
 from backend.infrastructure.adapters.spacy_stop_words import SpacyStopWords
@@ -295,6 +300,8 @@ if TYPE_CHECKING:
     from backend.application.utils.requested_cards import RequestedCards
     from backend.domain.ports.clock import Clock
     from backend.domain.ports.format_reader import FormatReader
+    from backend.domain.ports.installed_release import InstalledRelease
+    from backend.domain.ports.release_source import ReleaseSource
     from backend.domain.ports.review_order_store import ReviewOrderStore
     from backend.domain.ports.target_image_source import TargetImageSource
     from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
@@ -333,6 +340,8 @@ class Container:
         self._text_cleaner = RegexTextCleaner()
         self._text_normalizer = SlangNormalizer()
         project_root = Path(__file__).resolve().parents[4]
+        self._installed_release: InstalledRelease = FileInstalledRelease(project_root)
+        self._release_source: ReleaseSource = GitReleaseSource(project_root)
 
         # Dictionary cache — DICTIONARIES_DIR is required
         dictionaries_dir_env = os.environ.get("DICTIONARIES_DIR")
@@ -1195,6 +1204,28 @@ class Container:
             scope_resolver=self._scope_resolver(session),
             rebuilder=self._source_rebuilder(session),
             runner=self.long_operation_runner(session),
+        )
+
+    def installed_release(self) -> InstalledRelease:
+        return self._installed_release
+
+    def release_source(self) -> ReleaseSource:
+        return self._release_source
+
+    def check_for_updates_use_case(self, session: Session) -> CheckForUpdatesUseCase:
+        return CheckForUpdatesUseCase(
+            installed=self._installed_release,
+            source=self._release_source,
+            settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
+            clock=self._clock,
+            parser=ChangelogParser(),
+        )
+
+    def get_changelog_use_case(self, session: Session) -> GetChangelogUseCase:
+        return GetChangelogUseCase(
+            installed=self._installed_release,
+            settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
+            parser=ChangelogParser(),
         )
 
     def get_anki_status_use_case(self, session: Session) -> GetAnkiStatusUseCase:
