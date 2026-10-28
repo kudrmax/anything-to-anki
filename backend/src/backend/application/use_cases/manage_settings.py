@@ -9,6 +9,7 @@ from backend.application.dto.settings_dtos import (
     UpdateSettingsRequest,
 )
 from backend.application.utils.settings_writer import (
+    ANALYSIS_KEYS,
     BOOL_KEYS,
     FLOAT_KEYS,
     INT_KEYS,
@@ -71,6 +72,11 @@ class ManageSettingsUseCase:
             with self._unit_of_work.write():
                 writer.write(request)
         return self.get_settings()
+
+    def analysis_keys(self) -> list[str]:
+        """Settings whose change analyses every source again: a long operation the user
+        should agree to before it starts."""
+        return list(ANALYSIS_KEYS)
 
     def frequent_word_threshold_options(self) -> list[FrequentWordThresholdDTO]:
         auto_zipf = self._threshold_resolver.auto_zipf()

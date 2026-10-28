@@ -55,7 +55,7 @@ The AI proxy finds `claude` on your `PATH`, or at `/opt/homebrew/bin/claude`. If
 | **Launch Anki with AnkiConnect to sync** | Start Anki. Check that the AnkiConnect add-on is installed and enabled |
 | **Export to Anki is blocked: cards would lose their content** | Your own note type is missing or lacks fields. See [Using your own note type](../guide/anki-export.md#using-your-own-note-type) |
 | Some cards **failed** | See `make logs` for Anki's reason |
-| A part of the card doesn't show in Anki | You renamed a field after the note type was created. Re-paste the templates from **Settings → Anki → Card template** |
+| A part of the card doesn't show in Anki | You renamed a field after the note type was created. Re-paste the templates from **Settings → Anki → Fields and templates** |
 
 ## Generation
 

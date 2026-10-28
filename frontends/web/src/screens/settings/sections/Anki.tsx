@@ -1,11 +1,12 @@
-import type { NoteTypeCheck, NoteTypeKind, Settings } from '@/api/types'
-import { Button, DividerRow, Field, Text } from '@/ui'
+import type { NoteTypeCheck, NoteTypeKind } from '@/api/types'
+import { Button, DividerRow, Text } from '@/ui'
 import type { SettingsStore, TemplatePart } from '../useSettings'
 import css from '../settings.module.css'
 import { Group } from './Group'
+import { SettingField, type TextSetting } from './SettingField'
 import type { SectionProps } from './types'
 
-const FIELD_MAPPING: { key: keyof Settings; label: string }[] = [
+const FIELD_MAPPING: { key: TextSetting; label: string }[] = [
   { key: 'anki_field_sentence', label: 'Sentence' },
   { key: 'anki_field_target_word', label: 'Target word' },
   { key: 'anki_field_meaning', label: 'Meaning' },
@@ -27,42 +28,33 @@ const TEMPLATE_PARTS: { part: TemplatePart; label: string }[] = [
   { part: 'cloze_back', label: 'Copy Cloze Back' },
   { part: 'css', label: 'Copy CSS' },
 ]
-const NOTE_TYPE_KIND_LABEL: Record<NoteTypeKind, string> = {
-  recognition: 'Note type for regular cards',
-  cloze: 'Note type for cloze cards',
-}
 const NOTE_TYPE_FIX_LABEL: Record<NonNullable<NoteTypeCheck['fix']>, string> = {
   create: 'Create note type',
   add_fields: 'Add missing fields',
 }
 
-export function Anki({ store, form }: SectionProps) {
-  const text = (key: keyof Settings) => form[key] as string
+export function Anki({ store }: SectionProps) {
+  const status = (kind: NoteTypeKind) => store.noteTypes?.find(t => t.kind === kind) ?? null
   return (
     <>
       <Group>
-        <DividerRow label="Deck name">
-          <div className={css.control}><Field value={form.anki_deck_name} onChange={e => store.setField('anki_deck_name', e.target.value)} /></div>
+        <DividerRow label="Deck" hint="Cards are added to this deck. It is created if missing.">
+          <div className={css.control}><SettingField store={store} name="anki_deck_name" /></div>
         </DividerRow>
-        <DividerRow label="Note type" hint="«AnythingToAnkiType» is created automatically. Use your own type for custom fields.">
-          <div className={css.control}><Field value={form.anki_note_type} onChange={e => store.setField('anki_note_type', e.target.value)} /></div>
-        </DividerRow>
-        <DividerRow last label="Cloze note type" hint="«AnythingToAnkiCloze» is created automatically. Your own type must be a cloze type with the same fields.">
-          <div className={css.control}><Field value={form.anki_cloze_note_type} onChange={e => store.setField('anki_cloze_note_type', e.target.value)} /></div>
-        </DividerRow>
+        <NoteTypeRow store={store} check={status('recognition')} name="anki_note_type" label="Note type" hint="«AnythingToAnkiType» is created automatically. Use your own type for custom fields." />
+        <NoteTypeRow last store={store} check={status('cloze')} name="anki_cloze_note_type" label="Cloze note type" hint="«AnythingToAnkiCloze» is created automatically. Your own type must be a cloze type with the same fields." />
+        {store.noteTypesError && <p className={css.groupHint}>Note types can't be checked: {store.noteTypesError}.</p>}
       </Group>
-      <NoteTypesInAnki store={store} />
-      <Group title="Field mapping" hint="Which Anki field each part of the card goes to.">
+      <Group collapsible title="Fields and templates" hint="Only for your own note type: which field each part of the card goes to, and the card templates.">
         <div className={css.map}>
           {FIELD_MAPPING.map(({ key, label }) => (
             <label key={key}>
               <span>{label}</span>
-              <Field value={text(key)} onChange={e => store.setField(key, e.target.value)} />
+              <SettingField store={store} name={key} />
             </label>
           ))}
         </div>
-      </Group>
-      <Group title="Card template" hint="Copy and paste into Anki's card template editor. Field names match your mapping above.">
+        <p className={css.groupHint}>Card templates with these field names, to paste into Anki's template editor:</p>
         <div className={css.actions}>
           {TEMPLATE_PARTS.map(({ part, label }) => (
             <Button key={part} onClick={() => void store.copyTemplate(part)}>
@@ -75,27 +67,27 @@ export function Anki({ store, form }: SectionProps) {
   )
 }
 
-function NoteTypesInAnki({ store }: { store: SettingsStore }) {
-  const types = store.noteTypes ?? []
+interface NoteTypeRowProps {
+  store: SettingsStore
+  check: NoteTypeCheck | null
+  name: 'anki_note_type' | 'anki_cloze_note_type'
+  label: string
+  hint: string
+  last?: boolean
+}
+
+/** Поле note type и его состояние в запущенном Anki: готов или кнопка, которая его чинит. */
+function NoteTypeRow({ store, check, name, label, hint, last = false }: NoteTypeRowProps) {
+  const problem = check?.fix === 'create' ? 'Not in Anki'
+    : check?.fix === 'add_fields' ? `Missing in Anki: ${check.missing_fields.join(', ')}`
+      : null
   return (
-    <Group title="In Anki" hint="Both note types as they are in the running Anki.">
-      {store.noteTypesError && <DividerRow last label={<Text tone="err">{store.noteTypesError}</Text>} />}
-      {types.map((t, index) => (
-        <DividerRow
-          key={t.kind}
-          last={index === types.length - 1}
-          label={`«${t.note_type}»`}
-          hint={
-            t.fix === null ? NOTE_TYPE_KIND_LABEL[t.kind]
-              : t.fix === 'create' ? <Text tone="err">Not in Anki</Text>
-                : <Text tone="err">Missing fields: {t.missing_fields.join(', ')}</Text>
-          }
-        >
-          {t.fix === null
-            ? <Text tone="ok">✓ Ready</Text>
-            : <Button busy={store.fixingNoteType === t.kind} onClick={() => void store.fixNoteType(t.kind)}>{NOTE_TYPE_FIX_LABEL[t.fix]}</Button>}
-        </DividerRow>
-      ))}
-    </Group>
+    <DividerRow last={last} label={label} hint={problem ? <Text tone="err">{problem}</Text> : hint}>
+      {check?.fix === null && <Text tone="ok" size="s">✓ In Anki</Text>}
+      {check?.fix && (
+        <Button busy={store.fixingNoteType === check.kind} onClick={() => void store.fixNoteType(check.kind)}>{NOTE_TYPE_FIX_LABEL[check.fix]}</Button>
+      )}
+      <div className={css.control}><SettingField store={store} name={name} /></div>
+    </DividerRow>
   )
 }

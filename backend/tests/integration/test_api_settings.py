@@ -169,6 +169,13 @@ class TestFrequentWordThresholdSetting:
         response = client.patch("/api/settings", json={"frequent_word_threshold": "3.0"})
         assert response.status_code == 422
 
+    def test_names_the_settings_that_analyse_every_source_again(
+        self, client: TestClient,
+    ) -> None:
+        response = client.get("/api/settings/analysis-keys")
+        assert response.status_code == 200
+        assert response.json() == ["cefr_level", "frequent_word_threshold"]
+
     def test_options_list_examples_of_words_going_down(self, client: TestClient) -> None:
         response = client.get("/api/settings/frequent-word-thresholds")
         assert response.status_code == 200

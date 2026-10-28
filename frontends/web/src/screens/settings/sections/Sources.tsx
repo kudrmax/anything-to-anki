@@ -1,19 +1,20 @@
 import { Trash2 } from 'lucide-react'
 import type { SourceMediaStats } from '@/api/types'
 import { formatBytes } from '@/lib/text/format'
-import { Button, DividerRow, Field, IconButton, Menu, Text } from '@/ui'
+import { Button, DividerRow, IconButton, Menu, Text } from '@/ui'
 import type { SettingsStore } from '../useSettings'
 import css from '../settings.module.css'
 import { Group } from './Group'
+import { SettingField } from './SettingField'
 import type { SectionProps } from './types'
 
-export function Sources({ store, form }: SectionProps) {
+export function Sources({ store }: SectionProps) {
   return (
     <>
       <Group>
         <DividerRow last label="Default titles" hint="Titles when one add makes several sources: {{collection}} — the collection, {{n}} — number in order, {{title}} — the file's or chapter's own title.">
           <div className={css.control}>
-            <Field value={form.naming_rule} onChange={e => store.setField('naming_rule', e.target.value)} />
+            <SettingField store={store} name="naming_rule" />
           </div>
         </DividerRow>
       </Group>

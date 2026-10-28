@@ -49,6 +49,15 @@ def update_settings(
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 
+@router.get("/analysis-keys")
+def get_analysis_keys(
+    settings: ManageSettingsUseCase = Depends(  # noqa: B008
+        use_case(Container.manage_settings_use_case),  # noqa: B008
+    ),
+) -> list[str]:
+    return settings.analysis_keys()
+
+
 @router.get("/frequent-word-thresholds")
 def get_frequent_word_thresholds(
     settings: ManageSettingsUseCase = Depends(  # noqa: B008

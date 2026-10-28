@@ -5,14 +5,15 @@ Open **Settings** in the top right corner, or press `⌘,` (`Ctrl+,` outside mac
 | Section | What is in it |
 |---|---|
 | [General](#general) | Theme, version and updates |
-| [Vocabulary](#vocabulary) | Your level, frequent words, calibration, usage priority |
-| [Word lists](#word-lists) | Known, learning and unknown words |
-| [Generation](#generation) | AI model, text-to-speech, pictures |
-| [Review](#review) | Auto-play, default cloze hint, card layout |
-| [Anki](#anki) | Deck, note types, field mapping, card template |
+| [Words](#words) | Your level, frequent words, calibration, usage priority |
+| [My words](#my-words) | Known, learning and unknown words |
+| [Cards](#cards) | Card layout, AI model, audio, pictures, cloze hint |
+| [Anki](#anki) | Deck, note types, fields and templates |
 | [Sources](#sources) | Default titles, media storage |
 
-**Save settings** saves the whole form, not only the open section. Theme, auto-play, usage priority and the word lists are saved at once, without the button.
+Every change is saved on its own: **Saved** shows next to the section title for a moment. Text is saved when you leave the field or press Enter. If a change cannot be saved, the reason shows there instead and the change is sent again with the next one.
+
+**Your level** and **Frequent words** analyse every source again, so they ask first: **Analyse again** applies the new value, **Cancel** keeps the old one.
 
 ## General
 
@@ -22,50 +23,43 @@ Open **Settings** in the top right corner, or press `⌘,` (`Ctrl+,` outside mac
 
 ![Settings → General](../images/updating/settings-updates.png)
 
-## Vocabulary
-
-**Word selection**:
+## Words
 
 | Setting | Default | What it does |
 |---|---|---|
-| **Your CEFR level** | B2 | The level you are learning. Words of this level and harder are suggested |
+| **Your level** | B2 | The CEFR level you are learning. Words of this level and harder are suggested |
 | **Frequent words** | Auto | How common a word must be to count as probably known |
-| **Vocabulary calibration** | — | Builds a word list and opens [calibration](vocabulary.md#calibration) |
+| **Calibration** | — | Builds a word list and opens [calibration](vocabulary.md#calibration) |
 
-Changing the level or the frequent-words threshold re-analyses every source. See [Your vocabulary and level](vocabulary.md).
+See [Your vocabulary and level](vocabulary.md).
 
-**Usage priority** (default: neutral first): the order of usage groups in Review. Drag to reorder.
+**Usage priority** (default: neutral first): words from groups higher up are suggested first. Drag to reorder.
 
-## Word lists
+## My words
 
-Three tabs, each with the number of words in it.
+Three tabs, each with the number of words in it. Each tab is a table, newest first, with a search box over all of its words. It shows 50 words; **Show 50 more** adds the next ones.
 
-- **Known**: every word you know, with its part of speech and a search box. Words that became known after 30 days in Anki say so. Remove a word (×) to make it new again in every source. See [Known words](vocabulary.md#known-words).
-- **Learning**: words you are learning, **In Anki** (with the day each becomes known) and **Waiting for export**. Read-only. See [Learning](vocabulary.md#learning).
-- **Unknown**: words you told the app you don't know. Remove a word (×) to take it off the list. See [Unknown words](vocabulary.md#unknown-words).
+- **Known**: the word, its part of speech and the day it became known. Words that became known by themselves say **after 30 days in Anki**. Remove a word (× at the end of its row) to make it new again in every source. See [Known words](vocabulary.md#known-words).
+- **Learning**: words you are learning: **Waiting for export**, or **In Anki** with the day each becomes known. Read-only. See [Learning](vocabulary.md#learning).
+- **Unknown**: words you told the app you don't know, with the day you added each. Remove a word (×) to take it off the list. See [Unknown words](vocabulary.md#unknown-words).
 
-## Generation
+On a phone the part of speech is left out.
 
-**AI model** — **Claude**: **Haiku**, **Sonnet** (default) or **Opus**. The model is used for every AI feature: meanings, follow-ups, polish and topic words. Each option is the latest model of that family available to your Claude Code login. Opus gives the best results and uses the most of your plan; Haiku is the fastest and uses the least.
+## Cards
 
-**Text-to-speech**:
-
-| Setting | Default | What it does |
-|---|---|---|
-| **Speed** | 1.0× | Speech speed, 0.5× to 2.0× |
-| **Voices** | All 28 | Each phrase is read by a random voice from the selected ones. Voices are grouped: American female, American male, British female, British male |
-
-Speech is generated locally with [Kokoro](https://github.com/hexgrad/kokoro). The settings apply to speech generated after the change.
-
-**Pictures** — **Pictures per source** (default 12): how many results each image source (Wiktionary, Bing, Yandex) returns when you look for a picture of a word.
-
-## Review
+Everything about the card you review.
 
 | Setting | Default | What it does |
 |---|---|---|
-| **Auto-play audio** | On | Plays the card's audio when it opens. Stored in the browser |
-| **Default cloze hint** | No hint | The hint preselected when you make a [cloze card](review.md#cloze-cards) |
-| **Card layout** | — | **Open the editor** opens the card layout editor, see below |
+| **Card layout** | — | **Open the editor** arranges the review card, see below |
+| **AI model** | Sonnet | **Haiku**, **Sonnet** or **Opus**: the latest model of that family available to your Claude Code login. Used for every AI feature: meanings, follow-ups, polish and topic words. Opus gives the best results and uses the most of your plan; Haiku is the fastest and uses the least |
+| **Auto-play** | On | Plays the card's audio when it opens. Stored in the browser |
+| **Speech speed** | 1.0× | Text-to-speech speed, 0.5× to 2.0× |
+| **Voices** | All 28 | Each phrase is read by a random voice from the selected ones. Grouped: American female, American male, British female, British male |
+| **Choices per source** | 12 | How many pictures each image source (Wiktionary, Bing, Yandex) offers when you pick a picture for a word |
+| **Default hint** | No hint | The hint preselected when you make a [cloze card](review.md#cloze-cards) |
+
+Speech is generated locally with [Kokoro](https://github.com/hexgrad/kokoro). The speech settings apply to speech generated after the change.
 
 ### Card layout
 
@@ -105,14 +99,13 @@ A block with nothing to show on a card is left out on that card. A line is drawn
 
 | Setting | Default | What it does |
 |---|---|---|
-| **Deck name** | `Default` | The deck cards are added to. Created if missing |
+| **Deck** | `Default` | The deck cards are added to. Created if missing |
 | **Note type** | `AnythingToAnkiType` | Note type for regular cards. The default one is created automatically |
 | **Cloze note type** | `AnythingToAnkiCloze` | Note type for cloze cards. Your own must be a cloze type with the same fields |
-| **Field mapping** | Field names as in [Fields](anki-export.md#fields) | Which Anki field each part of the card goes to |
 
-**In Anki** checks both note types in the running Anki. It shows **✓ Ready**, or a **Create note type** / **Add missing fields** button.
+Each note type is checked in the running Anki: **✓ In Anki**, or a **Create note type** / **Add missing fields** button next to it. If Anki is not running, a line under them says so.
 
-**Card template** copies the app's card templates with your field names, ready to paste into Anki. See [Card templates](anki-export.md#card-templates).
+**Fields and templates** is folded: it matters only for your own note type. Open it to map each part of the card to a field of your note type (defaults as in [Fields](anki-export.md#fields)) and to copy the card templates with your field names: **Copy Front**, **Copy Back**, **Copy Cloze Front**, **Copy Cloze Back**, **Copy CSS**. See [Card templates](anki-export.md#card-templates).
 
 ## Sources
 

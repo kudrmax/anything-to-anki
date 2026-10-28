@@ -236,6 +236,8 @@ export const api = {
   updateSettings: (patch: Partial<Settings>) =>
     req<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
 
+  /** Настройки, смена которых заново анализирует все источники. */
+  getAnalysisKeys: () => req<(keyof Settings)[]>('/api/settings/analysis-keys'),
   getFrequentWordThresholds: () =>
     req<FrequentWordThresholdOption[]>('/api/settings/frequent-word-thresholds'),
 

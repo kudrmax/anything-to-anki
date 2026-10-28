@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GripVertical } from 'lucide-react'
 import type { FrequentWordThresholdOption } from '@/api/types'
-import { Button, DividerRow, Icon, Segmented, Select, Spinner, Text } from '@/ui'
+import { Button, DividerRow, Icon, Modal, Segmented, Select, Spinner, Text } from '@/ui'
 import css from '../settings.module.css'
 import { Group } from './Group'
 import type { SectionProps } from './types'
@@ -24,18 +24,18 @@ const USAGE_GROUP_LABELS: Record<string, string> = {
   other: 'Literary, trademark, etc.',
 }
 
-export function Vocabulary({ store, form }: SectionProps) {
+export function Words({ store, form }: SectionProps) {
   return (
     <>
-      <Group title="Word selection">
-        <DividerRow label="Your CEFR level" hint="The level you are learning now. Words of this level and harder are suggested; easier words count as known. A1 — you are just starting.">
-          <Segmented value={form.cefr_level} options={CEFR_LEVELS} onChange={level => store.setField('cefr_level', level)} />
+      <Group>
+        <DividerRow label="Your level" hint="The CEFR level you are learning now. Words of this level and harder are suggested; easier ones count as known.">
+          <Segmented value={form.cefr_level} options={CEFR_LEVELS} onChange={level => store.change('cefr_level', level)} />
         </DividerRow>
         <DividerRow
           label="Frequent words"
-          hint="Words at least this frequent go to the bottom of the list as probably known. Auto starts from your level and learns from your Know / Learn marks. Other options show examples of words that go down; lower value — more words go down."
+          hint="Words this common go to the bottom of the list. Auto learns from your Know and Learn marks."
         >
-          <Select value={form.frequent_word_threshold} onChange={e => store.setField('frequent_word_threshold', e.target.value)}>
+          <Select value={form.frequent_word_threshold} onChange={e => store.change('frequent_word_threshold', e.target.value)}>
             {store.frequentWordThresholds.map(option => (
               <option key={option.value} value={option.value}>{frequentWordThresholdLabel(option)}</option>
             ))}
@@ -44,7 +44,32 @@ export function Vocabulary({ store, form }: SectionProps) {
         <Calibration store={store} form={form} />
       </Group>
       <UsagePriority store={store} form={form} />
+      <AnalysisConfirm store={store} />
     </>
+  )
+}
+
+/** Смена уровня или частотности заново анализирует все источники: только с согласия. */
+function AnalysisConfirm({ store }: { store: SectionProps['store'] }) {
+  const { confirming } = store
+  if (!confirming) return null
+  const option = store.frequentWordThresholds.find(o => o.value === confirming.value)
+  const title = confirming.key === 'cefr_level' ? `Change your level to ${String(confirming.value)}?`
+    : option ? `Set frequent words to ${frequentWordThresholdLabel(option)}?`
+      : 'Apply the new value?'
+  return (
+    <Modal
+      title={title}
+      onClose={store.cancelChange}
+      footer={
+        <>
+          <Button variant="link" onClick={store.cancelChange}>Cancel</Button>
+          <Button variant="fill" onClick={store.confirmChange}>Analyse again</Button>
+        </>
+      }
+    >
+      <Text tone="soft">Every source is analysed again with the new value. It takes a while; the progress is shown on screen.</Text>
+    </Modal>
   )
 }
 
@@ -54,12 +79,12 @@ function Calibration({ store }: SectionProps) {
   return (
     <DividerRow
       last
-      label="Vocabulary calibration"
+      label="Calibration"
       hint={
-        bootstrap?.status === 'ready' ? `Ready — ${bootstrap.word_count} words, built ${bootstrap.built_at ? new Date(bootstrap.built_at).toLocaleDateString() : '—'}`
+        bootstrap?.status === 'ready' ? `Ready — ${bootstrap.word_count} words, built ${bootstrap.built_at ? new Date(bootstrap.built_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}`
           : bootstrap?.status === 'error' ? <Text tone="err">{bootstrap.error ?? 'Build failed'}</Text>
             : bootstrap?.status === 'building' ? 'Building word list…'
-              : 'Build a word list to calibrate what you already know.'
+              : 'Mark the words you already know on a ready list.'
       }
     >
       {bootstrap?.status === 'building' && <Spinner />}
@@ -86,11 +111,11 @@ function UsagePriority({ store, form }: SectionProps) {
     const next = [...order]
     const [moved] = next.splice(fromIndex, 1)
     next.splice(toIndex, 0, moved)
-    store.reorderUsageGroups(next)
+    store.change('usage_group_order', next)
   }
 
   return (
-    <Group title="Usage priority" hint="Order of usage groups in Review. Drag to reorder.">
+    <Group title="Usage priority" hint="Words from groups higher up are suggested first. Drag to reorder.">
       {order.map((group, index) => (
         <DividerRow
           key={group}

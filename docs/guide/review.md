@@ -25,7 +25,7 @@ The right column holds the rest:
 - **Examples**. **Use as phrase** on an example makes it the card's phrase.
 - **US / UK** buttons that play a dictionary recording of the word, and **TTS** that plays the phrase read aloud by a synthetic voice, at the bottom right.
 
-This is the default layout. You can move, restyle and hide everything between the phrase and the bottom bar in the card layout editor: [Settings → Review → Card layout](settings.md#card-layout).
+This is the default layout. You can move, restyle and hide everything between the phrase and the bottom bar in the card layout editor: [Settings → Cards → Card layout](settings.md#card-layout).
 
 The meaning, translation, synonyms, examples and IPA come from AI. Pronunciations and CEFR levels come from the [dictionaries](../reference/dictionaries.md). Everything else is computed locally.
 
@@ -140,7 +140,7 @@ A cloze card hides words of the phrase, and you recall them: `She was [...] to l
 
 1. Press **Cloze** (`C`). The target words are hidden by default.
 2. Click words to hide or show them.
-3. Choose a **Hint**: **No hint**, **Translation**, **Synonyms**, **First letter**, or **Custom**. The default comes from [Settings → Review](settings.md#review).
+3. Choose a **Hint**: **No hint**, **Translation**, **Synonyms**, **First letter**, or **Custom**. The default comes from [Settings → Cards → Cloze](settings.md#cards).
 4. Check the **Anki front** preview, then press **Save cloze** (`Enter`).
 
 To change the hidden words later, click the phrase. You can do this until the card is exported to Anki.
@@ -193,7 +193,7 @@ Keys work in any keyboard layout. They are ignored while you type in a field or 
 
 On a phone, swipe left or right on the card to move between cards.
 
-**Auto-play audio** plays the card's audio when it opens: the video clip, else the TTS, else the US pronunciation. Turn it off in [Settings → Review](settings.md#review).
+**Auto-play audio** plays the card's audio when it opens: the video clip, else the TTS, else the US pronunciation. Turn it off in [Settings → Cards → Audio](settings.md#cards).
 
 ## When you are done
 

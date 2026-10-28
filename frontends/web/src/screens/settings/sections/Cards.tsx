@@ -1,4 +1,9 @@
-import { Chip, DividerRow, Range, Segmented, Text } from '@/ui'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { CLOZE_DEFAULT_HINT_OPTIONS } from '@/lib/clozeHints'
+import { autoPlayAudioPref } from '@/lib/preferences'
+import { CARD_LAYOUT_PATH } from '@/screens/cardLayoutEditor/paths'
+import { Button, Chip, DividerRow, Range, Segmented, Switch, Text } from '@/ui'
 import css from '../settings.module.css'
 import { Group } from './Group'
 import type { SectionProps } from './types'
@@ -68,31 +73,51 @@ const VOICE_GROUPS: { title: string; voices: Voice[] }[] = [
 ]
 const ALL_VOICES = VOICE_GROUPS.flatMap(group => group.voices.map(voice => voice.id))
 
-export function Generation({ store, form }: SectionProps) {
+export function Cards({ store, form }: SectionProps) {
+  const navigate = useNavigate()
   return (
     <>
-      <Group title="AI model">
-        <DividerRow last label="Claude" hint="Model for meanings, phrase polish and topic words.">
-          <Segmented value={form.ai_model} options={AI_MODELS} onChange={model => store.setField('ai_model', model)} />
+      <Group>
+        <DividerRow last label="Card layout" hint="Which parts the review card shows and where. You arrange them on a sample card.">
+          <Button onClick={() => navigate(CARD_LAYOUT_PATH)}>Open the editor</Button>
         </DividerRow>
       </Group>
-      <Speech store={store} form={form} />
-      <Group title="Pictures">
+      <Group title="Meaning">
+        <DividerRow last label="AI model" hint="Writes meanings, polishes phrases and suggests topic words.">
+          <Segmented value={form.ai_model} options={AI_MODELS} onChange={model => store.change('ai_model', model)} />
+        </DividerRow>
+      </Group>
+      <Audio store={store} form={form} />
+      <Group title="Picture">
         <Pictures store={store} form={form} />
+      </Group>
+      <Group title="Cloze">
+        <DividerRow last label="Default hint" hint="Preselected when you mark a phrase as Cloze. You can change it on any card.">
+          <Segmented
+            value={form.cloze_default_hint}
+            options={CLOZE_DEFAULT_HINT_OPTIONS}
+            onChange={hint => store.change('cloze_default_hint', hint)}
+          />
+        </DividerRow>
       </Group>
     </>
   )
 }
 
-function Speech({ store, form }: SectionProps) {
+function Audio({ store, form }: SectionProps) {
+  const [autoPlay, setAutoPlay] = useState<boolean>(() => autoPlayAudioPref.read())
+  const toggleAutoPlay = (next: boolean) => { setAutoPlay(next); autoPlayAudioPref.write(next) }
   const speed = form.tts_speed ?? TTS_SPEED.fallback
   const enabled = form.tts_enabled_voices ?? ALL_VOICES
-  const toggle = (id: string) => store.setField('tts_enabled_voices', enabled.includes(id) ? enabled.filter(v => v !== id) : [...enabled, id])
+  const toggle = (id: string) => store.change('tts_enabled_voices', enabled.includes(id) ? enabled.filter(v => v !== id) : [...enabled, id])
   return (
-    <Group title="Text-to-speech">
-      <DividerRow label="Speed">
+    <Group title="Audio">
+      <DividerRow label="Auto-play" hint="Plays the card's audio when it opens.">
+        <Switch checked={autoPlay} onChange={toggleAutoPlay} label="Auto-play audio" />
+      </DividerRow>
+      <DividerRow label="Speech speed" hint="For phrases read by text-to-speech.">
         <Text tone="muted" size="s">{speed.toFixed(1)}×</Text>
-        <Range min={TTS_SPEED.min} max={TTS_SPEED.max} step={TTS_SPEED.step} value={speed} onChange={e => store.setField('tts_speed', parseFloat(e.target.value))} />
+        <Range min={TTS_SPEED.min} max={TTS_SPEED.max} step={TTS_SPEED.step} value={speed} onChange={e => store.change('tts_speed', parseFloat(e.target.value))} />
       </DividerRow>
       <DividerRow last label="Voices" hint="Each phrase is read by a random voice from the selected ones." />
       <div className={css.voices}>
@@ -116,9 +141,9 @@ function Speech({ store, form }: SectionProps) {
 function Pictures({ store, form }: SectionProps) {
   const count = form.images_per_source ?? IMAGES_PER_SOURCE.fallback
   return (
-    <DividerRow last label="Pictures per source" hint="How many pictures each source offers when you look for a picture of a word.">
+    <DividerRow last label="Choices per source" hint="How many pictures Wiktionary, Bing and Yandex each offer when you pick a picture for a word.">
       <Text tone="muted" size="s">{count}</Text>
-      <Range min={IMAGES_PER_SOURCE.min} max={IMAGES_PER_SOURCE.max} step={IMAGES_PER_SOURCE.step} value={count} onChange={e => store.setField('images_per_source', parseInt(e.target.value, 10))} />
+      <Range min={IMAGES_PER_SOURCE.min} max={IMAGES_PER_SOURCE.max} step={IMAGES_PER_SOURCE.step} value={count} onChange={e => store.change('images_per_source', parseInt(e.target.value, 10))} />
     </DividerRow>
   )
 }

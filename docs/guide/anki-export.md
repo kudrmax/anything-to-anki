@@ -39,7 +39,7 @@ Some parts can't be generated, and the button skips them. The line under **Incom
 - Each word is exported **once**: one note per word, with the phrase where you decided it.
 - Every note gets the tag `anything-to-anki`. Media files (screenshots, audio, pictures) are copied into Anki.
 - A word that is already in Anki (same note type, same target) is not added twice. It is counted as **already in Anki**.
-- An exported word counts as **Learning**. **30 days after export** it becomes **Known** and is no longer suggested in new sources. You can see these words in [Settings → Word lists → Learning](settings.md#word-lists).
+- An exported word counts as **Learning**. **30 days after export** it becomes **Known** and is no longer suggested in new sources. You can see these words in [Settings → My words → Learning](settings.md#my-words).
 
 Changes you make in the app after export (a new meaning, new audio) **do not** reach notes already in Anki. Edit the note in Anki instead.
 
@@ -60,7 +60,7 @@ Change the names in [Settings → Anki](settings.md#anki).
 You can export into a note type of your own, for example to match an existing deck:
 
 1. Enter its name in **Settings → Anki → Note type** (or **Cloze note type**; that one must be an Anki cloze type).
-2. Map the app's fields to your field names in **Field mapping**, then press **Save settings**.
+2. Open **Fields and templates** and map the app's fields to your field names. Each name is saved when you leave its field.
 3. Check the **In Anki** block. If the type is missing or lacks fields, use **Create note type** or **Add missing fields**.
 
 The app never changes your own note type during export. If the type is missing, or lacks a field the export fills, **nothing is exported**, and a banner appears at the top of every screen: **Export to Anki is blocked: cards would lose their content**. Fix it with the link in the banner.
@@ -94,7 +94,7 @@ The templates live in [`anki-templates/`](../../anki-templates):
 - The **cloze card** front shows only the video frame and the phrase with gaps. It has no audio, because audio would give the answer away. The back is like the regular back.
 - Both support Anki's night mode.
 
-To restyle cards, or to fix a note type whose fields you renamed, open **Settings → Anki → Card template**. Use **Copy Front**, **Copy Back**, **Copy Cloze Front**, **Copy Cloze Back** and **Copy CSS**, and paste the result into Anki's template editor. The copies use your current field names.
+To restyle cards, or to fix a note type whose fields you renamed, open **Settings → Anki → Fields and templates**. Use **Copy Front**, **Copy Back**, **Copy Cloze Front**, **Copy Cloze Back** and **Copy CSS**, and paste the result into Anki's template editor. The copies use your current field names.
 
 The app writes templates only when it creates a note type. If you rename fields later, re-paste the templates, or that part of the card stops showing.
 

@@ -20,7 +20,7 @@ import { useCardLayoutEditor } from './useCardLayoutEditor'
 import { useLayoutDrag } from './useLayoutDrag'
 import css from './cardLayoutEditor.module.css'
 
-const SETTINGS_SECTION = `${SETTINGS_PATH}?section=review`
+const SETTINGS_SECTION = `${SETTINGS_PATH}?section=cards`
 /** Экран образца: его ссылки гасит сам образец, их выход из редактора не касается. */
 const SAMPLE_SCREEN_ATTR = 'data-sample-screen'
 /** Щелчок мимо блоков, линий и окна редактора снимает выбор: карточка видна такой, какой будет. */

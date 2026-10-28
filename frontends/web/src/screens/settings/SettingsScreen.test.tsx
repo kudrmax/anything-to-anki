@@ -8,7 +8,7 @@ import type { SettingsStore } from './useSettings'
 const STORE = {
   loading: false, form: { usage_group_order: [] }, saveError: null, saving: false, saved: false,
   knownWords: [], unknownWords: [], learningWords: { in_anki: [], awaiting_export: [] }, deletingKey: null,
-  frequentWordThresholds: [], bootstrapStatus: null, noteTypes: [], noteTypesError: null, mediaStats: [], mediaStatsLoading: false,
+  frequentWordThresholds: [], bootstrapStatus: null, confirming: null, savedAt: null, noteTypes: [], noteTypesError: null, mediaStats: [], mediaStatsLoading: false,
 } as unknown as SettingsStore
 
 vi.mock('./useSettings', () => ({ useSettings: () => STORE, unknownWordKey: (id: number) => `unknown:${id}` }))
@@ -32,8 +32,9 @@ describe('Settings sections', () => {
   const tab = () => host.querySelector('[role="tab"][aria-selected="true"]')?.textContent
 
   it.each([
-    ['appearance', 'General'], ['updates', 'General'], ['card-layout', 'Review'], ['ai-model', 'Generation'],
-    ['tts', 'Generation'], ['pictures', 'Generation'], ['books', 'Sources'], ['media-storage', 'Sources'],
+    ['appearance', 'General'], ['updates', 'General'], ['vocabulary', 'Words'], ['review', 'Cards'],
+    ['card-layout', 'Cards'], ['ai-model', 'Cards'], ['tts', 'Cards'], ['pictures', 'Cards'],
+    ['books', 'Sources'], ['media-storage', 'Sources'],
   ])('opens the section that took over %s', (old, section) => {
     open(`?section=${old}`)
 
@@ -44,7 +45,7 @@ describe('Settings sections', () => {
     'opens the word list that took over %s', (old, list) => {
       open(`?section=${old}`)
 
-      expect(current()).toBe('Word lists')
+      expect(current()).toBe('My words')
       expect(tab()).toBe(list)
     },
   )

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/api/client'
 import { notifyLongOperation } from '@/api/longOperationSignal'
 import { messageOf } from '@/lib/apiError'
@@ -9,8 +9,15 @@ const BOOTSTRAP_POLL_MS = 2000
 /** Ключ строки списков Known и Unknown: у слова Known по таймеру нет id. */
 export const unknownWordKey = (id: number): string => `unknown:${id}`
 const FLASH_MS = 2000
-/** Saved on their own as soon as they change: a stale form must not overwrite them. */
-const SAVED_ON_CHANGE = new Set<string>(['usage_group_order', 'source_grouping', 'source_sort', 'source_sort_direction'])
+const AUTOSAVE_MS = 400
+/** После сохранения таких настроек note type в Anki проверяются заново. */
+const ANKI_PREFIX = 'anki_'
+
+/** Изменение, которое ждёт подтверждения пользователя. */
+export interface SettingChange {
+  key: keyof Settings
+  value: Settings[keyof Settings]
+}
 
 export type TemplatePart = 'front' | 'back' | 'cloze_front' | 'cloze_back' | 'css'
 
@@ -19,7 +26,7 @@ export function useSettings() {
   const [form, setForm] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [savedAt, setSavedAt] = useState<number | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [knownWords, setKnownWords] = useState<KnownWord[]>([])
   const [unknownWords, setUnknownWords] = useState<UnknownWord[]>([])
@@ -32,6 +39,8 @@ export function useSettings() {
   const [mediaStats, setMediaStats] = useState<SourceMediaStats[]>([])
   const [mediaStatsLoading, setMediaStatsLoading] = useState(false)
   const [copiedTemplate, setCopiedTemplate] = useState<TemplatePart | null>(null)
+  const [analysisKeys, setAnalysisKeys] = useState<(keyof Settings)[]>([])
+  const [confirming, setConfirming] = useState<SettingChange | null>(null)
   const [frequentWordThresholds, setFrequentWordThresholds] = useState<FrequentWordThresholdOption[]>([])
 
   const loadMediaStats = useCallback(async () => {
@@ -85,10 +94,12 @@ export function useSettings() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [settings, words, unknown, thresholds, learning] = await Promise.all([
+        const [settings, words, unknown, thresholds, learning, analysis] = await Promise.all([
           api.getSettings(), api.getKnownWords(), api.getUnknownWords(), api.getFrequentWordThresholds(), api.getLearningWords(),
+          api.getAnalysisKeys(),
         ])
         setForm(settings)
+        setAnalysisKeys(analysis)
         setKnownWords(words)
         setLearningWords(learning)
         setUnknownWords(unknown)
@@ -117,26 +128,59 @@ export function useSettings() {
     void loadNoteTypes()
   }, [loadNoteTypes])
 
-  const save = useCallback(async () => {
-    if (!form) return
+  /** Изменённые, но ещё не отправленные настройки: уходят только они, остальное не перезаписывается. */
+  const pending = useRef<Partial<Settings>>({})
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const commit = useCallback(async () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = null
+    const changes = pending.current
+    if (Object.keys(changes).length === 0) return
+    pending.current = {}
     setSaving(true)
     setSaveError(null)
-    setSaved(false)
     try {
-      const fields = Object.fromEntries(
-        Object.entries(form).filter(([key]) => !SAVED_ON_CHANGE.has(key)),
-      ) as Partial<Settings>
-      setForm(await api.updateSettings(fields))
+      const saved = await api.updateSettings(changes)
+      setForm({ ...saved, ...pending.current })
       notifyLongOperation()
-      void loadNoteTypes()
-      setSaved(true)
-      setTimeout(() => setSaved(false), FLASH_MS)
+      if (Object.keys(changes).some(key => key.startsWith(ANKI_PREFIX))) void loadNoteTypes()
+      setSavedAt(Date.now())
     } catch (e) {
+      pending.current = { ...changes, ...pending.current }
       setSaveError(messageOf(e))
     } finally {
       setSaving(false)
     }
-  }, [form, loadNoteTypes])
+  }, [loadNoteTypes])
+
+  useEffect(() => () => { void commit() }, [commit])
+
+  const edit = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+    pending.current = { ...pending.current, [key]: value }
+    setForm(prev => (prev ? { ...prev, [key]: value } : prev))
+  }
+
+  /** Сохраняется само, чуть погодя: ползунок и быстрые клики уходят одним запросом.
+   *  Настройка, от которой зависит анализ, ждёт подтверждения: она заново анализирует все источники. */
+  const change = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+    if (analysisKeys.includes(key)) {
+      setConfirming({ key, value })
+      return
+    }
+    edit(key, value)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => void commit(), AUTOSAVE_MS)
+  }
+
+  const confirmChange = () => {
+    if (!confirming) return
+    edit(confirming.key, confirming.value)
+    setConfirming(null)
+    void commit()
+  }
+
+  const cancelChange = () => setConfirming(null)
 
   /** Слово удаляется по ключу, который дал backend; списки перечитываются. */
   const deleteWord = async (word: KnownWord) => {
@@ -188,24 +232,13 @@ export function useSettings() {
     }
   }, [])
 
-  const setField = (key: keyof Settings, value: string | number | string[]) => {
-    setForm(prev => (prev ? { ...prev, [key]: value } : prev))
-  }
-
-  /** Порядок групп сохраняется сразу, без кнопки Save. */
-  const reorderUsageGroups = (order: string[]) => {
-    setForm(prev => (prev ? { ...prev, usage_group_order: order } : prev))
-    void api.updateSettings({ usage_group_order: order } as Partial<Settings>)
-  }
-
   return {
-    form, loading, saving, saved, saveError, setField, save,
+    form, loading, saving, savedAt, saveError, change, edit, commit, confirming, confirmChange, cancelChange,
     knownWords, knownError, deletingKey, deleteWord, unknownWords, deleteUnknownWord, learningWords,
     noteTypes, noteTypesError, fixingNoteType, fixNoteType,
     copiedTemplate, copyTemplate,
     bootstrapStatus, buildBootstrap,
     mediaStats, mediaStatsLoading, loadMediaStats, cleanupMedia,
-    reorderUsageGroups,
     frequentWordThresholds,
   }
 }
