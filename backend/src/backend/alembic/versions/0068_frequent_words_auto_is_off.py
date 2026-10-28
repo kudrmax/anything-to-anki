@@ -1,7 +1,7 @@
 """The Auto option of the frequent word threshold is gone: a saved Auto becomes Off.
 
 Revision ID: 0068
-Revises: 0066
+Revises: 0067
 
 Downgrade leaves Off as it is: an Off saved before this revision can't be told apart.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 from alembic import op
 
 revision = "0068"
-down_revision = "0066"
+down_revision = "0067"
 branch_labels = None
 depends_on = None
 

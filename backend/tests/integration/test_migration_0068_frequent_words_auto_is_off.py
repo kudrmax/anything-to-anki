@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, text
 
 pytestmark = pytest.mark.integration
 
-REVISION_BEFORE = "0066"
+REVISION_BEFORE = "0067"
 REVISION_UNDER_TEST = "0068"
 KEY = "frequent_word_threshold"
 
