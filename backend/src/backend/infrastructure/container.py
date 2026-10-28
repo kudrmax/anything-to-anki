@@ -944,7 +944,6 @@ class Container:
     def _threshold_resolver(self, session: Session) -> FrequentWordThresholdResolver:
         return FrequentWordThresholdResolver(
             settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
-            decision_repo=SqlaWordDecisionRepository(session),
         )
 
     def _section_stamper(self, session: Session) -> SectionStamper:
@@ -1134,7 +1133,6 @@ class Container:
     def manage_settings_use_case(self, session: Session) -> ManageSettingsUseCase:
         return ManageSettingsUseCase(
             settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
-            threshold_resolver=self._threshold_resolver(session),
             unit_of_work=self._unit_of_work(session),
             level_change=self._level_change_launcher(session),
         )

@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.constants import FREQUENT_WORD_THRESHOLD_SETTING
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.decision_progress import DecisionProgress
@@ -35,7 +36,9 @@ def _make(
 class TestCandidateSorter:
     def setup_method(self) -> None:
         settings_repo = MagicMock()
-        settings_repo.get.return_value = None
+        settings_repo.get.side_effect = lambda key, default=None: (
+            "5.0" if key == FREQUENT_WORD_THRESHOLD_SETTING else None
+        )
         self.sorter = candidate_sorter(settings_repo)
         self.feast = _make("feast", 3.95, occurrences=1, fragment="The feast was long.", block=0)
         self.scythe = _make("scythe", 2.6, occurrences=2, fragment="A scythe again.", block=1)

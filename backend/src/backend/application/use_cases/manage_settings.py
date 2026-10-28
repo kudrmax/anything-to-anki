@@ -19,9 +19,6 @@ from backend.application.utils.settings_writer import (
 from backend.domain.value_objects.frequent_word_threshold import FREQUENT_WORD_THRESHOLDS
 
 if TYPE_CHECKING:
-    from backend.application.utils.frequent_word_threshold_resolver import (
-        FrequentWordThresholdResolver,
-    )
     from backend.application.utils.level_change_launcher import LevelChangeLauncher
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.unit_of_work import UnitOfWork
@@ -35,12 +32,10 @@ class ManageSettingsUseCase:
     def __init__(
         self,
         settings_repo: SettingsRepository,
-        threshold_resolver: FrequentWordThresholdResolver,
         unit_of_work: UnitOfWork,
         level_change: LevelChangeLauncher,
     ) -> None:
         self._settings_repo = settings_repo
-        self._threshold_resolver = threshold_resolver
         self._unit_of_work = unit_of_work
         self._level_change = level_change
 
@@ -73,11 +68,10 @@ class ManageSettingsUseCase:
         return self.get_settings()
 
     def frequent_word_threshold_options(self) -> list[FrequentWordThresholdDTO]:
-        auto_zipf = self._threshold_resolver.auto_zipf()
         return [
             FrequentWordThresholdDTO(
                 value=t.key,
-                zipf=auto_zipf if t.is_auto else t.zipf,
+                zipf=t.zipf,
                 examples=list(t.examples),
             )
             for t in FREQUENT_WORD_THRESHOLDS

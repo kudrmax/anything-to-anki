@@ -10,8 +10,6 @@ from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.utils.level_change_launcher import LevelChangeLauncher
 from backend.domain.ports.unit_of_work import UnitOfWork
 
-from tests.candidate_sorter_support import threshold_resolver
-
 LEVEL_CHANGE = "level_change"
 
 
@@ -66,7 +64,6 @@ def use_case(events: list[str]) -> ManageSettingsUseCase:
     repo = FakeSettingsRepo(events)
     return ManageSettingsUseCase(
         repo,  # type: ignore[arg-type]
-        threshold_resolver(repo),  # type: ignore[arg-type]
         RecordingUnitOfWork(events),
         RecordingLauncher(events, repo),
     )
@@ -81,7 +78,7 @@ def test_a_new_level_is_a_level_change_and_nothing_is_written_here(
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("threshold", ["4.0", "5.5", "off"])
+@pytest.mark.parametrize("threshold", ["4.0", "4.5", "5.5"])
 def test_a_new_threshold_is_a_level_change(
     use_case: ManageSettingsUseCase, events: list[str], threshold: str,
 ) -> None:
@@ -90,12 +87,12 @@ def test_a_new_threshold_is_a_level_change(
 
 
 @pytest.mark.unit
-def test_switching_back_to_auto_is_a_level_change(
+def test_switching_back_to_off_is_a_level_change(
     use_case: ManageSettingsUseCase, events: list[str],
 ) -> None:
     use_case.update_settings(UpdateSettingsRequest(frequent_word_threshold="5.0"))
     events.clear()
-    use_case.update_settings(UpdateSettingsRequest(frequent_word_threshold="auto"))
+    use_case.update_settings(UpdateSettingsRequest(frequent_word_threshold="off"))
     assert events == [LEVEL_CHANGE]
 
 
@@ -130,7 +127,7 @@ def test_the_default_value_written_explicitly_is_no_level_change(
     use_case: ManageSettingsUseCase, events: list[str],
 ) -> None:
     use_case.update_settings(
-        UpdateSettingsRequest(cefr_level="B2", frequent_word_threshold="auto"),
+        UpdateSettingsRequest(cefr_level="B2", frequent_word_threshold="off"),
     )
     assert events == [
         "write", "set cefr_level", f"set {FREQUENT_WORD_THRESHOLD_SETTING}", "committed",
