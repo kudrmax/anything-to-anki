@@ -82,7 +82,6 @@ class TestSettingsAPI:
         data = response.json()
         assert data["cefr_level"] == "B2"
         assert data["anki_deck_name"] == "Default"
-        assert data["ai_provider"] == "claude"
         assert data["ai_model"] == "sonnet"
         assert data["anki_note_type"] == "AnythingToAnkiType"
         assert data["anki_field_sentence"] == "Sentence"
@@ -168,6 +167,13 @@ class TestFrequentWordThresholdSetting:
     def test_unknown_value_is_rejected(self, client: TestClient) -> None:
         response = client.patch("/api/settings", json={"frequent_word_threshold": "3.0"})
         assert response.status_code == 422
+
+    def test_names_the_settings_that_analyse_every_source_again(
+        self, client: TestClient,
+    ) -> None:
+        response = client.get("/api/settings/analysis-keys")
+        assert response.status_code == 200
+        assert response.json() == ["cefr_level", "frequent_word_threshold"]
 
     def test_options_list_examples_of_words_going_down(self, client: TestClient) -> None:
         response = client.get("/api/settings/frequent-word-thresholds")

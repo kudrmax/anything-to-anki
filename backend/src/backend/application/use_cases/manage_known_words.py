@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC
 from typing import TYPE_CHECKING
 
 from backend.application.dto.known_word_dtos import KnownWordDTO
@@ -7,6 +8,7 @@ from backend.domain.exceptions import KnownWordNotFoundError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from datetime import datetime
 
     from backend.application.utils.decision_effects import DecisionEffects
     from backend.application.utils.user_vocabulary import UserVocabulary
@@ -14,8 +16,9 @@ if TYPE_CHECKING:
 
 
 class ManageKnownWordsUseCase:
-    """The Known list: the words the user put there and the words Known by their 30 days in
-    Anki. Deletes and adds entries; a word Known by its timer leaves Known by its lemma."""
+    """The Known list, newest first: the words the user put there and the words Known by
+    their 30 days in Anki. Deletes and adds entries; a word Known by its timer leaves Known
+    by its lemma."""
 
     def __init__(
         self,
@@ -46,7 +49,7 @@ class ManageKnownWordsUseCase:
             for lemma, knowledge in self._vocabulary.knowledge().lemmas()
             if knowledge.timer_known and knowledge.timer_known_on is not None
         ]
-        return listed + by_timer
+        return sorted(listed + by_timer, key=lambda word: _aware(word.created_at), reverse=True)
 
     def remove(self, removal_key: str) -> None:
         """Removes the entry the list gave this key; raises KnownWordNotFoundError for a key
@@ -107,3 +110,8 @@ _ENTRY, _TIMER, _SEPARATOR = "entry", "timer", ":"
 
 def _key(kind: str, value: object) -> str:
     return f"{kind}{_SEPARATOR}{value}"
+
+
+def _aware(moment: datetime) -> datetime:
+    """SQLite gives naive UTC times, the timer gives aware ones: both compare as UTC."""
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)

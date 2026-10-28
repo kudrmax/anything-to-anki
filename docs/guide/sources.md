@@ -97,7 +97,7 @@ Drop several files, pick several in **Choose file…**, or paste several paths, 
 When one add makes several sources (a split book or several files), a naming window opens:
 
 - **Collection**: where the new sources go. For a book, it defaults to a collection named after the book. Leave it empty to put the sources in **Unsorted**.
-- **Name them**: a naming rule built from **+ Collection**, **+ Number**, **+ Title from file** and free text. The rule must include the number or the title. The default rule is `{{collection}} ch{{n}}`; change it in **Settings → Books**.
+- **Name them**: a naming rule built from **+ Collection**, **+ Number**, **+ Title from file** and free text. The rule must include the number or the title. The default rule is `{{collection}} ch{{n}}`; change it in **Settings → Sources → Naming rule**.
 - **Numbers**: **Auto**, `1`, `01` or `001`. Auto pads numbers so titles sort correctly.
 - A preview shows every title. You can overwrite any of them by hand.
 

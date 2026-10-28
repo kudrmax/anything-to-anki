@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -51,6 +51,21 @@ class TestManageKnownWordsUseCase:
             (1, "run", False), (None, "glare", True),
         ]
         assert result[1].created_at == DUE + LEARNING_KNOWN_AFTER
+
+    def test_the_list_goes_newest_first_whichever_way_a_word_became_known(self) -> None:
+        def naive_days_ago(days: int) -> datetime:
+            return (NOW - timedelta(days=days)).replace(tzinfo=None)
+
+        self.known_word_repo.known_entries.return_value = [
+            KnownWord(id=2, lemma="walk", pos="VERB", created_at=naive_days_ago(3)),
+            KnownWord(id=1, lemma="run", pos="VERB", created_at=naive_days_ago(60)),
+        ]
+        known_ten_days_ago = NOW - LEARNING_KNOWN_AFTER - timedelta(days=10)
+        use_case = self._use_case(active_since={"glare": (known_ten_days_ago,)})
+
+        result = use_case.list_all()
+
+        assert [w.lemma for w in result] == ["walk", "glare", "run"]
 
     def test_deleting_a_word_known_by_its_timer_removes_it_from_known_everywhere(
         self,

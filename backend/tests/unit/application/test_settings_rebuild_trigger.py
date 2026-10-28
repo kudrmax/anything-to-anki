@@ -139,10 +139,10 @@ def test_an_unrelated_setting_is_no_level_change(
     use_case: ManageSettingsUseCase, events: list[str],
 ) -> None:
     use_case.update_settings(
-        UpdateSettingsRequest(anki_deck_name="Other", tts_speed=1.2, enable_definitions=False),
+        UpdateSettingsRequest(anki_deck_name="Other", tts_speed=1.2, ai_model="opus"),
     )
     assert events == [
-        "write", "set anki_deck_name", "set enable_definitions", "set tts_speed", "committed",
+        "write", "set anki_deck_name", "set ai_model", "set tts_speed", "committed",
     ]
 
 
