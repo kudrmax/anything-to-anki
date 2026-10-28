@@ -43,7 +43,7 @@ class TestDefault:
 
     def test_separates_target_from_translation(self) -> None:
         assert rows(DEFAULT_CARD_LAYOUT)[:3] == (
-            blocks(E.TARGET), DividerRow(), blocks(E.TRANSLATION),
+            blocks(E.TARGET, E.TRANSCRIPTION, E.WORD_FACTS), DividerRow(), blocks(E.TRANSLATION),
         )
 
 
@@ -201,7 +201,7 @@ class TestAlwaysShown:
         media = blocks(E.VIDEO_FRAME, E.PICTURE)
         saved = (CardColumn(ColumnWidth.NORMAL, (blocks(E.TARGET), media)),)
         card = CardLayout.restored(saved, DEFAULT_CARD_LAYOUT.styles)
-        assert rows(card) == (blocks(E.TARGET), blocks(E.VIDEO_FRAME, E.PICTURE, E.PICTURE_CHOICE))
+        assert rows(card) == (blocks(E.TARGET), blocks(E.VIDEO_FRAME, E.PICTURE_CHOICE, E.PICTURE))
 
     def test_without_the_neighbour_it_ends_the_first_column(self) -> None:
         saved = (

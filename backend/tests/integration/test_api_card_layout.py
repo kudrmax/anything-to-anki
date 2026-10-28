@@ -66,7 +66,8 @@ class TestCardLayoutAPI:
         view = client.get("/api/card-layout").json()
         assert view["hidden"] == []
         assert first_column(view)[:2] == [
-            {"kind": "blocks", "elements": ["target"]}, {"kind": "divider", "sticks": "below"},
+            {"kind": "blocks", "elements": ["target", "transcription", "word_facts"]},
+            {"kind": "divider", "sticks": "below"},
         ]
         assert {"element": "picture", "kind": "media", "can_hide": True} in view["elements"]
         always_shown = {"element": "picture_choice", "kind": "media", "can_hide": False}
@@ -87,7 +88,7 @@ class TestCardLayoutAPI:
         ).json()
         assert style_of(view, "translation") == {
             "size": "xl", "tone": "muted", "bold": True, "align": "start", "valign": "baseline",
-            "space_top": "none", "space_right": "none",
+            "space_top": "s", "space_right": "none",
             "space_bottom": "none", "space_left": "none",
         }
 
@@ -101,7 +102,7 @@ class TestCardLayoutAPI:
         ).json()
         style = style_of(view, "translation")
         assert [style[f"space_{side}"] for side in ("top", "right", "bottom", "left")] == [
-            "none", "none", "s", "l",
+            "s", "none", "s", "l",
         ]
 
     def test_restyle_vertical_position(self, client: TestClient) -> None:
