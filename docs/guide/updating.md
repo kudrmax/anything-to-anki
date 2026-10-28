@@ -4,7 +4,7 @@ AnythingToAnki is released in versions. The app checks for a new one and updates
 
 ## Finding out about a new version
 
-Once a day the app looks for a release newer than the one you run. If it finds one, a quiet **Update available** appears in the header. It stays until you update.
+Once a day the app looks for a release newer than the one you run. If it finds one, a quiet **Update available** appears in the header. It stays until you update. On a phone-wide window the header has no room for it: a dot on the Settings gear shows instead, and **Settings → Updates** says which version is out.
 
 ![Update available in the header](../images/updating/indicator.png)
 

@@ -1,2 +1,2 @@
-.indicator { flex: none; align-self: center; margin-right: var(--s3); font-size: var(--fs-xs); color: var(--tx3); transition: color var(--t); }
+.indicator { display: var(--nav-update-display); flex: none; align-self: center; margin-right: var(--s3); font-size: var(--fs-xs); color: var(--tx3); transition: color var(--t); }
 .indicator:hover { color: var(--tx2); }
