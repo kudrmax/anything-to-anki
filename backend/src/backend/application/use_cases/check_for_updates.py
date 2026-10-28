@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.installed_release import InstalledRelease
     from backend.domain.ports.release_source import ReleaseSource
     from backend.domain.ports.settings_repository import SettingsRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.services.changelog_parser import ChangelogParser
 
 UPDATE_CHECK_INTERVAL = timedelta(days=1)
@@ -29,12 +30,14 @@ class CheckForUpdatesUseCase:
         settings_repo: SettingsRepository,
         clock: Clock,
         parser: ChangelogParser,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._installed = installed
         self._source = source
         self._settings_repo = settings_repo
         self._clock = clock
         self._parser = parser
+        self._unit_of_work = unit_of_work
 
     def execute(self, force: bool) -> UpdateStatusDTO:
         current = self._installed.version()
@@ -73,11 +76,11 @@ class CheckForUpdatesUseCase:
 
     def _ask_source(self) -> AppVersion | None:
         latest = self._source.latest()
-        self._settings_repo.set(UPDATE_CHECKED_AT_KEY, self._clock.now().isoformat())
-        if latest is None:
-            return self._cached_latest()
-        self._settings_repo.set(UPDATE_LATEST_VERSION_KEY, str(latest))
-        return latest
+        with self._unit_of_work.write():
+            self._settings_repo.set(UPDATE_CHECKED_AT_KEY, self._clock.now().isoformat())
+            if latest is not None:
+                self._settings_repo.set(UPDATE_LATEST_VERSION_KEY, str(latest))
+        return latest if latest is not None else self._cached_latest()
 
     def _entries_between(self, current: AppVersion, latest: AppVersion) -> list[ChangelogEntryDTO]:
         text = self._source.changelog_text(latest)

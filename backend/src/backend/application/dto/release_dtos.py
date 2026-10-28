@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from backend.domain.value_objects.changelog import ChangelogEntry, ChangelogSection
+    from backend.domain.value_objects.update_progress import UpdateProgress
 
 
 class ChangelogSectionDTO(BaseModel):
@@ -54,3 +55,7 @@ class UpdateStateDTO(BaseModel):
 
     state: UpdateState
     log_tail: str
+
+    @classmethod
+    def from_progress(cls, progress: UpdateProgress) -> UpdateStateDTO:
+        return cls(state=progress.state.value, log_tail=progress.log_tail)

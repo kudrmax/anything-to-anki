@@ -12,7 +12,12 @@ from backend.application.use_cases.check_for_updates import (
 from backend.domain.services.changelog_parser import ChangelogParser
 
 from tests.decision_support import NOW, FixedClock
-from tests.release_support import FakeInstalledRelease, FakeReleaseSource, changelog
+from tests.release_support import (
+    FakeInstalledRelease,
+    FakeReleaseSource,
+    PlainUnitOfWork,
+    changelog,
+)
 from tests.source_order_support import InMemorySettingsRepository
 
 REMOTE_CHANGELOG = changelog("1.0.0", "1.1.0", "1.2.0")
@@ -26,6 +31,7 @@ def _use_case(
     installed = FakeInstalledRelease("1.0.0", changelog("1.0.0"))
     return CheckForUpdatesUseCase(
         installed, source, settings, clock or FixedClock(), ChangelogParser(),
+        PlainUnitOfWork(),
     )
 
 

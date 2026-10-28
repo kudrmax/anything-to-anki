@@ -7,13 +7,14 @@ from backend.application.use_cases.get_changelog import (
 )
 from backend.domain.services.changelog_parser import ChangelogParser
 
-from tests.release_support import FakeInstalledRelease, changelog
+from tests.release_support import FakeInstalledRelease, PlainUnitOfWork, changelog
 from tests.source_order_support import InMemorySettingsRepository
 
 
 def _use_case(current: str, settings: InMemorySettingsRepository) -> GetChangelogUseCase:
     text = changelog("1.0.0", "1.1.0", "1.2.0", "1.3.0")
-    return GetChangelogUseCase(FakeInstalledRelease(current, text), settings, ChangelogParser())
+    installed = FakeInstalledRelease(current, text)
+    return GetChangelogUseCase(installed, settings, ChangelogParser(), PlainUnitOfWork())
 
 
 @pytest.mark.unit

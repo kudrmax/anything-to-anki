@@ -8,6 +8,7 @@ from backend.domain.value_objects.app_version import AppVersion
 if TYPE_CHECKING:
     from backend.domain.ports.installed_release import InstalledRelease
     from backend.domain.ports.settings_repository import SettingsRepository
+    from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.services.changelog_parser import ChangelogParser
 
 CHANGELOG_SEEN_VERSION_KEY = "changelog_seen_version"
@@ -21,10 +22,12 @@ class GetChangelogUseCase:
         installed: InstalledRelease,
         settings_repo: SettingsRepository,
         parser: ChangelogParser,
+        unit_of_work: UnitOfWork,
     ) -> None:
         self._installed = installed
         self._settings_repo = settings_repo
         self._parser = parser
+        self._unit_of_work = unit_of_work
 
     def all(self) -> list[ChangelogEntryDTO]:
         return [ChangelogEntryDTO.from_entry(entry) for entry in self._parser.parse(self._text())]
@@ -42,7 +45,8 @@ class GetChangelogUseCase:
         ]
 
     def mark_seen(self) -> None:
-        self._settings_repo.set(CHANGELOG_SEEN_VERSION_KEY, str(self._installed.version()))
+        with self._unit_of_work.write():
+            self._settings_repo.set(CHANGELOG_SEEN_VERSION_KEY, str(self._installed.version()))
 
     def _text(self) -> str:
         return self._installed.changelog_text()

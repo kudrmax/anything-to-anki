@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import TYPE_CHECKING
+
 from backend.domain.ports.installed_release import InstalledRelease
 from backend.domain.ports.release_source import ReleaseSource
+from backend.domain.ports.unit_of_work import UnitOfWork
 from backend.domain.value_objects.app_version import AppVersion
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 def changelog(*versions: str) -> str:
@@ -49,3 +56,15 @@ class FakeReleaseSource(ReleaseSource):
 
     def asset(self, version: AppVersion, path: str) -> bytes | None:
         return self._assets.get(f"{version}/{path}")
+
+
+class PlainUnitOfWork(UnitOfWork):
+    """Transactions that do nothing: the fake settings are written at once."""
+
+    @contextmanager
+    def write(self) -> Iterator[None]:
+        yield
+
+    @contextmanager
+    def read(self) -> Iterator[None]:
+        yield
