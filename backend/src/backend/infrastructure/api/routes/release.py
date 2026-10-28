@@ -30,7 +30,7 @@ router = APIRouter(prefix="/api", tags=["release"])
 ASSETS_URL = "/api/changelog/assets"
 # A changelog image as the markdown names it, by its repository path.
 IMAGE_SRC = re.compile(r'src="(docs/images/changelog/(\d+\.\d+\.\d+)/[^"]*)"')
-_markdown = MarkdownIt("commonmark")
+_markdown = MarkdownIt("commonmark", {"html": False})
 
 
 class VersionView(BaseModel):

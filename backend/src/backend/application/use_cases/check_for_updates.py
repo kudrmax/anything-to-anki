@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from backend.application.dto.release_dtos import ChangelogEntryDTO, UpdateStatusDTO
+from backend.domain.exceptions import LongOperationInProgressError
 from backend.domain.value_objects.app_version import AppVersion
 
 if TYPE_CHECKING:
@@ -41,11 +42,14 @@ class CheckForUpdatesUseCase:
 
     def execute(self, force: bool) -> UpdateStatusDTO:
         current = self._installed.version()
+        fetch_failed = False
         if not force and self._cache_is_fresh():
             latest = self._cached_latest()
         else:
-            latest = self._ask_source()
-        failed = force and latest is None
+            fetched = self._source.latest()
+            fetch_failed = fetched is None
+            self._remember(fetched)
+            latest = fetched if fetched is not None else self._cached_latest()
         available = latest is not None and latest > current
         entries = self._entries_between(current, latest) if available and latest else []
         return UpdateStatusDTO(
@@ -53,7 +57,7 @@ class CheckForUpdatesUseCase:
             latest=str(latest) if latest else None,
             available=available,
             entries=entries,
-            check_failed=failed,
+            check_failed=force and fetch_failed,
         )
 
     def _cache_is_fresh(self) -> bool:
@@ -74,13 +78,15 @@ class CheckForUpdatesUseCase:
         except ValueError:
             return None
 
-    def _ask_source(self) -> AppVersion | None:
-        latest = self._source.latest()
-        with self._unit_of_work.write():
-            self._settings_repo.set(UPDATE_CHECKED_AT_KEY, self._clock.now().isoformat())
-            if latest is not None:
-                self._settings_repo.set(UPDATE_LATEST_VERSION_KEY, str(latest))
-        return latest if latest is not None else self._cached_latest()
+    def _remember(self, fetched: AppVersion | None) -> None:
+        """Best-effort: a long operation refuses writes, and the answer is still good."""
+        try:
+            with self._unit_of_work.write():
+                self._settings_repo.set(UPDATE_CHECKED_AT_KEY, self._clock.now().isoformat())
+                if fetched is not None:
+                    self._settings_repo.set(UPDATE_LATEST_VERSION_KEY, str(fetched))
+        except LongOperationInProgressError:
+            return
 
     def _entries_between(self, current: AppVersion, latest: AppVersion) -> list[ChangelogEntryDTO]:
         text = self._source.changelog_text(latest)

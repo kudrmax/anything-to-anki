@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
+from backend.domain.exceptions import LongOperationInProgressError
 from backend.domain.ports.installed_release import InstalledRelease
 from backend.domain.ports.release_source import ReleaseSource
 from backend.domain.ports.unit_of_work import UnitOfWork
@@ -63,6 +64,19 @@ class PlainUnitOfWork(UnitOfWork):
 
     @contextmanager
     def write(self) -> Iterator[None]:
+        yield
+
+    @contextmanager
+    def read(self) -> Iterator[None]:
+        yield
+
+
+class LockedUnitOfWork(UnitOfWork):
+    """A long operation runs: the write gate refuses every write."""
+
+    @contextmanager
+    def write(self) -> Iterator[None]:
+        raise LongOperationInProgressError
         yield
 
     @contextmanager

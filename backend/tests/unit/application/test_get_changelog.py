@@ -7,7 +7,12 @@ from backend.application.use_cases.get_changelog import (
 )
 from backend.domain.services.changelog_parser import ChangelogParser
 
-from tests.release_support import FakeInstalledRelease, PlainUnitOfWork, changelog
+from tests.release_support import (
+    FakeInstalledRelease,
+    LockedUnitOfWork,
+    PlainUnitOfWork,
+    changelog,
+)
 from tests.source_order_support import InMemorySettingsRepository
 
 
@@ -52,3 +57,13 @@ def test_mark_seen_writes_the_installed_version() -> None:
 
     assert settings.get(CHANGELOG_SEEN_VERSION_KEY) == "1.2.0"
     assert use_case.unseen() == []
+
+
+@pytest.mark.unit
+def test_fresh_install_during_a_long_operation_has_nothing_unseen_and_persists_nothing() -> None:
+    settings = InMemorySettingsRepository()
+    installed = FakeInstalledRelease("1.2.0", changelog("1.0.0", "1.1.0", "1.2.0"))
+    use_case = GetChangelogUseCase(installed, settings, ChangelogParser(), LockedUnitOfWork())
+
+    assert use_case.unseen() == []
+    assert settings.values == {}

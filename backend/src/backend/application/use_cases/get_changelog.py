@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.dto.release_dtos import ChangelogEntryDTO
+from backend.domain.exceptions import LongOperationInProgressError
 from backend.domain.value_objects.app_version import AppVersion
 
 if TYPE_CHECKING:
@@ -36,7 +37,7 @@ class GetChangelogUseCase:
         current = self._installed.version()
         seen = self._seen_version()
         if seen is None:
-            self.mark_seen()
+            self._remember_fresh_install()
             return []
         return [
             ChangelogEntryDTO.from_entry(entry)
@@ -47,6 +48,13 @@ class GetChangelogUseCase:
     def mark_seen(self) -> None:
         with self._unit_of_work.write():
             self._settings_repo.set(CHANGELOG_SEEN_VERSION_KEY, str(self._installed.version()))
+
+    def _remember_fresh_install(self) -> None:
+        """Best-effort: while a long operation refuses writes the next call does it."""
+        try:
+            self.mark_seen()
+        except LongOperationInProgressError:
+            return
 
     def _text(self) -> str:
         return self._installed.changelog_text()

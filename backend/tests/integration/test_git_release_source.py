@@ -87,3 +87,14 @@ def test_latest_is_none_without_origin(tmp_path: Path) -> None:
     git(tmp_path, "init", str(lonely))
 
     assert GitReleaseSource(lonely).latest() is None
+
+
+def test_changelog_that_is_not_utf8_is_unavailable(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    git(tmp_path, "init", str(repo))
+    (repo / "CHANGELOG.md").write_bytes(b"\xff\xfe not utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-m", "v1.0.0")
+    git(repo, "tag", "v1.0.0")
+
+    assert GitReleaseSource(repo).changelog_text(AppVersion(1, 0, 0)) is None

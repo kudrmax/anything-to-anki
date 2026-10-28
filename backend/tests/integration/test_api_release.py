@@ -188,3 +188,20 @@ def test_update_while_one_runs_is_409(client: TestClient, runner: _NoUpdateRunne
 
     assert client.post("/api/update").status_code == 409
     assert runner.started == 0
+
+
+@pytest.mark.integration
+def test_raw_html_in_a_changelog_is_escaped(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    text = (
+        "# Changelog\n\n## 1.0.0 — 2026-10-01\n\nFirst.\n\n### New\n\n"
+        "<script>alert(1)</script>\n"
+    )
+    container = dependencies.get_container()
+    monkeypatch.setattr(container, "_installed_release", FakeInstalledRelease("1.0.0", text))
+
+    html = client.get("/api/changelog").json()[0]["sections"][0]["html"]
+
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html

@@ -37,7 +37,13 @@ class GitReleaseSource(ReleaseSource):
 
     def changelog_text(self, version: AppVersion) -> str | None:
         content = self._show(version, CHANGELOG_FILE)
-        return content.decode("utf-8") if content is not None else None
+        if content is None:
+            return None
+        try:
+            return content.decode("utf-8")
+        except UnicodeDecodeError:
+            logger.warning("The changelog of release %s is not UTF-8", version)
+            return None
 
     def asset(self, version: AppVersion, path: str) -> bytes | None:
         return self._show(version, path) if is_changelog_asset_path(path) else None
