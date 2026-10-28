@@ -1,5 +1,5 @@
 /* вкладки прокручиваются, если не влезают; правый край (обновление, окружение, Settings) виден всегда */
-.nav { flex: none; display: flex; align-items: stretch; height: var(--nav-h); padding: 0 var(--page-x); border-bottom: var(--bw) solid var(--line-soft); }
+.nav { flex: none; display: flex; align-items: stretch; height: var(--nav-h); padding: 0 calc(var(--page-x) + var(--window-controls-end)) 0 max(var(--page-x), var(--window-controls-start)); border-bottom: var(--bw) solid var(--line-soft); }
 .main { flex: 1; min-width: 0; display: flex; align-items: stretch; gap: var(--s2); margin-left: calc(var(--tab-px) * -1); overflow-x: auto; scrollbar-width: none; mask-image: var(--nav-fade); }
 .main::-webkit-scrollbar { display: none; }
 .end { flex: none; display: flex; align-items: stretch; gap: var(--s2); margin-right: calc(var(--tab-px) * -1); }

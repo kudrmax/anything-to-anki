@@ -10,11 +10,16 @@ final class WebViewController: NSViewController {
     var onPageLoaded: (() -> Void)?
 
     private let config: AppConfig
-    private lazy var filePicker = FilePickerBridge(isAppFrame: { [config] frame in
+    private lazy var isAppFrame: (WKFrameInfo) -> Bool = { [config] frame in
         frame.isMainFrame && frame.request.url.map(config.isAppURL) == true
+    }
+    private lazy var filePicker = FilePickerBridge(isAppFrame: isAppFrame)
+    private lazy var titlebar = TitlebarBridge(isAppFrame: isAppFrame, lastMouseDown: { [weak self] in
+        self?.webView.lastMouseDown
     })
-    private lazy var webView: WKWebView = makeWebView()
+    private lazy var webView: FileDropWebView = makeWebView()
     private let pageZoom = PageZoom()
+    private var titlebarInsets: TitlebarInsets?
 
     init(config: AppConfig) {
         self.config = config
@@ -31,6 +36,7 @@ final class WebViewController: NSViewController {
     override func viewDidAppear() {
         super.viewDidAppear()
         filePicker.attach(to: view.window)
+        titlebar.attach(to: view.window)
     }
 
     func loadApp() {
@@ -49,6 +55,25 @@ final class WebViewController: NSViewController {
 
     func zoom(_ step: PageZoom.Step) {
         webView.pageZoom = pageZoom.apply(step)
+        applyTitlebarInsets()
+    }
+
+    func setTitlebarInsets(_ insets: TitlebarInsets) {
+        guard insets != titlebarInsets else { return }
+        titlebarInsets = insets
+        applyTitlebarInsets()
+    }
+
+    /// Set before the page's own scripts run, so its top bar never renders under the window controls.
+    private func applyTitlebarInsets() {
+        guard let titlebarInsets else { return }
+        loadViewIfNeeded()
+        let script = titlebarInsets.styleScript(pageZoom: webView.pageZoom)
+        let userContent = webView.configuration.userContentController
+        userContent.removeAllUserScripts()
+        userContent.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        guard webView.url.map(config.isAppURL) == true else { return }
+        webView.evaluateJavaScript(script)
     }
 
     /// The page owns its routes, so the menu only tells it to open settings.
@@ -79,11 +104,12 @@ final class WebViewController: NSViewController {
         }
     }
 
-    private func makeWebView() -> WKWebView {
+    private func makeWebView() -> FileDropWebView {
         let configuration = WKWebViewConfiguration()
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.userContentController.addScriptMessageHandler(filePicker, contentWorld: .page, name: FilePickerBridge.name)
+        configuration.userContentController.add(titlebar, contentWorld: .page, name: TitlebarBridge.name)
         let webView = FileDropWebView(frame: .zero, configuration: configuration)
         webView.isAppPage = { [weak webView, config] in webView?.url.map(config.isAppURL) == true }
         webView.navigationDelegate = self

@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Settings } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { statsStore, useStats } from '@/hooks/useStats'
+import { windowTitlebar } from '@/lib/nativeHost'
 import { Icon } from '@/ui'
 import { UpdateIndicator } from './updates/UpdateIndicator'
 import { useUpdates } from './updates/useUpdates'
@@ -28,6 +29,9 @@ const MAIN: Destination[] = [
   { section: 'usage', label: 'Usage', path: '/usage' },
 ]
 const SETTINGS: Destination = { section: 'settings', label: 'Settings', path: SETTINGS_PATH }
+const CONTROL = 'a, button, input, [role="button"]'
+const PRIMARY_BUTTON = 0
+const DOUBLE_CLICK = 2
 
 function sectionOf(pathname: string): Section {
   if (pathname.startsWith('/export')) return 'export'
@@ -43,6 +47,7 @@ export function TopNav() {
   const stats = useStats()
   const updateAvailable = useUpdates().status?.available === true
   const main = useRef<HTMLDivElement>(null)
+  const [titlebar] = useState(() => windowTitlebar())
 
   useEffect(() => { void statsStore.refresh() }, [pathname])
 
@@ -69,9 +74,17 @@ export function TopNav() {
     </NavLink>
   )
 
+  // В приложении для macOS шапка лежит на месте заголовка окна: её пустое место двигает окно.
+  const onMouseDown = (event: MouseEvent) => {
+    if (!titlebar || event.button !== PRIMARY_BUTTON) return
+    if (event.target instanceof Element && event.target.closest(CONTROL)) return
+    if (event.detail === DOUBLE_CLICK) titlebar.doubleClick()
+    else titlebar.drag()
+  }
+
   const on = current === SETTINGS.section
   return (
-    <nav className={css.nav}>
+    <nav className={css.nav} onMouseDown={onMouseDown}>
       <div ref={main} className={css.main}>
         {MAIN.map(destination => tab(destination, badges[destination.section]))}
         <span className={css.spacer} />

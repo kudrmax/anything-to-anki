@@ -83,4 +83,4 @@ make update
 
 ## macOS app
 
-When the update changes the app itself, a note in its title bar says **Restart to finish the update** with a **Restart** button. See [The macOS app](macos-app.md#updates).
+When the update changes the app itself, a note at the right end of its top bar says **Restart to finish the update** with a **Restart** button. See [The macOS app](macos-app.md#updates).
