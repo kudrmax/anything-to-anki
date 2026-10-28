@@ -13,7 +13,7 @@ export type CheckOutcome = 'latest' | 'failed'
 /** Обновление, запущенное из приложения: идёт или упало с концом лога. */
 export type UpdateRun = { phase: 'running' } | { phase: 'failed'; logTail: string }
 
-export interface Updates {
+export interface UpdatesState {
   /** Последнее, что backend сказал о релизах; null — ещё не ответил. */
   status: UpdateStatus | null
   checking: boolean
@@ -22,7 +22,8 @@ export interface Updates {
   offerOpen: boolean
   run: UpdateRun | null
   startError: string | null
-  checkNow: () => Promise<void>
+  /** Проверка мимо суточного кэша; итог, когда попап обновления не открылся, иначе null. */
+  checkNow: () => Promise<CheckOutcome | null>
   openOffer: () => void
   closeOffer: () => void
   startUpdate: () => Promise<void>
@@ -36,7 +37,7 @@ const reloadPage = () => window.location.reload()
  * неудачные запросы опроса значат «ещё обновляется». Сервер вернулся на другой версии или
  * сказал `done` — страница перечитывается.
  */
-export function useUpdatesController(reload: () => void = reloadPage): Updates {
+export function useUpdatesController(reload: () => void = reloadPage): UpdatesState {
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   const [checking, setChecking] = useState(false)
   const [checkOutcome, setCheckOutcome] = useState<CheckOutcome | null>(null)
@@ -49,24 +50,27 @@ export function useUpdatesController(reload: () => void = reloadPage): Updates {
     api.getUpdates(false).then(setStatus, () => {})
   }, [])
 
-  const checkNow = useCallback(async () => {
+  const checkNow = useCallback(async (): Promise<CheckOutcome | null> => {
     setChecking(true)
     setCheckOutcome(null)
+    let outcome: CheckOutcome | null
     try {
       const next = await api.getUpdates(true)
       setStatus(next)
+      outcome = next.available ? null : next.check_failed ? 'failed' : 'latest'
       if (next.available) setOfferOpen(true)
-      else setCheckOutcome(next.check_failed ? 'failed' : 'latest')
     } catch {
-      setCheckOutcome('failed')
-    } finally {
-      setChecking(false)
+      outcome = 'failed'
     }
+    setCheckOutcome(outcome)
+    setChecking(false)
+    return outcome
   }, [])
 
+  const current = status?.current ?? null
   const startUpdate = useCallback(async () => {
     setStartError(null)
-    versionBefore.current = status?.current ?? null
+    versionBefore.current = current
     try {
       await api.startUpdate()
     } catch (error) {
@@ -79,7 +83,7 @@ export function useUpdatesController(reload: () => void = reloadPage): Updates {
     }
     setOfferOpen(false)
     setRun({ phase: 'running' })
-  }, [status])
+  }, [current])
 
   const running = run?.phase === 'running'
   useEffect(() => {
@@ -110,9 +114,9 @@ export function useUpdatesController(reload: () => void = reloadPage): Updates {
   }
 }
 
-export const UpdatesContext = createContext<Updates | null>(null)
+export const UpdatesContext = createContext<UpdatesState | null>(null)
 
-export function useUpdates(): Updates {
+export function useUpdates(): UpdatesState {
   const updates = useContext(UpdatesContext)
   if (!updates) throw new Error('useUpdates needs an UpdatesProvider')
   return updates

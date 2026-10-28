@@ -5,6 +5,7 @@ import { useUpdates } from './useUpdates'
 import css from './UpdatingOverlay.module.css'
 
 const UPDATE_COMMAND = 'make update'
+const COPY_LABELS = { idle: 'Copy', copied: 'Copied', failed: 'Copy failed' } as const
 
 /** Пока идёт обновление, приложение под ним закрыто; упавшее — объясняет, что делать руками. */
 export function UpdatingOverlay() {
@@ -41,9 +42,9 @@ interface UpdateFailedProps {
 }
 
 function UpdateFailed({ logTail, version, onClose }: UpdateFailedProps) {
-  const [copied, setCopied] = useState(false)
-  const copy = () => {
-    navigator.clipboard.writeText(UPDATE_COMMAND).then(() => setCopied(true), () => {})
+  const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const copyCommand = () => {
+    navigator.clipboard.writeText(UPDATE_COMMAND).then(() => setCopy('copied'), () => setCopy('failed'))
   }
   return (
     <div className={css.card} role="alertdialog" aria-modal="true" aria-label="Update failed">
@@ -55,7 +56,7 @@ function UpdateFailed({ logTail, version, onClose }: UpdateFailedProps) {
       {logTail && <pre className={css.log}>{logTail}</pre>}
       <div className={css.command}>
         <code>{UPDATE_COMMAND}</code>
-        <Button onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>
+        <Button onClick={copyCommand}>{COPY_LABELS[copy]}</Button>
       </div>
       <div className={css.footer}>
         <Button onClick={onClose}>Close</Button>

@@ -1,19 +1,18 @@
-import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { onNativeCheckForUpdates } from '@/lib/nativeHost'
-import { SETTINGS_PATH } from '../TopNav'
-import { useUpdates } from './useUpdates'
+import { useUpdates, type CheckOutcome } from './useUpdates'
 
-/** Раздел настроек, где кнопка Check for updates показывает итог проверки. */
-const UPDATES_SETTINGS = `${SETTINGS_PATH}?section=updates`
-
-/** Пункт Check for Updates… меню macOS-приложения: с любого экрана то же, что кнопка в настройках. */
-export function useNativeCheckForUpdates(): void {
-  const navigate = useNavigate()
+/**
+ * Пункт Check for Updates… меню macOS-приложения: проверка поверх текущего экрана. Новая
+ * версия открывает попап обновления; иначе возвращается итог, который показать.
+ */
+export function useNativeCheckForUpdates(): { outcome: CheckOutcome | null; dismiss: () => void } {
   const { checkNow } = useUpdates()
+  const [outcome, setOutcome] = useState<CheckOutcome | null>(null)
 
   useEffect(() => onNativeCheckForUpdates(() => {
-    navigate(UPDATES_SETTINGS)
-    void checkNow()
-  }), [navigate, checkNow])
+    void checkNow().then(setOutcome)
+  }), [checkNow])
+
+  return { outcome, dismiss: () => setOutcome(null) }
 }

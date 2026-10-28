@@ -38,6 +38,17 @@ describe('UpdateIndicator', () => {
     expect(page.button('Update')).toBeDefined()
   })
 
+  it('keeps the title and the Update button out of the scrolling changes', async () => {
+    vi.spyOn(api, 'getUpdates').mockResolvedValue(AVAILABLE)
+    await page.render(<UpdateIndicator />)
+
+    await page.click('Update available')
+
+    const changes = page.dialog()!.querySelector('article')!.parentElement!
+    expect(changes.contains(page.button('Update')!)).toBe(false)
+    expect(changes.contains(page.dialog()!.querySelector('h2')!)).toBe(false)
+  })
+
   it('stays after the popup is closed', async () => {
     vi.spyOn(api, 'getUpdates').mockResolvedValue(AVAILABLE)
     await page.render(<UpdateIndicator />)

@@ -3,13 +3,14 @@ import { api } from '@/api/client'
 import type { ChangelogEntry } from '@/api/types'
 import { messageOf } from '@/lib/apiError'
 import { ChangelogModal } from '@/shell/updates/ChangelogModal'
-import { useUpdates, type Updates as UpdatesState } from '@/shell/updates/useUpdates'
+import { CHECK_FAILED_TEXT, latestVersionText } from '@/shell/updates/checkOutcome'
+import { useUpdates, type UpdatesState } from '@/shell/updates/useUpdates'
 import { Button, DividerRow, Text } from '@/ui'
 
 function checkHint({ status, checkOutcome }: UpdatesState) {
-  if (checkOutcome === 'failed') return <Text tone="err">Couldn't check for updates. Try again later.</Text>
+  if (checkOutcome === 'failed') return <Text tone="err">{CHECK_FAILED_TEXT}</Text>
   if (status?.available) return `Version ${status.latest} is available`
-  if (checkOutcome === 'latest' && status) return `You're on the latest version (${status.current})`
+  if (checkOutcome === 'latest' && status) return latestVersionText(status.current)
   return undefined
 }
 

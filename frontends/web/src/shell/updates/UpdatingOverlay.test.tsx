@@ -1,11 +1,9 @@
 import { act } from 'react'
-import { useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError } from '@/api/client'
 import type { UpdateRunProgress } from '@/api/types'
-import { CHECK_FOR_UPDATES_EVENT } from '@/lib/nativeHost'
 import { UpdateIndicator } from './UpdateIndicator'
-import { AVAILABLE, Page, status } from './updatesTestKit'
+import { AVAILABLE, Page } from './updatesTestKit'
 
 const POLL_MS = 2_000
 const running: UpdateRunProgress = { state: 'running', log_tail: '' }
@@ -60,6 +58,32 @@ describe('updating', () => {
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
+  it('reloads the page once the update is done, even on the same version', async () => {
+    await startUpdate()
+
+    vi.mocked(api.getUpdateState).mockResolvedValue({ state: 'done', log_tail: '' })
+    await tick()
+
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the popup and says why the update did not start', async () => {
+    vi.mocked(api.startUpdate).mockRejectedValue(new ApiError(500, '{"detail":"Uncommitted changes"}'))
+    await startUpdate()
+
+    expect(page.dialog()?.getAttribute('aria-label')).toBe('Update available')
+    expect(page.dialog()?.textContent).toContain('Uncommitted changes')
+    expect(page.text).not.toContain('Updating…')
+  })
+
+  it('keeps the popup while a long operation refuses the update', async () => {
+    vi.mocked(api.startUpdate).mockRejectedValue(new ApiError(423, '{"detail":"busy"}'))
+    await startUpdate()
+
+    expect(page.dialog()?.getAttribute('aria-label')).toBe('Update available')
+    expect(page.text).not.toContain('Updating…')
+  })
+
   it('goes on waiting for an update that is already running', async () => {
     vi.mocked(api.startUpdate).mockRejectedValue(new ApiError(409, '{"detail":"running"}'))
     await startUpdate()
@@ -85,41 +109,16 @@ describe('updating', () => {
     await page.click('Close')
     expect(page.text).not.toContain('Error 1')
   })
-})
 
-describe('Check for Updates… in the macOS app menu', () => {
-  let page: Page
+  it('says when the command could not be copied', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'))
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    await startUpdate()
+    vi.mocked(api.getUpdateState).mockResolvedValue(failed)
+    await tick()
 
-  function Where() {
-    return <output>{useLocation().search}</output>
-  }
+    await page.click('Copy')
 
-  beforeEach(() => {
-    page = new Page()
-  })
-
-  afterEach(() => {
-    page.unmount()
-    vi.restoreAllMocks()
-  })
-
-  it('checks right away, past the daily cache, from any screen', async () => {
-    vi.spyOn(api, 'getUpdates').mockResolvedValue(status())
-    await page.render(<Where />, () => {}, '/export')
-
-    vi.mocked(api.getUpdates).mockResolvedValue(AVAILABLE)
-    await act(async () => { window.dispatchEvent(new CustomEvent(CHECK_FOR_UPDATES_EVENT)) })
-
-    expect(api.getUpdates).toHaveBeenLastCalledWith(true)
-    expect(page.dialog()?.getAttribute('aria-label')).toBe('Update available')
-  })
-
-  it('opens the Updates settings to say the copy is on the latest version', async () => {
-    vi.spyOn(api, 'getUpdates').mockResolvedValue(status())
-    await page.render(<Where />, () => {}, '/export')
-
-    await act(async () => { window.dispatchEvent(new CustomEvent(CHECK_FOR_UPDATES_EVENT)) })
-
-    expect(page.text).toContain('section=updates')
+    expect(page.button('Copy failed')).toBeDefined()
   })
 })
