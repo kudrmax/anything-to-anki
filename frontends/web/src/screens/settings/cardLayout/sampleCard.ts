@@ -24,7 +24,6 @@ export const SAMPLE_CARD = {
     meaning: [
       'to look at someone in an angry way, without speaking',
       'He looked at me angrily across the table.',
-      '---',
       'Often followed by **at**: glare at someone.',
     ].join('\n'),
     translation: 'сердито смотреть',

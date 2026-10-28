@@ -11,12 +11,21 @@ import css from './cardLayout.module.css'
 
 const isActive = (status: EnrichmentStatus | undefined): boolean => status === 'queued' || status === 'running' || status === 'failed'
 
+/** Линии по краям заметок отделяли их от остального значения; теперь это делает линия раскладки. */
+function trimDividers(lines: string[]): string[] {
+  let start = 0
+  let end = lines.length
+  while (start < end && isDivider(lines[start])) start++
+  while (end > start && isDivider(lines[end - 1])) end--
+  return lines.slice(start, end)
+}
+
 /** Строки значения: первая — определение, вторая пересказывает контекст фразы, остальное — заметки. */
 function meaningLines(candidate: StoredCandidate) {
   const paragraphs = candidate.meaning?.meaning ? nonEmptyLines(candidate.meaning.meaning) : []
   const [definition, ...rest] = paragraphs
   const context = rest[0] && !isDivider(rest[0]) ? rest[0] : null
-  return { paragraphs, definition: definition ?? null, context, notes: context ? rest.slice(1) : rest }
+  return { paragraphs, definition: definition ?? null, context, notes: trimDividers(context ? rest.slice(1) : rest) }
 }
 
 function audioChip(ctx: CardBlockContext, label: string, url: string | null, title: string) {
@@ -133,7 +142,7 @@ export const CARD_ELEMENTS: Record<CardElement, (ctx: CardBlockContext) => React
     return (
       <div className={css.notes}>
         {notes.map((line, i) => isDivider(line)
-          ? <hr key={i} className={phrase.divider} />
+          ? <hr key={i} className={css.divider} />
           : <p key={i}><RichText text={line} candidate={candidate} /></p>)}
       </div>
     )
