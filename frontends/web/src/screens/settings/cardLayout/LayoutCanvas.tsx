@@ -84,12 +84,12 @@ export function LayoutCanvas({ view, rootRef, drag, selection, startDrag, onSele
               tabIndex={0}
               aria-label={ELEMENT_LABEL[element]}
               aria-pressed={isSelectedBlock(selection, element)}
-              title={ELEMENT_LABEL[element]}
               className={classes.filter(Boolean).join(' ')}
               onPointerDown={startDrag({ kind: 'block', element, placed: true })}
               onKeyDown={onKey({ kind: 'block', element, placed: true })}
             >
               {isEmptyBlock(content) ? placeholder(element, kind) : content}
+              <span className={css.blockLabel} aria-hidden>{ELEMENT_LABEL[element]}</span>
             </CardBlock>
           )
         })}

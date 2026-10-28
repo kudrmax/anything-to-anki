@@ -24,6 +24,10 @@
 .dragging .block, .dragging .divider { cursor: grabbing; }
 .dragging .block:hover, .dragging .divider:hover { outline-color: transparent; }
 .block.selected, .divider.selected { outline-style: solid; outline-color: var(--ac); }
+/* название блока над ним при наведении: превью остаётся похожим на карточку, но видно, что где */
+.blockLabel { position: absolute; bottom: calc(100% + var(--s2)); left: calc(-1 * var(--s1)); z-index: var(--z-block); padding: 0 var(--s2); border-radius: var(--r-s); font-size: var(--fs-xs); font-weight: var(--fw); line-height: var(--lh-label); color: var(--tx); background: var(--soft); box-shadow: var(--shadow-pop); white-space: nowrap; opacity: 0; transition: opacity var(--t); }
+.block:hover > .blockLabel, .block:focus-visible > .blockLabel { opacity: 1; }
+.dragging .block:hover > .blockLabel { opacity: 0; }
 .dragged { opacity: var(--o-dim); }
 .divider { margin-inline: calc(-1 * var(--card-pad)); padding: var(--s2) var(--card-pad); border-radius: var(--r-s); cursor: grab; touch-action: none; outline: var(--bw) dashed transparent; outline-offset: calc(-1 * var(--bw)); }
 .divider > hr { margin-inline: calc(-1 * var(--card-pad)); }

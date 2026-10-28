@@ -57,9 +57,9 @@ The section shows a sample card. On it:
 |---|---|
 | **Target word** | The word, phrasal verb or collocation |
 | **Translation** | Translation of the target |
-| **Context** | Second line of the meaning: what the target means in this phrase |
+| **Meaning in context** | Second line of the meaning: what the target means in this phrase |
 | **Definition** | First line of the meaning |
-| **More meaning** | The rest of the meaning |
+| **More meaning** | Anything the meaning adds after its first two lines; most cards have none |
 | **Synonyms**, **Examples**, **Transcription** | As named. Hover an example to use it as the phrase |
 | **US / UK audio**, **TTS audio** | Pronunciation and text-to-speech buttons |
 | **Level and frequency** | CEFR level or phrasal verb, frequency and register |

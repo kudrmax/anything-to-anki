@@ -3,7 +3,7 @@ import type { BlockAlign, BlockSize, BlockTone, CardElement, ColumnWidth } from 
 export const ELEMENT_LABEL: Record<CardElement, string> = {
   target: 'Target word',
   translation: 'Translation',
-  context: 'Context',
+  context: 'Meaning in context',
   definition: 'Definition',
   notes: 'More meaning',
   synonyms: 'Synonyms',
@@ -23,7 +23,7 @@ export const ELEMENT_HINT: Record<CardElement, string> = {
   translation: 'Translation of the target.',
   context: 'Second line of the meaning: what the target means in this phrase.',
   definition: 'First line of the meaning: the dictionary definition.',
-  notes: 'The rest of the meaning, with its own dividers.',
+  notes: 'Anything the meaning adds after its first two lines. Most cards have none.',
   synonyms: 'Synonyms of the target.',
   examples: 'Example sentences. Hover one to use it as the phrase.',
   transcription: 'IPA transcription.',
