@@ -20,6 +20,7 @@ from backend.domain.value_objects.elsewhere import ElsewhereStatus
 from backend.domain.value_objects.job_status import JobStatus
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind
+from backend.domain.value_objects.usage_distribution import UsageDistribution
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.card_support import CARD_SOURCE, card, occurrence, word
@@ -407,3 +408,30 @@ def test_card_plays_clip_then_phrase_then_word(
         occurrence(1, 1, media=media, tts=phrase_tts),
     )
     assert card_to_dto(the_card, CARD_SOURCE).audio_path == expected
+
+
+@pytest.mark.unit
+class TestUsageGroup:
+    """The card names the usage group it is sorted by, in the user's order."""
+
+    def _card(self, groups: dict[str, float] | None) -> ReviewCard:
+        return card(
+            word(1, usage_distribution=UsageDistribution(groups)), occurrence(1, 1),
+        )
+
+    def test_follows_the_usage_order_not_the_stored_one(self) -> None:
+        dto = card_to_dto(
+            self._card({"informal": 0.7, "formal": 0.3}), CARD_SOURCE,
+            usage_order=["formal", "informal"],
+        )
+        assert dto.usage_group == "formal"
+
+    def test_none_when_neutral_comes_first(self) -> None:
+        dto = card_to_dto(
+            self._card({"informal": 0.7, "neutral": 0.3}), CARD_SOURCE,
+            usage_order=["neutral", "informal"],
+        )
+        assert dto.usage_group is None
+
+    def test_none_without_a_distribution(self) -> None:
+        assert card_to_dto(self._card(None), CARD_SOURCE).usage_group is None

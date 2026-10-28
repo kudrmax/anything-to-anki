@@ -12,14 +12,6 @@ export interface TextPart {
   target: boolean
 }
 
-export function primaryUsageGroup(dist: Record<string, number> | null): string | null {
-  if (!dist) return null
-  const keys = Object.keys(dist)
-  if (keys.length === 0) return null
-  const first = keys[0]
-  return first === 'neutral' ? null : first
-}
-
 export function stripMarkdown(text: string): string {
   return text
     .replace(/\*{2}(.+?)\*{2}/gs, '$1')

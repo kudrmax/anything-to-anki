@@ -368,7 +368,8 @@ export interface StoredCandidate {
   audio_path: string | null
   cefr_breakdown?: CEFRBreakdown | null
   frequency_band: string | null
-  usage_distribution: Record<string, number> | null
+  /** Usage-группа, которую называет карточка; по ней же идёт сортировка. Выбирает backend. */
+  usage_group: string | null
   origin: PhraseOrigin | null
   /** Разметка cloze; есть только у фраз на изучение. */
   cloze: CandidateCloze | null

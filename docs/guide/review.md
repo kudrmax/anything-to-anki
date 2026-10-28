@@ -27,7 +27,7 @@ The right column holds reference material:
 - **TTS** button that plays the phrase read aloud by a synthetic voice.
 - **CEFR level** (A1–C2) of the word, or **phrasal verb**. Hover the level to see how each dictionary rated it. 🎯 marks words in the "sweet spot": frequent enough to be useful, rare enough to be worth learning.
 - **Frequency** of the word in English: ultra common, common, mid, low or rare.
-- **Usage**, such as formal or informal, if the word is not neutral.
+- **Usage**, such as formal or informal: the word's group that comes first in [Usage priority](vocabulary.md#word-order-in-review), the one the word is sorted by. Nothing is shown when that group is neutral.
 - **Synonyms**, a **definition**, and **examples**. **Use as phrase** on an example makes it the card's phrase.
 
 The meaning, translation, synonyms, examples and IPA come from AI. Pronunciations and CEFR levels come from the [dictionaries](../reference/dictionaries.md). Everything else is computed locally.
