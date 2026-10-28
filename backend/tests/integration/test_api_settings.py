@@ -174,6 +174,6 @@ class TestFrequentWordThresholdSetting:
         assert response.status_code == 200
         options = response.json()
         assert [o["value"] for o in options] == ["auto", "4.0", "4.5", "5.0", "5.5", "off"]
-        assert options[0]["zipf"] == 4.5  # no decisions yet
+        assert options[0]["zipf"] == 5.0  # no decisions yet, the default level B1
         assert "concept" in options[2]["examples"]
         assert options[-1]["zipf"] is None

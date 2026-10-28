@@ -4,7 +4,9 @@ import json
 from typing import TYPE_CHECKING
 
 from backend.application.constants import (
+    CEFR_LEVEL_SETTING,
     CLOZE_DEFAULT_HINT_SETTING,
+    DEFAULT_CEFR_LEVEL,
     DEFAULT_CLOZE_HINT,
     DEFAULT_IMAGES_PER_SOURCE,
     DEFAULT_USAGE_GROUP_ORDER,
@@ -32,15 +34,13 @@ if TYPE_CHECKING:
     from backend.application.dto.settings_dtos import UpdateSettingsRequest
     from backend.domain.ports.settings_repository import SettingsRepository
 
-CEFR_LEVEL_SETTING: str = "cefr_level"
-_DEFAULT_CEFR_LEVEL: str = "B1"
 _DEFAULT_DECK_NAME: str = "Default"
 _DEFAULT_AI_PROVIDER: str = "claude"
 _DEFAULT_AI_MODEL: str = "sonnet"
 _DEFAULT_ENABLE_DEFINITIONS: str = "true"
 
 SETTING_KEYS: dict[str, str] = {
-    CEFR_LEVEL_SETTING: _DEFAULT_CEFR_LEVEL,
+    CEFR_LEVEL_SETTING: DEFAULT_CEFR_LEVEL,
     FREQUENT_WORD_THRESHOLD_SETTING: DEFAULT_FREQUENT_WORD_THRESHOLD.key,
     "anki_deck_name": _DEFAULT_DECK_NAME,
     "ai_provider": _DEFAULT_AI_PROVIDER,

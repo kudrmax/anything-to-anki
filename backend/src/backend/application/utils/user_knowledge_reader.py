@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.value_objects.cefr_level import CEFRLevel
+from backend.application.utils.saved_level import saved_level
 from backend.domain.value_objects.user_knowledge import KnowledgeBase, UserKnowledge
 
 if TYPE_CHECKING:
@@ -11,8 +11,7 @@ if TYPE_CHECKING:
     )
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.ports.settings_repository import SettingsRepository
-
-DEFAULT_CEFR_LEVEL = "B1"
+    from backend.domain.value_objects.cefr_level import CEFRLevel
 
 
 class UserKnowledgeReader:
@@ -40,5 +39,4 @@ class UserKnowledgeReader:
         return KnowledgeBase(vocabulary=self._vocabulary.snapshot(), user_level=self._level())
 
     def _level(self) -> CEFRLevel:
-        level = self._settings_repo.get("cefr_level", DEFAULT_CEFR_LEVEL) or DEFAULT_CEFR_LEVEL
-        return CEFRLevel.from_str(level)
+        return saved_level(self._settings_repo)

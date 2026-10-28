@@ -23,6 +23,13 @@ if TYPE_CHECKING:
     from backend.domain.ports.settings_repository import SettingsRepository
 
 
+def no_settings() -> MagicMock:
+    """A settings repository with nothing saved: every setting is its default."""
+    repo = MagicMock()
+    repo.get.side_effect = lambda _key, default=None: default
+    return repo
+
+
 def threshold_resolver(
     settings_repo: SettingsRepository,
     decisions: list[WordDecision] | None = None,

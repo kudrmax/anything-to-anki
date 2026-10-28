@@ -47,7 +47,7 @@ from backend.domain.value_objects.format import Format
 from backend.domain.value_objects.review_card import ReviewCard
 from backend.domain.value_objects.source_status import SourceStatus
 
-from tests.candidate_sorter_support import section_stamper
+from tests.candidate_sorter_support import no_settings, section_stamper
 from tests.card_support import CARD_SOURCE, context
 from tests.lock_support import free_lock
 from tests.phrase_support import phrase
@@ -180,7 +180,7 @@ def _make_use_case(
         frequency_provider=frequency_provider or MagicMock(),
         phrasal_verb_detector=phrasal_verb_detector or MagicMock(),
         phrase_reader=_phrase_reader(),
-        stamper=section_stamper(MagicMock()),
+        stamper=section_stamper(no_settings()),
         lock=free_lock(),
         card_views=_card_views(repo),
         decide_phrase=MagicMock(),
