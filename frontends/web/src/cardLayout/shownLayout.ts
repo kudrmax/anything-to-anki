@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import type { CardElement, CardLayoutView, ColumnWidth } from '@/api/types'
 import type { CardBlockContext } from './CardBlockContext'
 import { CARD_ELEMENTS } from './cardElements'
-import { inRowOrder, isEmptyBlock } from './layoutView'
+import { inRowOrder, isEmptyBlock, styleOf } from './layoutView'
 
 export interface ShownBlock {
   element: CardElement
@@ -20,6 +20,11 @@ export interface ShownColumn {
   index: number
   width: ColumnWidth
   rows: ShownRow[]
+  /**
+   * С какой строки всё уходит к низу колонки: с первой строки, где есть блок «Bottom», или с линии прямо над ней.
+   * Как «Right» прижимает блок к правому краю строки. null — к низу ничего не прижато.
+   */
+  bottomFrom: number | null
 }
 
 /**
@@ -44,7 +49,9 @@ export function shownColumns(view: CardLayoutView, ctx: CardBlockContext, keepEm
       pendingDivider = null
       rows.push({ kind: 'blocks', index: rowIndex, blocks })
     })
-    return { index, width: column.width, rows }
+    const firstBottom = rows.findIndex(row => row.kind === 'blocks' && row.blocks.some(b => styleOf(view, b.element)?.valign === 'bottom'))
+    const bottomFrom = firstBottom < 0 ? null : rows[firstBottom - 1]?.kind === 'divider' ? firstBottom - 1 : firstBottom
+    return { index, width: column.width, rows, bottomFrom }
   })
   const shown = keepEmptyColumns ? columns : columns.filter(column => column.rows.length > 0)
   // Совсем пустой карточке остаётся первая колонка: телу карточки и редактору нужна хотя бы одна.

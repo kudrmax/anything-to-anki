@@ -8,6 +8,9 @@ import { Icon } from '@/ui'
 import layoutCss from '@/cardLayout/cardLayout.module.css'
 import editable from '@/cardLayout/editable.module.css'
 import { VIEW_CONTROL } from './viewControl'
+
+/** Отсюда строки колонки прижаты к её низу. */
+const TO_BOTTOM_ATTR = 'data-to-bottom'
 import css from './review.module.css'
 
 interface CardBodyProps {
@@ -20,6 +23,8 @@ interface CardBodyProps {
 
 interface RowProps {
   row: ShownRow
+  /** С этой строки всё прижато к низу колонки. */
+  toBottom: boolean
   column: number
   view: CardLayoutView
   editing: CardLayoutEditing | null
@@ -39,10 +44,13 @@ function editableProps(editing: CardLayoutEditing, item: DragItem, label: string
   }
 }
 
-function Row({ row, column, view, editing }: RowProps) {
-  const rowAttrs = editing ? { [ROW_ATTR]: row.index, [ROW_KIND_ATTR]: row.kind } : {}
+function Row({ row, toBottom, column, view, editing }: RowProps) {
+  const rowAttrs = {
+    ...(editing ? { [ROW_ATTR]: row.index, [ROW_KIND_ATTR]: row.kind } : {}),
+    ...(toBottom ? { [TO_BOTTOM_ATTR]: '' } : {}),
+  }
   if (row.kind === 'divider') {
-    if (!editing) return <hr className={layoutCss.divider} />
+    if (!editing) return <hr {...rowAttrs} className={layoutCss.divider} />
     const item: DragItem = { kind: 'divider', column, row: row.index }
     const { classes, ...props } = editableProps(editing, item, 'Divider', isSelectedDivider(editing.selection, column, row.index), false)
     return <hr {...rowAttrs} {...props} className={`${layoutCss.divider} ${editable.divider} ${classes}`} />
@@ -76,7 +84,7 @@ export function CardBody({ view, columns, detailsOpen, onToggleDetails }: CardBo
   const columnAttrs = (column: ShownColumn) => (editing ? { [COLUMN_ATTR]: column.index } : {})
   const columnClass = (base: string) => (editing ? `${base} ${editable.column}` : base)
   const rows = (column: ShownColumn) =>
-    column.rows.map(row => <Row key={row.index} row={row} column={column.index} view={view} editing={editing} />)
+    column.rows.map((row, i) => <Row key={row.index} row={row} toBottom={i === column.bottomFrom} column={column.index} view={view} editing={editing} />)
   return (
     <>
       <div

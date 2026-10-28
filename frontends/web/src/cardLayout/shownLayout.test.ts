@@ -10,7 +10,11 @@ const DIVIDER: CardLayoutRow = { kind: 'divider' }
 const blocks = (...elements: CardElement[]): CardLayoutRow => ({ kind: 'blocks', elements })
 
 const view = (...columns: CardLayoutRow[][]): CardLayoutView => ({
-  layout: { columns: columns.map(rows => ({ width: 'normal', rows })), styles: ELEMENTS.map(element => ({ element, style: STYLE })) },
+  layout: {
+    columns: columns.map(rows => ({ width: 'normal', rows })),
+    // Перевод прижат к низу колонки.
+    styles: ELEMENTS.map(element => ({ element, style: element === 'translation' ? { ...STYLE, valign: 'bottom' } : STYLE })),
+  },
   elements: ELEMENTS.map(element => ({ element, kind: 'text' })),
   hidden: [],
   can_add_column: true,
@@ -54,5 +58,14 @@ describe('shownColumns', () => {
 
   it('keeps the first column of a card with nothing to show', () => {
     expect(kinds(view([blocks('picture')], [blocks('synonyms')]))).toEqual([[0, []]])
+  })
+
+  it('pushes everything from the first Bottom block, with the line right above it, to the column bottom', () => {
+    const [withLine] = shownColumns(view([blocks('target'), DIVIDER, blocks('translation')]), ctx)
+    expect(withLine.bottomFrom).toBe(1)
+    const [noLine] = shownColumns(view([blocks('target'), blocks('translation'), blocks('synonyms')]), ctx)
+    expect(noLine.bottomFrom).toBe(1)
+    const [none] = shownColumns(view([blocks('target')]), ctx)
+    expect(none.bottomFrom).toBeNull()
   })
 })

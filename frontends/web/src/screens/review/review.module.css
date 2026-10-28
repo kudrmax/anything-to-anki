@@ -11,6 +11,8 @@
 /* линия раскладки — во всю колонку, от края до края */
 .cardLeft > hr { margin: calc(var(--card-left-item-mt) + var(--card-left-divider-my)) calc(var(--card-left-item-mx) - var(--card-pad)) var(--card-left-divider-my); }
 .cardRight > hr { margin-inline: calc(-1 * var(--card-pad)); }
+/* «Bottom»: с этой строки всё уходит к низу колонки, как «Right» уводит блок к правому краю */
+:is(.cardLeft, .cardRight) > [data-to-bottom] { margin-top: auto; }
 .cardRight { order: var(--card-right-order); display: flex; flex-direction: column; gap: var(--card-row-gap); contain: var(--card-right-contain); overflow-y: var(--card-right-overflow); mask-image: var(--card-right-mask); padding: var(--card-right-pt) var(--card-pad) var(--card-cols-pb); border-left: var(--card-right-bw) solid var(--line); }
 .phrase { margin-top: var(--focus-leading-trim); font-size: var(--fs-focus); line-height: var(--lh-focus); letter-spacing: var(--ls-focus); overflow-wrap: anywhere; }
 /* ручная правка фразы: поле повторяет типографику фразы */
