@@ -468,6 +468,31 @@ class TestAnalyzeTextLemmaFixes:
         candidates = _run(tokens, {"pants": CEFRLevel.B2}, {"pant": 3.18, "pants": 4.48})
         assert [c.lemma for c in candidates] == ["pants"]
 
+    @pytest.mark.parametrize(
+        ("text", "lemma", "pos", "tag"),
+        [
+            ("better", "well", "ADJ", "JJR"),
+            ("better", "well", "ADV", "RBR"),
+            ("best", "good", "ADJ", "JJS"),
+            ("worst", "bad", "ADJ", "JJS"),
+        ],
+    )
+    def test_an_irregular_comparison_is_a_word_of_its_own(
+        self, text: str, lemma: str, pos: str, tag: str,
+    ) -> None:
+        tokens = [_make_token(0, text, lemma, pos=pos, tag=tag)]
+        candidates = _run(tokens, {text: CEFRLevel.B2}, frequent_zipf=None)
+        assert [c.lemma for c in candidates] == [text]
+
+    @pytest.mark.parametrize(
+        ("text", "lemma", "tag"),
+        [("bigger", "big", "JJR"), ("happiest", "happy", "JJS"), ("later", "late", "RBR")],
+    )
+    def test_a_regular_comparison_goes_to_its_word(self, text: str, lemma: str, tag: str) -> None:
+        tokens = [_make_token(0, text, lemma, pos="ADJ", tag=tag)]
+        candidates = _run(tokens, {lemma: CEFRLevel.B2}, frequent_zipf=None)
+        assert [c.lemma for c in candidates] == [lemma]
+
     def test_regular_plural_goes_to_singular(self) -> None:
         tokens = [_make_token(0, "glasses", "glass", tag="NNS")]
         candidates = _run(tokens, {"glass": CEFRLevel.B2}, {"glass": 4.85, "glasses": 4.34})
