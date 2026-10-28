@@ -51,8 +51,15 @@ A new user knows thousands of words above their level that the app doesn't know 
 
 1. Open **Settings → Words → Vocabulary calibration** and press **Build word list**. The app builds a word list from the dictionaries; this takes a moment.
 2. Press **Calibrate**.
-3. Each round shows up to 15 words of your level and the two above it. Tap every word you know, then press **Next N words**.
+3. Each round shows up to 15 words. Tap every word you know, then press **Next N words**.
 4. Press **Finish** when you are done.
+
+The switch at the top of the screen picks which words you get:
+
+- **Like Review** (default): the words Review would suggest to you, in the same order. Common words come first, words of your level before harder ones. If you set [frequent words](#frequent-words), the words above that threshold come last, as in Review.
+- **Mixed**: one random word for each combination of level (yours and the two above it) and frequency, from common to rare.
+
+Switching mid-round loads a new round in that order; taps on the current round are dropped.
 
 Words you don't tap are not marked at all; they may come back in a later session.
 
