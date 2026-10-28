@@ -2,13 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, X } from 'lucide-react'
 import type { UpdateStep } from '@/api/types'
-import { Button, Icon, Spinner, Text } from '@/ui'
+import { Button, Icon, Kbd, Spinner, Text } from '@/ui'
 import { useUpdates } from './useUpdates'
 import css from './UpdatingOverlay.module.css'
 
-const UPDATE_COMMAND = 'make update'
-const START_COMMAND = 'make up'
-const UPDATE_LOG = '.logs/update.log'
+const STUCK_AFTER_MINUTES = 10
 const COPY_LABELS = { idle: 'Copy', copied: 'Copied', failed: 'Copy failed' } as const
 
 /** Пока идёт обновление, приложение под ним закрыто; упавшее — объясняет, что делать руками. */
@@ -34,15 +32,17 @@ export function UpdatingOverlay() {
               Updating…
             </div>
             {run.steps.length > 0 && <UpdateSteps steps={run.steps} />}
-            <div className={css.fallback}>
-              <Text tone="muted" size="s">
-                If the app doesn't come back, run this in the app folder. The log is in <code className={css.path}>{UPDATE_LOG}</code>.
-              </Text>
-              <CommandLine command={START_COMMAND} />
-            </div>
+            {status && (
+              <div className={css.fallback}>
+                <Text tone="soft" size="s">
+                  Nothing has changed for {STUCK_AFTER_MINUTES} minutes? Restart the app by hand:
+                </Text>
+                <ByHand command={status.restart_command} waitFor="Wait until Terminal shows the line that starts with →." />
+              </div>
+            )}
           </div>
         )
-        : <UpdateFailed logTail={run.logTail} version={status?.current ?? null} onClose={dismissFailure} />}
+        : <UpdateFailed logTail={run.logTail} command={status?.update_command ?? null} onClose={dismissFailure} />}
     </div>,
     document.body,
   )
@@ -72,11 +72,11 @@ function StepMark({ status }: { status: UpdateStep['status'] }) {
 
 interface UpdateFailedProps {
   logTail: string
-  version: string | null
+  command: string | null
   onClose: () => void
 }
 
-function UpdateFailed({ logTail, version, onClose }: UpdateFailedProps) {
+function UpdateFailed({ logTail, command, onClose }: UpdateFailedProps) {
   const log = useRef<HTMLPreElement>(null)
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight
@@ -84,16 +84,39 @@ function UpdateFailed({ logTail, version, onClose }: UpdateFailedProps) {
   return (
     <div className={css.card} role="alertdialog" aria-modal="true" aria-label="Update failed">
       <h2 className={css.title}>Update failed</h2>
-      <Text tone="soft">
-        {version ? `The app is still on version ${version}.` : 'The app is still on the previous version.'}
-        {' '}Run the update in a terminal from the app folder to see what went wrong.
-      </Text>
       {logTail && <pre ref={log} className={css.log}>{logTail}</pre>}
-      <CommandLine command={UPDATE_COMMAND} />
+      {command && (
+        <div className={css.fallback}>
+          <Text tone="soft" size="s">Run the update by hand to see what went wrong:</Text>
+          <ByHand command={command} waitFor="Wait until Terminal says “Updated to …” or shows an error." />
+        </div>
+      )}
       <div className={css.footer}>
         <Button onClick={onClose}>Close</Button>
       </div>
     </div>
+  )
+}
+
+/** Для тех, кто ни разу не открывал терминал: где он, куда вставить команду и чего ждать. */
+function ByHand({ command, waitFor }: { command: string; waitFor: string }) {
+  return (
+    <ol className={css.byHand}>
+      <li>
+        <Text size="s">
+          Open the Terminal app: press <Kbd>⌘</Kbd> <Kbd>Space</Kbd>, type <b>Terminal</b> and press <Kbd>Return</Kbd>.
+        </Text>
+      </li>
+      <li>
+        <div className={css.byHandStep}>
+          <Text size="s">
+            Click <b>Copy</b>, click in the Terminal window, press <Kbd>⌘</Kbd> <Kbd>V</Kbd>, then <Kbd>Return</Kbd>.
+          </Text>
+          <CommandLine command={command} />
+        </div>
+      </li>
+      <li><Text size="s">{waitFor} Then reload this page.</Text></li>
+    </ol>
   )
 }
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import fcntl
+import shlex
+import subprocess
 import sys
 import threading
 import time
@@ -17,20 +18,21 @@ from backend.infrastructure.adapters.release.script_update_runner import (
     ERROR_FILE,
     LOG_FILE,
     LOG_TAIL_LINES,
+    PID_FILE,
     PROGRESS_FILE,
-    SCRIPT_LOCK_FD,
-    SCRIPT_LOCK_FILE,
-    START_LOCK_FILE,
     STATE_FILE,
     ScriptUpdateRunner,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 WAIT_S = 10
-# Long enough for an unblocked check to finish many times over.
-CHECK_BLOCKED_S = 0.5
+# The fake script's name: the runner knows a running update by it.
+SCRIPT = "update.sh"
+# Outlives any test: only the test may end it.
+LONG_S = 600
 
 
 def _wait_for(path: Path, text: str) -> None:
@@ -42,16 +44,51 @@ def _wait_for(path: Path, text: str) -> None:
     pytest.fail(f"{path} never got {text!r}")
 
 
+def _wait_for_state(runner: ScriptUpdateRunner, state: UpdateState) -> None:
+    deadline = time.monotonic() + WAIT_S
+    while time.monotonic() < deadline:
+        if runner.state().state is state:
+            return
+        time.sleep(0.05)
+    pytest.fail(f"the update never became {state}")
+
+
+def _runner(tmp_path: Path, body: str) -> ScriptUpdateRunner:
+    """A runner whose script is `body`. The last line keeps bash itself running the script
+    to its end, so the process stays update.sh."""
+    (tmp_path / SCRIPT).write_text(f"{body}\n:\n")
+    return ScriptUpdateRunner(tmp_path, SCRIPT)
+
+
+def _python(code: str) -> str:
+    return f"{shlex.quote(sys.executable)} -c {shlex.quote(code)}"
+
+
+def _write(tmp_path: Path, relative_path: str, text: str) -> None:
+    path = tmp_path / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+@pytest.fixture()
+def terminal_update(tmp_path: Path) -> Iterator[subprocess.Popen[bytes]]:
+    """An update started from the terminal: update.sh runs and its pid is in the file."""
+    script = subprocess.Popen(["/bin/bash", "-c", f"sleep {LONG_S}; :", SCRIPT])
+    _write(tmp_path, PID_FILE, str(script.pid))
+    yield script
+    script.kill()
+    script.wait()
+
+
 @pytest.mark.unit
 def test_without_a_state_file_it_is_idle(tmp_path: Path) -> None:
     assert ScriptUpdateRunner(tmp_path).state().state is UpdateState.IDLE
 
 
 @pytest.mark.unit
-def test_start_writes_running_and_runs_the_command_in_the_project_dir(tmp_path: Path) -> None:
+def test_start_writes_running_and_runs_the_script_in_the_project_dir(tmp_path: Path) -> None:
     marker = tmp_path / "cwd"
-    code = f"import os, time; open({str(marker)!r}, 'w').write(os.getcwd()); time.sleep(2)"
-    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", code])
+    runner = _runner(tmp_path, f"pwd > {marker}; sleep 2")
 
     runner.start()
 
@@ -60,10 +97,44 @@ def test_start_writes_running_and_runs_the_command_in_the_project_dir(tmp_path: 
 
 
 @pytest.mark.unit
-def test_the_command_writes_nothing_to_the_log_itself(tmp_path: Path) -> None:
+def test_the_pid_in_the_file_is_the_scripts_own(tmp_path: Path) -> None:
+    marker = tmp_path / "own-pid"
+    runner = _runner(tmp_path, f"echo $$ > {marker}; sleep 2")
+
+    runner.start()
+
+    _wait_for(marker, "\n")
+    assert (tmp_path / PID_FILE).read_text() == marker.read_text().strip()
+
+
+@pytest.mark.unit
+def test_the_script_gets_none_of_the_apps_open_files(tmp_path: Path) -> None:
+    """Whatever the app has open must not outlive it in the servers the update starts."""
+    marker = tmp_path / "open-fds"
+    code = (
+        "import os\n"
+        "fds = []\n"
+        "for fd in range(3, 256):\n"
+        "    try:\n"
+        "        os.fstat(fd)\n"
+        "    except OSError:\n"
+        "        continue\n"
+        "    fds.append(fd)\n"
+        f"open({str(marker)!r}, 'w').write(str(fds))\n"
+    )
+    runner = _runner(tmp_path, _python(code))
+    with (tmp_path / "held-by-the-app").open("w"):
+        runner.start()
+
+        _wait_for(marker, "]")
+
+    assert marker.read_text() == "[]"
+
+
+@pytest.mark.unit
+def test_the_script_writes_nothing_to_the_log_through_the_runner(tmp_path: Path) -> None:
     """The script logs on its own; the runner must not log its output a second time."""
-    command = [sys.executable, "-c", "print('twice', flush=True)"]
-    runner = ScriptUpdateRunner(tmp_path, command)
+    runner = _runner(tmp_path, "echo twice")
 
     runner.start()
 
@@ -73,34 +144,24 @@ def test_the_command_writes_nothing_to_the_log_itself(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-def test_the_script_gets_the_lock_already_taken(tmp_path: Path) -> None:
-    """No moment between the click and the script's start reads as a dead update."""
-    marker = tmp_path / "lock-at-start"
+def test_the_update_never_waits_for_a_git_password(tmp_path: Path) -> None:
+    marker = tmp_path / "env"
     code = (
-        "import fcntl, os, time\n"
-        f"probe = os.open({str(tmp_path / SCRIPT_LOCK_FILE)!r}, os.O_RDONLY)\n"
-        "try:\n"
-        "    fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB); held = 'free'\n"
-        "except BlockingIOError:\n"
-        "    held = 'held'\n"
-        f"same = os.fstat({SCRIPT_LOCK_FD}).st_ino == os.fstat(probe).st_ino\n"
-        f"open({str(marker)!r}, 'w').write(held + ' ' + str(same))\n"
-        "time.sleep(2)\n"
+        "import os, sys\n"
+        f"open({str(marker)!r}, 'w').write(os.environ.get('GIT_TERMINAL_PROMPT', '') + ' '"
+        " + str(sys.stdin.read() == ''))\n"
     )
-    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", code])
+    runner = _runner(tmp_path, _python(code))
 
     runner.start()
 
-    _wait_for(marker, "held True")
-    assert runner.state().state is UpdateState.RUNNING
+    _wait_for(marker, "0 True")
 
 
 @pytest.mark.unit
 def test_failed_state_carries_the_end_of_the_log(tmp_path: Path) -> None:
-    (tmp_path / ".pids").mkdir()
-    (tmp_path / ".logs").mkdir()
-    (tmp_path / STATE_FILE).write_text("failed\n")
-    (tmp_path / LOG_FILE).write_text("\n".join(f"line {n}" for n in range(100)))
+    _write(tmp_path, STATE_FILE, "failed\n")
+    _write(tmp_path, LOG_FILE, "\n".join(f"line {n}" for n in range(100)))
 
     progress = ScriptUpdateRunner(tmp_path).state()
 
@@ -112,30 +173,28 @@ def test_failed_state_carries_the_end_of_the_log(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 def test_failed_state_starts_with_the_cause_and_shows_only_the_last_run(tmp_path: Path) -> None:
-    (tmp_path / ".pids").mkdir()
-    (tmp_path / ".logs").mkdir()
-    (tmp_path / STATE_FILE).write_text("failed")
-    (tmp_path / ERROR_FILE).write_text("Failed step: make up\n\x1b[31mnpm ERR! network\x1b[0m\n")
-    (tmp_path / LOG_FILE).write_text(
+    _write(tmp_path, STATE_FILE, "failed")
+    _write(tmp_path, ERROR_FILE, "'make up' failed.\n\x1b[31mnpm ERR! network\x1b[0m\n")
+    _write(
+        tmp_path, LOG_FILE,
         "=== make update 2026-10-01T00:00:00Z ===\nold run\n"
         "=== make update 2026-10-02T00:00:00Z ===\nUpdating to v1.1.0...\n"
-        "\x1b[1;33mRolled back to v1.0.0 and started.\x1b[0m\n",
+        "\x1b[1;33mnpm ERR! network\x1b[0m\n",
     )
 
     report = ScriptUpdateRunner(tmp_path).state().log_tail
 
     assert report == (
-        "Failed step: make up\nnpm ERR! network\n\n"
+        "'make up' failed.\nnpm ERR! network\n\n"
         "=== make update 2026-10-02T00:00:00Z ===\nUpdating to v1.1.0...\n"
-        "Rolled back to v1.0.0 and started."
+        "npm ERR! network"
     )
 
 
 @pytest.mark.unit
 def test_start_clears_the_cause_of_the_previous_failure(tmp_path: Path) -> None:
-    (tmp_path / ".pids").mkdir()
-    (tmp_path / ERROR_FILE).write_text("Failed step: make up")
-    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", "pass"])
+    _write(tmp_path, ERROR_FILE, "'make up' failed.")
+    runner = _runner(tmp_path, "true")
 
     runner.start()
 
@@ -144,50 +203,24 @@ def test_start_clears_the_cause_of_the_previous_failure(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-def test_the_update_never_waits_for_a_git_password(tmp_path: Path) -> None:
-    marker = tmp_path / "env"
-    code = (
-        "import os, sys\n"
-        f"open({str(marker)!r}, 'w').write(os.environ.get('GIT_TERMINAL_PROMPT', '') + ' '"
-        " + str(sys.stdin.read() == ''))\n"
-    )
-    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", code])
-
-    runner.start()
-
-    _wait_for(marker, "0 True")
-
-
-@pytest.mark.unit
 def test_unknown_state_word_counts_as_idle(tmp_path: Path) -> None:
-    (tmp_path / ".pids").mkdir()
-    (tmp_path / STATE_FILE).write_text("garbage")
+    _write(tmp_path, STATE_FILE, "garbage")
 
     assert ScriptUpdateRunner(tmp_path).state().state is UpdateState.IDLE
 
 
 @pytest.mark.unit
-def test_a_command_that_cannot_start_marks_the_update_failed(tmp_path: Path) -> None:
-    runner = ScriptUpdateRunner(tmp_path, ["/nonexistent/command"])
+def test_a_script_that_cannot_run_marks_the_update_failed(tmp_path: Path) -> None:
+    runner = ScriptUpdateRunner(tmp_path, "scripts/missing.sh")
 
     runner.start()
 
     _wait_for_state(runner, UpdateState.FAILED)
 
 
-def _wait_for_state(runner: ScriptUpdateRunner, state: UpdateState) -> None:
-    deadline = time.monotonic() + WAIT_S
-    while time.monotonic() < deadline:
-        if runner.state().state is state:
-            return
-        time.sleep(0.05)
-    pytest.fail(f"the update never became {state}")
-
-
 @pytest.mark.unit
-def test_a_command_that_dies_without_a_state_ends_failed_with_its_log(tmp_path: Path) -> None:
-    code = f"open({str(tmp_path / LOG_FILE)!r}, 'a').write('boom\\n')"
-    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", code])
+def test_a_script_that_dies_without_a_state_ends_failed_with_its_log(tmp_path: Path) -> None:
+    runner = _runner(tmp_path, f"mkdir -p .logs; echo boom >> {LOG_FILE}")
 
     runner.start()
 
@@ -197,48 +230,58 @@ def test_a_command_that_dies_without_a_state_ends_failed_with_its_log(tmp_path: 
 
 
 @pytest.mark.unit
-def test_running_without_a_lock_holder_is_failed(tmp_path: Path) -> None:
-    (tmp_path / ".pids").mkdir()
-    (tmp_path / STATE_FILE).write_text("running")
-    (tmp_path / SCRIPT_LOCK_FILE).write_text("12345")
+def test_running_without_a_pid_file_is_failed(tmp_path: Path) -> None:
+    _write(tmp_path, STATE_FILE, "running")
 
     assert ScriptUpdateRunner(tmp_path).state().state is UpdateState.FAILED
 
 
 @pytest.mark.unit
-def test_running_without_a_lock_file_is_failed(tmp_path: Path) -> None:
-    (tmp_path / ".pids").mkdir()
-    (tmp_path / STATE_FILE).write_text("running")
+def test_running_with_a_dead_pid_is_failed(tmp_path: Path) -> None:
+    dead = subprocess.Popen(["/bin/bash", "-c", "exit 0", SCRIPT])
+    dead.wait()
+    _write(tmp_path, STATE_FILE, "running")
+    _write(tmp_path, PID_FILE, str(dead.pid))
 
     assert ScriptUpdateRunner(tmp_path).state().state is UpdateState.FAILED
 
 
 @pytest.mark.unit
-def test_running_while_the_lock_is_held_stays_running(tmp_path: Path) -> None:
-    (tmp_path / ".pids").mkdir()
-    (tmp_path / STATE_FILE).write_text("running")
-    with (tmp_path / SCRIPT_LOCK_FILE).open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+def test_a_pid_another_process_got_since_does_not_count_as_the_update(tmp_path: Path) -> None:
+    """After a reboot the old pid may belong to anything; the button must not stay blocked."""
+    other = subprocess.Popen(["sleep", str(LONG_S)])
+    try:
+        _write(tmp_path, STATE_FILE, "running")
+        _write(tmp_path, PID_FILE, str(other.pid))
 
-        assert ScriptUpdateRunner(tmp_path).state().state is UpdateState.RUNNING
+        assert ScriptUpdateRunner(tmp_path).state().state is UpdateState.FAILED
+    finally:
+        other.kill()
+        other.wait()
 
 
 @pytest.mark.unit
-def test_start_is_refused_while_an_update_from_the_terminal_holds_the_lock(
-    tmp_path: Path,
+def test_running_while_the_script_lives_stays_running(
+    tmp_path: Path, terminal_update: subprocess.Popen[bytes],
 ) -> None:
-    (tmp_path / ".pids").mkdir()
-    (tmp_path / STATE_FILE).write_text("done")
-    with (tmp_path / SCRIPT_LOCK_FILE).open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    _write(tmp_path, STATE_FILE, "running")
 
-        with pytest.raises(UpdateAlreadyRunningError):
-            ScriptUpdateRunner(tmp_path, [sys.executable, "-c", "pass"]).start()
+    assert ScriptUpdateRunner(tmp_path).state().state is UpdateState.RUNNING
+
+
+@pytest.mark.unit
+def test_start_is_refused_while_an_update_from_the_terminal_runs(
+    tmp_path: Path, terminal_update: subprocess.Popen[bytes],
+) -> None:
+    _write(tmp_path, STATE_FILE, "running")
+
+    with pytest.raises(UpdateAlreadyRunningError):
+        _runner(tmp_path, "true").start()
 
 
 @pytest.mark.unit
 def test_start_is_refused_while_the_update_runs(tmp_path: Path) -> None:
-    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", "import time; time.sleep(2)"])
+    runner = _runner(tmp_path, "sleep 2")
     runner.start()
 
     with pytest.raises(UpdateAlreadyRunningError):
@@ -248,12 +291,12 @@ def test_start_is_refused_while_the_update_runs(tmp_path: Path) -> None:
 @pytest.mark.unit
 def test_concurrent_starts_spawn_one_process(tmp_path: Path) -> None:
     marker = tmp_path / "spawned"
-    code = f"import time; open({str(marker)!r}, 'a').write('x'); time.sleep(2)"
+    runner = _runner(tmp_path, f"printf x >> {marker}; sleep 2")
     outcomes: list[bool] = []
 
     def attempt() -> None:
         try:
-            ScriptUpdateRunner(tmp_path, [sys.executable, "-c", code]).start()
+            runner.start()
             outcomes.append(True)
         except UpdateAlreadyRunningError:
             outcomes.append(False)
@@ -271,54 +314,48 @@ def test_concurrent_starts_spawn_one_process(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-def test_the_lock_check_waits_for_the_start_lock(tmp_path: Path) -> None:
-    """A terminal run tries its lock under the start lock; the check must not overlap it."""
-    (tmp_path / ".pids").mkdir()
-    (tmp_path / STATE_FILE).write_text("running")
-    checked = threading.Event()
+def test_a_finished_update_lets_the_next_one_start(tmp_path: Path) -> None:
+    marker = tmp_path / "runs"
+    runner = _runner(tmp_path, f"printf x >> {marker}; printf done > {STATE_FILE}")
 
-    def check() -> None:
-        ScriptUpdateRunner(tmp_path).state()
-        checked.set()
+    runner.start()
+    _wait_for_state(runner, UpdateState.DONE)
+    runner.start()
 
-    with (tmp_path / START_LOCK_FILE).open("a") as start_lock:
-        fcntl.flock(start_lock, fcntl.LOCK_EX)
-        thread = threading.Thread(target=check)
-        thread.start()
-        assert not checked.wait(CHECK_BLOCKED_S)
-    thread.join(WAIT_S)
-
-    assert checked.is_set()
+    _wait_for(marker, "xx")
 
 
-def _write(tmp_path: Path, relative_path: str, text: str) -> None:
-    path = tmp_path / relative_path
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
+@pytest.mark.unit
+def test_the_commands_to_run_by_hand_go_to_this_copy(tmp_path: Path) -> None:
+    copy = tmp_path / "My Copy"
+    runner = ScriptUpdateRunner(copy)
+
+    assert runner.restart_command() == f"cd '{copy}' && make down && make up"
+    assert runner.update_command() == f"cd '{copy}' && make update"
 
 
 @pytest.mark.unit
 def test_steps_come_from_the_progress_file_in_order(tmp_path: Path) -> None:
     _write(tmp_path, STATE_FILE, "done")
-    _write(tmp_path, PROGRESS_FILE, "done\tDownloading v1.2.0\ncurrent\tSaving a backup\n")
+    _write(tmp_path, PROGRESS_FILE, "done\tDownloading v1.2.0\ncurrent\tInstalling v1.2.0\n")
 
     steps = ScriptUpdateRunner(tmp_path).state().steps
 
     assert steps == (
         UpdateStep("Downloading v1.2.0", UpdateStepStatus.DONE),
-        UpdateStep("Saving a backup", UpdateStepStatus.CURRENT),
+        UpdateStep("Installing v1.2.0", UpdateStepStatus.CURRENT),
     )
 
 
 @pytest.mark.unit
 def test_a_failed_update_keeps_its_steps(tmp_path: Path) -> None:
     _write(tmp_path, STATE_FILE, "failed")
-    _write(tmp_path, PROGRESS_FILE, "failed\tInstalling v1.2.0\ndone\tRolling back to v1.1.0\n")
+    _write(tmp_path, PROGRESS_FILE, "done\tDownloading v1.2.0\nfailed\tInstalling v1.2.0\n")
 
     progress = ScriptUpdateRunner(tmp_path).state()
 
     assert [step.status for step in progress.steps] == [
-        UpdateStepStatus.FAILED, UpdateStepStatus.DONE,
+        UpdateStepStatus.DONE, UpdateStepStatus.FAILED,
     ]
 
 
@@ -329,7 +366,7 @@ def test_without_a_progress_file_there_are_no_steps(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 @pytest.mark.parametrize("garbled", [
-    "done\tDownloading v1.2.0\nhalfway\tSaving a backup\n",
+    "done\tDownloading v1.2.0\nhalfway\tInstalling v1.2.0\n",
     "done Downloading v1.2.0\n",
     "current\t \n",
 ])

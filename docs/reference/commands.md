@@ -17,10 +17,10 @@ Everything is run through `make` in the project folder. `make help` lists the co
 
 | Command | What it does |
 |---|---|
-| `make up` | Starts the app: AI proxy, app server and worker. Restarts them if they run |
+| `make up` | Starts the app: AI proxy, app server and worker. Restarts them if they run. Installs the Python and frontend packages first when their lists changed |
 | `make down` | Stops the app |
 | `make logs` | Shows the logs of the three processes and of `make update` in one stream |
-| `make update` | Moves the copy to the latest release and starts it. If anything fails, the copy returns to the version it had. See [Updating](../guide/updating.md) |
+| `make update` | Moves the copy to the latest release: `git fetch`, `make down`, `git checkout <tag>`, `make up`. Stops at the step that fails. See [Updating](../guide/updating.md) |
 
 ## Dictionaries
 

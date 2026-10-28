@@ -17,3 +17,11 @@ class UpdateRunner(ABC):
     @abstractmethod
     def state(self) -> UpdateProgress:
         """How the last update went; idle if none was started."""
+
+    @abstractmethod
+    def restart_command(self) -> str:
+        """What a person types in a terminal to stop and start this copy by hand."""
+
+    @abstractmethod
+    def update_command(self) -> str:
+        """What a person types in a terminal to run the update by hand."""

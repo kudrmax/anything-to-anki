@@ -1151,6 +1151,10 @@ export interface UpdateStatus {
   entries: ChangelogEntry[]
   /** Явная проверка не достучалась до релизов. */
   check_failed: boolean
+  /** Команда для терминала: остановить и запустить копию руками, если обновление зависло. */
+  restart_command: string
+  /** Команда для терминала: запустить обновление руками, если оно упало. */
+  update_command: string
 }
 
 export type UpdateRunState = 'idle' | 'running' | 'failed' | 'done'

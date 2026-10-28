@@ -18,6 +18,7 @@ from tests.decision_support import NOW, FixedClock
 from tests.release_support import (
     FakeInstalledRelease,
     FakeReleaseSource,
+    FakeUpdateRunner,
     LockedUnitOfWork,
     PlainUnitOfWork,
     changelog,
@@ -39,7 +40,7 @@ def _use_case(
     installed = FakeInstalledRelease("1.0.0", changelog("1.0.0"))
     return CheckForUpdatesUseCase(
         installed, source, settings, clock or FixedClock(), ChangelogParser(),
-        unit_of_work or PlainUnitOfWork(),
+        unit_of_work or PlainUnitOfWork(), FakeUpdateRunner(),
     )
 
 

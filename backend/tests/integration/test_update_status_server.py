@@ -1,8 +1,7 @@
 """The status server update.sh runs while the app is stopped: it answers the page as the
-app would, on the system Python, and goes away by itself once the update ends."""
+app would, on the system Python; `make up` stops it before the app takes the port."""
 from __future__ import annotations
 
-import fcntl
 import json
 import socket
 import subprocess
@@ -15,8 +14,8 @@ from typing import TYPE_CHECKING
 import pytest
 from backend.application.dto.release_dtos import UpdateStateDTO
 from backend.infrastructure.adapters.release.script_update_runner import (
+    PID_FILE,
     PROGRESS_FILE,
-    SCRIPT_LOCK_FILE,
     STATE_FILE,
     ScriptUpdateRunner,
 )
@@ -31,7 +30,11 @@ SERVER = Path(__file__).resolve().parents[3] / "scripts" / "update_status_server
 SYSTEM_PYTHON = "/usr/bin/python3"
 HOST = "127.0.0.1"
 WAIT_S = 10
-PROGRESS = "done\tDownloading v1.2.0\ncurrent\tSaving a backup\npending\tInstalling v1.2.0\n"
+# Outlives any test: only the test or the hook may end it.
+DUMMY_S = 600
+PROGRESS = (
+    "done\tDownloading v1.2.0\ncurrent\tInstalling v1.2.0\npending\tStarting the new version\n"
+)
 
 
 def _free_port() -> int:
@@ -74,12 +77,15 @@ class StatusServer:
 
 @pytest.fixture()
 def project(tmp_path: Path) -> Iterator[Path]:
+    """A copy in the middle of an update: its script runs and wrote its stages."""
     (tmp_path / ".pids").mkdir()
     (tmp_path / STATE_FILE).write_text("running")
     (tmp_path / PROGRESS_FILE).write_text(PROGRESS)
-    with (tmp_path / SCRIPT_LOCK_FILE).open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        yield tmp_path
+    script = subprocess.Popen(["/bin/bash", "-c", f"sleep {DUMMY_S}; :", "update.sh"])
+    (tmp_path / PID_FILE).write_text(str(script.pid))
+    yield tmp_path
+    script.kill()
+    script.wait()
 
 
 @pytest.fixture()
@@ -120,21 +126,8 @@ def test_the_version_and_everything_else_are_unavailable(server: StatusServer) -
     assert server.get("/api/updates")[0] == 503
 
 
-def test_stops_by_itself_once_the_update_lock_is_free(tmp_path: Path) -> None:
-    (tmp_path / ".pids").mkdir()
-    with (tmp_path / SCRIPT_LOCK_FILE).open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        server = StatusServer(tmp_path)
-        assert server.process.poll() is None
-
-    assert server.process.wait(timeout=WAIT_S) == 0
-    assert not server.listens()
-
-
 MAKEFILE = Path(__file__).resolve().parents[3] / "Makefile"
 STATUS_PID_FILE = ".pids/update_status.pid"
-# Outlives any test: only the hook may end it.
-DUMMY_S = 600
 
 
 def _stop_hook(project: Path) -> subprocess.CompletedProcess[str]:

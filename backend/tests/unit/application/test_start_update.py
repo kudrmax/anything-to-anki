@@ -4,8 +4,9 @@ import pytest
 from backend.application.use_cases.start_update import StartUpdateUseCase
 from backend.domain.exceptions import LongOperationInProgressError, UpdateAlreadyRunningError
 from backend.domain.ports.long_operation_lock import LongOperationLock
-from backend.domain.ports.update_runner import UpdateRunner
-from backend.domain.value_objects.update_progress import UpdateProgress, UpdateState
+from backend.domain.value_objects.update_progress import UpdateState
+
+from tests.release_support import FakeUpdateRunner
 
 
 class _Lock(LongOperationLock):
@@ -22,21 +23,9 @@ class _Lock(LongOperationLock):
         raise NotImplementedError
 
 
-class _Runner(UpdateRunner):
-    def __init__(self, state: UpdateState) -> None:
-        self._state = state
-        self.started = 0
-
-    def start(self) -> None:
-        self.started += 1
-
-    def state(self) -> UpdateProgress:
-        return UpdateProgress(self._state)
-
-
 @pytest.mark.unit
 def test_starts_the_update_when_nothing_runs() -> None:
-    runner = _Runner(UpdateState.IDLE)
+    runner = FakeUpdateRunner(UpdateState.IDLE)
 
     StartUpdateUseCase(_Lock(held=False), runner).execute()
 
@@ -46,7 +35,7 @@ def test_starts_the_update_when_nothing_runs() -> None:
 @pytest.mark.unit
 @pytest.mark.parametrize("previous", [UpdateState.FAILED, UpdateState.DONE])
 def test_a_finished_update_does_not_block_the_next_one(previous: UpdateState) -> None:
-    runner = _Runner(previous)
+    runner = FakeUpdateRunner(previous)
 
     StartUpdateUseCase(_Lock(held=False), runner).execute()
 
@@ -55,7 +44,7 @@ def test_a_finished_update_does_not_block_the_next_one(previous: UpdateState) ->
 
 @pytest.mark.unit
 def test_refuses_while_a_long_operation_holds_the_lock() -> None:
-    runner = _Runner(UpdateState.IDLE)
+    runner = FakeUpdateRunner(UpdateState.IDLE)
 
     with pytest.raises(LongOperationInProgressError):
         StartUpdateUseCase(_Lock(held=True), runner).execute()
@@ -65,7 +54,7 @@ def test_refuses_while_a_long_operation_holds_the_lock() -> None:
 
 @pytest.mark.unit
 def test_refuses_while_an_update_runs() -> None:
-    runner = _Runner(UpdateState.RUNNING)
+    runner = FakeUpdateRunner(UpdateState.RUNNING)
 
     with pytest.raises(UpdateAlreadyRunningError):
         StartUpdateUseCase(_Lock(held=False), runner).execute()

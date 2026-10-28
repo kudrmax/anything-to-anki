@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from backend.domain.ports.release_source import ReleaseSource
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.unit_of_work import UnitOfWork
+    from backend.domain.ports.update_runner import UpdateRunner
     from backend.domain.services.changelog_parser import ChangelogParser
 
 UPDATE_CHECK_INTERVAL = timedelta(days=1)
@@ -35,6 +36,7 @@ class CheckForUpdatesUseCase:
         clock: Clock,
         parser: ChangelogParser,
         unit_of_work: UnitOfWork,
+        runner: UpdateRunner,
     ) -> None:
         self._installed = installed
         self._source = source
@@ -42,6 +44,7 @@ class CheckForUpdatesUseCase:
         self._clock = clock
         self._parser = parser
         self._unit_of_work = unit_of_work
+        self._runner = runner
 
     def execute(self, force: bool) -> UpdateStatusDTO:
         current = self._installed.version()
@@ -61,6 +64,8 @@ class CheckForUpdatesUseCase:
             available=available,
             entries=entries,
             check_failed=force and fetch_failed,
+            restart_command=self._runner.restart_command(),
+            update_command=self._runner.update_command(),
         )
 
     def _cache_is_fresh(self) -> bool:

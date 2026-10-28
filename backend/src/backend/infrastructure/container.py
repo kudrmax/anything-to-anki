@@ -1238,6 +1238,7 @@ class Container:
             clock=self._clock,
             parser=ChangelogParser(),
             unit_of_work=self._unit_of_work(session),
+            runner=self._update_runner,
         )
 
     def start_update_use_case(self, session: Session) -> StartUpdateUseCase:
