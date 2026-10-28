@@ -51,6 +51,7 @@ class CardViews:
             card, CardSourceDTO.of(source), jobs,
             reported=phrase_id in reported,
             section=self._candidate_sorter.section(card),
+            usage_order=self._candidate_sorter.usage_order(),
         )
 
     def of_phrases(
@@ -67,10 +68,12 @@ class CardViews:
             sources[source_id] = CardSourceDTO.of(source)
         jobs = self._jobs(cards)
         reported = self._report_repo.reported_phrase_ids([c.phrase_id for c in cards])
+        usage_order = self._candidate_sorter.usage_order()
         return [
             card_to_dto(
                 card, sources[card.source_id], jobs,
                 reported=card.phrase_id in reported, section=sections[card.phrase_id],
+                usage_order=usage_order,
             )
             for card in cards
         ]

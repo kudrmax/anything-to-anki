@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
+from backend.application.constants import DEFAULT_USAGE_GROUP_ORDER
 from backend.application.dto.cefr_dtos import (
     CEFRBreakdownDTO,  # noqa: TC001 — Pydantic needs this at runtime
 )
@@ -316,7 +317,8 @@ class CardDTO(BaseModel):
     # The audio the card plays on its own and on the audio key.
     audio_path: str | None = None
     cefr_breakdown: CEFRBreakdownDTO | None = None
-    usage_distribution: dict[str, float] | None = None
+    # The usage group the card names, the one it is sorted by; none when neutral.
+    usage_group: str | None = None
     frequency_band: str | None = None
     # Where a collected phrase was found: another source, or AI made it.
     origin: PhraseOriginDTO | None = None
@@ -359,6 +361,7 @@ def card_to_dto(
     *,
     reported: bool = False,
     section: CandidateSection | None = None,
+    usage_order: list[str] = DEFAULT_USAGE_GROUP_ORDER,
 ) -> CardDTO:
     """Canonical converter: a card → CardDTO. Every use case answering with a card uses it.
 
@@ -413,8 +416,8 @@ def card_to_dto(
         cefr_breakdown=(
             breakdown_to_dto(word.cefr_breakdown) if word.cefr_breakdown is not None else None
         ),
-        usage_distribution=(
-            word.usage_distribution.to_dict() if word.usage_distribution else None
+        usage_group=(
+            word.usage_distribution.label(usage_order) if word.usage_distribution else None
         ),
         frequency_band=word.frequency_band.name,
         origin=(

@@ -37,6 +37,15 @@ class TestUsageDistribution:
         order = ["neutral", "informal"]
         assert ud.primary_group(order) == "neutral"
 
+    def test_label_is_the_primary_group(self) -> None:
+        ud = UsageDistribution({"informal": 0.7, "formal": 0.3})
+        assert ud.label(["formal", "informal", "neutral"]) == "formal"
+
+    def test_label_hides_neutral(self) -> None:
+        ud = UsageDistribution({"informal": 0.7, "neutral": 0.3})
+        assert ud.label(["neutral", "informal"]) is None
+        assert UsageDistribution(None).label(["neutral", "informal"]) is None
+
     def test_rank_returns_index(self) -> None:
         ud = UsageDistribution({"informal": 1.0})
         order = ["neutral", "informal", "formal"]
