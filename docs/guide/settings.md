@@ -45,6 +45,7 @@ Arrange the body of the card on the [Review](review.md) screen: everything betwe
 
 The section shows a sample card. On it:
 
+- **Sample card has** switches what the sample card has: **Meaning**, **US / UK audio**, **TTS**, **Video frame**, **Picture**. Turn one off to see the card without it, for example **Meaning** off shows **Generate meaning** in place of the meaning. A block with nothing to show on the sample is drawn as a dashed outline with its name, so you can still drag it.
 - **Drag a block** between rows to give it a row of its own, or next to another block to put them in one row. Blocks in a row wrap when the column is too narrow.
 - **Drag a block to Hidden blocks** to hide it. Drag it back onto the card to show it again; it keeps its style.
 - **Drag Divider** from **Add** between rows to add a line across the column. Drag a line to move it, or to **Hidden blocks** to remove it.

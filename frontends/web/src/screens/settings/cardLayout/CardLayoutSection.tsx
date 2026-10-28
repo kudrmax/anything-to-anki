@@ -1,12 +1,13 @@
-import { useCallback, useRef, type CSSProperties } from 'react'
+import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Columns3, Minus, X } from 'lucide-react'
 import type { ColumnWidth } from '@/api/types'
 import { columnTracks } from '@/cardLayout'
-import { Button, Empty, Icon, IconButton, Select, Spinner, Text } from '@/ui'
+import { Button, Chip, Empty, Icon, IconButton, Select, Spinner, Text } from '@/ui'
 import { BlockPanel } from './BlockPanel'
 import { LayoutCanvas } from './LayoutCanvas'
 import { ELEMENT_LABEL, WIDTH_OPTIONS } from './labels'
 import { editFor, TRAY_ATTR, type DragItem, type DropTarget } from './layoutDrag'
+import { ALL_SAMPLE_PARTS, SAMPLE_PARTS, sampleContext, type SamplePart } from './sampleCard'
 import { useCardLayoutEditor } from './useCardLayoutEditor'
 import { useLayoutDrag } from './useLayoutDrag'
 import css from './cardLayoutEditor.module.css'
@@ -21,6 +22,13 @@ export function CardLayoutSection() {
   const editor = useCardLayoutEditor()
   const { view, selection, select, edit, editAndDeselect } = editor
   const canvasRef = useRef<HTMLDivElement>(null)
+  const [parts, setParts] = useState(ALL_SAMPLE_PARTS)
+  const ctx = useMemo(() => sampleContext(parts), [parts])
+  const togglePart = (part: SamplePart) => setParts(current => {
+    const next = new Set(current)
+    if (!next.delete(part)) next.add(part)
+    return next
+  })
 
   const onClick = useCallback((item: DragItem) => {
     if (item.kind === 'block') select({ kind: 'block', element: item.element })
@@ -52,6 +60,12 @@ export function CardLayoutSection() {
       </p>
       <div className={css.editor}>
         <div className={css.main}>
+          <div className={css.sampleBar}>
+            <span className={css.sampleLabel}>Sample card has</span>
+            {SAMPLE_PARTS.map(({ part, label }) => (
+              <Chip key={part} small on={parts.has(part)} onClick={() => togglePart(part)}>{label}</Chip>
+            ))}
+          </div>
           <div className={css.columnBar} style={{ '--card-cols': columnTracks(columns) } as CSSProperties}>
             {columns.map((column, c) => (
               <div key={c} className={css.columnTools}>
@@ -71,6 +85,7 @@ export function CardLayoutSection() {
           </div>
           <LayoutCanvas
             view={view}
+            ctx={ctx}
             rootRef={canvasRef}
             drag={drag}
             selection={selection}

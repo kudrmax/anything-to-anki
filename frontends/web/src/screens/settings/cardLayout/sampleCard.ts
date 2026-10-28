@@ -42,10 +42,24 @@ export const SAMPLE_CARD = {
   source: { id: SOURCE_ID, has_video: true, can_polish_phrases: false },
 } as StoredCandidate
 
+/** Что может быть у карточки: превью показывает образец, у которого есть только выбранное. */
+export type SamplePart = 'meaning' | 'pronunciation' | 'tts' | 'video' | 'picture'
+
+export const SAMPLE_PARTS: { part: SamplePart; label: string }[] = [
+  { part: 'meaning', label: 'Meaning' },
+  { part: 'pronunciation', label: 'US / UK audio' },
+  { part: 'tts', label: 'TTS' },
+  { part: 'video', label: 'Video frame' },
+  { part: 'picture', label: 'Picture' },
+]
+
+export const ALL_SAMPLE_PARTS: ReadonlySet<SamplePart> = new Set(SAMPLE_PARTS.map(({ part }) => part))
+
+const SAMPLE_FRAME_URL = '/sample-frame.svg'
+const SAMPLE_PICTURE_URL = '/sample-picture.svg'
+
 /** Превью ничего не делает: кнопки карточки в нём только для вида. */
-export const SAMPLE_CONTEXT: CardBlockContext = {
-  candidate: SAMPLE_CARD,
-  media: { screenshotUrl: null, audioUrl: `/media/${SOURCE_ID}/${AUDIO}`, meaningImageUrl: null },
+const SAMPLE_ACTIONS: Omit<CardBlockContext, 'candidate' | 'media'> = {
   playingUrl: null,
   togglePlay: () => {},
   keyAudioUrl: null,
@@ -54,4 +68,26 @@ export const SAMPLE_CONTEXT: CardBlockContext = {
   useExample: () => {},
   pictureSuggestions: null,
   showCefr: () => {},
+}
+
+/** Образец карточки, у которого есть только выбранные части. */
+export function sampleContext(parts: ReadonlySet<SamplePart>): CardBlockContext {
+  const has = (part: SamplePart) => parts.has(part)
+  const candidate: StoredCandidate = {
+    ...SAMPLE_CARD,
+    meaning: has('meaning') ? SAMPLE_CARD.meaning : null,
+    meaning_action: has('meaning') ? null : 'generate',
+    pronunciation: has('pronunciation') ? SAMPLE_CARD.pronunciation : null,
+    tts: has('tts') ? SAMPLE_CARD.tts : null,
+    source: { ...SAMPLE_CARD.source, has_video: has('video') },
+  }
+  return {
+    ...SAMPLE_ACTIONS,
+    candidate,
+    media: {
+      screenshotUrl: has('video') ? SAMPLE_FRAME_URL : null,
+      audioUrl: has('video') ? `/media/${SOURCE_ID}/${AUDIO}` : null,
+      meaningImageUrl: has('picture') ? SAMPLE_PICTURE_URL : null,
+    },
+  }
 }

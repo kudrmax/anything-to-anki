@@ -1,12 +1,12 @@
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react'
 import { ImageIcon } from 'lucide-react'
 import type { CardElement, CardLayoutRow, CardLayoutView } from '@/api/types'
-import { CARD_ELEMENTS, CardBlock, columnTracks, isEmptyBlock } from '@/cardLayout'
+import { CARD_ELEMENTS, CardBlock, columnTracks, isEmptyBlock, type CardBlockContext } from '@/cardLayout'
 import { phraseParts } from '@/lib/text/phraseParts'
 import { Button, Icon } from '@/ui'
 import { BLOCK_ATTR, COLUMN_ATTR, ROW_ATTR, ROW_KIND_ATTR, type DragItem } from './layoutDrag'
 import { ELEMENT_LABEL } from './labels'
-import { SAMPLE_CARD, SAMPLE_CONTEXT } from './sampleCard'
+import { SAMPLE_CARD } from './sampleCard'
 import type { LayoutDrag } from './useLayoutDrag'
 import type { LayoutSelection } from './useCardLayoutEditor'
 import layoutCss from '@/cardLayout/cardLayout.module.css'
@@ -17,6 +17,8 @@ const DECISIONS = ['Learn', 'Cloze', 'Know', 'Skip']
 
 interface LayoutCanvasProps {
   view: CardLayoutView
+  /** Образец карточки, который показывает превью. */
+  ctx: CardBlockContext
   rootRef: RefObject<HTMLDivElement | null>
   drag: LayoutDrag | null
   selection: LayoutSelection | null
@@ -42,7 +44,7 @@ const isDragged = (drag: LayoutDrag | null, element: CardElement) =>
   drag?.item.kind === 'block' && drag.item.element === element
 
 /** Превью карточки на образце: фраза и нижняя полоса стоят на месте, тело собирается перетаскиванием. */
-export function LayoutCanvas({ view, rootRef, drag, selection, startDrag, onSelect, onDeselect }: LayoutCanvasProps) {
+export function LayoutCanvas({ view, ctx, rootRef, drag, selection, startDrag, onSelect, onDeselect }: LayoutCanvasProps) {
   const onKey = (item: DragItem) => (e: KeyboardEvent) => {
     if (e.key !== 'Enter' && e.key !== ' ') return
     e.preventDefault()
@@ -71,7 +73,7 @@ export function LayoutCanvas({ view, rootRef, drag, selection, startDrag, onSele
     return (
       <div key={rowIndex} {...rowAttrs} className={layoutCss.row}>
         {cardRow.elements.map((element, position) => {
-          const content = CARD_ELEMENTS[element](SAMPLE_CONTEXT)
+          const content = CARD_ELEMENTS[element](ctx)
           const kind = view.elements.find(entry => entry.element === element)?.kind
           const classes = [css.block, isSelectedBlock(selection, element) && css.selected, isDragged(drag, element) && css.dragged]
           return (
