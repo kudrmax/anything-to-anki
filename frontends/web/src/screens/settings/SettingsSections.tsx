@@ -182,7 +182,7 @@ export function Vocabulary({ store, form }: SectionProps) {
       </DividerRow>
       <DividerRow
         label="Frequent words"
-        hint="Words at least this frequent go to the bottom of the list as probably known. Auto learns the value from your Know / Learn marks. Other options show examples of words that go down; lower value — more words go down."
+        hint="Words at least this frequent go to the bottom of the list as probably known. Auto starts from your level and learns from your Know / Learn marks. Other options show examples of words that go down; lower value — more words go down."
       >
         <Select value={form.frequent_word_threshold} onChange={e => store.setField('frequent_word_threshold', e.target.value)}>
           {store.frequentWordThresholds.map(option => (

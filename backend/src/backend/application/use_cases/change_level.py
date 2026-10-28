@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.application.constants import FREQUENT_WORD_THRESHOLD_SETTING
+from backend.application.constants import CEFR_LEVEL_SETTING, FREQUENT_WORD_THRESHOLD_SETTING
 from backend.application.utils.long_operation_runner import Applied, SourceWork
-from backend.application.utils.settings_writer import CEFR_LEVEL_SETTING
 from backend.application.utils.source_rebuilder import AnalysisValues
 from backend.domain.services.source_operations import REBUILD_OPERATION, available_operations
+from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.rebuild_mode import RebuildMode
 from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
@@ -57,9 +57,12 @@ class ChangeLevelUseCase:
 
     def _values(self, request: UpdateSettingsRequest) -> AnalysisValues:
         threshold = self._settings_writer.after(request, FREQUENT_WORD_THRESHOLD_SETTING)
+        level = self._settings_writer.after(request, CEFR_LEVEL_SETTING)
         return AnalysisValues(
-            user_level=self._settings_writer.after(request, CEFR_LEVEL_SETTING),
-            frequent_word_zipf=self._threshold_resolver.resolve_for(threshold).zipf,
+            user_level=level,
+            frequent_word_zipf=self._threshold_resolver.resolve_for(
+                threshold, CEFRLevel.from_str(level),
+            ).zipf,
         )
 
     def _targets(self) -> list[int]:
