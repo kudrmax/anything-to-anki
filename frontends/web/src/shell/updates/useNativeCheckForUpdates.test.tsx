@@ -47,6 +47,18 @@ describe('Check for Updates… in the macOS app menu', () => {
     expect(page.dialog()).toBeNull()
   })
 
+  it('shows that it is checking from the moment the item is chosen', async () => {
+    let answer: (value: ReturnType<typeof status>) => void = () => {}
+    vi.mocked(api.getUpdates).mockReturnValue(new Promise(resolve => { answer = resolve }))
+
+    await chooseMenuItem()
+
+    expect(page.dialog()?.textContent).toContain('Checking for updates…')
+
+    await act(async () => { answer(status()) })
+    expect(page.dialog()?.textContent).toContain("You're on the latest version (1.2.0)")
+  })
+
   it('says when the releases could not be reached', async () => {
     vi.mocked(api.getUpdates).mockResolvedValue(status({ latest: null, check_failed: true }))
 
