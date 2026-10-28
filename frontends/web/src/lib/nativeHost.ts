@@ -1,6 +1,7 @@
 // Capabilities of the macOS app shell (frontends/macos). Absent in a plain browser.
 export const PICK_FILE_HANDLER = 'pickFile'
 export const CLOSE_QUICK_ADD_HANDLER = 'closeQuickAdd'
+export const TITLEBAR_HANDLER = 'titlebar'
 export const FILE_DROP_EVENT = 'nativefiledrop'
 export const OPEN_SETTINGS_EVENT = 'nativeopensettings'
 export const CHECK_FOR_UPDATES_EVENT = 'nativecheckforupdates'
@@ -61,6 +62,27 @@ export function quickAddPanel(win: Window = window): QuickAddPanel | null {
   return {
     close() {
       void handler.postMessage(null)
+    },
+  }
+}
+
+export interface WindowTitlebar {
+  /** Moves the window while the mouse is held, as dragging the title bar does. */
+  drag(): void
+  /** Does what a double click on the title bar does in System Settings. */
+  doubleClick(): void
+}
+
+/** The macOS app's window, whose title bar the top bar covers. */
+export function windowTitlebar(win: Window = window): WindowTitlebar | null {
+  const handler = (win as ShellWindow).webkit?.messageHandlers?.[TITLEBAR_HANDLER]
+  if (!handler) return null
+  return {
+    drag() {
+      void handler.postMessage('drag')
+    },
+    doubleClick() {
+      void handler.postMessage('doubleClick')
     },
   }
 }

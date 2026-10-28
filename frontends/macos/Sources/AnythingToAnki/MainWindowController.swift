@@ -17,18 +17,25 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     private var restartBanner: RestartBanner?
     private var status: LaunchStatus?
     private var backgroundObservation: NSKeyValueObservation?
+    private let titlebarHeight: CGFloat
 
     init(config: AppConfig) {
         webController = WebViewController(config: config)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Self.defaultSize),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = ProcessInfo.processInfo.processName
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
+        // The page's top bar takes the title bar's place: an empty unified toolbar makes the title bar
+        // as tall as that bar and centres the window controls on it.
+        window.toolbar = NSToolbar()
+        window.toolbarStyle = .unified
+        window.titlebarSeparatorStyle = .none
+        titlebarHeight = window.frame.height - window.contentLayoutRect.height
         window.isReleasedWhenClosed = false
         window.minSize = Self.minimumSize
         window.center()
@@ -41,7 +48,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         webController.onLoadFailed = { [weak self] message in
             self?.showStatus(.failed(message: "The page could not be loaded", details: message))
         }
-        // The title bar takes the page's own background, so it follows the in-app theme.
+        // The window takes the page's own background, so the status screen follows the in-app theme.
         if let color = backgroundStore.load() { window.applyPageBackground(color) }
         backgroundObservation = webController.observeBackground { [weak window, backgroundStore] color in
             guard let window else { return }
@@ -57,6 +64,14 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         onClose?()
     }
 
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        updateTitlebarInsets()
+    }
+
+    func windowDidExitFullScreen(_ notification: Notification) {
+        updateTitlebarInsets()
+    }
+
     func showStatus(_ status: LaunchStatus) {
         self.status = status
         statusController.show(status)
@@ -65,6 +80,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     func showApp() {
         status = nil
+        updateTitlebarInsets()
         webController.loadApp()
         setContent(webController)
     }
@@ -100,6 +116,23 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         banner.onRestart = { [weak self] in self?.onRestart?() }
         window.addTitlebarAccessoryViewController(banner)
         restartBanner = banner
+        updateTitlebarInsets()
+    }
+
+    /// Full screen hides the window controls, so the page's top bar takes the whole width there.
+    private func updateTitlebarInsets() {
+        guard let window else { return }
+        window.layoutIfNeeded()
+        let controls = window.styleMask.contains(.fullScreen) ? [] : [NSWindow.ButtonType.closeButton, .zoomButton]
+            .compactMap { window.standardWindowButton($0) }
+            .map { $0.convert($0.bounds, to: nil) }
+        // The controls get as much room after them as they have before them.
+        let leading = controls.count == 2 ? controls[1].maxX + controls[0].minX : 0
+        webController.setTitlebarInsets(TitlebarInsets(
+            height: titlebarHeight,
+            leading: leading,
+            trailing: restartBanner.map { $0.view.frame.width } ?? 0
+        ))
     }
 
     private func setContent(_ controller: NSViewController) {

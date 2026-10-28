@@ -136,7 +136,11 @@
   --stale-delay: 150ms;
 
   /* сетка */
-  --nav-h: 52px;
+  /* в приложении для macOS шапка ровно по высоте заголовка окна, чтобы кнопки окна стояли по её центру */
+  --nav-h: var(--shell-titlebar-h, 52px);
+  /* --shell-*: где кнопки окна приложения для macOS (frontends/macos); в браузере их нет */
+  --window-controls-start: var(--shell-inset-start, 0px);
+  --window-controls-end: var(--shell-inset-end, 0px);
   --badge-h: 18px;
   --col: 760px;
   --col-wide: 1000px;

@@ -5,6 +5,7 @@ AnythingToAnki runs in any browser at `http://localhost:17832`. The optional mac
 - **Drag and drop** files from Finder, and a **Choose file…** button.
 - **Quick Add**: save a phrase from any app through the macOS **Services** menu.
 - It starts the app's servers on launch, so you don't need the terminal.
+- The window has no separate title bar: the page's top bar takes its place. Drag the window by an empty spot in the top bar, and double-click there to zoom it.
 - Optional **menu bar** mode.
 
 ## Building it
@@ -48,7 +49,7 @@ The phrase goes to the built-in **Saved phrases** source, and the word is marked
 
 The app menu has **Check for Updates…** right after **Settings…**. It does the same as **Check for updates** in Settings: it opens the update window if a new release is out.
 
-After an update, the app on disk may be newer than the window you have open. A quiet note in the title bar then says **Restart to finish the update**. Press **Restart**: the new app opens and the old window closes. The servers keep running during the restart, and the new window takes over looking after them, so quitting it later stops them as usual. See [Updating](updating.md).
+After an update, the app on disk may be newer than the window you have open. A quiet note at the right end of the top bar then says **Restart to finish the update**. Press **Restart**: the new app opens and the old window closes. The servers keep running during the restart, and the new window takes over looking after them, so quitting it later stops them as usual. See [Updating](updating.md).
 
 ## Other features
 

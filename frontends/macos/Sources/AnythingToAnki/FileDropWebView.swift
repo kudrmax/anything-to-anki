@@ -8,6 +8,13 @@ final class FileDropWebView: WKWebView {
     static let event = "nativefiledrop"
 
     var isAppPage: () -> Bool = { false }
+    /// The press a window drag starts from when the page's top bar asks for one.
+    private(set) var lastMouseDown: NSEvent?
+
+    override func mouseDown(with event: NSEvent) {
+        lastMouseDown = event
+        super.mouseDown(with: event)
+    }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         let paths = Self.filePaths(on: sender.draggingPasteboard)
