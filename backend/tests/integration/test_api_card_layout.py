@@ -85,7 +85,22 @@ class TestCardLayoutAPI:
         ).json()
         assert style_of(view, "translation") == {
             "size": "xl", "tone": "muted", "bold": True, "align": "start", "valign": "baseline",
+            "space_top": "none", "space_right": "none",
+            "space_bottom": "none", "space_left": "none",
         }
+
+    def test_restyle_space_on_each_side(self, client: TestClient) -> None:
+        view = client.post(
+            "/api/card-layout/edits",
+            json={
+                "kind": "restyle_block", "element": "translation",
+                "space_left": "l", "space_bottom": "s",
+            },
+        ).json()
+        style = style_of(view, "translation")
+        assert [style[f"space_{side}"] for side in ("top", "right", "bottom", "left")] == [
+            "none", "none", "s", "l",
+        ]
 
     def test_restyle_vertical_position(self, client: TestClient) -> None:
         view = client.post(
@@ -122,4 +137,5 @@ class TestCardLayoutAPI:
         assert first_column(view) == [{"kind": "blocks", "elements": ["target"]}]
         assert style_of(view, "target")["size"] == "s"
         assert style_of(view, "target")["valign"] == "baseline"
+        assert style_of(view, "target")["space_left"] == "none"
         assert "translation" in view["hidden"]

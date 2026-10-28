@@ -73,6 +73,15 @@ class BlockVAlign(StrEnum):
     BOTTOM = "bottom"
 
 
+class BlockSpace(StrEnum):
+    """Extra room on one side of a block, on top of the usual gap between blocks."""
+
+    NONE = "none"
+    S = "s"
+    M = "m"
+    L = "l"
+
+
 class ColumnWidth(StrEnum):
     NARROW = "narrow"
     NORMAL = "normal"
@@ -107,6 +116,10 @@ class BlockStyle:
     bold: bool = False
     align: BlockAlign = BlockAlign.START
     valign: BlockVAlign = BlockVAlign.BASELINE
+    space_top: BlockSpace = BlockSpace.NONE
+    space_right: BlockSpace = BlockSpace.NONE
+    space_bottom: BlockSpace = BlockSpace.NONE
+    space_left: BlockSpace = BlockSpace.NONE
 
 
 @dataclass(frozen=True)

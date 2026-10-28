@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
@@ -9,6 +10,7 @@ from backend.domain.value_objects.card_layout import (
     BlockAlign,
     BlockRow,
     BlockSize,
+    BlockSpace,
     BlockStyle,
     BlockTone,
     BlockVAlign,
@@ -26,20 +28,19 @@ class BlockStyleDTO(BaseModel):
     tone: BlockTone
     bold: bool
     align: BlockAlign
-    # Layouts saved before the vertical position existed: blocks stand on the row's text line.
+    # Layouts saved before these settings existed get the defaults.
     valign: BlockVAlign = BlockVAlign.BASELINE
+    space_top: BlockSpace = BlockSpace.NONE
+    space_right: BlockSpace = BlockSpace.NONE
+    space_bottom: BlockSpace = BlockSpace.NONE
+    space_left: BlockSpace = BlockSpace.NONE
 
     @classmethod
     def of(cls, style: BlockStyle) -> BlockStyleDTO:
-        return cls(
-            size=style.size, tone=style.tone, bold=style.bold,
-            align=style.align, valign=style.valign,
-        )
+        return cls.model_validate(asdict(style))
 
     def to_domain(self) -> BlockStyle:
-        return BlockStyle(
-            size=self.size, tone=self.tone, bold=self.bold, align=self.align, valign=self.valign,
-        )
+        return BlockStyle(**self.model_dump())
 
 
 class BlockRowDTO(BaseModel):
@@ -163,6 +164,10 @@ class RestyleBlockEdit(BaseModel):
     bold: bool | None = None
     align: BlockAlign | None = None
     valign: BlockVAlign | None = None
+    space_top: BlockSpace | None = None
+    space_right: BlockSpace | None = None
+    space_bottom: BlockSpace | None = None
+    space_left: BlockSpace | None = None
 
 
 class InsertDividerEdit(BaseModel):

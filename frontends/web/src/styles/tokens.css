@@ -173,6 +173,9 @@
   --card-col-wide: 5fr;
   --card-col-pt: var(--s5);       /* от линии над колонкой до первого блока */
   --card-row-gap: var(--s4);
+  --block-space-s: var(--s3);   /* добавочные отступы блока раскладки */
+  --block-space-m: var(--s5);
+  --block-space-l: var(--s7);
   --card-divider-my: calc(var(--card-col-pt) - var(--card-row-gap));   /* от линии раскладки до блоков столько же, сколько от линии над колонкой */
   --card-left-divider-my: var(--card-divider-my);   /* левая колонка на телефоне разносит строки не зазором, а отступом сверху */
   /* размеры картинок в раскладке карточки — множители миниатюры */

@@ -1055,6 +1055,8 @@ export type BlockSize = 'xs' | 's' | 'm' | 'l' | 'xl'
 export type BlockTone = 'accent' | 'primary' | 'secondary' | 'muted'
 export type BlockAlign = 'start' | 'end'
 export type BlockVAlign = 'baseline' | 'top' | 'middle' | 'bottom'
+export type BlockSpace = 'none' | 's' | 'm' | 'l'
+export type BlockSide = 'top' | 'right' | 'bottom' | 'left'
 export type ColumnWidth = 'narrow' | 'normal' | 'wide'
 
 export interface BlockStyle {
@@ -1063,6 +1065,10 @@ export interface BlockStyle {
   bold: boolean
   align: BlockAlign
   valign: BlockVAlign
+  space_top: BlockSpace
+  space_right: BlockSpace
+  space_bottom: BlockSpace
+  space_left: BlockSpace
 }
 
 export type CardLayoutRow = { kind: 'blocks'; elements: CardElement[] } | { kind: 'divider' }

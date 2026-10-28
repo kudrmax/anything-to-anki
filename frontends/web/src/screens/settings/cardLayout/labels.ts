@@ -1,4 +1,4 @@
-import type { BlockAlign, BlockSize, BlockTone, BlockVAlign, CardElement, ColumnWidth } from '@/api/types'
+import type { BlockAlign, BlockSide, BlockSize, BlockSpace, BlockTone, BlockVAlign, CardElement, ColumnWidth } from '@/api/types'
 
 export const ELEMENT_LABEL: Record<CardElement, string> = {
   target: 'Target word',
@@ -60,6 +60,20 @@ export const VALIGN_OPTIONS: { value: BlockVAlign; label: string }[] = [
   { value: 'top', label: 'Top' },
   { value: 'middle', label: 'Middle' },
   { value: 'bottom', label: 'Bottom' },
+]
+
+export const SPACE_OPTIONS: { value: BlockSpace; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 's', label: 'S' },
+  { value: 'm', label: 'M' },
+  { value: 'l', label: 'L' },
+]
+
+export const SPACE_SIDES: { side: BlockSide; label: string }[] = [
+  { side: 'top', label: 'Space above' },
+  { side: 'bottom', label: 'Space below' },
+  { side: 'left', label: 'Space on the left' },
+  { side: 'right', label: 'Space on the right' },
 ]
 
 export const WIDTH_OPTIONS: { value: ColumnWidth; label: string }[] = [

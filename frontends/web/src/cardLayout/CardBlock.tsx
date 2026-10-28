@@ -9,7 +9,7 @@ interface CardBlockProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
 }
 
-/** Обёртка элемента: размер, тон, жирность и выравнивание из стиля раскладки. */
+/** Обёртка элемента: размер, тон, жирность, выравнивание и отступы из стиля раскладки. */
 export function CardBlock({ element, view, children, className, ...rest }: CardBlockProps) {
   const style = styleOf(view, element)
   return (
@@ -22,6 +22,10 @@ export function CardBlock({ element, view, children, className, ...rest }: CardB
       data-bold={style?.bold}
       data-align={style?.align}
       data-valign={style?.valign}
+      data-space-top={style?.space_top}
+      data-space-right={style?.space_right}
+      data-space-bottom={style?.space_bottom}
+      data-space-left={style?.space_left}
       {...rest}
     >
       {children}

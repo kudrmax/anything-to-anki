@@ -23,6 +23,19 @@
 .block .textButton { flex-wrap: wrap; align-content: center; }
 
 /* стиль блока */
+/* добавочный отступ со стороны блока, сверх обычного зазора между блоками */
+.block[data-space-top="s"] { margin-top: var(--block-space-s); }
+.block[data-space-top="m"] { margin-top: var(--block-space-m); }
+.block[data-space-top="l"] { margin-top: var(--block-space-l); }
+.block[data-space-right="s"] { margin-right: var(--block-space-s); }
+.block[data-space-right="m"] { margin-right: var(--block-space-m); }
+.block[data-space-right="l"] { margin-right: var(--block-space-l); }
+.block[data-space-bottom="s"] { margin-bottom: var(--block-space-s); }
+.block[data-space-bottom="m"] { margin-bottom: var(--block-space-m); }
+.block[data-space-bottom="l"] { margin-bottom: var(--block-space-l); }
+.block[data-space-left="s"] { margin-left: var(--block-space-s); }
+.block[data-space-left="m"] { margin-left: var(--block-space-m); }
+.block[data-space-left="l"] { margin-left: var(--block-space-l); }
 .block[data-kind="text"][data-size="xs"] { font-size: var(--fs-xs); }
 .block[data-kind="text"][data-size="s"] { font-size: var(--fs-s); }
 .block[data-kind="text"][data-size="m"] { font-size: var(--fs-m); }

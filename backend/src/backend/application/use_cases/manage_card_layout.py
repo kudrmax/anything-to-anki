@@ -51,11 +51,7 @@ class ManageCardLayoutUseCase:
             case HideBlockEdit():
                 return layout.hide_block(edit.element)
             case RestyleBlockEdit():
-                changes = {
-                    name: value
-                    for name in ("size", "tone", "bold", "align", "valign")
-                    if (value := getattr(edit, name)) is not None
-                }
+                changes = edit.model_dump(exclude={"kind", "element"}, exclude_none=True)
                 style = replace(layout.styles[edit.element], **changes)
                 return layout.restyle(edit.element, style)
             case InsertDividerEdit():
