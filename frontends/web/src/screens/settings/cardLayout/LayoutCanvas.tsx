@@ -1,5 +1,5 @@
-import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react'
-import { ImageIcon } from 'lucide-react'
+import { Fragment, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from 'react'
+import { ChevronUp, ImageIcon } from 'lucide-react'
 import type { CardElement, CardLayoutRow, CardLayoutView } from '@/api/types'
 import { CARD_ELEMENTS, CardBlock, columnTracks, isEmptyBlock, type CardBlockContext } from '@/cardLayout'
 import { phraseParts } from '@/lib/text/phraseParts'
@@ -116,9 +116,12 @@ export function LayoutCanvas({ view, ctx, rootRef, drag, selection, startDrag, o
         </p>
       </div>
       {view.layout.columns.map((column, c) => (
-        <div key={c} {...{ [COLUMN_ATTR]: c }} className={css.column}>
-          {column.rows.map((cardRow, r) => row(c, r, cardRow))}
-        </div>
+        <Fragment key={c}>
+          {c === 1 && <div className={css.details} aria-hidden>Details<Icon as={ChevronUp} size="s" /></div>}
+          <div {...{ [COLUMN_ATTR]: c }} className={css.column}>
+            {column.rows.map((cardRow, r) => row(c, r, cardRow))}
+          </div>
+        </Fragment>
       ))}
       <div className={css.fixedFoot}>
         {DECISIONS.map(label => <Button key={label} tabIndex={-1} variant={label === 'Learn' ? 'fill' : 'soft'}>{label}</Button>)}

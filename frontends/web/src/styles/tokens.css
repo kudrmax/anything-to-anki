@@ -157,6 +157,9 @@
   --settings-panel-w: 720px;
   --layout-preview-w: calc(100% - var(--aside) + var(--settings-nav-w));   /* превью шириной с карточку ревью: у неё вместо меню настроек боковая колонка */
   --layout-side-cols: minmax(0, 1fr) minmax(0, 1fr);
+  --layout-frame-display: grid;   /* на телефоне превью, как и карточка, ставит колонки одну под другой */
+  --layout-column-bar-display: grid;
+  --layout-column-bw: var(--bw);
   --layout-column-min-h: calc(var(--h) * 3);   /* в пустую колонку есть куда бросить блок */
   --section-leading-trim: calc((1 - var(--lh-tight)) * var(--fs-h1) / 2);
   --stats-cols: repeat(2, minmax(0, 1fr));
@@ -466,6 +469,9 @@
     --settings-cols: minmax(0, 1fr);
     --settings-cols-wide: minmax(0, 1fr);
     --layout-side-cols: minmax(0, 1fr);
+    --layout-frame-display: flex;
+    --layout-column-bar-display: none;
+    --layout-column-bw: 0px;
     --settings-nav-position: static;
     --settings-nav-dir: row;
     --settings-nav-trim: 0px;
