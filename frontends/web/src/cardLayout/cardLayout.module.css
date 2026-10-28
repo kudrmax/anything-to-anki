@@ -4,8 +4,8 @@
 .block { flex: 0 1 auto; min-width: 0; }
 /* блок шириной в свой текст: рядом с ним видно, куда встанет соседний; списки — во всю колонку, их кнопки у края */
 .row > .block:only-child:is([data-element="examples"], [data-element="notes"]) { flex: 1 1 auto; }
-/* подобранные картинки сжимаются и остаются в строке рядом с соседями; под них уходят, только когда места совсем мало */
-.block:has(> [data-picture-choice]) { flex: 1 1 0; min-width: calc(var(--picture-choice-min-w) * var(--thumb-scale)); }
+/* подобранные картинки занимают остаток строки рядом с соседями; под них уходят, только когда не помещается и одна */
+.block:has(> [data-picture-choice]) { flex: 1 1 0; min-width: calc(var(--suggestion-tile-w) * var(--thumb-scale)); }
 /* прижатые вправо блоки стоят в конце строки (см. inRowOrder): от остальных их отделяет только первый */
 .block[data-align="end"]:first-child, .block:not([data-align="end"]) + .block[data-align="end"] { margin-left: auto; }
 /* у картинок и кадра своей строки текста нет: на линию текста они встают низом */
@@ -15,6 +15,10 @@
 .block[data-valign="bottom"] { align-self: flex-end; }
 /* линия во всю колонку, как у колонки шапки и нижней полосы */
 .divider { border: 0; border-top: var(--bw) solid var(--line); margin-block: var(--card-divider-my); }
+
+/* блок встаёт на линию текста своими буквами, а не иконкой: иконки стоят по центру своей строки */
+.block :is(.chips, .wordFacts, .cefr, .status, button) { align-items: baseline; }
+.block :is(.chips, .wordFacts, .cefr, .status, button) > svg { align-self: center; }
 
 /* стиль блока */
 .block[data-kind="text"][data-size="xs"] { font-size: var(--fs-xs); }
@@ -50,8 +54,8 @@
 .transcription { font-family: var(--mono); }
 .chips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s3); }
 .cefr { display: inline-flex; align-items: center; gap: var(--s2); }
-/* факты о слове — справка: тихо, через пробел */
-.wordFacts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s5); }
+/* факты о слове — справка: тихо, через пробел; ближе друг к другу, чем к соседним блокам строки */
+.wordFacts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
 .status { display: inline-flex; align-items: center; gap: var(--s2); }
 .meaningImage { display: block; max-width: 100%; max-height: calc(var(--thumb-h) * var(--thumb-scale)); width: auto; object-fit: contain; border-radius: var(--rc); }
 
