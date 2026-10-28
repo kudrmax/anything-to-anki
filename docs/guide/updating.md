@@ -45,15 +45,21 @@ While a long operation runs, such as a big import, pressing **Update** shows the
 2. In the update window, click **Copy** next to the command. Click in the Terminal window, press ⌘ V, then Return. The command goes to the app's folder, stops the app and starts it again.
 3. Wait until Terminal shows the line that starts with →, then reload the page.
 
-The command is the app's own folder followed by `make down && make up`, for example:
-
-```bash
-cd ~/anything-to-anki && make down && make up
-```
+The command is `cd` into the app's own folder, followed by `make down && make up`. The window shows it with the real folder of your copy.
 
 If Terminal shows an error instead, the full log of the update is in `.logs/update.log` in the app's folder, and `make logs` shows it too.
 
 While the app is stopped, `make update` answers the page on the app's port with a small status server of its own, so the list keeps moving. It stops just before the app starts again; if it can't start, for example because the port is taken, the update goes on and the list stays on the last stage it showed.
+
+## If Update does nothing (versions 1.2.0 and older)
+
+Up to version 1.2.0 the **Update** button stopped working after the first update made with it: the window flashed and closed, and the app stayed on its version. One command in Terminal unsticks such a copy and installs the latest release. It finds the app's folder by itself through the running app, so you don't need to know where the app is:
+
+```bash
+pid=$(pgrep -nf backend.infrastructure.api.app) && cd "$(lsof -a -d cwd -Fn -p "$pid" | sed -n 's/^n//p')" && make down && make update
+```
+
+Open the Terminal app (⌘ Space, type **Terminal**, Return), paste the line and press Return. Wait until it says **Updated to** and the new version, then reload the app's page. The app must be running. If you restarted your Mac since the last update, the copy is not stuck any more: just press **Update**.
 
 ## If the update fails
 

@@ -6,17 +6,19 @@ What changed in each release of AnythingToAnki, newest first.
 
 The Update button works again, every time.
 
-### Update does nothing? Restart the app once
-If you press **Update** and the window flashes and closes, your app is stuck on an older version. It needs one restart, by hand, and after that **Update** works again. You don't need to know the terminal:
+### Update does nothing? Run one command
+If you press **Update** and the window flashes and closes, your app is stuck on an older version. One command in Terminal unsticks it and installs this update. You don't need to know the terminal or where the app is: the command finds the app's folder by itself.
 
 1. Open the Terminal app: press ⌘ Space, type **Terminal** and press Return.
-2. Paste this line and press Return. If you put AnythingToAnki in another folder, write that folder after `cd`.
+2. Paste this line and press Return:
 
    ```
-   cd ~/anything-to-anki && make down && make up
+   pid=$(pgrep -nf backend.infrastructure.api.app) && cd "$(lsof -a -d cwd -Fn -p "$pid" | sed -n 's/^n//p')" && make down && make update
    ```
 
-3. Wait until Terminal shows the line that starts with →. Reload the app's page and press **Update** again.
+3. Wait until Terminal says **Updated to** and the new version, then reload the app's page.
+
+The command looks for the running app, so the app must be running. If you restarted your Mac since the last update, the app is not stuck any more: just press **Update**.
 
 ### No longer broken
 - The Update button stopped working after the first update made with it: the window closed and the app stayed on its version. Now every update starts.
