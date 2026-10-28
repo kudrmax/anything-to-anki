@@ -194,6 +194,12 @@
   --input-fs: inherit;
   --tab-px: var(--s4);
   --env-display: inline;
+  /* верхнее меню: Settings словом или шестерёнкой; обновление строкой или точкой на шестерёнке */
+  --nav-label-display: inline;
+  --nav-icon-display: none;
+  --nav-update-display: inline;
+  --nav-fade: none;
+  --nav-spacer-min: var(--s3);
   --divider-row-wrap: nowrap;
   --divider-text-basis: 0%;
   --card-display: grid;
@@ -372,6 +378,11 @@
     --page-content-order: 1;
     --aside-pb: var(--s7);
     --env-display: none;
+    --nav-label-display: none;
+    --nav-icon-display: inline-flex;
+    --nav-update-display: none;
+    --nav-fade: linear-gradient(to right, #000 calc(100% - var(--s5)), transparent);
+    --nav-spacer-min: var(--s5);
     --divider-row-wrap: wrap;
     --divider-text-basis: 55%;
 

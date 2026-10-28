@@ -1,11 +1,15 @@
-.nav { flex: none; display: flex; align-items: stretch; gap: var(--s2); overflow-x: auto; scrollbar-width: none; height: var(--nav-h); padding: 0 var(--page-x); border-bottom: var(--bw) solid var(--line-soft); }
-.tab { flex: none; display: inline-flex; align-items: center; gap: var(--s3); padding: 0 var(--tab-px); font-size: var(--fs-m); color: var(--tx3); text-decoration: none; transition: color var(--t), box-shadow var(--t); }
-.tab:first-child { margin-left: calc(var(--tab-px) * -1); }
-.tab:last-child { margin-right: calc(var(--tab-px) * -1); }
+/* вкладки прокручиваются, если не влезают; правый край (обновление, окружение, Settings) виден всегда */
+.nav { flex: none; display: flex; align-items: stretch; height: var(--nav-h); padding: 0 var(--page-x); border-bottom: var(--bw) solid var(--line-soft); }
+.main { flex: 1; min-width: 0; display: flex; align-items: stretch; gap: var(--s2); margin-left: calc(var(--tab-px) * -1); overflow-x: auto; scrollbar-width: none; mask-image: var(--nav-fade); }
+.main::-webkit-scrollbar { display: none; }
+.end { flex: none; display: flex; align-items: stretch; gap: var(--s2); margin-right: calc(var(--tab-px) * -1); }
+.tab { position: relative; flex: none; display: inline-flex; align-items: center; gap: var(--s3); padding: 0 var(--tab-px); font-size: var(--fs-m); color: var(--tx3); text-decoration: none; transition: color var(--t), box-shadow var(--t); }
 .tab:hover { color: var(--tx2); }
 .on, .on:hover { color: var(--tx); box-shadow: inset 0 calc(var(--underline) * -1) 0 var(--ac); }
 .badge { min-width: var(--badge-h); height: var(--badge-h); padding: 0 var(--s2); border-radius: var(--badge-h); background: var(--fill); color: var(--on-ac); font: var(--fw-b) var(--fs-xs)/var(--badge-h) var(--ui); text-align: center; }
-.spacer { flex: 1; min-width: var(--s3); }
+.spacer { flex: 1; min-width: var(--nav-spacer-min); }
 .env { display: var(--env-display); flex: none; align-self: center; margin-right: var(--s3); padding: var(--s1) var(--s2); border: var(--bw) solid var(--warn-line); border-radius: var(--r-xs); font: var(--fw-m) var(--fs-2xs)/var(--lh-tight) var(--mono); letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--warn); }
 .prod { color: var(--ok); border-color: var(--ok-line); }
-.nav::-webkit-scrollbar { display: none; }
+.label { display: var(--nav-label-display); }
+.icon { display: var(--nav-icon-display); }
+.updateDot { display: var(--nav-icon-display); position: absolute; top: calc(50% - var(--s4)); right: calc(var(--tab-px) - var(--s2)); width: var(--s3); height: var(--s3); border-radius: 50%; background: var(--ac); }
