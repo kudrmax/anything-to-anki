@@ -82,7 +82,6 @@ class TestSettingsAPI:
         data = response.json()
         assert data["cefr_level"] == "B2"
         assert data["anki_deck_name"] == "Default"
-        assert data["ai_provider"] == "claude"
         assert data["ai_model"] == "sonnet"
         assert data["anki_note_type"] == "AnythingToAnkiType"
         assert data["anki_field_sentence"] == "Sentence"

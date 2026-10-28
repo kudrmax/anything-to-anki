@@ -15,7 +15,7 @@ export function General() {
   return (
     <>
       <Group title="Appearance">
-        <DividerRow last label="Theme">
+        <DividerRow last label="Theme" hint="Saved in this browser only.">
           <Segmented value={pref} options={THEMES} onChange={setPref} />
         </DividerRow>
       </Group>

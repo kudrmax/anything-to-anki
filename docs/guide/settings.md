@@ -8,7 +8,7 @@ Open **Settings** in the top right corner, or press `⌘,` (`Ctrl+,` outside mac
 | [Words](#words) | Your level, frequent words, calibration, usage priority, your known, learning and unknown words |
 | [Cards](#cards) | Card layout, AI model, audio, pictures, cloze hint |
 | [Anki](#anki) | Deck, note types, fields and templates |
-| [Sources](#sources) | Default titles, media storage |
+| [Sources](#sources) | Naming rule, media storage |
 
 Every change is saved on its own: **Saved** shows next to the section title for a moment. Text is saved when you leave the field or press Enter. If a change cannot be saved, the reason shows there instead and the change is sent again with the next one.
 
@@ -16,7 +16,7 @@ Every change is saved on its own: **Saved** shows next to the section title for 
 
 ## General
 
-**Theme**: **Light**, **Dark** (default) or **System**, which follows macOS. The theme is stored in the browser, so each browser and the [macOS app](macos-app.md) keep their own.
+**Theme**: **Light**, **Dark** (default) or **System**, which follows macOS. It is saved in this browser only, so each browser and the [macOS app](macos-app.md) keep their own.
 
 **Updates** shows the installed version. **Changelog** opens the full history of releases. **Check for updates** looks for a new release right now, without waiting for the daily check. If there is one, the update window opens; if not, you see "You're on the latest version". See [Updating](updating.md).
 
@@ -24,15 +24,17 @@ Every change is saved on its own: **Saved** shows next to the section title for 
 
 ## Words
 
+Which words the app suggests to you.
+
 | Setting | Default | What it does |
 |---|---|---|
 | **Your level** | B2 | The CEFR level you are learning. Words of this level and harder are suggested |
-| **Frequent words** | Off | How common a word must be to count as probably known |
-| **Calibration** | — | Builds a word list and opens [calibration](vocabulary.md#calibration) |
+| **Frequent words** | Off | Words at least this common go to the bottom of the list as probably known. Each option shows example words |
+| **Vocabulary calibration** | — | **Build word list**, then **Calibrate** to mark the words you know on it. **Rebuild list** builds it again. See [calibration](vocabulary.md#calibration) |
 
 See [Your vocabulary and level](vocabulary.md).
 
-**Usage priority** (default: neutral first, folded): words from groups higher up are suggested first. Open it and drag to reorder.
+**Word usage priority** (folded; default: Neutral first): words of the usage groups higher up are suggested first. Open it and drag to reorder.
 
 ### Your words
 
@@ -40,25 +42,30 @@ Three tabs, each with the number of words in it. Each tab is a table, newest fir
 
 - **Known**: the word, its part of speech and the day it became known. Words that became known by themselves say **after 30 days in Anki**. Remove a word (× at the end of its row) to make it new again in every source. See [Known words](vocabulary.md#known-words).
 - **Learning**: words you are learning: **Waiting for export**, or **In Anki** with the day each becomes known. Read-only. See [Learning](vocabulary.md#learning).
-- **Unknown**: words you told the app you don't know, with the day you added each. Remove a word (×) to take it off the list. See [Unknown words](vocabulary.md#unknown-words).
+- **Marked unknown**: words you marked with **Mark words you don't know** (`U`) on a card, with the day you added each. Remove a word (×) to take it off the list. See [Unknown words](vocabulary.md#unknown-words).
 
 On a phone the part of speech is left out.
 
 ## Cards
 
-Everything about the card you review.
+**Review screen**: how the card looks and behaves while you review. None of it goes to Anki.
 
 | Setting | Default | What it does |
 |---|---|---|
-| **Card layout** | — | **Open the editor** arranges the review card, see below |
-| **AI model** | Sonnet | **Haiku**, **Sonnet** or **Opus**: the latest model of that family available to your Claude Code login. Used for every AI feature: meanings, follow-ups, polish and topic words. Opus gives the best results and uses the most of your plan; Haiku is the fastest and uses the least |
-| **Auto-play** | On | Plays the card's audio when it opens. Stored in the browser |
-| **Speech speed** | 1.0× | Text-to-speech speed, 0.5× to 2.0× |
-| **Voices** | All 28 | Each phrase is read by a random voice from the selected ones. Grouped: American female, American male, British female, British male |
-| **Choices per source** | 12 | How many pictures each image source (Wiktionary, Bing, Yandex) offers when you pick a picture for a word |
-| **Default hint** | No hint | The hint preselected when you make a [cloze card](review.md#cloze-cards) |
+| **Card layout** | — | **Open the editor** arranges the review card, see [Card layout](#card-layout) |
+| **Auto-play audio** | On | Plays the card's audio when it opens. Saved in this browser only |
+| **Default cloze hint** | No hint | The hint preselected when you make a [cloze card](review.md#cloze-cards) |
 
-Speech is generated locally with [Kokoro](https://github.com/hexgrad/kokoro). The speech settings apply to speech generated after the change.
+**Generated content**: what the app makes for each card. You see it in Review, and it goes to Anki.
+
+| Setting | Default | What it does |
+|---|---|---|
+| **AI model** | Sonnet | **Haiku**, **Sonnet** or **Opus**: the latest model of that family available to your Claude Code login. Used for every AI feature: meanings, follow-ups, polish and topic words. Opus gives the best results and uses the most of your plan; Haiku is the fastest and uses the least |
+| **Speech speed** | 1.0× | Text-to-speech speed, 0.5× to 2.0× |
+| **Voices** | All 28 | Each phrase gets a random voice from the selected ones. Grouped: American female, American male, British female, British male |
+| **Pictures per site** | 12 | How many pictures Wiktionary, Bing and Yandex each offer when you pick a picture for a word |
+
+Speech is generated locally with [Kokoro](https://github.com/hexgrad/kokoro). Speed and voices apply to audio made after the change; audio already made stays as it is.
 
 ### Card layout
 
@@ -104,12 +111,12 @@ A block with nothing to show on a card is left out on that card. A line is drawn
 
 Each note type is checked in the running Anki: **✓ In Anki**, or a **Create note type** / **Add missing fields** button next to it. If Anki is not running, a line under them says so.
 
-**Fields and templates** is folded: it matters only for your own note type. Open it to map each part of the card to a field of your note type (defaults as in [Fields](anki-export.md#fields)) and to copy the card templates with your field names: **Copy Front**, **Copy Back**, **Copy Cloze Front**, **Copy Cloze Back**, **Copy CSS**. See [Card templates](anki-export.md#card-templates).
+**Fields and templates** is folded: it matters only for your own note type. Open it to map each part of the card to a field of your note type (defaults as in [Fields](anki-export.md#fields)). The parts are named as on the card: **Phrase**, **Target word**, **Meaning**, **Translation**, **Transcription**, **Synonyms**, **Examples**, **Picture**, **Video frame**, **Video audio**, **US audio**, **UK audio**, **TTS audio**. Below the fields you can copy the card templates with your field names: **Copy Front**, **Copy Back**, **Copy Cloze Front**, **Copy Cloze Back**, **Copy CSS**. See [Card templates](anki-export.md#card-templates).
 
 ## Sources
 
-**Default titles** (default `{{collection}} ch{{n}}`): the naming rule used when one add makes several sources. `{{collection}}` is the collection name, `{{n}}` is the number, and `{{title}}` is the file's or chapter's own title. See [Naming several sources](sources.md#naming-several-sources).
+**Naming rule** (default `{{collection}} ch{{n}}`): names the sources when one add makes several, for example the chapters of a book. `{{collection}}` is the collection name, `{{n}}` is the number, and `{{title}}` is the file's or chapter's own title. See [Naming several sources](sources.md#naming-several-sources).
 
-**Media storage** is a table of video sources with the space their **Images** (screenshots) and **Audio** take, and how many files each has. The bin button on a row deletes **Images**, **Audio** or **All** for that source. **Refresh** recounts.
+**Media storage** is a table of video sources with the space their **Images** (screenshots) and **Audio** take, and how many files each has. The bin button on a row offers **Delete images**, **Delete audio** and **Delete all** for that source. **Refresh** recounts.
 
 Deleting is permanent. Deleted audio makes cards without TTS **Incomplete** for export; you can cut the media again with **✨ → Media**, as long as the video is still on disk.

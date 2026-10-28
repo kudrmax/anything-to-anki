@@ -29,7 +29,7 @@ Words you marked **Learn** or **Cloze** are **learning**. They are not suggested
 
 ## Unknown words
 
-**Unknown words** are the opposite of known words: words you told the app you don't know. You add them with the **Unknown words** button (`U`) on a card. A phrase that contains an unknown word (other than its target) never counts as **Ready**. Manage the list in **Settings → Words → Your words → Unknown**.
+**Unknown words** are the opposite of known words: words you told the app you don't know. You add them with **Mark words you don't know** (`U`) on a card. A phrase that contains an unknown word (other than its target) never counts as **Ready**. Manage the list in **Settings → Words → Your words → Marked unknown**.
 
 ## Frequent words
 
@@ -49,7 +49,7 @@ The numbers are [Zipf frequencies](https://github.com/rspeer/wordfreq#usage): 6 
 
 A new user knows thousands of words above their level that the app doesn't know about. Calibration lets you mark many of them as known quickly.
 
-1. Open **Settings → Words → Calibration** and press **Prepare**. The app builds a word list from the dictionaries; this takes a moment.
+1. Open **Settings → Words → Vocabulary calibration** and press **Build word list**. The app builds a word list from the dictionaries; this takes a moment.
 2. Press **Calibrate**.
 3. Each round shows up to 15 words of your level and the two above it. Tap every word you know, then press **Next N words**.
 4. Press **Finish** when you are done.
@@ -60,4 +60,4 @@ Calibration needs the CEFR [dictionaries](../reference/dictionaries.md).
 
 ## Word order in Review
 
-**Settings → Words → Usage priority** sets the order of usage groups in Review: neutral, informal, formal, specialized, connotation, old-fashioned, offensive and other. Drag the groups to reorder them. Words from groups higher in the list are suggested first.
+**Settings → Words → Word usage priority** sets the order of usage groups in Review: Neutral, Informal, Formal, Specialized, Connotation, Old-fashioned, Offensive and Other. Open it and drag the groups to reorder them. Words from groups higher in the list are suggested first.

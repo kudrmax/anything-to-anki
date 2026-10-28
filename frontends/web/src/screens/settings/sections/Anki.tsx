@@ -6,20 +6,21 @@ import { Group } from './Group'
 import { SettingField, type TextSetting } from './SettingField'
 import type { SectionProps } from './types'
 
+/** Подписи — как у блоков карточки: по ним видно, какая часть карточки уходит в поле. */
 const FIELD_MAPPING: { key: TextSetting; label: string }[] = [
-  { key: 'anki_field_sentence', label: 'Sentence' },
+  { key: 'anki_field_sentence', label: 'Phrase' },
   { key: 'anki_field_target_word', label: 'Target word' },
   { key: 'anki_field_meaning', label: 'Meaning' },
-  { key: 'anki_field_ipa', label: 'IPA' },
-  { key: 'anki_field_image', label: 'Video frame' },
-  { key: 'anki_field_meaning_image', label: 'Meaning image' },
-  { key: 'anki_field_audio', label: 'Audio' },
   { key: 'anki_field_translation', label: 'Translation' },
+  { key: 'anki_field_ipa', label: 'Transcription' },
   { key: 'anki_field_synonyms', label: 'Synonyms' },
   { key: 'anki_field_examples', label: 'Examples' },
-  { key: 'anki_field_audio_target_us', label: 'Audio US' },
-  { key: 'anki_field_audio_target_uk', label: 'Audio UK' },
-  { key: 'anki_field_audio_tts', label: 'Audio TTS' },
+  { key: 'anki_field_meaning_image', label: 'Picture' },
+  { key: 'anki_field_image', label: 'Video frame' },
+  { key: 'anki_field_audio', label: 'Video audio' },
+  { key: 'anki_field_audio_target_us', label: 'US audio' },
+  { key: 'anki_field_audio_target_uk', label: 'UK audio' },
+  { key: 'anki_field_audio_tts', label: 'TTS audio' },
 ]
 const TEMPLATE_PARTS: { part: TemplatePart; label: string }[] = [
   { part: 'front', label: 'Copy Front' },

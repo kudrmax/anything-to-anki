@@ -74,52 +74,53 @@ const VOICE_GROUPS: { title: string; voices: Voice[] }[] = [
 const ALL_VOICES = VOICE_GROUPS.flatMap(group => group.voices.map(voice => voice.id))
 
 export function Cards({ store, form }: SectionProps) {
-  const navigate = useNavigate()
   return (
     <>
-      <Group>
-        <DividerRow last label="Card layout" hint="Which parts the review card shows and where. You arrange them on a sample card.">
-          <Button onClick={() => navigate(CARD_LAYOUT_PATH)}>Open the editor</Button>
-        </DividerRow>
-      </Group>
-      <Group title="Meaning">
-        <DividerRow last label="AI model" hint="Writes meanings, polishes phrases and suggests topic words.">
-          <Segmented value={form.ai_model} options={AI_MODELS} onChange={model => store.change('ai_model', model)} />
-        </DividerRow>
-      </Group>
-      <Audio store={store} form={form} />
-      <Group title="Picture">
-        <Pictures store={store} form={form} />
-      </Group>
-      <Group title="Cloze">
-        <DividerRow last label="Default hint" hint="Preselected when you mark a phrase as Cloze. You can change it on any card.">
-          <Segmented
-            value={form.cloze_default_hint}
-            options={CLOZE_DEFAULT_HINT_OPTIONS}
-            onChange={hint => store.change('cloze_default_hint', hint)}
-          />
-        </DividerRow>
-      </Group>
+      <ReviewScreen store={store} form={form} />
+      <GeneratedContent store={store} form={form} />
     </>
   )
 }
 
-function Audio({ store, form }: SectionProps) {
+/** Как карточка выглядит и ведёт себя на экране ревью; в Anki это не уходит. */
+function ReviewScreen({ store, form }: SectionProps) {
+  const navigate = useNavigate()
   const [autoPlay, setAutoPlay] = useState<boolean>(() => autoPlayAudioPref.read())
   const toggleAutoPlay = (next: boolean) => { setAutoPlay(next); autoPlayAudioPref.write(next) }
+  return (
+    <Group title="Review screen">
+      <DividerRow label="Card layout" hint="Which parts the review card shows and where. You arrange them on a sample card.">
+        <Button onClick={() => navigate(CARD_LAYOUT_PATH)}>Open the editor</Button>
+      </DividerRow>
+      <DividerRow label="Auto-play audio" hint="Plays the card's audio when it opens. Saved in this browser only.">
+        <Switch checked={autoPlay} onChange={toggleAutoPlay} label="Auto-play audio" />
+      </DividerRow>
+      <DividerRow last label="Default cloze hint" hint="Preselected when you mark a phrase as Cloze. You can change it on any card.">
+        <Segmented
+          value={form.cloze_default_hint}
+          options={CLOZE_DEFAULT_HINT_OPTIONS}
+          onChange={hint => store.change('cloze_default_hint', hint)}
+        />
+      </DividerRow>
+    </Group>
+  )
+}
+
+/** Что генерируется для карточки: это видно и на ревью, и в Anki. */
+function GeneratedContent({ store, form }: SectionProps) {
   const speed = form.tts_speed ?? TTS_SPEED.fallback
   const enabled = form.tts_enabled_voices ?? ALL_VOICES
   const toggle = (id: string) => store.change('tts_enabled_voices', enabled.includes(id) ? enabled.filter(v => v !== id) : [...enabled, id])
   return (
-    <Group title="Audio">
-      <DividerRow label="Auto-play" hint="Plays the card's audio when it opens.">
-        <Switch checked={autoPlay} onChange={toggleAutoPlay} label="Auto-play audio" />
+    <Group title="Generated content">
+      <DividerRow label="AI model" hint="Writes meanings, polishes phrases and picks topic words. Opus gives the best results and uses the most of your plan.">
+        <Segmented value={form.ai_model} options={AI_MODELS} onChange={model => store.change('ai_model', model)} />
       </DividerRow>
-      <DividerRow label="Speech speed" hint="For phrases read by text-to-speech.">
+      <DividerRow label="Speech speed" hint="Text-to-speech of the phrase. Applies to audio made after the change.">
         <Text tone="muted" size="s">{speed.toFixed(1)}×</Text>
         <Range min={TTS_SPEED.min} max={TTS_SPEED.max} step={TTS_SPEED.step} value={speed} onChange={e => store.change('tts_speed', parseFloat(e.target.value))} />
       </DividerRow>
-      <DividerRow last label="Voices" hint="Each phrase is read by a random voice from the selected ones." />
+      <DividerRow last label="Voices" hint="Each phrase gets a random voice from the selected ones. Applies to audio made after the change." />
       <div className={css.voices}>
         {VOICE_GROUPS.map(group => (
           <div key={group.title} className={css.voiceGroup}>
@@ -134,6 +135,7 @@ function Audio({ store, form }: SectionProps) {
           </div>
         ))}
       </div>
+      <Pictures store={store} form={form} />
     </Group>
   )
 }
@@ -141,7 +143,7 @@ function Audio({ store, form }: SectionProps) {
 function Pictures({ store, form }: SectionProps) {
   const count = form.images_per_source ?? IMAGES_PER_SOURCE.fallback
   return (
-    <DividerRow last label="Choices per source" hint="How many pictures Wiktionary, Bing and Yandex each offer when you pick a picture for a word.">
+    <DividerRow last label="Pictures per site" hint="How many pictures Wiktionary, Bing and Yandex each offer when you pick a picture for a word.">
       <Text tone="muted" size="s">{count}</Text>
       <Range min={IMAGES_PER_SOURCE.min} max={IMAGES_PER_SOURCE.max} step={IMAGES_PER_SOURCE.step} value={count} onChange={e => store.change('images_per_source', parseInt(e.target.value, 10))} />
     </DividerRow>

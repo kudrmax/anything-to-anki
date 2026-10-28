@@ -11,15 +11,15 @@ import type { SectionProps } from './types'
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(level => ({ value: level, label: level }))
 const frequentWordThresholdLabel = ({ value, examples }: FrequentWordThresholdOption) =>
   examples.length > 0 ? `${value} — ${examples.join(', ')}` : 'Off'
-const USAGE_GROUP_LABELS: Record<string, string> = {
-  neutral: 'Standard, unmarked words',
-  informal: 'Slang, casual speech',
-  formal: 'Formal register',
-  specialized: 'Technical, domain-specific',
-  connotation: 'Disapproving, approving, humorous',
-  'old-fashioned': 'Dated, archaic',
-  offensive: 'Offensive language',
-  other: 'Literary, trademark, etc.',
+const USAGE_GROUPS: Record<string, { name: string; description: string }> = {
+  neutral: { name: 'Neutral', description: 'Standard, unmarked words' },
+  informal: { name: 'Informal', description: 'Slang, casual speech' },
+  formal: { name: 'Formal', description: 'Formal register' },
+  specialized: { name: 'Specialized', description: 'Technical, domain-specific' },
+  connotation: { name: 'Connotation', description: 'Disapproving, approving, humorous' },
+  'old-fashioned': { name: 'Old-fashioned', description: 'Dated, archaic' },
+  offensive: { name: 'Offensive', description: 'Offensive language' },
+  other: { name: 'Other', description: 'Literary, trademark, etc.' },
 }
 
 interface WordsProps extends SectionProps {
@@ -85,20 +85,20 @@ function Calibration({ store }: SectionProps) {
   return (
     <DividerRow
       last
-      label="Calibration"
+      label="Vocabulary calibration"
       hint={
-        bootstrap?.status === 'ready' ? `Ready — ${bootstrap.word_count} words, built ${bootstrap.built_at ? new Date(bootstrap.built_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}`
+        bootstrap?.status === 'ready' ? `Mark the words you already know on a list of ${bootstrap.word_count.toLocaleString()} words${bootstrap.built_at ? `, built ${new Date(bootstrap.built_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}.`
           : bootstrap?.status === 'error' ? <Text tone="err">{bootstrap.error ?? 'Build failed'}</Text>
-            : bootstrap?.status === 'building' ? 'Building word list…'
-              : 'Mark the words you already know on a ready list.'
+            : bootstrap?.status === 'building' ? 'Building the word list…'
+              : 'Mark the words you already know on a ready list. First the app builds the list.'
       }
     >
       {bootstrap?.status === 'building' && <Spinner />}
-      {bootstrap?.status === 'none' && <Button onClick={() => void store.buildBootstrap()}>Prepare</Button>}
+      {bootstrap?.status === 'none' && <Button onClick={() => void store.buildBootstrap()}>Build word list</Button>}
       {bootstrap?.status === 'error' && <Button onClick={() => void store.buildBootstrap()}>Retry</Button>}
       {bootstrap?.status === 'ready' && (
         <div className={css.actions}>
-          <Button variant="link" onClick={() => void store.buildBootstrap()}>Rebuild</Button>
+          <Button variant="link" onClick={() => void store.buildBootstrap()}>Rebuild list</Button>
           <Button onClick={() => navigate('/calibrate')}>Calibrate</Button>
         </div>
       )}
@@ -110,7 +110,7 @@ function UsagePriority({ store, form }: SectionProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const dragCounter = useRef(0)
-  const order = form.usage_group_order ?? Object.keys(USAGE_GROUP_LABELS)
+  const order = form.usage_group_order ?? Object.keys(USAGE_GROUPS)
 
   const drop = (fromIndex: number, toIndex: number) => {
     if (Number.isNaN(fromIndex) || fromIndex === toIndex) return
@@ -121,7 +121,7 @@ function UsagePriority({ store, form }: SectionProps) {
   }
 
   return (
-    <Group collapsible title="Usage priority" hint="Words from groups higher up are suggested first. Drag to reorder.">
+    <Group collapsible title="Word usage priority" hint="Words of the usage groups higher up are suggested first. Drag to reorder.">
       {order.map((group, index) => (
         <DividerRow
           key={group}
@@ -130,8 +130,8 @@ function UsagePriority({ store, form }: SectionProps) {
           lead={<Icon as={GripVertical} size="s" />}
           label={
             <span className={css.named}>
-              <span className={css.name}>{group}</span>
-              <Text tone="muted" size="s">{USAGE_GROUP_LABELS[group]}</Text>
+              <span className={css.name}>{USAGE_GROUPS[group]?.name ?? group}</span>
+              <Text tone="muted" size="s">{USAGE_GROUPS[group]?.description}</Text>
             </span>
           }
           state={dragIndex === index ? 'dragging' : dropIndex === index ? 'target' : undefined}

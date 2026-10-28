@@ -25,7 +25,6 @@ class SettingsDTO(BaseModel):
     cefr_level: str
     frequent_word_threshold: str
     anki_deck_name: str
-    ai_provider: str
     ai_model: str
     anki_note_type: str
     anki_cloze_note_type: str
@@ -41,7 +40,6 @@ class SettingsDTO(BaseModel):
     anki_field_examples: str
     anki_field_audio_target_us: str
     anki_field_audio_target_uk: str
-    enable_definitions: bool
     usage_group_order: list[str]
     tts_enabled_voices: list[str]
     tts_speed: float
@@ -60,7 +58,6 @@ class UpdateSettingsRequest(BaseModel):
     cefr_level: str | None = None
     frequent_word_threshold: str | None = None
     anki_deck_name: str | None = None
-    ai_provider: str | None = None
     ai_model: str | None = None
     anki_note_type: str | None = None
     anki_cloze_note_type: str | None = None
@@ -76,7 +73,6 @@ class UpdateSettingsRequest(BaseModel):
     anki_field_examples: str | None = None
     anki_field_audio_target_us: str | None = None
     anki_field_audio_target_uk: str | None = None
-    enable_definitions: bool | None = None
     usage_group_order: list[str] | None = None
     tts_enabled_voices: list[str] | None = None
     tts_speed: float | None = None

@@ -41,7 +41,7 @@ describe('Settings sections', () => {
     expect(current()).toBe(section)
   })
 
-  it.each([['known-words', 'Known0'], ['learning', 'Learning0'], ['unknown-words', 'Unknown0']])(
+  it.each([['known-words', 'Known0'], ['learning', 'Learning0'], ['unknown-words', 'Marked unknown0']])(
     'opens the word list that took over %s', (old, list) => {
       open(`?section=${old}`)
 

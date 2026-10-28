@@ -12,7 +12,7 @@ export function Sources({ store }: SectionProps) {
   return (
     <>
       <Group>
-        <DividerRow last label="Default titles" hint="Titles when one add makes several sources: {{collection}} — the collection, {{n}} — number in order, {{title}} — the file's or chapter's own title.">
+        <DividerRow last label="Naming rule" hint="Names the sources when one add makes several, for example the chapters of a book: {{collection}} — the collection, {{n}} — number in order, {{title}} — the file's or chapter's own title.">
           <div className={css.control}>
             <SettingField store={store} name="naming_rule" />
           </div>
@@ -46,7 +46,7 @@ function MediaStorage({ store }: { store: SettingsStore }) {
     )
   }
   return (
-    <Group title="Media storage" hint="Screenshots and audio cut from each video source.">
+    <Group title="Media storage" hint="Video frames and audio cut from your videos take disk space. Deleting them is permanent.">
       <div className={css.media}>
         <div className={css.mediaHead}>
           <span>Source</span>

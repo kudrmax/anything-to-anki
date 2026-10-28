@@ -15,7 +15,7 @@ const IN_ANKI_LABEL = 'In Anki'
 const WAITING_LABEL = 'Waiting for export'
 const KNOWN_HINT = "Not suggested in new sources. Remove a word to make it new again everywhere."
 const LEARNING_HINT = 'Not suggested as new while you learn them. A word in Anki becomes known on the day shown.'
-const UNKNOWN_HINT = 'Phrases with these words never count as ready: only their target should be new.'
+const UNKNOWN_HINT = "Words you marked with Mark words you don't know (U) on a card. A phrase with one of them besides its target never counts as ready."
 
 interface MyWordsProps {
   store: SettingsStore
@@ -32,7 +32,7 @@ export function MyWords({ store, list, onList }: MyWordsProps) {
         options={[
           { value: 'known', label: 'Known', count: store.knownWords.length },
           { value: 'learning', label: 'Learning', count: learning.in_anki.length + learning.awaiting_export.length },
-          { value: 'unknown', label: 'Unknown', count: store.unknownWords.length },
+          { value: 'unknown', label: 'Marked unknown', count: store.unknownWords.length },
         ]}
         onChange={onList}
       />
@@ -168,7 +168,7 @@ export function UnknownWords({ store }: { store: SettingsStore }) {
   return (
     <WordTable
       hint={UNKNOWN_HINT}
-      empty="No unknown words yet. Mark them from a card: Report → More than one unknown word."
+      empty="No words yet. Mark them on a card with Mark words you don't know (U)."
       columns={[{ title: 'Added' }]}
       rows={store.unknownWords.map(word => ({
         key: unknownWordKey(word.id),

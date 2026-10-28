@@ -10,7 +10,6 @@ from backend.application.dto.settings_dtos import (
 )
 from backend.application.utils.settings_writer import (
     ANALYSIS_KEYS,
-    BOOL_KEYS,
     FLOAT_KEYS,
     INT_KEYS,
     JSON_LIST_KEYS,
@@ -45,11 +44,9 @@ class ManageSettingsUseCase:
             key: (self._settings_repo.get(key, default) or default)
             for key, default in SETTING_KEYS.items()
         }
-        values: dict[str, str | bool | float | int | list[str]] = {}
+        values: dict[str, str | float | int | list[str]] = {}
         for k, v in raw.items():
-            if k in BOOL_KEYS:
-                values[k] = v.lower() == "true"
-            elif k in JSON_LIST_KEYS:
+            if k in JSON_LIST_KEYS:
                 values[k] = json.loads(v)
             elif k in FLOAT_KEYS:
                 values[k] = float(v)
