@@ -14,7 +14,7 @@
 .fixedHead { padding: var(--s6) var(--card-pad) var(--s5); border-bottom: var(--bw) solid var(--line); }
 .fixedFoot { display: flex; gap: var(--s3); padding: var(--s3); border-top: var(--bw) solid var(--line); }
 .phrase { margin-top: var(--focus-leading-trim); font-size: var(--fs-focus); line-height: var(--lh-focus); letter-spacing: var(--ls-focus); }
-.column { display: flex; flex-direction: column; gap: var(--s4); min-width: 0; min-height: var(--layout-column-min-h); padding: var(--s5) var(--card-pad); }
+.column { display: flex; flex-direction: column; gap: var(--card-row-gap); min-width: 0; min-height: var(--layout-column-min-h); padding: var(--card-col-pt) var(--card-pad); }
 .column + .column { border-left: var(--bw) solid var(--line); }
 
 /* блок и линия: тянутся и выбираются; содержимое образца не нажимается */
@@ -29,7 +29,8 @@
 .block:hover > .blockLabel, .block:focus-visible > .blockLabel { opacity: 1; }
 .dragging .block:hover > .blockLabel { opacity: 0; }
 .dragged { opacity: var(--o-dim); }
-.divider { margin-inline: calc(-1 * var(--card-pad)); padding: var(--s2) var(--card-pad); border-radius: var(--r-s); cursor: grab; touch-action: none; outline: var(--bw) dashed transparent; outline-offset: calc(-1 * var(--bw)); }
+/* поле вокруг линии — только чтобы её было удобно схватить: отрицательный отступ возвращает строки на места карточки */
+.divider { margin: calc(-1 * var(--s2)) calc(-1 * var(--card-pad)); padding: var(--s2) var(--card-pad); border-radius: var(--r-s); cursor: grab; touch-action: none; outline: var(--bw) dashed transparent; outline-offset: calc(-1 * var(--bw)); }
 .divider > hr { margin-inline: calc(-1 * var(--card-pad)); }
 .divider.selected > hr { border-top-color: var(--ac); }
 

@@ -4,14 +4,14 @@
 .phraseRow { display: flex; flex-direction: var(--phrase-row-dir); align-items: flex-start; gap: var(--phrase-row-gap); }
 .phraseRow > :first-child { flex: 1; min-width: 0; }
 .decided { flex: none; display: inline-flex; align-items: center; gap: var(--s2); margin-top: var(--s3); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx2); background: var(--soft); }
-.cardLeft { display: var(--card-left-display); flex-direction: column; gap: var(--s4); padding: var(--s5) var(--card-pad) var(--card-cols-pb); }
+.cardLeft { display: var(--card-left-display); flex-direction: column; gap: var(--card-row-gap); padding: var(--card-col-pt) var(--card-pad) var(--card-cols-pb); }
 .cardLeft > * { margin-inline: var(--card-left-item-mx); }
-.cardLeft > * + * { margin-top: var(--card-left-item-mt); }
+.cardLeft > * + *:not(hr) { margin-top: var(--card-left-item-mt); }
 .cardLeft > :first-child { margin-top: var(--card-left-first-mt); }
 /* линия раскладки — во всю колонку, от края до края */
 .cardLeft > hr { margin-inline: calc(var(--card-left-item-mx) - var(--card-pad)); }
 .cardRight > hr { margin-inline: calc(-1 * var(--card-pad)); }
-.cardRight { order: var(--card-right-order); display: flex; flex-direction: column; gap: var(--s4); contain: var(--card-right-contain); overflow-y: var(--card-right-overflow); mask-image: var(--card-right-mask); padding: var(--card-right-pt) var(--card-pad) var(--card-cols-pb); border-left: var(--card-right-bw) solid var(--line); }
+.cardRight { order: var(--card-right-order); display: flex; flex-direction: column; gap: var(--card-row-gap); contain: var(--card-right-contain); overflow-y: var(--card-right-overflow); mask-image: var(--card-right-mask); padding: var(--card-right-pt) var(--card-pad) var(--card-cols-pb); border-left: var(--card-right-bw) solid var(--line); }
 .phrase { margin-top: var(--focus-leading-trim); font-size: var(--fs-focus); line-height: var(--lh-focus); letter-spacing: var(--ls-focus); overflow-wrap: anywhere; }
 /* ручная правка фразы: поле повторяет типографику фразы */
 .phraseEdit { display: grid; border-radius: var(--r-s); background: var(--ac-wash); box-shadow: 0 0 0 var(--s2) var(--ac-wash); }

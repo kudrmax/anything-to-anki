@@ -168,7 +168,9 @@
   --card-col-narrow: 2fr;
   --card-col-normal: 3fr;
   --card-col-wide: 5fr;
-  --card-divider-my: var(--s3);   /* линия раскладки: поровну до блока над ней и под ней */
+  --card-col-pt: var(--s5);       /* от линии над колонкой до первого блока */
+  --card-row-gap: var(--s4);
+  --card-divider-my: calc(var(--card-col-pt) - var(--card-row-gap));   /* от линии раскладки до блоков столько же, сколько от линии над колонкой */
   /* размеры картинок в раскладке карточки — множители миниатюры */
   --thumb-scale: 1;
   --thumb-scale-xs: .6;
@@ -218,7 +220,7 @@
   --card-left-item-mx: 0px;
   --card-left-item-mt: 0;
   --card-left-first-mt: 0px;
-  --card-right-pt: var(--s5);
+  --card-right-pt: var(--card-col-pt);
   --card-right-bw: var(--bw);
   --card-right-order: 0;
   --card-right-overflow: auto;
