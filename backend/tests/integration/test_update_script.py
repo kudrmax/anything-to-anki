@@ -6,7 +6,6 @@ import fcntl
 import os
 import plistlib
 import subprocess
-import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -100,10 +99,6 @@ for path in "$@"; do mv "$path" "$TRASH_DIR/$(basename "$path").$$.$RANDOM"; don
 INSTALLED_LONG_AGO_S = 3600
 
 
-def pyproject(version: str, dependency: str = "fastapi") -> str:
-    return f'[project]\nname = "x"\nversion = "{version}"\ndependencies = ["{dependency}"]\n'
-
-
 @dataclass(frozen=True)
 class Copy:
     root: Path
@@ -119,18 +114,13 @@ class Copy:
         version: str,
         *,
         macos_change: bool = False,
-        python_change: bool = False,
-        root_dependency: str = "fastapi",
         npm_change: bool = False,
     ) -> None:
         (self.publisher / "VERSION").write_text(version)
-        (self.publisher / "pyproject.toml").write_text(pyproject(version, root_dependency))
         if macos_change:
             app_file = self.publisher / "frontends" / "macos" / "App.swift"
             app_file.parent.mkdir(parents=True, exist_ok=True)
             app_file.write_text(f"// {version}\n")
-        if python_change:
-            (self.publisher / "requirements.lock").write_text(f"package=={version}\n")
         if npm_change:
             npm_lock = self.publisher / "frontends" / "web" / "package-lock.json"
             npm_lock.write_text(f'{{"v": "{version}"}}\n')
@@ -221,7 +211,6 @@ def copy(tmp_path: Path) -> Copy:
     git(publisher, "checkout", "--quiet", "-b", "master")
     (publisher / "Makefile").write_text(FAKE_MAKEFILE)
     (publisher / ".gitignore").write_text(GITIGNORE)
-    (publisher / "requirements.lock").write_text("package==1.0.0\n")
     (publisher / "frontends" / "web").mkdir(parents=True)
     (publisher / "frontends" / "web" / "package-lock.json").write_text('{"v": "1.0.0"}\n')
     flags = tmp_path / "flags"
@@ -250,11 +239,7 @@ def copy(tmp_path: Path) -> Copy:
 
 
 def _install_packages(root: Path) -> None:
-    venv_bin = root / ".venv" / "bin"
-    venv_bin.mkdir(parents=True)
-    python = venv_bin / "python"
-    python.write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
-    python.chmod(0o755)
+    (root / ".venv").mkdir()
     (root / ".venv" / "marker").write_text("1.0.0\n")
     node_modules = root / "frontends" / "web" / "node_modules"
     node_modules.mkdir()
@@ -294,7 +279,7 @@ def test_moves_to_the_highest_release_tag_and_starts(copy: Copy) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     assert copy.head() == copy.tag_commit("v1.10.0")
     assert copy.calls() == [
-        "down", "_db-snapshot", f"up 1.10.0 db={OLD_DB}",
+        "down", "_db-snapshot", "setup-python", f"up 1.10.0 db={OLD_DB}",
     ]
     assert copy.state() == "done"
     assert not copy.backup_dir.exists()
@@ -315,6 +300,7 @@ def test_failed_start_of_the_new_version_rolls_back_to_the_old_one(copy: Copy) -
     assert copy.calls() == [
         "down",
         "_db-snapshot",
+        "setup-python",
         f"up 1.1.0 db={OLD_DB}",
         "down",
         f"_db-restore 1.0.0 {copy.snapshot}",
@@ -337,28 +323,9 @@ def test_failure_before_checkout_starts_the_old_version_again(copy: Copy) -> Non
     assert copy.state() == "failed"
 
 
-def test_new_python_packages_are_installed_only_when_their_inputs_change(copy: Copy) -> None:
-    copy.release("1.1.0", python_change=True)
-
-    result = copy.run()
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert copy.calls() == ["down", "_db-snapshot", "setup-python", f"up 1.1.0 db={OLD_DB}"]
-    assert copy.venv_marker() == "1.1.0"
-
-
-def test_changed_root_dependencies_install_python_packages(copy: Copy) -> None:
-    copy.release("1.1.0", root_dependency="uvicorn")
-
-    result = copy.run()
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "setup-python" in copy.calls()
-
-
 def test_failed_python_install_rolls_back_without_the_network(copy: Copy) -> None:
     old_head = copy.head()
-    copy.release("1.1.0", python_change=True)
+    copy.release("1.1.0")
     copy.flag("fail_setup")
 
     result = copy.run()
@@ -517,7 +484,7 @@ def test_app_of_this_copy_is_rebuilt_when_its_code_changed(copy: Copy) -> None:
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert copy.calls() == [
-        "down", "_db-snapshot", "app", f"up 1.1.0 db={OLD_DB}",
+        "down", "_db-snapshot", "setup-python", "app", f"up 1.1.0 db={OLD_DB}",
     ]
 
 

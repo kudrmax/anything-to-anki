@@ -51,7 +51,7 @@ make update
 
 1. Refuses if you changed tracked files in the project folder. Commit or undo your changes first. It also refuses in a git worktree: run it in the main checkout.
 2. Fetches the releases. If you already have the latest one, it prints "Already up to date" and changes nothing. This is also the case when you run the development version from `master`, which is never older than the last release.
-3. Keeps a copy of the installed packages, stops the app, saves a copy of the database, switches to the latest release and installs its Python packages if they changed. The frontend packages are installed when the app starts.
+3. Keeps a copy of the installed packages, stops the app, saves a copy of the database, switches to the latest release and installs its Python packages. The frontend packages are installed when the app starts.
 4. Rebuilds the macOS app if you built it and it changed.
 5. Starts the app. The database is migrated on start.
 

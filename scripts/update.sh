@@ -26,13 +26,10 @@ main() {
     RELEASE_TAG_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+$'
     MACOS_DIR=frontends/macos
     VENV_DIR=.venv
-    VENV_PYTHON=.venv/bin/python
     NODE_MODULES_DIR=frontends/web/node_modules
     # npm's own record of what it installed; `make up` reinstalls when the lock is newer.
     NODE_MODULES_STAMP=frontends/web/node_modules/.package-lock.json
     PACKAGE_LOCK=frontends/web/package-lock.json
-    PYTHON_LOCK_FILES=(requirements.lock backend/pyproject.toml)
-    ROOT_PYPROJECT=pyproject.toml
     PLIST_BUDDY=/usr/libexec/PlistBuddy
     APP_DIR_KEY=A2AProjectDir
     NO_DATABASE=NO_DATABASE
@@ -97,9 +94,7 @@ main() {
     snapshot_taken=1
     checked_out=1
     run_step "git checkout" git checkout --quiet "$tag" || roll_back
-    if python_packages_changed "$old_commit" "$tag"; then
-        make_step setup-python || roll_back
-    fi
+    make_step setup-python || roll_back
     if macos_code_changed "$old_commit" "$tag" && app_of_this_copy_installed; then
         app_built=1
         make_step app || roll_back
@@ -227,29 +222,6 @@ latest_release_tag() {
 macos_code_changed() {
     # Exit code 1 means a difference; anything else unexpected counts as one too.
     ! git diff --quiet "$1" "$2" -- "$MACOS_DIR"
-}
-
-# The root pyproject.toml gets a new version in every release, so only its dependency
-# lists count. Anything that cannot be compared counts as a change.
-python_packages_changed() {
-    if ! git diff --quiet "$1" "$2" -- "${PYTHON_LOCK_FILES[@]}"; then return 0; fi
-    local before after
-    before=$(python_dependencies_of "$1") || return 0
-    after=$(python_dependencies_of "$2") || return 0
-    [ "$before" != "$after" ]
-}
-
-python_dependencies_of() {
-    git show "$1:$ROOT_PYPROJECT" | "$VENV_PYTHON" -I -c '
-import json, sys, tomllib
-pyproject = tomllib.loads(sys.stdin.read())
-project = pyproject.get("project", {})
-print(json.dumps([
-    project.get("dependencies"),
-    project.get("optional-dependencies"),
-    pyproject.get("build-system"),
-], sort_keys=True))
-'
 }
 
 # Installing packages needs the network, and the way back must not: the packages of the
