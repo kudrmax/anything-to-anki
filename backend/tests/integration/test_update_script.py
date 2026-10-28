@@ -2,9 +2,11 @@
 or back where it was and running."""
 from __future__ import annotations
 
+import fcntl
 import os
 import plistlib
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,18 +27,31 @@ OLD_DB = "schema 1.0.0"
 
 # Every target records itself. `up` records the database it found, "migrates" it and
 # leaves the copy's processes running, even when it then fails; `down` stops them. A
-# restore refuses to run over running processes. Files in FLAGS switch failures on:
-# fail_up (fails on the version written in it), fail_snapshot, fail_restore; hold makes
-# `down` wait while it says "hold"; spawn makes `up` leave a real background process.
+# restore refuses to run over running processes. `setup-python` and the frontend install
+# in `up` (run when package-lock.json is newer than the installed packages, as in the real
+# Makefile) write the version into a marker of the packages they install. Files in FLAGS
+# switch failures on: fail_up (fails on the version written in it), fail_snapshot,
+# fail_restore, fail_setup, fail_npm (both fail as without a network, after breaking the
+# packages); hold makes `down` wait while it says "hold"; spawn makes `up` leave a real
+# background process.
 FAKE_MAKEFILE = """\
 VERSION := $(shell cat VERSION)
+STAMP := frontends/web/node_modules/.package-lock.json
+NPM_LOCK := frontends/web/package-lock.json
 
 down:
 \t@echo $@ >> $(CALLS)
 \t@while [ "$$(cat $(FLAGS)/hold 2>/dev/null)" = hold ]; do sleep 0.05; done
 \t@echo stopped > $(FLAGS)/processes
 
-setup-python app:
+setup-python:
+\t@echo $@ >> $(CALLS)
+\t@if [ -f $(FLAGS)/fail_setup ]; then \\
+\t    echo broken > .venv/marker; echo "pip: no network"; exit 1; \\
+\tfi
+\t@echo $(VERSION) > .venv/marker
+
+app:
 \t@echo $@ >> $(CALLS)
 
 _db-snapshot:
@@ -55,6 +70,12 @@ _db-restore:
 
 up:
 \t@echo "up $(VERSION) db=$$(cat data/app.db 2>/dev/null)" >> $(CALLS)
+\t@if ! [ $(STAMP) -nt $(NPM_LOCK) ]; then \\
+\t    if [ -f $(FLAGS)/fail_npm ]; then \\
+\t        echo broken > frontends/web/node_modules/marker; echo "npm ci: no network"; exit 1; \\
+\t    fi; \\
+\t    echo $(VERSION) > frontends/web/node_modules/marker; touch $(STAMP); \\
+\tfi
 \t@echo running > $(FLAGS)/processes
 \t@mkdir -p data && echo "schema $(VERSION)" > data/app.db
 \t@if [ -f $(FLAGS)/spawn ]; then sleep 5 </dev/null >/dev/null 2>&1 & fi
@@ -69,6 +90,20 @@ def git(cwd: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+GITIGNORE = "data/\n.pids/\n.logs/\n.venv/\nfrontends/web/node_modules/\n"
+FAKE_TRASH = """\
+#!/bin/bash
+for path in "$@"; do mv "$path" "$TRASH_DIR/$(basename "$path").$$.$RANDOM"; done
+"""
+# Long enough in the past that the installed packages are newer than the lock, as after a
+# real install.
+INSTALLED_LONG_AGO_S = 3600
+
+
+def pyproject(version: str, dependency: str = "fastapi") -> str:
+    return f'[project]\nname = "x"\nversion = "{version}"\ndependencies = ["{dependency}"]\n'
+
+
 @dataclass(frozen=True)
 class Copy:
     root: Path
@@ -76,13 +111,29 @@ class Copy:
     calls_file: Path
     flags: Path
     apps_dir: Path
+    trash_dir: Path
+    fake_trash: Path
 
-    def release(self, version: str, *, macos_change: bool = False) -> None:
+    def release(
+        self,
+        version: str,
+        *,
+        macos_change: bool = False,
+        python_change: bool = False,
+        root_dependency: str = "fastapi",
+        npm_change: bool = False,
+    ) -> None:
         (self.publisher / "VERSION").write_text(version)
+        (self.publisher / "pyproject.toml").write_text(pyproject(version, root_dependency))
         if macos_change:
             app_file = self.publisher / "frontends" / "macos" / "App.swift"
             app_file.parent.mkdir(parents=True, exist_ok=True)
             app_file.write_text(f"// {version}\n")
+        if python_change:
+            (self.publisher / "requirements.lock").write_text(f"package=={version}\n")
+        if npm_change:
+            npm_lock = self.publisher / "frontends" / "web" / "package-lock.json"
+            npm_lock.write_text(f'{{"v": "{version}"}}\n')
         git(self.publisher, "add", "-A")
         git(self.publisher, "commit", "-m", version)
         git(self.publisher, "tag", f"v{version}")
@@ -97,6 +148,8 @@ class Copy:
             "CALLS": str(self.calls_file),
             "FLAGS": str(self.flags),
             "UPDATE_APPS_DIR": str(self.apps_dir),
+            "UPDATE_TRASH": str(self.fake_trash),
+            "TRASH_DIR": str(self.trash_dir),
             "MAKE": "make",
         }
         env.pop("MAKEFLAGS", None)
@@ -136,6 +189,22 @@ class Copy:
     def db(self) -> str:
         return (self.root / "data" / "app.db").read_text().strip()
 
+    def error(self) -> str:
+        return (self.root / ".pids" / "update.error").read_text()
+
+    def log(self) -> str:
+        return (self.root / ".logs" / "update.log").read_text()
+
+    def venv_marker(self) -> str:
+        return (self.root / ".venv" / "marker").read_text().strip()
+
+    def node_modules_marker(self) -> str:
+        return (self.root / "frontends" / "web" / "node_modules" / "marker").read_text().strip()
+
+    @property
+    def backup_dir(self) -> Path:
+        return self.root / ".pids" / "update-backup"
+
     def install_app(self, project_dir: Path) -> None:
         contents = self.apps_dir / "AnythingToAnki.app" / "Contents"
         contents.mkdir(parents=True)
@@ -151,22 +220,49 @@ def copy(tmp_path: Path) -> Copy:
     git(tmp_path, "clone", "--quiet", str(bare), str(publisher))
     git(publisher, "checkout", "--quiet", "-b", "master")
     (publisher / "Makefile").write_text(FAKE_MAKEFILE)
-    (publisher / ".gitignore").write_text("data/\n.pids/\n")
+    (publisher / ".gitignore").write_text(GITIGNORE)
+    (publisher / "requirements.lock").write_text("package==1.0.0\n")
+    (publisher / "frontends" / "web").mkdir(parents=True)
+    (publisher / "frontends" / "web" / "package-lock.json").write_text('{"v": "1.0.0"}\n')
     flags = tmp_path / "flags"
     flags.mkdir()
+    trash_dir = tmp_path / "Trash"
+    trash_dir.mkdir()
+    fake_trash = tmp_path / "fake-trash.sh"
+    fake_trash.write_text(FAKE_TRASH)
+    fake_trash.chmod(0o755)
     result = Copy(
         root=tmp_path / "installed",
         publisher=publisher,
         calls_file=tmp_path / "calls.txt",
         flags=flags,
         apps_dir=tmp_path / "Applications",
+        trash_dir=trash_dir,
+        fake_trash=fake_trash,
     )
     result.flag("processes", "running")
     result.release("1.0.0")
     git(tmp_path, "clone", "--quiet", str(bare), str(result.root))
     (result.root / "data").mkdir()
     (result.root / "data" / "app.db").write_text(OLD_DB)
+    _install_packages(result.root)
     return result
+
+
+def _install_packages(root: Path) -> None:
+    venv_bin = root / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    python = venv_bin / "python"
+    python.write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
+    python.chmod(0o755)
+    (root / ".venv" / "marker").write_text("1.0.0\n")
+    node_modules = root / "frontends" / "web" / "node_modules"
+    node_modules.mkdir()
+    (node_modules / "marker").write_text("1.0.0\n")
+    (node_modules / ".package-lock.json").write_text("{}\n")
+    lock = root / "frontends" / "web" / "package-lock.json"
+    long_ago = time.time() - INSTALLED_LONG_AGO_S
+    os.utime(lock, (long_ago, long_ago))
 
 
 def test_head_ahead_of_the_latest_tag_is_left_as_it_is(copy: Copy) -> None:
@@ -198,9 +294,10 @@ def test_moves_to_the_highest_release_tag_and_starts(copy: Copy) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     assert copy.head() == copy.tag_commit("v1.10.0")
     assert copy.calls() == [
-        "down", "_db-snapshot", "setup-python", f"up 1.10.0 db={OLD_DB}",
+        "down", "_db-snapshot", f"up 1.10.0 db={OLD_DB}",
     ]
     assert copy.state() == "done"
+    assert not copy.backup_dir.exists()
 
 
 def test_failed_start_of_the_new_version_rolls_back_to_the_old_one(copy: Copy) -> None:
@@ -218,10 +315,8 @@ def test_failed_start_of_the_new_version_rolls_back_to_the_old_one(copy: Copy) -
     assert copy.calls() == [
         "down",
         "_db-snapshot",
-        "setup-python",
         f"up 1.1.0 db={OLD_DB}",
         "down",
-        "setup-python",
         f"_db-restore 1.0.0 {copy.snapshot}",
         f"up 1.0.0 db={OLD_DB}",
     ]
@@ -240,6 +335,136 @@ def test_failure_before_checkout_starts_the_old_version_again(copy: Copy) -> Non
     assert copy.head() == old_head
     assert copy.calls() == ["down", "_db-snapshot", "down", f"up 1.0.0 db={OLD_DB}"]
     assert copy.state() == "failed"
+
+
+def test_new_python_packages_are_installed_only_when_their_inputs_change(copy: Copy) -> None:
+    copy.release("1.1.0", python_change=True)
+
+    result = copy.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert copy.calls() == ["down", "_db-snapshot", "setup-python", f"up 1.1.0 db={OLD_DB}"]
+    assert copy.venv_marker() == "1.1.0"
+
+
+def test_changed_root_dependencies_install_python_packages(copy: Copy) -> None:
+    copy.release("1.1.0", root_dependency="uvicorn")
+
+    result = copy.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "setup-python" in copy.calls()
+
+
+def test_failed_python_install_rolls_back_without_the_network(copy: Copy) -> None:
+    old_head = copy.head()
+    copy.release("1.1.0", python_change=True)
+    copy.flag("fail_setup")
+
+    result = copy.run()
+
+    assert result.returncode == 1
+    assert copy.head() == old_head
+    assert copy.calls() == [
+        "down", "_db-snapshot", "setup-python", "down",
+        f"_db-restore 1.0.0 {copy.snapshot}", f"up 1.0.0 db={OLD_DB}",
+    ]
+    assert copy.venv_marker() == "1.0.0"
+    assert (copy.flags / "processes").read_text().strip() == "running"
+    assert copy.state() == "failed"
+    assert not copy.backup_dir.exists()
+
+
+def test_failed_frontend_install_rolls_back_without_the_network(copy: Copy) -> None:
+    old_head = copy.head()
+    copy.release("1.1.0", npm_change=True)
+    copy.flag("fail_npm")
+
+    result = copy.run()
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert copy.head() == old_head
+    assert copy.calls()[-1] == f"up 1.0.0 db={OLD_DB}"
+    assert copy.node_modules_marker() == "1.0.0"
+    assert (copy.flags / "processes").read_text().strip() == "running"
+    assert copy.state() == "failed"
+
+
+def test_failure_says_which_step_broke_and_how(copy: Copy) -> None:
+    copy.release("1.1.0")
+    copy.flag("fail_up", "1.1.0")
+
+    copy.run()
+
+    error = copy.error()
+    assert error.startswith("Failed step: make up\n")
+    assert "broke" in error
+
+
+def test_rollback_names_the_release_it_returns_to(copy: Copy) -> None:
+    copy.release("1.1.0")
+    copy.flag("fail_up", "1.1.0")
+
+    result = copy.run()
+
+    assert "Rolling back to v1.0.0" in result.stderr
+    assert "Rolled back to v1.0.0" in result.stderr
+
+
+def test_every_run_is_logged_under_its_own_header(copy: Copy) -> None:
+    copy.release("1.1.0")
+
+    result = copy.run()
+
+    log = copy.log()
+    assert log.startswith("=== make update ")
+    assert "Updated to v1.1.0." in result.stdout
+    assert "Updated to v1.1.0." in log
+
+
+def test_worktree_refuses_the_update(copy: Copy, tmp_path: Path) -> None:
+    copy.release("1.1.0")
+    linked = tmp_path / "linked"
+    git(copy.root, "worktree", "add", "--quiet", str(linked), "HEAD")
+
+    result = subprocess.run(
+        ["/bin/bash", str(SCRIPT)], cwd=linked, env=copy.env(), capture_output=True, text=True,
+    )
+
+    assert result.returncode == 1
+    assert "main checkout" in result.stderr
+    assert (linked / ".pids" / "update.state").read_text() == "failed"
+    assert "main checkout" in (linked / ".pids" / "update.error").read_text()
+    assert copy.calls() == []
+
+
+def test_failed_rollback_without_a_database_says_there_was_none(copy: Copy) -> None:
+    (copy.root / "data" / "app.db").rename(copy.flags / "nothing-here")
+    copy.release("1.1.0")
+    copy.flag("fail_up", "1.1.0")
+    copy.flag("fail_restore")
+
+    result = copy.run()
+
+    assert "There was no database before the update." in result.stderr
+    assert "SNAPSHOT=--none" in result.stderr
+    assert copy.backup_dir.exists()
+
+
+def test_lock_handed_over_by_the_app_is_kept(copy: Copy) -> None:
+    copy.release("1.1.0")
+    (copy.root / ".pids").mkdir()
+    lock_path = copy.root / ".pids" / "update.script.lock"
+    with lock_path.open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        result = subprocess.run(
+            ["/bin/sh", "-c", f'exec "$@" 9>&{lock.fileno()}', "update", "/bin/bash", str(SCRIPT)],
+            cwd=copy.root, env=copy.env(), capture_output=True, text=True,
+            pass_fds=(lock.fileno(),),
+        )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert copy.state() == "done"
 
 
 def test_uncommitted_changes_refuse_the_update(copy: Copy) -> None:
@@ -276,7 +501,7 @@ def test_app_of_this_copy_is_rebuilt_when_its_code_changed(copy: Copy) -> None:
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert copy.calls() == [
-        "down", "_db-snapshot", "setup-python", "app", f"up 1.1.0 db={OLD_DB}",
+        "down", "_db-snapshot", "app", f"up 1.1.0 db={OLD_DB}",
     ]
 
 
@@ -311,7 +536,7 @@ def test_rebuilt_app_is_rebuilt_back_on_rollback(copy: Copy) -> None:
 
     assert result.returncode == 1
     assert copy.calls()[-4:] == [
-        "setup-python", f"_db-restore 1.0.0 {copy.snapshot}", "app", f"up 1.0.0 db={OLD_DB}",
+        "down", f"_db-restore 1.0.0 {copy.snapshot}", "app", f"up 1.0.0 db={OLD_DB}",
     ]
 
 
