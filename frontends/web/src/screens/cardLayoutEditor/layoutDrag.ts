@@ -1,4 +1,4 @@
-import type { CardLayoutEdit } from '@/api/types'
+import type { CardElement, CardLayoutEdit } from '@/api/types'
 import { BLOCK_ATTR, COLUMN_ATTR, ROW_ATTR, ROW_KIND_ATTR, type DragItem } from '@/cardLayout'
 
 /** Линия, куда встанет брошенное, — в координатах окна. */
@@ -68,9 +68,14 @@ function gapAt(column: HTMLElement, y: number): { row: number; line: Line } {
 }
 
 /** Куда упадёт то, что тянут, если отпустить в точке (x, y). */
-export function findTarget(root: HTMLElement, item: DragItem, x: number, y: number): DropTarget | null {
+export function findTarget(
+  root: HTMLElement, item: DragItem, x: number, y: number, canHide: (element: CardElement) => boolean,
+): DropTarget | null {
   const under = document.elementFromPoint(x, y)
-  if (under?.closest(`[${TRAY_ATTR}]`)) return item.kind === 'new-divider' || (item.kind === 'block' && !item.placed) ? null : { kind: 'tray' }
+  if (under?.closest(`[${TRAY_ATTR}]`)) {
+    const keeps = item.kind === 'new-divider' || (item.kind === 'block' && (!item.placed || !canHide(item.element)))
+    return keeps ? null : { kind: 'tray' }
+  }
   const column = childrenWith(root, COLUMN_ATTR).find(c => inside(c.getBoundingClientRect(), x, y))
   if (!column) return null
   const columnIndex = Number(column.getAttribute(COLUMN_ATTR))

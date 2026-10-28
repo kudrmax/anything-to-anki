@@ -44,6 +44,7 @@ export function BlockPanel({ view, selection, edit, editAndDeselect }: BlockPane
   const kind = kindOf(view, element)
   if (!style) return null
   const hidden = view.hidden.includes(element)
+  const canHide = view.elements.find(entry => entry.element === element)?.can_hide ?? true
   return (
     <div className={css.panel}>
       <p className={css.panelTitle}>{ELEMENT_LABEL[element]}</p>
@@ -79,7 +80,7 @@ export function BlockPanel({ view, selection, edit, editAndDeselect }: BlockPane
           ))}
         </div>
       </div>
-      {!hidden && (
+      {!hidden && canHide && (
         <div className={css.panelActions}>
           <Button variant="link" onClick={() => edit({ kind: 'hide_block', element })}>Hide block</Button>
         </div>

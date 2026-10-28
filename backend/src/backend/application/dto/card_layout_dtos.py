@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 from backend.domain.value_objects.card_layout import (
+    ALWAYS_SHOWN,
     ELEMENT_KIND,
     BlockAlign,
     BlockRow,
@@ -115,6 +116,8 @@ class CardElementDTO(BaseModel):
 
     element: CardElement
     kind: ElementKind
+    # False — the block is always on the card: Review shows it by its own switch.
+    can_hide: bool
 
 
 class CardLayoutViewDTO(BaseModel):
@@ -130,7 +133,10 @@ class CardLayoutViewDTO(BaseModel):
     def of(cls, layout: CardLayout) -> CardLayoutViewDTO:
         return cls(
             layout=CardLayoutDTO.of(layout),
-            elements=[CardElementDTO(element=e, kind=ELEMENT_KIND[e]) for e in CardElement],
+            elements=[
+                CardElementDTO(element=e, kind=ELEMENT_KIND[e], can_hide=e not in ALWAYS_SHOWN)
+                for e in CardElement
+            ],
             hidden=list(layout.hidden),
             can_add_column=layout.can_add_column,
             can_remove_column=layout.can_remove_column,

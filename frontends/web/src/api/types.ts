@@ -1085,7 +1085,8 @@ export interface CardLayout {
 
 export interface CardLayoutView {
   layout: CardLayout
-  elements: { element: CardElement; kind: CardElementKind }[]
+  /** can_hide: false — блок всегда на карточке, его показывает своя кнопка на ревью. */
+  elements: { element: CardElement; kind: CardElementKind; can_hide: boolean }[]
   hidden: CardElement[]
   can_add_column: boolean
   can_remove_column: boolean

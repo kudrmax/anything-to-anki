@@ -107,6 +107,10 @@ ELEMENT_KIND: Mapping[CardElement, ElementKind] = {
     CardElement.MEANING_STATUS: ElementKind.CONTROL,
 }
 
+# Shown or not by its own switch on Review, never by the layout: a saved layout gets it
+# back (CardLayout.restored) and it cannot be hidden, so every card has it.
+ALWAYS_SHOWN: frozenset[CardElement] = frozenset({CardElement.PICTURE_CHOICE})
+
 MIN_COLUMNS = 1
 MAX_COLUMNS = 3
 
@@ -177,6 +181,38 @@ class CardLayout:
         if set(self.styles) != set(CardElement):
             raise CardLayoutEditError("Every element needs a style")
 
+    @classmethod
+    def restored(
+        cls, columns: tuple[CardColumn, ...], styles: Mapping[CardElement, BlockStyle],
+    ) -> CardLayout:
+        """A saved layout; an always-shown block it lacks goes where the default layout has
+        it: right after its neighbour there, or into its own row at the end of the first column."""
+        rows = [list(column.rows) for column in columns]
+        placed = {e for column in columns for e in _placed_in(column)}
+        for element in sorted(ALWAYS_SHOWN - placed):
+            anchor = _default_neighbour(element)
+            spot = next(
+                (
+                    (c, r)
+                    for c, column in enumerate(rows)
+                    for r, row in enumerate(column)
+                    if anchor and isinstance(row, BlockRow) and anchor in row.elements
+                ),
+                None,
+            )
+            if spot is None:
+                rows[0].append(BlockRow((element,)))
+                continue
+            c, r = spot
+            row = rows[c][r]
+            assert isinstance(row, BlockRow)
+            at = row.elements.index(anchor) + 1
+            rows[c][r] = BlockRow((*row.elements[:at], element, *row.elements[at:]))
+        restored = tuple(
+            replace(column, rows=tuple(r)) for column, r in zip(columns, rows, strict=True)
+        )
+        return cls(columns=restored, styles=styles)
+
     @property
     def placed(self) -> list[CardElement]:
         return [
@@ -222,6 +258,8 @@ class CardLayout:
         return self._built(columns)
 
     def hide_block(self, element: CardElement) -> CardLayout:
+        if element in ALWAYS_SHOWN:
+            raise CardLayoutEditError(f"{element} stays on the card: Review shows it itself")
         source = self._find(element)
         if source is None:
             return self
@@ -396,3 +434,17 @@ DEFAULT_CARD_LAYOUT = CardLayout(
         CardElement.MEANING_STATUS: BlockStyle(),
     },
 )
+
+
+def _default_neighbour(element: CardElement) -> CardElement | None:
+    """The block right before `element` in its row of the default layout."""
+    for column in DEFAULT_CARD_LAYOUT.columns:
+        for row in column.rows:
+            if isinstance(row, BlockRow) and element in row.elements:
+                at = row.elements.index(element)
+                return row.elements[at - 1] if at > 0 else None
+    return None
+
+
+def _placed_in(column: CardColumn) -> list[CardElement]:
+    return [e for row in column.rows if isinstance(row, BlockRow) for e in row.elements]

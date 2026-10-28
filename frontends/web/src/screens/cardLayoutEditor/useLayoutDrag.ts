@@ -1,4 +1,5 @@
 import { useCallback, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
+import type { CardElement } from '@/api/types'
 import type { DragItem } from '@/cardLayout'
 import { findTarget, type DropTarget } from './layoutDrag'
 
@@ -20,6 +21,7 @@ export function useLayoutDrag(
   rootRef: RefObject<HTMLElement | null>,
   onDrop: (item: DragItem, target: DropTarget) => void,
   onClick: (item: DragItem) => void,
+  canHide: (element: CardElement) => boolean,
 ) {
   const [drag, setDrag] = useState<LayoutDrag | null>(null)
 
@@ -35,7 +37,7 @@ export function useLayoutDrag(
     const move = (ev: PointerEvent) => {
       if (!dragging && Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return
       dragging = true
-      target = rootRef.current ? findTarget(rootRef.current, item, ev.clientX, ev.clientY) : null
+      target = rootRef.current ? findTarget(rootRef.current, item, ev.clientX, ev.clientY, canHide) : null
       setDrag({ item, x: ev.clientX, y: ev.clientY, target })
     }
     const stop = () => {
@@ -52,7 +54,7 @@ export function useLayoutDrag(
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
     window.addEventListener('pointercancel', stop)
-  }, [rootRef, onDrop, onClick])
+  }, [rootRef, onDrop, onClick, canHide])
 
   return { drag, start }
 }

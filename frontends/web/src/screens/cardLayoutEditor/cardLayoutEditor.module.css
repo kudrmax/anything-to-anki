@@ -39,3 +39,6 @@
 /* телефон: экран ревью в окне шириной с телефон */
 .phoneStage { display: flex; justify-content: center; padding: var(--s7) 0; }
 .phoneFrame { width: var(--phone-frame-w); height: var(--phone-frame-h); border: 0; border-radius: var(--r); box-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop); background: var(--bg); }
+
+/* вопрос при выходе со скрытыми блоками */
+.leaveList { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s3); padding-left: var(--s5); list-style: disc; font-size: var(--fs-m); }

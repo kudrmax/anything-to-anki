@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from backend.domain.exceptions import CardLayoutEditError
 from backend.domain.value_objects.card_layout import (
+    ALWAYS_SHOWN,
     DEFAULT_CARD_LAYOUT,
     MAX_COLUMNS,
     BlockPlace,
@@ -187,3 +188,28 @@ class TestColumns:
     def test_resize(self) -> None:
         card = layout(()).resize_column(0, ColumnWidth.WIDE)
         assert card.columns[0].width is ColumnWidth.WIDE
+
+
+class TestAlwaysShown:
+    def test_cannot_be_hidden(self) -> None:
+        with pytest.raises(CardLayoutEditError):
+            DEFAULT_CARD_LAYOUT.hide_block(E.PICTURE_CHOICE)
+        assert not ALWAYS_SHOWN & set(DEFAULT_CARD_LAYOUT.hidden)
+
+    def test_saved_layout_gets_it_after_its_default_neighbour(self) -> None:
+        media = blocks(E.VIDEO_FRAME, E.PICTURE)
+        saved = (CardColumn(ColumnWidth.NORMAL, (blocks(E.TARGET), media)),)
+        card = CardLayout.restored(saved, DEFAULT_CARD_LAYOUT.styles)
+        assert rows(card) == (blocks(E.TARGET), blocks(E.VIDEO_FRAME, E.PICTURE, E.PICTURE_CHOICE))
+
+    def test_without_the_neighbour_it_ends_the_first_column(self) -> None:
+        saved = (
+            CardColumn(ColumnWidth.NORMAL, (blocks(E.TARGET),)),
+            CardColumn(ColumnWidth.NORMAL, (blocks(E.EXAMPLES),)),
+        )
+        card = CardLayout.restored(saved, DEFAULT_CARD_LAYOUT.styles)
+        assert rows(card) == (blocks(E.TARGET), blocks(E.PICTURE_CHOICE))
+
+    def test_saved_layout_that_has_it_stays_as_it_is(self) -> None:
+        saved = (CardColumn(ColumnWidth.NORMAL, (blocks(E.PICTURE_CHOICE, E.TARGET),)),)
+        assert rows(CardLayout.restored(saved, DEFAULT_CARD_LAYOUT.styles)) == saved[0].rows

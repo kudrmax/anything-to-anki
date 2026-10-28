@@ -60,7 +60,7 @@ class _StoredLayout(BaseModel):
         for entry in self.styles:
             if entry.element in _KNOWN_ELEMENTS:
                 styles[CardElement(entry.element)] = entry.style.to_domain()
-        return CardLayout(
+        return CardLayout.restored(
             columns=tuple(
                 CardColumn(width=column.width, rows=self._rows(column)) for column in self.columns
             ),

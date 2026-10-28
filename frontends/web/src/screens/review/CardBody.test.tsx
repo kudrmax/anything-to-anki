@@ -14,7 +14,7 @@ const view = (...columns: CardLayoutRow[][]): CardLayoutView => ({
     columns: columns.map(rows => ({ width: 'normal', rows })),
     styles: ELEMENTS.map(element => ({ element, style: element === 'target' ? { ...STYLE, size: 'xl', tone: 'accent' } : STYLE })),
   },
-  elements: ELEMENTS.map(element => ({ element, kind: element === 'picture' ? 'media' : 'text' })),
+  elements: ELEMENTS.map(element => ({ element, kind: element === 'picture' ? 'media' : 'text', can_hide: true })),
   hidden: [],
   can_add_column: true,
   can_remove_column: true,

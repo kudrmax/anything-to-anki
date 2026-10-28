@@ -68,8 +68,9 @@ class TestCardLayoutAPI:
         assert first_column(view)[:2] == [
             {"kind": "blocks", "elements": ["target"]}, {"kind": "divider"},
         ]
-        assert {"element": "picture", "kind": "media"} in view["elements"]
-        assert {"element": "picture_choice", "kind": "media"} in view["elements"]
+        assert {"element": "picture", "kind": "media", "can_hide": True} in view["elements"]
+        always_shown = {"element": "picture_choice", "kind": "media", "can_hide": False}
+        assert always_shown in view["elements"]
         assert view["can_add_column"] is True
 
     def test_edit_is_kept(self, client: TestClient) -> None:
@@ -135,7 +136,11 @@ class TestCardLayoutAPI:
             SqlaSettingsRepository(session, _NoChanges()).set(CARD_LAYOUT_SETTING, stored)
             session.commit()
         view = client.get("/api/card-layout").json()
-        assert first_column(view) == [{"kind": "blocks", "elements": ["target"]}]
+        # The picture choice is always on the card: a saved layout without it gets it back.
+        assert first_column(view) == [
+            {"kind": "blocks", "elements": ["target"]},
+            {"kind": "blocks", "elements": ["picture_choice"]},
+        ]
         assert style_of(view, "target")["size"] == "s"
         assert style_of(view, "target")["valign"] == "baseline"
         assert style_of(view, "target")["space_left"] == "none"

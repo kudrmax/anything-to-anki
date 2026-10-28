@@ -15,7 +15,7 @@ const view = (...columns: CardLayoutRow[][]): CardLayoutView => ({
     // Перевод прижат к низу колонки.
     styles: ELEMENTS.map(element => ({ element, style: element === 'translation' ? { ...STYLE, valign: 'bottom' } : STYLE })),
   },
-  elements: ELEMENTS.map(element => ({ element, kind: 'text' })),
+  elements: ELEMENTS.map(element => ({ element, kind: 'text', can_hide: true })),
   hidden: [],
   can_add_column: true,
   can_remove_column: true,
