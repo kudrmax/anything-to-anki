@@ -1043,3 +1043,35 @@ export interface LongOperationStatus {
   outcome: LongOperationOutcome | null
   error: string | null
 }
+
+/** Раздел записи changelog: заголовок и тело, уже отрисованное сервером в HTML. */
+export interface ChangelogSection {
+  title: string
+  html: string
+}
+
+export interface ChangelogEntry {
+  version: string
+  /** День выхода версии, `YYYY-MM-DD`. */
+  released_on: string
+  summary: string
+  sections: ChangelogSection[]
+}
+
+/** Что копия знает о новых релизах; `entries` — изменения, которые принесёт обновление. */
+export interface UpdateStatus {
+  current: string
+  latest: string | null
+  available: boolean
+  entries: ChangelogEntry[]
+  /** Явная проверка не достучалась до релизов. */
+  check_failed: boolean
+}
+
+export type UpdateRunState = 'idle' | 'running' | 'failed' | 'done'
+
+export interface UpdateRunProgress {
+  state: UpdateRunState
+  /** Конец лога обновления, когда оно упало. */
+  log_tail: string
+}

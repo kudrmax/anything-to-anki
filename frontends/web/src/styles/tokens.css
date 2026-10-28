@@ -177,6 +177,7 @@
   --aside-position: sticky;
   --modal: 480px;
   --modal-wide: 1200px;
+  --modal-read: 640px;   /* окно для чтения: changelog */
   --sheet-max-h: 85dvh;
   --menu: 240px;
   --polish-pop: min(440px, calc(100vw - var(--s8)));
@@ -364,6 +365,7 @@
     --fs-focus: 23px;
     --modal: calc(100vw - var(--page-x) * 2);
     --modal-wide: var(--modal);
+    --modal-read: var(--modal);
     --menu: min(240px, calc(100vw - var(--page-x) * 2));
     --source-max: 35dvh;
     --tab-px: var(--s3);

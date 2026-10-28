@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { statsStore, useStats } from '@/hooks/useStats'
+import { UpdateIndicator } from './updates/UpdateIndicator'
 import css from './TopNav.module.css'
 
 const ENV_NAME = import.meta.env.VITE_INSTANCE_ENV_NAME as string | undefined
@@ -60,6 +61,7 @@ export function TopNav() {
     <nav className={css.nav}>
       {MAIN.map(destination => tab(destination, badges[destination.section]))}
       <span className={css.spacer} />
+      <UpdateIndicator />
       {ENV_NAME && <span className={ENV_NAME === PROD_ENV ? `${css.env} ${css.prod}` : css.env}>{ENV_NAME}</span>}
       {tab(SETTINGS)}
     </nav>

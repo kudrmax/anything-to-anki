@@ -1,0 +1,17 @@
+/* записи changelog, как в Obsidian: версия и день, сводка, разделы */
+.entry + .entry { margin-top: var(--s4); padding-top: var(--s6); border-top: var(--bw) solid var(--line-soft); }
+.heading { display: flex; align-items: baseline; gap: var(--s3); }
+.version { font-size: var(--fs-l); font-weight: var(--fw-b); letter-spacing: var(--ls-tight); }
+.summary { margin-top: var(--s3); font-size: var(--fs-m); color: var(--tx2); }
+.section { margin-top: var(--s5); }
+.sectionTitle { font-size: var(--fs-s); font-weight: var(--fw-b); color: var(--tx); margin-bottom: var(--s2); }
+.body { font-size: var(--fs-m); color: var(--tx2); }
+.body p + p, .body p + ul, .body ul + p { margin-top: var(--s3); }
+.body ul, .body ol { padding-left: var(--s6); }
+.body ul { list-style: disc; }
+.body ol { list-style: decimal; }
+.body li + li { margin-top: var(--s1); }
+.body strong { color: var(--tx); font-weight: var(--fw-b); }
+.body code { font-family: var(--mono); font-size: var(--fs-s); }
+.body a { color: var(--ac); }
+.body img { display: block; max-width: 100%; height: auto; margin-top: var(--s3); border-radius: var(--rc); }
