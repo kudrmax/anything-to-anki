@@ -129,3 +129,51 @@ def test_stops_by_itself_once_the_update_lock_is_free(tmp_path: Path) -> None:
 
     assert server.process.wait(timeout=WAIT_S) == 0
     assert not server.listens()
+
+
+MAKEFILE = Path(__file__).resolve().parents[3] / "Makefile"
+STATUS_PID_FILE = ".pids/update_status.pid"
+# Outlives any test: only the hook may end it.
+DUMMY_S = 600
+
+
+def _stop_hook(project: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["make", "--no-print-directory", "-f", str(MAKEFILE), "-C", str(project),
+         "_stop-update-status-server"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+
+
+def _dummy(project: Path, *argv: str) -> subprocess.Popen[bytes]:
+    process = subprocess.Popen(argv)
+    (project / ".pids").mkdir(exist_ok=True)
+    (project / STATUS_PID_FILE).write_text(str(process.pid))
+    return process
+
+
+def test_make_up_hook_stops_the_registered_status_server(tmp_path: Path) -> None:
+    server = _dummy(
+        tmp_path, "python3", "-c", f"import time; time.sleep({DUMMY_S})", "update_status_server",
+    )
+    try:
+        result = _stop_hook(tmp_path)
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert server.wait(timeout=5) is not None
+        assert not (tmp_path / STATUS_PID_FILE).exists()
+    finally:
+        server.kill()
+
+
+def test_make_up_hook_leaves_a_process_that_reused_the_pid_alone(tmp_path: Path) -> None:
+    other = _dummy(tmp_path, "sleep", str(DUMMY_S))
+    try:
+        result = _stop_hook(tmp_path)
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert other.poll() is None
+        assert not (tmp_path / STATUS_PID_FILE).exists()
+    finally:
+        other.kill()
+        other.wait()

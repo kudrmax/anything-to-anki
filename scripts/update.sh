@@ -27,6 +27,8 @@ main() {
     SNAPSHOT_OUT_FILE=.pids/update.snapshot.out
     FOLLOW_STOP_FILE=.pids/update.follow.stop
     PROGRESS_FILE=.pids/update.progress
+    # `make up` stops the status server by this file right before the app takes the port.
+    STATUS_PID_FILE=.pids/update_status.pid
     LOG_FILE=.logs/update.log
     BACKUP_DIR=.pids/update-backup
     RECOVERY_FILE=.pids/update-backup/RECOVERY
@@ -137,8 +139,10 @@ main() {
         make_step app || roll_back
     fi
     progress_advance
-    stop_status_server
+    # The status server keeps answering through the build in `make up`, which stops it
+    # right before the app takes the port.
     make_step up || roll_back
+    stop_status_server
     progress_advance
 
     echo "Updated to $tag."
@@ -312,12 +316,17 @@ progress_end() {
     write_progress
 }
 
-# Answers the page on the app's port while the app is stopped. It must not hold the lock,
-# and `make up` needs the port: it is stopped, and waited for, before every start. When it
-# cannot start (the port is taken) the update goes on; the page shows the last stage it got.
+# Answers the page on the app's port while the app is stopped. It must not hold the lock.
+# `make up` stops it by its pid file, and waits for it, right before the app takes the
+# port; every other way out stops it here. When it cannot start (the port is taken) the
+# update goes on; the page shows the last stage it got.
 start_status_server() {
     [ -n "$STATUS_PORT" ] || return 0
-    if [ -n "$status_server" ] && kill -0 "$status_server" 2>/dev/null; then return 0; fi
+    if [ -n "$status_server" ]; then
+        if [ -f "$STATUS_PID_FILE" ] && kill -0 "$status_server" 2>/dev/null; then return 0; fi
+        # `make up` stopped it.
+        stop_status_server
+    fi
     # A rollback ignores TERM, and children inherit that: the server gets it back before it
     # starts, or the TERM that stops it could arrive while it still ignores it.
     (
@@ -325,12 +334,15 @@ start_status_server() {
         exec "$STATUS_PYTHON" "$STATUS_SERVER" --port "$STATUS_PORT" --host "$STATUS_HOST"
     ) < /dev/null 9>&- &
     status_server=$!
+    printf '%s' "$status_server" > "$STATUS_PID_FILE"
 }
 
+# After `make up` the server is already gone: wait only collects it.
 stop_status_server() {
     [ -n "$status_server" ] || return 0
-    kill "$status_server" 2>/dev/null
+    if [ -f "$STATUS_PID_FILE" ]; then kill "$status_server" 2>/dev/null; fi
     wait "$status_server" 2>/dev/null
+    rm -f "$STATUS_PID_FILE"
     status_server=""
 }
 
@@ -546,7 +558,6 @@ roll_back() {
     if [ "$app_built" = 1 ]; then
         make_step app || broken=" The macOS app was not rebuilt: run 'make app'."
     fi
-    stop_status_server
     if ! make_step up; then
         progress_end failed
         echo "The old version did not start." >> "$ERROR_FILE"

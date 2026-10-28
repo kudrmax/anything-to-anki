@@ -41,13 +41,15 @@ WAIT_S = 20
 # fail_restore, fail_setup, fail_npm (both fail as without a network, after breaking the
 # packages); hold makes `down` wait while it says "hold"; spawn makes `up` leave a real
 # background process; linger makes `down` leave one that keeps its output open;
-# hold_setup makes `setup-python` wait while it says "hold". `up` fails when something
-# still listens on the port of the update's status server, as the real one would.
+# hold_setup makes `setup-python` wait while it says "hold". `up` stops the update's status
+# server by its pid file, as the real one does, and records in up_saw whether it was still
+# alive and which stage was current; it fails when something still listens on the port.
 FAKE_MAKEFILE = """\
 VERSION := $(shell cat VERSION)
 # Outlives any test: a step that leaves this behind must not keep the update waiting.
 LINGER_S := 600
 STAMP := frontends/web/node_modules/.package-lock.json
+STATUS_PID := .pids/update_status.pid
 NPM_LOCK := frontends/web/package-lock.json
 
 down:
@@ -83,6 +85,13 @@ _db-restore:
 
 up:
 \t@echo "up $(VERSION) db=$$(cat data/app.db 2>/dev/null)" >> $(CALLS)
+\t@pid=$$(cat $(STATUS_PID) 2>/dev/null); \\
+\tif [ -n "$$pid" ] && ps -o command= -p $$pid | grep -q update_status_server; then \\
+\t    echo "alive $$(grep current .pids/update.progress)" >> $(FLAGS)/up_saw; \\
+\t    kill $$pid; \\
+\t    while ps -o command= -p $$pid | grep -q update_status_server; do sleep 0.05; done; \\
+\t    rm -f $(STATUS_PID); \\
+\telse echo gone >> $(FLAGS)/up_saw; fi
 \t@python3 -c "$$PORT_FREE_CHECK" || { echo "port busy"; exit 1; }
 \t@if ! [ $(STAMP) -nt $(NPM_LOCK) ]; then \\
 \t    if [ -f $(FLAGS)/fail_npm ]; then \\
@@ -903,3 +912,28 @@ def test_update_goes_on_when_the_status_server_cannot_start(copy: Copy) -> None:
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert copy.progress() == ALL_DONE
+
+
+def test_status_server_shows_the_start_until_make_up_takes_the_port(copy: Copy) -> None:
+    copy.release("1.1.0")
+
+    result = copy.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    saw = (copy.flags / "up_saw").read_text().splitlines()
+    assert saw == ["alive current\tStarting the new version"]
+    assert not (copy.root / ".pids" / "update_status.pid").exists()
+
+
+def test_rollback_after_a_failed_start_serves_the_stages_again(copy: Copy) -> None:
+    copy.release("1.1.0")
+    copy.flag("fail_up", "1.1.0")
+
+    copy.run()
+
+    saw = (copy.flags / "up_saw").read_text().splitlines()
+    assert saw == [
+        "alive current\tStarting the new version",
+        "alive current\tRolling back to v1.0.0",
+    ]
+    assert not copy.status_server_listens()

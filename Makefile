@@ -1,4 +1,4 @@
-.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths card-states-check bench-db bench-review app test-macos update _db-snapshot _db-restore _check_env _check_setup _up _up-worktree _down _down-worktree
+.PHONY: up down logs setup setup-brew setup-media setup-python setup-frontend lock up-worktree down-worktree logs-worktree test coverage lint typecheck help migrate-paths card-states-check bench-db bench-review app test-macos update _db-snapshot _db-restore _stop-update-status-server _check_env _check_setup _up _up-worktree _down _down-worktree
 
 # Читаем .env для Makefile-переменных (AI_PROXY_PORT, PORT, INSTANCE_ENV_NAME).
 # -include не падает если файла нет; если .env создаётся правилом ниже,
@@ -14,6 +14,7 @@ APP_LOG := .logs/app.log
 WRK_PID := .pids/worker.pid
 WRK_LOG := .logs/worker.log
 UPD_LOG := .logs/update.log
+UPD_STATUS_PID := .pids/update_status.pid
 # Сколько тиков по 0.25 с ждать остановки воркера (5 секунд).
 WORKER_STOP_TICKS := 20
 # Сколько тиков по 0.25 с ждать освобождения порта (10 секунд).
@@ -49,6 +50,24 @@ define kill_by_pid
 	        echo "Stopped $(2) (PID $$pid)"; \
 	    fi; \
 	    rm -f $(1); \
+	fi
+endef
+
+# Остановить status server, которым `make update` отвечает на порту app, пока app стоит,
+# и дождаться выхода: порт освобождает тот шаг, которому он нужен. Убитый, но ещё не
+# подобранный update.sh процесс — зомби с другой командой, поэтому живым считается только
+# процесс, чья команда — status server.
+define stop_update_status_server
+	@if [ -f $(UPD_STATUS_PID) ]; then \
+	    pid=$$(cat $(UPD_STATUS_PID)); \
+	    alive() { ps -o command= -p $$pid 2>/dev/null | grep -q update_status_server; }; \
+	    if alive; then \
+	        kill $$pid; \
+	        ticks=0; \
+	        while alive && [ $$ticks -lt $(PORT_WAIT_TICKS) ]; do sleep 0.25; ticks=$$((ticks + 1)); done; \
+	        if alive; then echo "ERROR: update status server (PID $$pid) did not stop" >&2; exit 1; fi; \
+	    fi; \
+	    rm -f $(UPD_STATUS_PID); \
 	fi
 endef
 
@@ -331,6 +350,7 @@ _up: _check_env _check_setup dict-update
 	$(call start_ai_proxy)
 	$(call stop_worker,$(WRK_PID))
 	$(call kill_workers_of_this_copy)
+	$(call stop_update_status_server)
 	$(call start_app)
 	$(call start_worker)
 	@printf "\n$(BANNER_COLOR)"
@@ -393,6 +413,10 @@ _down-worktree:
 UPDATE_MAKE := $(MAKE)
 update:  ## Update to the latest release (rolls back on failure)
 	@MAKE="$(UPDATE_MAKE)" scripts/update.sh
+
+# Тот же шаг, что делает _up перед стартом app, отдельно.
+_stop-update-status-server:
+	$(call stop_update_status_server)
 
 # Копия базы для make update: путь к копии — последняя строка вывода.
 _db-snapshot: _check_setup
