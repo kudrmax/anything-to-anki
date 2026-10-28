@@ -5,7 +5,7 @@ import type { DragItem } from '@/cardLayout'
 import { Button, Icon, IconButton, Select, Text } from '@/ui'
 import { BlockPanel } from './BlockPanel'
 import { ELEMENT_LABEL, WIDTH_OPTIONS } from './labels'
-import { TRAY_ATTR } from './layoutDrag'
+import { EDITOR_WINDOW_ATTR, TRAY_ATTR } from './layoutDrag'
 import type { CardLayoutEditor } from './useCardLayoutEditor'
 import { useFloatingWindow } from './useFloatingWindow'
 import css from './cardLayoutEditor.module.css'
@@ -28,7 +28,7 @@ export function EditorWindow({ editor, startDrag, trayActive, phone, onTogglePho
   const { columns } = view.layout
 
   return (
-    <aside className={css.window} style={{ '--wx': `${offset.x}px`, '--wy': `${offset.y}px` } as CSSProperties}>
+    <aside {...{ [EDITOR_WINDOW_ATTR]: '' }} className={css.window} style={{ '--wx': `${offset.x}px`, '--wy': `${offset.y}px` } as CSSProperties}>
       <div className={css.windowHead} onPointerDown={startMove}>
         <p className={css.windowTitle}>Card layout</p>
         <IconButton

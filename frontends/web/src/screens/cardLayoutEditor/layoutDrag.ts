@@ -15,6 +15,7 @@ const ROW_EDGE = 8
 const LINE = 2
 
 export const TRAY_ATTR = 'data-tray'
+export const EDITOR_WINDOW_ATTR = 'data-layout-window'
 
 /** Правка раскладки, которую делает бросок; null — бросок ничего не меняет. */
 export function editFor(item: DragItem, target: DropTarget): CardLayoutEdit | null {

@@ -1,14 +1,14 @@
-import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  CardLayoutEditingContext, CardLayoutViewContext, type CardLayoutEditing, type DragItem,
+  BLOCK_ATTR, CardLayoutEditingContext, CardLayoutViewContext, ROW_ATTR, type CardLayoutEditing, type DragItem,
 } from '@/cardLayout'
 import { SETTINGS_PATH } from '@/shell'
 import { ReviewView } from '@/screens/review/ReviewScreen'
 import { ReviewApiContext } from '@/screens/review/reviewApi'
 import { EditorWindow } from './EditorWindow'
 import { ELEMENT_LABEL } from './labels'
-import { editFor, type DropTarget } from './layoutDrag'
+import { EDITOR_WINDOW_ATTR, editFor, type DropTarget } from './layoutDrag'
 import { CARD_LAYOUT_PATH, PHONE_FRAME, PHONE_FRAME_PARAM } from './paths'
 import { SAMPLE_REVIEW_API, SAMPLE_SCOPE } from './sampleReview'
 import { useBlockedActions } from './useBlockedActions'
@@ -17,6 +17,8 @@ import { useLayoutDrag } from './useLayoutDrag'
 import css from './cardLayoutEditor.module.css'
 
 const SETTINGS_SECTION = `${SETTINGS_PATH}?section=card-layout`
+/** Щелчок мимо блоков, линий и окна редактора снимает выбор: карточка видна такой, какой будет. */
+const KEEPS_SELECTION = `[${BLOCK_ATTR}], [${ROW_ATTR}], [${EDITOR_WINDOW_ATTR}]`
 
 /** Экран ревью на образце: тот же код, что у ревью; решать на нём нечего, работают только кнопки вида. */
 function SampleReview() {
@@ -65,6 +67,19 @@ export function CardLayoutEditorScreen() {
     void edit(change)
   }, [select, edit])
   const { drag, start } = useLayoutDrag(rootRef, onDrop, onClick)
+
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (!(e.target instanceof Element) || !e.target.closest(KEEPS_SELECTION)) select(null)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') select(null) }
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [select])
 
   const editing = useMemo<CardLayoutEditing>(() => ({
     selection,
