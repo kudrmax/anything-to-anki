@@ -2,6 +2,31 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.2.1 — 2026-10-29
+
+The Update button works again, every time.
+
+### Update does nothing? Restart the app once
+If you press **Update** and the window flashes and closes, your app is stuck on an older version. It needs one restart, by hand, and after that **Update** works again. You don't need to know the terminal:
+
+1. Open the Terminal app: press ⌘ Space, type **Terminal** and press Return.
+2. Paste this line and press Return. If you put AnythingToAnki in another folder, write that folder after `cd`.
+
+   ```
+   cd ~/anything-to-anki && make down && make up
+   ```
+
+3. Wait until Terminal shows the line that starts with →. Reload the app's page and press **Update** again.
+
+### No longer broken
+- The Update button stopped working after the first update made with it: the window closed and the app stayed on its version. Now every update starts.
+
+### Improvements
+- Updating is now exactly what you would type by hand: download the release, stop the app, switch to the release, start the app. Starting the app installs the Python and frontend packages the release needs.
+- If an update seems stuck, the update window says what to do, step by step: open Terminal, paste the command it shows (with a **Copy** button) and wait. If an update fails, the window shows the error and the command to run it by hand.
+  ![](docs/images/changelog/1.2.1/update-by-hand.png)
+- A failed update stops at the step that broke and says which one, instead of trying to go back. The database is still backed up before the new version changes it.
+
 ## 1.2.0 — 2026-10-29
 
 Arrange the Review card your way, and fill incomplete cards before export with one button.
