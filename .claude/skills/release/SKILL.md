@@ -135,8 +135,10 @@ Prod is not updated by merging or by this skill. It updates with the **Update** 
 The first release is the exception: the prod copy predates `make update` and cannot run it. Switch it once, by hand, after Max agrees:
 
 ```bash
-cd ~/projects/anything-to-anki-prod && git checkout vX.Y.Z && make down && make up
+cd ~/projects/anything-to-anki-prod && git checkout vX.Y.Z && make down && make up && make app
 ```
+
+`make app` rebuilds the macOS app from the release: the old build has no **Check for Updates…** item and no restart banner. Max then quits and reopens the app.
 
 Every later release reaches prod through the button or `make update`.
 
