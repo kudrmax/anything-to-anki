@@ -69,6 +69,7 @@ class TestCardLayoutAPI:
             {"kind": "blocks", "elements": ["target"]}, {"kind": "divider"},
         ]
         assert {"element": "picture", "kind": "media"} in view["elements"]
+        assert {"element": "picture_choice", "kind": "media"} in view["elements"]
         assert view["can_add_column"] is True
 
     def test_edit_is_kept(self, client: TestClient) -> None:

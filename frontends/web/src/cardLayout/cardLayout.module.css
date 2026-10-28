@@ -5,7 +5,7 @@
 /* блок шириной в свой текст: рядом с ним видно, куда встанет соседний; списки — во всю колонку, их кнопки у края */
 .row > .block:only-child:is([data-element="examples"], [data-element="notes"]) { flex: 1 1 auto; }
 /* подобранные картинки занимают остаток строки рядом с соседями; под них уходят, только когда не помещается и одна */
-.block:has(> [data-picture-choice]) { flex: 1 1 0; min-width: calc(var(--suggestion-tile-w) * var(--thumb-scale)); }
+.block[data-element="picture_choice"] { flex: 1 1 0; min-width: calc(var(--suggestion-tile-w) * var(--thumb-scale)); }
 /* прижатые вправо блоки стоят в конце строки (см. inRowOrder): от остальных их отделяет только первый */
 .block[data-align="end"]:first-child, .block:not([data-align="end"]) + .block[data-align="end"] { margin-left: auto; }
 /* у картинок и кадра своей строки текста нет: на линию текста они встают низом */

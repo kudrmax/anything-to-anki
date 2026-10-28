@@ -1047,7 +1047,7 @@ export interface LongOperationStatus {
 /** Часть тела карточки, которую раскладывает пользователь. Фраза сверху и полоса решений снизу — не элементы. */
 export type CardElement =
   | 'target' | 'translation' | 'context' | 'definition' | 'notes' | 'synonyms' | 'examples'
-  | 'transcription' | 'pronunciation' | 'tts' | 'word_facts' | 'video_frame' | 'picture' | 'meaning_status'
+  | 'transcription' | 'pronunciation' | 'tts' | 'word_facts' | 'video_frame' | 'picture' | 'picture_choice' | 'meaning_status'
 
 /** Что меняет стиль элемента: у текста — размер, тон и жирность, у медиа — размер, у кнопок — ничего. */
 export type CardElementKind = 'text' | 'media' | 'control'

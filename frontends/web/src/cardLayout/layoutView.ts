@@ -16,5 +16,5 @@ export const inRowOrder = <T extends { element: CardElement }>(view: CardLayoutV
   [...blocks].sort((a, b) => Number(styleOf(view, a.element)?.align === 'end') - Number(styleOf(view, b.element)?.align === 'end'))
 
 /** Ширины колонок — дорожки грида карточки. */
-export const columnTracks = (columns: CardLayoutColumn[]): string =>
+export const columnTracks = (columns: Pick<CardLayoutColumn, 'width'>[]): string =>
   columns.map(column => `minmax(0, var(--card-col-${column.width}))`).join(' ')

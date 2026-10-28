@@ -67,10 +67,11 @@ The phone button in the window shows the same Review screen as it is on a phone;
 | **Synonyms**, **Examples**, **Transcription** | As named. Hover an example to use it as the phrase |
 | **US / UK audio**, **TTS audio** | Pronunciation and text-to-speech buttons |
 | **Level and frequency** | CEFR level or phrasal verb, frequency and register |
-| **Video frame**, **Picture** | The clip from the video and the picture of the target, or picture suggestions |
+| **Video frame**, **Picture** | The clip from the video and the picture of the target |
+| **Picture choice** | Suggested pictures to pick from while the card has no picture |
 | **Generate meaning** | Progress, **Generate meaning** or **Retry** while the card has no meaning |
 
-A block with nothing to show on a card is left out on that card.
+A block with nothing to show on a card is left out on that card. A line is drawn only between rows that show something: two lines left next to each other merge into one, and there is none at the top or bottom of a column. A column with nothing to show is left out, and the other columns take its room.
 
 ## AI model
 

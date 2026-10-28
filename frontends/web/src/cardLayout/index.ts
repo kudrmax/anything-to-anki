@@ -9,3 +9,5 @@ export {
   isSelectedBlock, isSelectedDivider, selectOnKey, useCardLayoutEditing,
 } from './editing'
 export type { CardLayoutEditing, DragItem, LayoutSelection } from './editing'
+export { shownColumns } from './shownLayout'
+export type { ShownBlock, ShownColumn, ShownRow } from './shownLayout'

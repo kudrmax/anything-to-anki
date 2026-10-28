@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { CardElement, CardLayoutRow, CardLayoutView } from '@/api/types'
-import { CardLayoutEditingContext, type CardBlockContext, type CardLayoutEditing, type DragItem } from '@/cardLayout'
+import { CardLayoutEditingContext, shownColumns, type CardBlockContext, type CardLayoutEditing, type DragItem } from '@/cardLayout'
 import { CardBody } from './CardBody'
 import { reviewCard } from './reviewFixtures'
 
@@ -51,7 +51,7 @@ describe('CardBody', () => {
   afterEach(() => act(() => root.unmount()))
 
   const render = (layout: CardLayoutView) =>
-    act(() => root.render(<CardBody view={layout} ctx={ctx()} detailsOpen={false} onToggleDetails={() => {}} />))
+    act(() => root.render(<CardBody view={layout} columns={shownColumns(layout, ctx())} detailsOpen={false} onToggleDetails={() => {}} />))
   const shown = (column: Element) => Array.from(column.querySelectorAll('[data-element]')).map(block => block.getAttribute('data-element'))
 
   it('shows the elements where the layout puts them, rows of blocks side by side', () => {
@@ -90,9 +90,10 @@ describe('CardBody', () => {
       labelOf: element => `Label ${element}`,
       setRoot: () => {},
     }
+    const editedView = view([blocks('target'), { kind: 'divider' }, blocks('translation')])
     act(() => root.render(
       <CardLayoutEditingContext.Provider value={editing}>
-        <CardBody view={view([blocks('target'), { kind: 'divider' }])} ctx={ctx()} detailsOpen={false} onToggleDetails={() => {}} />
+        <CardBody view={editedView} columns={shownColumns(editedView, ctx())} detailsOpen={false} onToggleDetails={() => {}} />
       </CardLayoutEditingContext.Provider>,
     ))
 
@@ -105,7 +106,7 @@ describe('CardBody', () => {
   })
 
   it('on the review is a plain card: nothing to pick or drag', () => {
-    render(view([blocks('target'), { kind: 'divider' }]))
+    render(view([blocks('target'), { kind: 'divider' }, blocks('translation')]))
     expect([host.querySelector('[role="button"][data-element]'), host.querySelector('hr')?.getAttribute('role')]).toEqual([null, null])
   })
 })

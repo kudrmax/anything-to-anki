@@ -116,12 +116,14 @@ function videoFrame({ candidate, media, playingUrl, togglePlay, keyAudioUrl }: C
   )
 }
 
-function picture({ media, pictureSuggestions }: CardBlockContext): ReactNode {
-  if (media.meaningImageUrl) {
-    return <img className={`${css.meaningImage} ${css.dimmed}`} src={media.meaningImageUrl} alt="" onError={e => { e.currentTarget.hidden = true }} />
-  }
-  return pictureSuggestions
+function picture({ media }: CardBlockContext): ReactNode {
+  return media.meaningImageUrl && (
+    <img className={`${css.meaningImage} ${css.dimmed}`} src={media.meaningImageUrl} alt="" onError={e => { e.currentTarget.hidden = true }} />
+  )
 }
+
+/** Подобранные картинки — только пока своей картинки у карточки нет. */
+const pictureChoice = ({ media, pictureSuggestions }: CardBlockContext): ReactNode => !media.meaningImageUrl && pictureSuggestions
 
 function paragraph(className: string, pick: (lines: ReturnType<typeof meaningLines>) => string | null) {
   return ({ candidate }: CardBlockContext): ReactNode => {
@@ -158,5 +160,6 @@ export const CARD_ELEMENTS: Record<CardElement, (ctx: CardBlockContext) => React
   word_facts: wordFacts,
   video_frame: videoFrame,
   picture,
+  picture_choice: pictureChoice,
   meaning_status: meaningStatus,
 }

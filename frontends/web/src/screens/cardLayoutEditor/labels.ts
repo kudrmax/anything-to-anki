@@ -14,6 +14,7 @@ export const ELEMENT_LABEL: Record<CardElement, string> = {
   word_facts: 'Level and frequency',
   video_frame: 'Video frame',
   picture: 'Picture',
+  picture_choice: 'Picture choice',
   meaning_status: 'Generate meaning',
 }
 
@@ -31,7 +32,8 @@ export const ELEMENT_HINT: Record<CardElement, string> = {
   tts: 'Button that plays the phrase read by text-to-speech.',
   word_facts: 'CEFR level, phrasal verb mark, frequency and register.',
   video_frame: 'Frame and audio clip from the video.',
-  picture: 'Picture of the target, or picture suggestions.',
+  picture: 'Picture of the target.',
+  picture_choice: 'Suggested pictures to pick from while the card has no picture.',
   meaning_status: 'Progress, Generate or Retry while the card has no meaning yet.',
 }
 

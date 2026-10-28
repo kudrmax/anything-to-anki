@@ -29,6 +29,7 @@ class CardElement(StrEnum):
     WORD_FACTS = "word_facts"
     VIDEO_FRAME = "video_frame"
     PICTURE = "picture"
+    PICTURE_CHOICE = "picture_choice"
     # What the card offers while it has no meaning yet: its progress, Generate or Retry.
     MEANING_STATUS = "meaning_status"
 
@@ -102,6 +103,7 @@ ELEMENT_KIND: Mapping[CardElement, ElementKind] = {
     CardElement.WORD_FACTS: ElementKind.TEXT,
     CardElement.VIDEO_FRAME: ElementKind.MEDIA,
     CardElement.PICTURE: ElementKind.MEDIA,
+    CardElement.PICTURE_CHOICE: ElementKind.MEDIA,
     CardElement.MEANING_STATUS: ElementKind.CONTROL,
 }
 
@@ -353,7 +355,9 @@ DEFAULT_CARD_LAYOUT = CardLayout(
                 BlockRow((CardElement.TRANSLATION,)),
                 BlockRow((CardElement.CONTEXT,)),
                 BlockRow((CardElement.MEANING_STATUS,)),
-                BlockRow((CardElement.VIDEO_FRAME, CardElement.PICTURE)),
+                BlockRow(
+                    (CardElement.VIDEO_FRAME, CardElement.PICTURE, CardElement.PICTURE_CHOICE),
+                ),
             ),
         ),
         CardColumn(
@@ -388,6 +392,7 @@ DEFAULT_CARD_LAYOUT = CardLayout(
         CardElement.WORD_FACTS: BlockStyle(BlockSize.S, BlockTone.MUTED, align=BlockAlign.END),
         CardElement.VIDEO_FRAME: BlockStyle(),
         CardElement.PICTURE: BlockStyle(),
+        CardElement.PICTURE_CHOICE: BlockStyle(),
         CardElement.MEANING_STATUS: BlockStyle(),
     },
 )

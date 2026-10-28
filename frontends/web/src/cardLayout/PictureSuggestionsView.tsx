@@ -20,7 +20,7 @@ const hideBrokenTile = (e: SyntheticEvent<HTMLImageElement>) => {
 /** Подобранные картинки: клик ставит картинку, без клика ничего не сохраняется. */
 export function PictureSuggestionsView({ options, placeholders, applying, onPick }: PictureSuggestionsViewProps) {
   return (
-    <div className={css.block} data-picture-choice>
+    <div className={css.block}>
       <p className={css.label}>Suggested pictures · click to add</p>
       <div className={css.grid}>
         {options

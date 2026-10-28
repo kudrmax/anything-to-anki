@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { Brackets, Check } from 'lucide-react'
 import type { CandidateCloze, CardLayoutView, DecisionButton, PhraseOrigin, StoredCandidate } from '@/api/types'
-import { columnTracks, type CardBlockContext } from '@/cardLayout'
+import { columnTracks, shownColumns, useCardLayoutEditing, type CardBlockContext } from '@/cardLayout'
 import { CLOZE_HINT_LABEL } from '@/lib/clozeHints'
 import { Icon } from '@/ui'
 import { CardBody } from './CardBody'
@@ -54,6 +54,7 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
     phraseEditor.start()
   }
   const decided = candidate.state.buttons.find(button => button.pressed)?.button ?? null
+  const editing = useCardLayoutEditing()
   const media = review.mediaFor(candidate)
 
   const ctx: CardBlockContext = {
@@ -68,13 +69,15 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
     pictureSuggestions: suggestPictures && <PictureSuggestions candidate={candidate} review={review} load={suggestPictures} />,
     showCefr: setCefrAnchor,
   }
+  // Пустые колонки видны, только пока в редакторе раскладки тянут блок: в них есть куда бросить.
+  const columns = layout ? shownColumns(layout, ctx, editing?.dragged != null) : null
 
   return (
     <div className={css.cardBlock}>
       <article
         className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card}
         data-candidate-id={candidate.phrase_id}
-        style={{ '--card-cols': layout ? columnTracks(layout.layout.columns) : undefined } as CSSProperties}
+        style={{ '--card-cols': columns ? columnTracks(columns) : undefined } as CSSProperties}
       >
         <header className={css.cardHead}>
           <div className={css.phraseRow}>
@@ -86,7 +89,7 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
           {clozeEditor.active && <ClozePanel editor={clozeEditor} />}
         </header>
 
-        {layout && <CardBody view={layout} ctx={ctx} detailsOpen={detailsOpen} onToggleDetails={() => setDetailsOpen(open => !open)} />}
+        {layout && columns && <CardBody view={layout} columns={columns} detailsOpen={detailsOpen} onToggleDetails={() => setDetailsOpen(open => !open)} />}
 
         <footer className={detailsOpen ? css.cardFoot : `${css.cardFoot} ${css.collapsed}`}>
           {/* Десктоп: решения — в нижней полосе карточки; на телефоне они в панели под карточкой. */}
