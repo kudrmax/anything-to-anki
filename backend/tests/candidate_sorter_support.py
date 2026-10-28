@@ -19,7 +19,6 @@ from backend.domain.value_objects.user_knowledge import UserKnowledge
 from backend.domain.value_objects.vocabulary import EMPTY_VOCABULARY
 
 if TYPE_CHECKING:
-    from backend.domain.entities.word_decision import WordDecision
     from backend.domain.ports.settings_repository import SettingsRepository
 
 
@@ -30,13 +29,8 @@ def no_settings() -> MagicMock:
     return repo
 
 
-def threshold_resolver(
-    settings_repo: SettingsRepository,
-    decisions: list[WordDecision] | None = None,
-) -> FrequentWordThresholdResolver:
-    decision_repo = MagicMock()
-    decision_repo.list_all.return_value = decisions or []
-    return FrequentWordThresholdResolver(settings_repo, decision_repo)
+def threshold_resolver(settings_repo: SettingsRepository) -> FrequentWordThresholdResolver:
+    return FrequentWordThresholdResolver(settings_repo)
 
 
 def candidate_sorter(settings_repo: SettingsRepository) -> CandidateSorter:

@@ -5,22 +5,13 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 import pytest
-from backend.domain.entities.word_decision import WordDecision
 from backend.domain.services.candidate_sections import card_section, sections_by_step
-from backend.domain.services.frequency_threshold_calibrator import (
-    BAND_WIDTH,
-    HIGHEST_ZIPF,
-    LOWEST_ZIPF,
-    MIN_DECISIONS_PER_BAND,
-    FrequencyThresholdCalibrator,
-)
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.frequent_word_threshold import (
     FREQUENT_WORD_THRESHOLDS,
     THRESHOLD_STEPS,
     FrequentWordThreshold,
-    auto_start_zipf,
     step_index,
 )
 from backend.domain.value_objects.phrase import Word
@@ -59,24 +50,6 @@ class TestSteps:
         for threshold in FREQUENT_WORD_THRESHOLDS:
             step_index(threshold.zipf)
 
-    def test_the_calibrator_moves_along_the_steps(self) -> None:
-        assert min(ZIPF_STEPS) == LOWEST_ZIPF
-        assert max(ZIPF_STEPS) == HIGHEST_ZIPF
-        assert all(b - a == BAND_WIDTH for a, b in itertools.pairwise(ZIPF_STEPS))
-
-    @pytest.mark.parametrize("level", list(CEFRLevel))
-    @pytest.mark.parametrize("known", [True, False])
-    def test_the_calibrator_lands_on_a_step(self, known: bool, level: CEFRLevel) -> None:
-        decisions = [
-            WordDecision(f"w{zipf}-{i}", zipf + BAND_WIDTH / 2, is_known=known)
-            for zipf in ZIPF_STEPS
-            for i in range(MIN_DECISIONS_PER_BAND)
-        ]
-        start = auto_start_zipf(level)
-        calibrated = FrequencyThresholdCalibrator().calibrate(decisions, start)
-        unknown_end = None if start is None else HIGHEST_ZIPF
-        assert calibrated == (LOWEST_ZIPF if known else unknown_end)
-        step_index(calibrated)
 
 
 def _word(lemma: str, level: CEFRLevel, zipf: float, *, content: bool) -> Word:

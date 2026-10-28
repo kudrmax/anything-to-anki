@@ -26,7 +26,7 @@ Open **Settings** in the top right corner, or press `⌘,` (`Ctrl+,` outside mac
 | Setting | Default | What it does |
 |---|---|---|
 | **Your CEFR level** | B2 | The level you are learning. Words of this level and harder are suggested |
-| **Frequent words** | Auto | How common a word must be to count as probably known |
+| **Frequent words** | Off | How common a word must be to count as probably known |
 | **Vocabulary calibration** | — | Builds a word list and opens [calibration](vocabulary.md#calibration) |
 | **Usage priority** | neutral first | Order of usage groups in Review. Drag to reorder |
 

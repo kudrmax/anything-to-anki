@@ -4,8 +4,6 @@ import pytest
 from backend.application.dto.settings_dtos import UpdateSettingsRequest
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 
-from tests.candidate_sorter_support import threshold_resolver
-
 
 @pytest.mark.unit
 class TestManageSettingsUseCase:
@@ -13,7 +11,6 @@ class TestManageSettingsUseCase:
         self.settings_repo = MagicMock()
         self.use_case = ManageSettingsUseCase(
             settings_repo=self.settings_repo,
-            threshold_resolver=threshold_resolver(self.settings_repo),
             unit_of_work=MagicMock(),
             level_change=MagicMock(),
         )

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
+from backend.application.constants import FREQUENT_WORD_THRESHOLD_SETTING
 from backend.application.use_cases.refresh_topic import RefreshTopicUseCase
 from backend.application.utils.collected_phrases import CollectedPhrases
 from backend.domain.entities.candidate_meaning import CandidateMeaning
@@ -296,6 +297,9 @@ def test_refreshing_keeps_decisions_and_results(
 def test_topic_and_refresh_phrases_are_stamped(
     db_session: Session, container: Container,
 ) -> None:
+    SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session)).set(
+        FREQUENT_WORD_THRESHOLD_SETTING, "5.0",
+    )
     topic_id = _processed_topic(db_session, container)
     _add_source(db_session, "Article", Kind.TEXT, LATER_ARTICLE)
     db_session.commit()
