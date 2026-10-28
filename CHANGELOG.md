@@ -2,6 +2,15 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.0.1 — 2026-10-28
+
+Small fixes after the first release.
+
+### No longer broken
+- **Check for Updates…** in the macOS app menu shows at once that it is checking, instead of a pause and then a sudden answer.
+  ![](docs/images/changelog/1.0.1/checking-for-updates.png)
+- Screenshots in the changelog and the guides now highlight things in the app's own style.
+
 ## 1.0.0 — 2026-10-28
 
 The first release. From now on the app tells you when a new version is out and updates itself with one button.
