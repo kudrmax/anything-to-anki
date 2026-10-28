@@ -2,7 +2,7 @@ import css from './Tabs.module.css'
 
 interface TabsProps<T extends string> {
   value: T
-  options: { value: T; label: string }[]
+  options: { value: T; label: string; count?: number }[]
   onChange: (value: T) => void
 }
 
@@ -19,6 +19,7 @@ export function Tabs<T extends string>({ value, options, onChange }: TabsProps<T
           onClick={() => onChange(option.value)}
         >
           {option.label}
+          {option.count !== undefined && <span className={css.count}>{option.count}</span>}
         </button>
       ))}
     </div>

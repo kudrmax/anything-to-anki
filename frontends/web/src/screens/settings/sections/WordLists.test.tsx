@@ -2,8 +2,8 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KnownWord, LearningWords } from '@/api/types'
-import { KnownWords, LearningWordsList } from './SettingsSections'
-import type { SettingsStore } from './useSettings'
+import { KnownWords, LearningWordsList } from './WordLists'
+import type { SettingsStore } from '../useSettings'
 
 const LISTED: KnownWord = {
   id: 7, lemma: 'run', pos: 'VERB', created_at: '2026-01-01T00:00:00Z', removal_key: 'entry:7', by_timer: false,
@@ -35,16 +35,16 @@ describe('Settings word lists', () => {
     it('marks a word known by its 30 days in Anki', () => {
       act(() => root.render(<KnownWords store={store({ knownWords: [LISTED, BY_TIMER] })} />))
 
-      expect(remove('run · VERB')).not.toBeNull()
-      expect(remove('glare · Known: 30 days in Anki')).not.toBeNull()
+      expect(remove('run verb')).not.toBeNull()
+      expect(remove('glare 30 days in Anki')).not.toBeNull()
     })
 
     it('removes each word as the store is given it, the timer one too', () => {
       const deleteWord = vi.fn()
       act(() => root.render(<KnownWords store={store({ knownWords: [LISTED, BY_TIMER], deleteWord })} />))
 
-      act(() => remove('glare · Known: 30 days in Anki').click())
-      act(() => remove('run · VERB').click())
+      act(() => remove('glare 30 days in Anki').click())
+      act(() => remove('run verb').click())
 
       expect(deleteWord.mock.calls).toEqual([[BY_TIMER], [LISTED]])
     })
@@ -58,8 +58,8 @@ describe('Settings word lists', () => {
     it('holds the word being removed', () => {
       act(() => root.render(<KnownWords store={store({ knownWords: [LISTED, BY_TIMER], deletingKey: 'timer:glare' })} />))
 
-      expect(remove('glare · Known: 30 days in Anki').disabled).toBe(true)
-      expect(remove('run · VERB').disabled).toBe(false)
+      expect(remove('glare 30 days in Anki').disabled).toBe(true)
+      expect(remove('run verb').disabled).toBe(false)
     })
   })
 
@@ -71,9 +71,9 @@ describe('Settings word lists', () => {
       render({ in_anki: [{ lemma: 'glare', known_on: KNOWN_ON }], awaiting_export: ['drift'] })
 
       const day = new Date(KNOWN_ON).toLocaleDateString()
-      expect(host.textContent).toContain('In Anki · 1')
-      expect(host.textContent).toContain(`glare · Known on ${day}`)
-      expect(host.textContent).toContain('Waiting for export · 1')
+      expect(host.textContent).toContain('In Anki')
+      expect(host.textContent).toContain(`glareknown on ${day}`)
+      expect(host.textContent).toContain('Waiting for export')
       expect(host.textContent).toContain('drift')
     })
 

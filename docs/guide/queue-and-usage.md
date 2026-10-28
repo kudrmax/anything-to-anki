@@ -42,4 +42,4 @@ AI runs through your Claude Code login, so it counts against your Claude plan's 
 - A chart of tokens per hour or day, split by feature.
 - **What AI did**: a table by feature (**Generate meanings**, **Explain / give examples**, **Polish phrases**, **Topic: generate words**) with runs and tokens.
 
-The app shows tokens only, not money. To use less of your plan, choose a smaller model in [Settings → AI model](settings.md#ai-model).
+The app shows tokens only, not money. To use less of your plan, choose a smaller model in [Settings → Generation → AI model](settings.md#generation).

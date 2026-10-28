@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import { notifyLongOperation } from '@/api/longOperationSignal'
+import { messageOf } from '@/lib/apiError'
 import type { BootstrapStatus, NoteTypeCheck, NoteTypeKind, CleanupMediaKind, FrequentWordThresholdOption, KnownWord, LearningWords, Settings, SourceMediaStats, UnknownWord } from '@/api/types'
 
 const BOOTSTRAP_POLL_MS = 2000
@@ -77,7 +78,7 @@ export function useSettings() {
       await api.cleanupMedia(sourceId, kind)
       await loadMediaStats()
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Cleanup failed')
+      alert(messageOf(e))
     }
   }
 
@@ -93,7 +94,7 @@ export function useSettings() {
         setUnknownWords(unknown)
         setFrequentWordThresholds(thresholds)
       } catch (e) {
-        setSaveError(e instanceof Error ? e.message : 'Failed to load settings')
+        setSaveError(messageOf(e))
       } finally {
         setLoading(false)
       }
@@ -108,7 +109,7 @@ export function useSettings() {
       setNoteTypes(await api.getNoteTypes())
     } catch (e) {
       setNoteTypes(null)
-      setNoteTypesError(e instanceof Error ? e.message : 'Anki is not available')
+      setNoteTypesError(messageOf(e))
     }
   }, [])
 
@@ -131,7 +132,7 @@ export function useSettings() {
       setSaved(true)
       setTimeout(() => setSaved(false), FLASH_MS)
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'Failed to save')
+      setSaveError(messageOf(e))
     } finally {
       setSaving(false)
     }
@@ -147,7 +148,7 @@ export function useSettings() {
       setKnownWords(known)
       setLearningWords(learning)
     } catch (e) {
-      setKnownError(e instanceof Error ? e.message : 'Failed to remove the word')
+      setKnownError(messageOf(e))
     } finally {
       setDeletingKey(null)
     }
@@ -170,7 +171,7 @@ export function useSettings() {
       const fixed = await api.fixNoteType(kind)
       setNoteTypes(prev => prev?.map(t => (t.kind === kind ? fixed : t)) ?? [fixed])
     } catch (e) {
-      setNoteTypesError(e instanceof Error ? e.message : 'Anki is not available')
+      setNoteTypesError(messageOf(e))
     } finally {
       setFixingNoteType(null)
     }
@@ -183,7 +184,7 @@ export function useSettings() {
       setCopiedTemplate(part)
       setTimeout(() => setCopiedTemplate(null), FLASH_MS)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to copy')
+      alert(messageOf(e))
     }
   }, [])
 

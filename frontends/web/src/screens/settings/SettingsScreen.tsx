@@ -2,12 +2,34 @@ import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Page, PageHeader } from '@/shell'
 import { Button, Empty, Spinner, Text } from '@/ui'
-import { AiModel, Anki, Appearance, Books, CardLayout, KnownWords, LearningWordsList, MediaStorage, Pictures, ReviewPrefs, Tts, UnknownWords, Vocabulary } from './SettingsSections'
-import { Updates } from './UpdatesSection'
+import { Anki } from './sections/Anki'
+import { General } from './sections/General'
+import { Generation } from './sections/Generation'
+import { Review } from './sections/Review'
+import { Sources } from './sections/Sources'
+import { Vocabulary } from './sections/Vocabulary'
+import { WordLists, type WordListKind } from './sections/WordLists'
 import { useSettings } from './useSettings'
 import css from './settings.module.css'
 
 const SECTION_PARAM = 'section'
+const LIST_PARAM = 'list'
+const WORD_LISTS: WordListKind[] = ['known', 'learning', 'unknown']
+
+/** Ссылки на разделы до их объединения ведут в раздел, где эти настройки теперь. */
+const MOVED_SECTIONS: Record<string, { section: string; list?: WordListKind }> = {
+  appearance: { section: 'general' },
+  updates: { section: 'general' },
+  'card-layout': { section: 'review' },
+  'ai-model': { section: 'generation' },
+  tts: { section: 'generation' },
+  pictures: { section: 'generation' },
+  books: { section: 'sources' },
+  'media-storage': { section: 'sources' },
+  'known-words': { section: 'words', list: 'known' },
+  learning: { section: 'words', list: 'learning' },
+  'unknown-words': { section: 'words', list: 'unknown' },
+}
 
 interface Section {
   id: string
@@ -15,7 +37,6 @@ interface Section {
   content: ReactNode
   /** Раздел меняет сохраняемые настройки: под ним кнопка Save. */
   saved?: boolean
-  count?: number
 }
 
 export function SettingsScreen() {
@@ -31,23 +52,23 @@ export function SettingsScreen() {
     )
   }
 
+  const requested = params.get(SECTION_PARAM) ?? ''
+  const moved = MOVED_SECTIONS[requested]
+  const sectionId = moved?.section ?? requested
+  const listParam = moved?.list ?? params.get(LIST_PARAM)
+  const list = WORD_LISTS.find(kind => kind === listParam) ?? 'known'
+  const openList = (next: WordListKind) => setParams({ [SECTION_PARAM]: 'words', [LIST_PARAM]: next }, { replace: true })
+
   const sections: Section[] = [
-    { id: 'appearance', title: 'Appearance', content: <Appearance /> },
-    { id: 'anki', title: 'Anki', content: <Anki store={store} form={form} />, saved: true },
+    { id: 'general', title: 'General', content: <General /> },
     { id: 'vocabulary', title: 'Vocabulary', content: <Vocabulary store={store} form={form} />, saved: true },
-    { id: 'review', title: 'Review', content: <ReviewPrefs store={store} form={form} />, saved: true },
-    { id: 'card-layout', title: 'Card layout', content: <CardLayout /> },
-    { id: 'ai-model', title: 'AI model', content: <AiModel store={store} form={form} />, saved: true },
-    { id: 'tts', title: 'Text-to-speech', content: <Tts store={store} form={form} />, saved: true },
-    { id: 'pictures', title: 'Pictures', content: <Pictures store={store} form={form} />, saved: true },
-    { id: 'books', title: 'Books', content: <Books store={store} form={form} />, saved: true },
-    { id: 'known-words', title: 'Known words', content: <KnownWords store={store} />, count: store.knownWords.length },
-    { id: 'learning', title: 'Learning', content: <LearningWordsList store={store} />, count: store.learningWords.in_anki.length + store.learningWords.awaiting_export.length },
-    { id: 'unknown-words', title: 'Unknown words', content: <UnknownWords store={store} />, count: store.unknownWords.length },
-    { id: 'media-storage', title: 'Media storage', content: <MediaStorage store={store} /> },
-    { id: 'updates', title: 'Updates', content: <Updates /> },
+    { id: 'words', title: 'Word lists', content: <WordLists store={store} list={list} onList={openList} /> },
+    { id: 'generation', title: 'Generation', content: <Generation store={store} form={form} />, saved: true },
+    { id: 'review', title: 'Review', content: <Review store={store} form={form} />, saved: true },
+    { id: 'anki', title: 'Anki', content: <Anki store={store} form={form} />, saved: true },
+    { id: 'sources', title: 'Sources', content: <Sources store={store} form={form} />, saved: true },
   ]
-  const active = sections.find(section => section.id === params.get(SECTION_PARAM)) ?? sections[0]
+  const active = sections.find(section => section.id === sectionId) ?? sections[0]
   const open = (id: string) => setParams({ [SECTION_PARAM]: id }, { replace: true })
 
   return (
@@ -63,7 +84,6 @@ export function SettingsScreen() {
               onClick={() => open(section.id)}
             >
               {section.title}
-              {section.count !== undefined && <span className={css.count}>{section.count}</span>}
             </button>
           ))}
         </nav>

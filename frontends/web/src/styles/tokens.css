@@ -307,6 +307,9 @@
   --settings-nav-dir: column;
   --settings-nav-trim: calc(var(--s4) * -1);
   --settings-map-cols: 1fr 1fr;
+  --settings-map-label-w: calc(var(--h) * 3);
+  --settings-voice-cols: calc(var(--h) * 3.5) minmax(0, 1fr);
+  --settings-media-cols: minmax(0, 1fr) calc(var(--h) * 3) calc(var(--h) * 3) auto;
   --segmented-flex: none;
   --submenu-position: absolute;
   --submenu-min-w: var(--menu);
@@ -488,8 +491,9 @@
     --settings-cols: minmax(0, 1fr);
     --settings-nav-position: static;
     --settings-nav-dir: row;
-    --settings-nav-trim: 0px;
     --settings-map-cols: minmax(0, 1fr);
+    --settings-voice-cols: minmax(0, 1fr);
+    --settings-media-cols: minmax(0, 1fr) calc(var(--h) * 2.2) calc(var(--h) * 2.2) auto;
     --control-w: 100%;
     --segmented-flex: 0 1 auto;
     --submenu-position: static;

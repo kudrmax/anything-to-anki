@@ -4,13 +4,13 @@ AnythingToAnki is released in versions. The app checks for a new one and updates
 
 ## Finding out about a new version
 
-Once a day the app looks for a release newer than the one you run. If it finds one, a quiet **Update available** appears in the header. It stays until you update. On a phone-wide window the header has no room for it: a dot on the Settings gear shows instead, and **Settings → Updates** says which version is out.
+Once a day the app looks for a release newer than the one you run. If it finds one, a quiet **Update available** appears in the header. It stays until you update. On a phone-wide window the header has no room for it: a dot on the Settings gear shows instead, and **Settings → General → Updates** says which version is out.
 
 ![Update available in the header](../images/updating/indicator.png)
 
-To look right now, open **Settings → Updates** and press **Check for updates**, or choose **Check for Updates…** in the macOS app's menu. If nothing is new, you see "You're on the latest version".
+To look right now, open **Settings → General → Updates** and press **Check for updates**, or choose **Check for Updates…** in the macOS app's menu. If nothing is new, you see "You're on the latest version".
 
-![Settings → Updates with Changelog and Check for updates](../images/updating/settings-updates.png)
+![Settings → General → Updates with Changelog and Check for updates](../images/updating/settings-updates.png)
 
 ## Updating
 
@@ -35,7 +35,7 @@ While a long operation runs, such as a big import, pressing **Update** shows the
 
 **What's new** shows once after an update, with every version since the last one you saw. On a fresh install it doesn't appear.
 
-**Settings → Updates → Changelog** opens the whole history at any time. The same text is in `CHANGELOG.md` and on the project's GitHub Releases page.
+**Settings → General → Changelog** opens the whole history at any time. The same text is in `CHANGELOG.md` and on the project's GitHub Releases page.
 
 ## If the update hangs
 

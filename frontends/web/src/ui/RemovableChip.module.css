@@ -2,3 +2,4 @@
 .remove { display: grid; place-items: center; width: var(--h-s); height: var(--h-s); border-radius: var(--r-s); color: var(--tx3); transition: background var(--t), color var(--t); }
 .remove:hover:not(:disabled) { background: var(--soft); color: var(--err); }
 .remove:disabled { opacity: var(--o-disabled); cursor: default; }
+.detail { font-size: var(--fs-xs); color: var(--tx3); }

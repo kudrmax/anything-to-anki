@@ -25,7 +25,7 @@ The right column holds the rest:
 - **Examples**. **Use as phrase** on an example makes it the card's phrase.
 - **US / UK** buttons that play a dictionary recording of the word, and **TTS** that plays the phrase read aloud by a synthetic voice, at the bottom right.
 
-This is the default layout. You can move, restyle and hide everything between the phrase and the bottom bar in the card layout editor: [Settings → Card layout](settings.md#card-layout).
+This is the default layout. You can move, restyle and hide everything between the phrase and the bottom bar in the card layout editor: [Settings → Review → Card layout](settings.md#card-layout).
 
 The meaning, translation, synonyms, examples and IPA come from AI. Pronunciations and CEFR levels come from the [dictionaries](../reference/dictionaries.md). Everything else is computed locally.
 

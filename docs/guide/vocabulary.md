@@ -18,18 +18,18 @@ A word becomes **known** in three ways:
 
 A known word is never suggested again, in any source. Known is decided per word: knowing `run` as a verb also covers `run` as a noun.
 
-To undo it, remove the word in **Settings → Known words**. Its cards become new again everywhere.
+To undo it, remove the word in **Settings → Word lists → Known**. Its cards become new again everywhere.
 
 ## Learning
 
-Words you marked **Learn** or **Cloze** are **learning**. They are not suggested as new either. **Settings → Learning** lists them:
+Words you marked **Learn** or **Cloze** are **learning**. They are not suggested as new either. **Settings → Word lists → Learning** lists them:
 
 - **In Anki**: exported, with the day each one becomes known.
 - **Waiting for export**: marked, but not in Anki yet.
 
 ## Unknown words
 
-**Unknown words** are the opposite of known words: words you told the app you don't know. You add them with the **Unknown words** button (`U`) on a card. A phrase that contains an unknown word (other than its target) never counts as **Ready**. Manage the list in **Settings → Unknown words**.
+**Unknown words** are the opposite of known words: words you told the app you don't know. You add them with the **Unknown words** button (`U`) on a card. A phrase that contains an unknown word (other than its target) never counts as **Ready**. Manage the list in **Settings → Word lists → Unknown**.
 
 ## Frequent words
 
