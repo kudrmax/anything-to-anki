@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import threading
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import UpdateAlreadyRunningError
@@ -12,7 +13,7 @@ from backend.domain.ports.update_runner import UpdateRunner
 from backend.domain.value_objects.update_progress import UpdateProgress, UpdateState
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
     from pathlib import Path
 
 UPDATE_COMMAND = ("make", "update")
@@ -40,18 +41,18 @@ class ScriptUpdateRunner(UpdateRunner):
 
     The update is running exactly while the flock on the script's lock file is held. This
     runner takes it before the script starts and hands it to the script, which holds it
-    to its end: an update whose lock is free while the state says `running` has failed."""
+    to its end: an update whose lock is free while the state says `running` has failed.
+    Checking the lock takes it shared for a moment; that happens under the start lock,
+    which a script started from the terminal also takes around its own attempt."""
 
     def __init__(self, project_dir: Path, command: Sequence[str] = UPDATE_COMMAND) -> None:
         self._project_dir = project_dir
         self._command = tuple(command)
 
     def start(self) -> None:
-        (self._project_dir / STATE_FILE).parent.mkdir(parents=True, exist_ok=True)
         (self._project_dir / LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
-        with (self._project_dir / START_LOCK_FILE).open("a") as start_lock:
-            fcntl.flock(start_lock, fcntl.LOCK_EX)
-            if self.state().state is UpdateState.RUNNING:
+        with self._start_lock():
+            if self._state().state is UpdateState.RUNNING:
                 raise UpdateAlreadyRunningError
             script_lock = os.open(
                 self._project_dir / SCRIPT_LOCK_FILE, os.O_WRONLY | os.O_CREAT | os.O_APPEND,
@@ -66,6 +67,17 @@ class ScriptUpdateRunner(UpdateRunner):
                 os.close(script_lock)
 
     def state(self) -> UpdateProgress:
+        with self._start_lock():
+            return self._state()
+
+    @contextmanager
+    def _start_lock(self) -> Iterator[None]:
+        (self._project_dir / START_LOCK_FILE).parent.mkdir(parents=True, exist_ok=True)
+        with (self._project_dir / START_LOCK_FILE).open("a") as start_lock:
+            fcntl.flock(start_lock, fcntl.LOCK_EX)
+            yield
+
+    def _state(self) -> UpdateProgress:
         state = self._read_state()
         if state is UpdateState.RUNNING and not self._script_lock_held():
             self._write_state(UpdateState.FAILED)

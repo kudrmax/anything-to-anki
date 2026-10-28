@@ -15,6 +15,7 @@ from backend.infrastructure.adapters.release.script_update_runner import (
     LOG_TAIL_LINES,
     SCRIPT_LOCK_FD,
     SCRIPT_LOCK_FILE,
+    START_LOCK_FILE,
     STATE_FILE,
     ScriptUpdateRunner,
 )
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 WAIT_S = 10
+# Long enough for an unblocked check to finish many times over.
+CHECK_BLOCKED_S = 0.5
 
 
 def _wait_for(path: Path, text: str) -> None:
@@ -260,3 +263,24 @@ def test_concurrent_starts_spawn_one_process(tmp_path: Path) -> None:
 
     assert outcomes.count(True) == 1
     assert marker.read_text() == "x"
+
+
+@pytest.mark.unit
+def test_the_lock_check_waits_for_the_start_lock(tmp_path: Path) -> None:
+    """A terminal run tries its lock under the start lock; the check must not overlap it."""
+    (tmp_path / ".pids").mkdir()
+    (tmp_path / STATE_FILE).write_text("running")
+    checked = threading.Event()
+
+    def check() -> None:
+        ScriptUpdateRunner(tmp_path).state()
+        checked.set()
+
+    with (tmp_path / START_LOCK_FILE).open("a") as start_lock:
+        fcntl.flock(start_lock, fcntl.LOCK_EX)
+        thread = threading.Thread(target=check)
+        thread.start()
+        assert not checked.wait(CHECK_BLOCKED_S)
+    thread.join(WAIT_S)
+
+    assert checked.is_set()

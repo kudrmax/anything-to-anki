@@ -57,9 +57,11 @@ make update
 
 ## Rollback
 
-After `make update` the copy is on the new version and running, or on the old version and running. If a step fails, the command puts back the previous version, its packages and the database copy, starts the app again and exits with an error. The way back needs no network: the packages come from the copy kept before the update.
+After `make update` the copy is on the new version and running, or on the old version and running. If a step fails, the command puts back the previous version, its packages and the database copy, starts the app again and exits with an error. The packages come from a copy of `.venv` and `frontends/web/node_modules` kept before the update, so the way back needs no network.
 
-One case leaves the app stopped: a step of the way back itself fails, for example the database copy can't be restored. Starting the old version on a database it may not know would be worse, so the command stops and prints where the database copy and the kept packages are and the commands that finish the job.
+`make update` refuses to start if either folder is missing; run `make setup` first. If the frontend packages were out of date before the update (`package-lock.json` changed and the app was not started since), they are put back as they were, and starting the old version installs them again, as `make up` always does. That one step needs the network.
+
+One case leaves the app stopped: a step of the way back itself fails, for example the database copy can't be restored. Starting the old version on a database it may not know would be worse, so the command stops and prints where the database copy and the kept packages are and the commands that finish the job. Until you finish them and move `.pids/update-backup` to the trash, `make update` refuses to run and repeats those commands.
 
 ## macOS app
 

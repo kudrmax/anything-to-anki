@@ -23,6 +23,8 @@ pytestmark = pytest.mark.integration
 SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "update.sh"
 IDENTITY = ["-c", "user.name=Test", "-c", "user.email=test@example.com"]
 OLD_DB = "schema 1.0.0"
+# Generous for a run of the fake Makefile; a hang fails the test instead of the suite.
+WAIT_S = 20
 
 # Every target records itself. `up` records the database it found, "migrates" it and
 # leaves the copy's processes running, even when it then fails; `down` stops them. A
@@ -32,15 +34,18 @@ OLD_DB = "schema 1.0.0"
 # switch failures on: fail_up (fails on the version written in it), fail_snapshot,
 # fail_restore, fail_setup, fail_npm (both fail as without a network, after breaking the
 # packages); hold makes `down` wait while it says "hold"; spawn makes `up` leave a real
-# background process.
+# background process; linger makes `down` leave one that keeps its output open.
 FAKE_MAKEFILE = """\
 VERSION := $(shell cat VERSION)
+# Outlives any test: a step that leaves this behind must not keep the update waiting.
+LINGER_S := 600
 STAMP := frontends/web/node_modules/.package-lock.json
 NPM_LOCK := frontends/web/package-lock.json
 
 down:
 \t@echo $@ >> $(CALLS)
 \t@while [ "$$(cat $(FLAGS)/hold 2>/dev/null)" = hold ]; do sleep 0.05; done
+\t@if [ -f $(FLAGS)/linger ]; then sleep $(LINGER_S) & fi
 \t@echo stopped > $(FLAGS)/processes
 
 setup-python:
@@ -374,8 +379,8 @@ def test_rollback_names_the_release_it_returns_to(copy: Copy) -> None:
 
     result = copy.run()
 
-    assert "Rolling back to v1.0.0" in result.stderr
-    assert "Rolled back to v1.0.0" in result.stderr
+    assert "Rolling back to v1.0.0" in result.stdout
+    assert "Rolled back to v1.0.0" in result.stdout
 
 
 def test_every_run_is_logged_under_its_own_header(copy: Copy) -> None:
@@ -399,7 +404,7 @@ def test_worktree_refuses_the_update(copy: Copy, tmp_path: Path) -> None:
     )
 
     assert result.returncode == 1
-    assert "main checkout" in result.stderr
+    assert "main checkout" in result.stdout
     assert (linked / ".pids" / "update.state").read_text() == "failed"
     assert "main checkout" in (linked / ".pids" / "update.error").read_text()
     assert copy.calls() == []
@@ -413,8 +418,8 @@ def test_failed_rollback_without_a_database_says_there_was_none(copy: Copy) -> N
 
     result = copy.run()
 
-    assert "There was no database before the update." in result.stderr
-    assert "SNAPSHOT=--none" in result.stderr
+    assert "There was no database before the update." in result.stdout
+    assert "SNAPSHOT=--none" in result.stdout
     assert copy.backup_dir.exists()
 
 
@@ -448,6 +453,84 @@ def test_a_tag_moved_on_origin_does_not_stop_the_update(copy: Copy) -> None:
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert copy.head() == copy.tag_commit("v1.2.0")
+
+
+def test_a_step_that_leaves_a_process_holding_its_output_does_not_stall(copy: Copy) -> None:
+    copy.release("1.1.0")
+    copy.flag("linger")
+
+    result = subprocess.run(
+        ["/bin/bash", str(SCRIPT)], cwd=copy.root, env=copy.env(),
+        capture_output=True, text=True, timeout=WAIT_S,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert copy.state() == "done"
+
+
+def test_the_log_is_complete_once_the_lock_is_free(copy: Copy) -> None:
+    copy.release("1.1.0")
+    copy.flag("fail_up", "1.1.0")
+    process = subprocess.Popen(
+        ["/bin/bash", str(SCRIPT)], cwd=copy.root, env=copy.env(),
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    try:
+        _wait_for(lambda: (copy.root / ".pids" / "update.script.lock").exists())
+        _wait_for(lambda: not _lock_held(copy.root / ".pids" / "update.script.lock"))
+
+        assert copy.state() == "failed"
+        assert copy.log().rstrip().endswith("Rolled back to v1.0.0 and started.")
+    finally:
+        process.wait(timeout=WAIT_S)
+
+
+def test_a_copy_stopped_by_a_failed_rollback_is_recovered_first(copy: Copy) -> None:
+    copy.release("1.1.0")
+    copy.flag("fail_up", "1.1.0")
+    copy.flag("fail_restore")
+    copy.run()
+    kept = sorted(path.name for path in copy.backup_dir.iterdir())
+    calls = copy.calls()
+
+    again = copy.run()
+
+    assert again.returncode == 1
+    assert "Finish its recovery first" in again.stdout
+    assert "make _db-restore" in again.stdout
+    assert sorted(path.name for path in copy.backup_dir.iterdir()) == kept
+    assert copy.calls() == calls
+
+
+def test_missing_packages_refuse_the_update(copy: Copy) -> None:
+    copy.release("1.1.0")
+    (copy.root / "frontends" / "web" / "node_modules").rename(copy.flags / "node_modules")
+
+    result = copy.run()
+
+    assert result.returncode == 1
+    assert "make setup" in result.stdout
+    assert copy.calls() == []
+
+
+def test_the_apps_check_of_the_lock_never_makes_a_terminal_run_refuse(copy: Copy) -> None:
+    """The app checks the lock by taking it shared for a moment, under the start lock. A
+    terminal run that tries its lock at that moment waits for the check instead of
+    refusing."""
+    copy.release("1.1.0")
+    pids = copy.root / ".pids"
+    pids.mkdir()
+    start_lock = pids / "update.lock"
+    with start_lock.open("a") as start, (pids / "update.script.lock").open("a") as probe:
+        fcntl.flock(start, fcntl.LOCK_EX)
+        fcntl.flock(probe, fcntl.LOCK_SH)
+        process = copy.start()
+        _wait_for(lambda: _openers(start_lock) > 1)
+        fcntl.flock(probe, fcntl.LOCK_UN)
+    stdout, _ = process.communicate(timeout=WAIT_S)
+
+    assert process.returncode == 0, stdout
+    assert copy.state() == "done"
 
 
 def test_uncommitted_changes_refuse_the_update(copy: Copy) -> None:
@@ -532,8 +615,8 @@ def test_failed_restore_leaves_the_copy_stopped_and_says_where_the_copy_is(copy:
 
     assert result.returncode == 1
     assert copy.calls()[-1] == f"_db-restore 1.0.0 {copy.snapshot}"
-    assert str(copy.snapshot) in result.stderr
-    assert "stopped" in result.stderr
+    assert str(copy.snapshot) in result.stdout
+    assert "stopped" in result.stdout
     assert copy.state() == "failed"
 
 
@@ -624,7 +707,23 @@ def test_script_and_release_source_pick_the_same_latest_tag(copy: Copy) -> None:
     assert GitReleaseSource(copy.root).latest() == AppVersion(1, 10, 0)
 
 
-def _wait_for(condition: Callable[[], bool], timeout: float = 10.0) -> None:
+def _lock_held(path: Path) -> bool:
+    with path.open() as probe:
+        try:
+            fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(probe, fcntl.LOCK_UN)
+        return False
+
+
+def _openers(path: Path) -> int:
+    """How many processes have the file open."""
+    found = subprocess.run(["lsof", "-t", str(path)], capture_output=True, text=True)
+    return len(found.stdout.split())
+
+
+def _wait_for(condition: Callable[[], bool], timeout: float = WAIT_S) -> None:
     deadline = time.monotonic() + timeout
     while not condition():
         assert time.monotonic() < deadline, "timed out"
