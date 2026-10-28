@@ -1071,8 +1071,18 @@ export interface UpdateStatus {
 
 export type UpdateRunState = 'idle' | 'running' | 'failed' | 'done'
 
+export type UpdateStepStatus = 'done' | 'current' | 'pending' | 'failed'
+
+/** Этап обновления, как его видит пользователь: «Installing v1.2.0». */
+export interface UpdateStep {
+  title: string
+  status: UpdateStepStatus
+}
+
 export interface UpdateRunProgress {
   state: UpdateRunState
   /** Конец лога обновления, когда оно упало. */
   log_tail: string
+  /** Этапы по порядку; пусто, когда неизвестны. */
+  steps: UpdateStep[]
 }

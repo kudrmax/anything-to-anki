@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import contextlib
 import fcntl
+import json
 import os
 import plistlib
 import signal
+import socket
 import subprocess
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -36,7 +40,9 @@ WAIT_S = 20
 # switch failures on: fail_up (fails on the version written in it), fail_snapshot,
 # fail_restore, fail_setup, fail_npm (both fail as without a network, after breaking the
 # packages); hold makes `down` wait while it says "hold"; spawn makes `up` leave a real
-# background process; linger makes `down` leave one that keeps its output open.
+# background process; linger makes `down` leave one that keeps its output open;
+# hold_setup makes `setup-python` wait while it says "hold". `up` fails when something
+# still listens on the port of the update's status server, as the real one would.
 FAKE_MAKEFILE = """\
 VERSION := $(shell cat VERSION)
 # Outlives any test: a step that leaves this behind must not keep the update waiting.
@@ -52,6 +58,7 @@ down:
 
 setup-python:
 \t@echo $@ >> $(CALLS)
+\t@while [ "$$(cat $(FLAGS)/hold_setup 2>/dev/null)" = hold ]; do sleep 0.05; done
 \t@if [ -f $(FLAGS)/fail_setup ]; then \\
 \t    echo broken > .venv/marker; echo "pip: no network"; exit 1; \\
 \tfi
@@ -76,6 +83,7 @@ _db-restore:
 
 up:
 \t@echo "up $(VERSION) db=$$(cat data/app.db 2>/dev/null)" >> $(CALLS)
+\t@python3 -c "$$PORT_FREE_CHECK" || { echo "port busy"; exit 1; }
 \t@if ! [ $(STAMP) -nt $(NPM_LOCK) ]; then \\
 \t    if [ -f $(FLAGS)/fail_npm ]; then \\
 \t        echo broken > frontends/web/node_modules/marker; echo "npm ci: no network"; exit 1; \\
@@ -87,6 +95,28 @@ up:
 \t@if [ -f $(FLAGS)/spawn ]; then sleep 5 </dev/null >/dev/null 2>&1 & fi
 \t@if [ "$$(cat $(FLAGS)/fail_up 2>/dev/null)" = "$(VERSION)" ]; then echo broke; exit 1; fi
 """
+
+
+# Binds the status server's port the way uvicorn does, with SO_REUSEADDR.
+PORT_FREE_CHECK = (
+    "import os, socket; s = socket.socket(); "
+    "s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1); "
+    "s.bind((os.environ['UPDATE_STATUS_HOST'], int(os.environ['UPDATE_STATUS_PORT'])))"
+)
+STATUS_HOST = "127.0.0.1"
+ALL_DONE = [
+    ("done", "Downloading v1.1.0"),
+    ("done", "Saving a backup"),
+    ("done", "Installing v1.1.0"),
+    ("done", "Starting the new version"),
+]
+
+
+def free_port() -> int:
+    with socket.socket() as probe:
+        probe.bind((STATUS_HOST, 0))
+        port: int = probe.getsockname()[1]
+        return port
 
 
 def git(cwd: Path, *args: str) -> str:
@@ -115,6 +145,7 @@ class Copy:
     apps_dir: Path
     trash_dir: Path
     fake_trash: Path
+    status_port: int
 
     def release(
         self,
@@ -148,6 +179,9 @@ class Copy:
             "UPDATE_TRASH": str(self.fake_trash),
             "TRASH_DIR": str(self.trash_dir),
             "MAKE": "make",
+            "UPDATE_STATUS_PORT": str(self.status_port),
+            "UPDATE_STATUS_HOST": STATUS_HOST,
+            "PORT_FREE_CHECK": PORT_FREE_CHECK,
         }
         env.pop("MAKEFLAGS", None)
         env.pop("MAKELEVEL", None)
@@ -192,6 +226,23 @@ class Copy:
     def log(self) -> str:
         return (self.root / ".logs" / "update.log").read_text()
 
+    def progress(self) -> list[tuple[str, str]]:
+        text = (self.root / ".pids" / "update.progress").read_text()
+        parts = (line.partition("\t") for line in text.splitlines())
+        return [(status, title) for status, _, title in parts]
+
+    def get(self, path: str) -> tuple[int, str]:
+        url = f"http://{STATUS_HOST}:{self.status_port}{path}"
+        try:
+            with urllib.request.urlopen(url, timeout=WAIT_S) as response:  # noqa: S310
+                return response.status, response.read().decode()
+        except urllib.error.HTTPError as error:
+            return error.code, ""
+
+    def status_server_listens(self) -> bool:
+        with socket.socket() as probe:
+            return probe.connect_ex((STATUS_HOST, self.status_port)) == 0
+
     def venv_marker(self) -> str:
         return (self.root / ".venv" / "marker").read_text().strip()
 
@@ -235,6 +286,7 @@ def copy(tmp_path: Path) -> Copy:
         apps_dir=tmp_path / "Applications",
         trash_dir=trash_dir,
         fake_trash=fake_trash,
+        status_port=free_port(),
     )
     result.flag("processes", "running")
     result.release("1.0.0")
@@ -749,3 +801,105 @@ def _wait_for(condition: Callable[[], bool], timeout: float = WAIT_S) -> None:
     while not condition():
         assert time.monotonic() < deadline, "timed out"
         time.sleep(0.05)
+
+
+def test_progress_names_every_stage_of_a_successful_update(copy: Copy) -> None:
+    copy.release("1.1.0")
+
+    result = copy.run()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert copy.progress() == ALL_DONE
+
+
+def test_status_server_answers_while_the_app_is_stopped(copy: Copy) -> None:
+    copy.release("1.1.0")
+    copy.flag("hold_setup", "hold")
+    update = copy.start()
+    try:
+        _wait_for(lambda: "setup-python" in copy.calls())
+        _wait_for(copy.status_server_listens)
+
+        state_status, body = copy.get("/api/update/state")
+        version_status, _ = copy.get("/api/version")
+    finally:
+        copy.flag("hold_setup", "go")
+        update.wait(timeout=WAIT_S)
+
+    assert state_status == 200
+    assert json.loads(body) == {
+        "state": "running",
+        "log_tail": "",
+        "steps": [
+            {"title": "Downloading v1.1.0", "status": "done"},
+            {"title": "Saving a backup", "status": "done"},
+            {"title": "Installing v1.1.0", "status": "current"},
+            {"title": "Starting the new version", "status": "pending"},
+        ],
+    }
+    assert version_status == 503
+    assert update.returncode == 0
+    assert not copy.status_server_listens()
+
+
+def test_failed_start_marks_its_stage_and_the_rollback(copy: Copy) -> None:
+    copy.release("1.1.0")
+    copy.flag("fail_up", "1.1.0")
+
+    copy.run()
+
+    assert copy.progress() == [
+        ("done", "Downloading v1.1.0"),
+        ("done", "Saving a backup"),
+        ("done", "Installing v1.1.0"),
+        ("failed", "Starting the new version"),
+        ("done", "Rolling back to v1.0.0"),
+    ]
+    assert not copy.status_server_listens()
+
+
+def test_failed_install_drops_the_stages_that_will_not_run(copy: Copy) -> None:
+    copy.release("1.1.0")
+    copy.flag("fail_setup")
+
+    copy.run()
+
+    assert copy.progress() == [
+        ("done", "Downloading v1.1.0"),
+        ("done", "Saving a backup"),
+        ("failed", "Installing v1.1.0"),
+        ("done", "Rolling back to v1.0.0"),
+    ]
+
+
+def test_failed_rollback_marks_the_rollback_failed_and_stops_the_status_server(
+    copy: Copy,
+) -> None:
+    copy.release("1.1.0")
+    copy.flag("fail_up", "1.1.0")
+    copy.flag("fail_restore")
+
+    copy.run()
+
+    assert copy.progress()[-1] == ("failed", "Rolling back to v1.0.0")
+    assert not copy.status_server_listens()
+
+
+def test_unreachable_origin_marks_the_check_failed(copy: Copy) -> None:
+    git(copy.root, "remote", "set-url", "origin", str(copy.root.parent / "nowhere.git"))
+
+    copy.run()
+
+    assert copy.progress() == [("failed", "Checking for the new version")]
+
+
+def test_update_goes_on_when_the_status_server_cannot_start(copy: Copy) -> None:
+    copy.release("1.1.0")
+    env = {**copy.env(), "UPDATE_STATUS_PYTHON": "/nonexistent/python3"}
+
+    result = subprocess.run(
+        ["/bin/bash", str(SCRIPT)], cwd=copy.root, env=env, capture_output=True, text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert copy.progress() == ALL_DONE

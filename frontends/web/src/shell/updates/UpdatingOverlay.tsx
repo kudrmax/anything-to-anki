@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Button, Spinner, Text } from '@/ui'
+import { Check, X } from 'lucide-react'
+import type { UpdateStep } from '@/api/types'
+import { Button, Icon, Spinner, Text } from '@/ui'
 import { useUpdates } from './useUpdates'
 import css from './UpdatingOverlay.module.css'
 
@@ -28,9 +30,10 @@ export function UpdatingOverlay() {
         ? (
           <div className={`${css.card} ${css.running}`} role="alertdialog" aria-modal="true" aria-label="Updating">
             <div className={css.progress}>
-              <Spinner />
+              {run.steps.length === 0 && <Spinner />}
               Updating…
             </div>
+            {run.steps.length > 0 && <UpdateSteps steps={run.steps} />}
             <div className={css.fallback}>
               <Text tone="muted" size="s">
                 If the app doesn't come back, run this in the app folder. The log is in <code className={css.path}>{UPDATE_LOG}</code>.
@@ -43,6 +46,28 @@ export function UpdatingOverlay() {
     </div>,
     document.body,
   )
+}
+
+function UpdateSteps({ steps }: { steps: UpdateStep[] }) {
+  return (
+    <ol className={css.steps} aria-label="Update steps">
+      {steps.map((step, index) => (
+        <li key={index} className={css.step} data-status={step.status}>
+          <span className={css.mark}><StepMark status={step.status} /></span>
+          <Text tone={STEP_TONES[step.status]}>{step.title}</Text>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+const STEP_TONES = { done: 'muted', current: 'default', pending: 'muted', failed: 'err' } as const
+
+function StepMark({ status }: { status: UpdateStep['status'] }) {
+  if (status === 'current') return <Spinner />
+  if (status === 'done') return <Text tone="muted"><Icon as={Check} size="s" /></Text>
+  if (status === 'failed') return <Text tone="err"><Icon as={X} size="s" /></Text>
+  return null
 }
 
 interface UpdateFailedProps {

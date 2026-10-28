@@ -11,6 +11,10 @@
 }
 .running { align-items: stretch; }
 .progress { display: flex; align-items: center; justify-content: center; gap: var(--s4); font-size: var(--fs-b); color: var(--tx); }
+.steps { display: flex; flex-direction: column; gap: var(--s3); margin: 0; padding: 0; list-style: none; }
+.step { display: flex; align-items: center; gap: var(--s3); }
+.mark { display: inline-flex; flex: none; align-items: center; justify-content: center; width: var(--icon-s); height: var(--icon-s); }
+.mark > span { display: inline-flex; }
 .fallback { display: flex; flex-direction: column; gap: var(--s3); }
 .path { font-family: var(--mono); }
 .title { font-size: var(--fs-h2); font-weight: var(--fw-b); letter-spacing: var(--ls-tight); }

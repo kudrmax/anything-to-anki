@@ -4,7 +4,8 @@
 # back is not certain, the copy stays stopped and the output says what to do.
 #
 # Runs in the copy's folder. Ends by writing `done` or `failed` to .pids/update.state,
-# which the app reads after the restart. Everything it and its steps print is written
+# which the app reads after the restart. Its stages for the user go to .pids/update.progress;
+# while the app is stopped, a small status server answers the page on the app's port. Everything it and its steps print is written
 # straight to .logs/update.log; a follower copies the log to the terminal.
 #
 # Everything is inside main(): bash reads a script as it runs, and the checkout below
@@ -25,6 +26,7 @@ main() {
     STEP_START_FILE=.pids/update.step.start
     SNAPSHOT_OUT_FILE=.pids/update.snapshot.out
     FOLLOW_STOP_FILE=.pids/update.follow.stop
+    PROGRESS_FILE=.pids/update.progress
     LOG_FILE=.logs/update.log
     BACKUP_DIR=.pids/update-backup
     RECOVERY_FILE=.pids/update-backup/RECOVERY
@@ -44,6 +46,12 @@ main() {
     FOLLOW_POLL_S=0.1
     # How much of the log the follower reads at once; any size works.
     FOLLOW_CHUNK_BYTES=65536
+    # The system Python: the copy's .venv is replaced during the update.
+    STATUS_PYTHON="${UPDATE_STATUS_PYTHON:-/usr/bin/python3}"
+    STATUS_SERVER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/update_status_server.py"
+    # The app's own port and address (see `make up`); no port, no status server.
+    STATUS_PORT="${UPDATE_STATUS_PORT-${PORT:-}}"
+    STATUS_HOST="${UPDATE_STATUS_HOST:-0.0.0.0}"
 
     # The update runs unattended from the app: a git asking for a password would hang it.
     export GIT_TERMINAL_PROMPT=0
@@ -59,12 +67,16 @@ main() {
     old_ref=""
     old_name=""
     follower=""
+    status_server=""
+    step_titles=()
+    step_statuses=()
 
     trap on_signal INT TERM HUP
 
     take_lock
     start_log
     write_state running
+    write_progress
     : > "$ERROR_FILE"
     printf '%s' "$$" > "$PID_FILE"
 
@@ -72,6 +84,8 @@ main() {
     refuse_after_a_stopped_update
     require_installed_packages
     require_clean_tree
+    progress_begin "Checking for the new version" "Saving a backup" \
+        "Installing the new version" "Starting the new version"
     if ! run_step "git fetch" git fetch --tags --force origin; then
         refuse "Could not reach origin. Check the connection and run 'make update' again."
     fi
@@ -94,11 +108,15 @@ main() {
     local old_commit
     old_commit=$(git rev-parse HEAD)
     echo "Updating to $tag..."
+    step_titles[0]="Downloading $tag"
+    step_titles[2]="Installing $tag"
+    progress_advance
 
     back_up_packages
 
     stopped=1
     make_step down || roll_back
+    start_status_server
     # The path is the step's last line of stdout, read from a file: a pipe would wait for
     # every process that inherited it.
     local snapshot_status=0
@@ -110,6 +128,7 @@ main() {
         fail_step "database copy" "ERROR: the database copy was not made (got '$snapshot')."
     fi
     snapshot_taken=1
+    progress_advance
     checked_out=1
     run_step "git checkout" git checkout --quiet "$tag" || roll_back
     make_step setup-python || roll_back
@@ -117,7 +136,10 @@ main() {
         app_built=1
         make_step app || roll_back
     fi
+    progress_advance
+    stop_status_server
     make_step up || roll_back
+    progress_advance
 
     echo "Updated to $tag."
     finish done
@@ -211,6 +233,7 @@ write_state() {
 }
 
 finish() {
+    stop_status_server
     if [ "$keep_backups" != 1 ]; then discard_backups; fi
     write_state "$1"
     stop_follower
@@ -219,9 +242,96 @@ finish() {
 }
 
 refuse() {
+    progress_fail
+    write_progress
     echo "ERROR: $*" >&2
     echo "$*" > "$ERROR_FILE"
     finish failed
+}
+
+# The stages the user sees, in order, each `pending`, `current`, `done` or `failed`. The
+# file is replaced whole, so a reader never sees half of it: one stage per line, its status,
+# a tab, its title.
+write_progress() {
+    local i
+    for ((i = 0; i < ${#step_titles[@]}; i++)); do
+        printf '%s\t%s\n' "${step_statuses[i]}" "${step_titles[i]}"
+    done > "$PROGRESS_FILE.tmp"
+    mv -f "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
+}
+
+progress_begin() {
+    step_titles=("$@")
+    step_statuses=()
+    local i
+    for ((i = 0; i < ${#step_titles[@]}; i++)); do step_statuses[i]=pending; done
+    step_statuses[0]=current
+    write_progress
+}
+
+current_step() {
+    local i
+    for ((i = 0; i < ${#step_statuses[@]}; i++)); do
+        if [ "${step_statuses[i]}" = current ]; then echo "$i"; return; fi
+    done
+    echo -1
+}
+
+progress_advance() {
+    local i
+    i=$(current_step)
+    [ "$i" -ge 0 ] || return 0
+    step_statuses[i]=done
+    if [ $((i + 1)) -lt ${#step_statuses[@]} ]; then step_statuses[i + 1]=current; fi
+    write_progress
+}
+
+# The stage that broke is marked; the ones after it will not run.
+progress_fail() {
+    local i j
+    i=$(current_step)
+    [ "$i" -ge 0 ] || return 0
+    step_statuses[i]=failed
+    for ((j = ${#step_titles[@]} - 1; j > i; j--)); do
+        unset "step_titles[j]" "step_statuses[j]"
+    done
+}
+
+progress_add() {
+    local i=${#step_titles[@]}
+    step_titles[i]=$1
+    step_statuses[i]=current
+    write_progress
+}
+
+progress_end() {
+    local i
+    i=$(current_step)
+    [ "$i" -ge 0 ] || return 0
+    step_statuses[i]=$1
+    write_progress
+}
+
+# Answers the page on the app's port while the app is stopped. It must not hold the lock,
+# and `make up` needs the port: it is stopped, and waited for, before every start. When it
+# cannot start (the port is taken) the update goes on; the page shows the last stage it got.
+start_status_server() {
+    [ -n "$STATUS_PORT" ] || return 0
+    if [ -n "$status_server" ] && kill -0 "$status_server" 2>/dev/null; then return 0; fi
+    # A rollback ignores TERM, and children inherit that: the server gets it back before it
+    # starts, or the TERM that stops it could arrive while it still ignores it.
+    (
+        trap - TERM
+        exec "$STATUS_PYTHON" "$STATUS_SERVER" --port "$STATUS_PORT" --host "$STATUS_HOST"
+    ) < /dev/null 9>&- &
+    status_server=$!
+}
+
+stop_status_server() {
+    [ -n "$status_server" ] || return 0
+    kill "$status_server" 2>/dev/null
+    wait "$status_server" 2>/dev/null
+    status_server=""
 }
 
 # Remembers where a step's output starts in the log, so a failure can say what broke
@@ -392,6 +502,7 @@ packages_restore_hint() {
 # old code on a database it may not know is worse than a stopped copy.
 leave_stopped() {
     keep_backups=1
+    progress_end failed
     echo "Rollback failed at: $1. The copy is stopped." >> "$ERROR_FILE"
     echo "ERROR: rollback failed at: $1. The copy is stopped." >&2
     local packages recipe
@@ -416,9 +527,12 @@ leave_stopped() {
 roll_back() {
     trap '' INT TERM HUP
     record_error
+    progress_fail
+    progress_add "Rolling back to $old_name"
     echo "Update failed. Rolling back to $old_name..." >&2
     # A failed start can leave the new version's processes running, a migration among them.
     make_step down || leave_stopped "make down"
+    start_status_server
     if [ "$checked_out" = 1 ]; then
         # The tree was clean at the start: only a half-done checkout can have changed it.
         run_step "git checkout" git checkout --quiet --force "$old_ref" \
@@ -432,11 +546,14 @@ roll_back() {
     if [ "$app_built" = 1 ]; then
         make_step app || broken=" The macOS app was not rebuilt: run 'make app'."
     fi
+    stop_status_server
     if ! make_step up; then
+        progress_end failed
         echo "The old version did not start." >> "$ERROR_FILE"
         echo "ERROR: the old version did not start. See the output above, then run 'make up'." >&2
         finish failed
     fi
+    progress_end done
     echo "Rolled back to $old_name and started.$broken" >&2
     finish failed
 }
