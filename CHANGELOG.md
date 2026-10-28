@@ -2,6 +2,15 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.3.0 — 2026-10-29
+
+The macOS app window loses its separate title bar.
+
+### One bar at the top of the window
+The macOS app no longer has a dark title bar above the page. The window buttons now sit in the page's top bar, next to **Sources**, **Export**, **Queue** and **Usage**. Drag the window by an empty spot in the top bar, and double-click there to zoom it, as you would with a title bar. In full screen, the bar that slides down from the top pushes the page down instead of covering the tabs.
+
+The note **Restart to finish the update** now shows at the right end of the top bar.
+
 ## 1.2.1 — 2026-10-29
 
 The Update button works again, every time.
