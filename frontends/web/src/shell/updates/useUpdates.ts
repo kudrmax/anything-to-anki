@@ -35,7 +35,8 @@ const reloadPage = () => window.location.reload()
 /**
  * Что копия знает о новых релизах и как идёт обновление. Пока оно идёт, сервер выключен:
  * неудачные запросы опроса значат «ещё обновляется». Сервер вернулся на другой версии или
- * сказал `done` — страница перечитывается.
+ * сказал `done` — страница перечитывается. Страница, открытая посреди обновления, снова
+ * показывает его.
  */
 export function useUpdatesController(reload: () => void = reloadPage): UpdatesState {
   const [status, setStatus] = useState<UpdateStatus | null>(null)
@@ -48,6 +49,7 @@ export function useUpdatesController(reload: () => void = reloadPage): UpdatesSt
 
   useEffect(() => {
     api.getUpdates(false).then(setStatus, () => {})
+    api.getUpdateState().then(state => { if (state.state === 'running') setRun({ phase: 'running' }) }, () => {})
   }, [])
 
   const checkNow = useCallback(async (): Promise<CheckOutcome | null> => {

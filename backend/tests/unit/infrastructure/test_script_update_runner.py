@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+import fcntl
 import sys
 import threading
 import time
@@ -12,7 +12,8 @@ from backend.domain.value_objects.update_progress import UpdateState
 from backend.infrastructure.adapters.release.script_update_runner import (
     LOG_FILE,
     LOG_TAIL_LINES,
-    PID_FILE,
+    SCRIPT_LOCK_FD,
+    SCRIPT_LOCK_FILE,
     STATE_FILE,
     ScriptUpdateRunner,
 )
@@ -39,14 +40,50 @@ def test_without_a_state_file_it_is_idle(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 def test_start_writes_running_and_runs_the_command_in_the_project_dir(tmp_path: Path) -> None:
-    code = "import os, time; print(os.getcwd(), flush=True); time.sleep(2)"
-    command = [sys.executable, "-c", code]
-    runner = ScriptUpdateRunner(tmp_path, command)
+    marker = tmp_path / "cwd"
+    code = f"import os, time; open({str(marker)!r}, 'w').write(os.getcwd()); time.sleep(2)"
+    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", code])
 
     runner.start()
 
     assert runner.state().state is UpdateState.RUNNING
-    _wait_for(tmp_path / LOG_FILE, tmp_path.name)
+    _wait_for(marker, tmp_path.name)
+
+
+@pytest.mark.unit
+def test_the_command_writes_nothing_to_the_log_itself(tmp_path: Path) -> None:
+    """The script logs on its own; the runner must not log its output a second time."""
+    command = [sys.executable, "-c", "print('twice', flush=True)"]
+    runner = ScriptUpdateRunner(tmp_path, command)
+
+    runner.start()
+
+    _wait_for_state(runner, UpdateState.FAILED)
+    log = tmp_path / LOG_FILE
+    assert not log.exists() or "twice" not in log.read_text()
+
+
+@pytest.mark.unit
+def test_the_script_gets_the_lock_already_taken(tmp_path: Path) -> None:
+    """No moment between the click and the script's start reads as a dead update."""
+    marker = tmp_path / "lock-at-start"
+    code = (
+        "import fcntl, os, time\n"
+        f"probe = os.open({str(tmp_path / SCRIPT_LOCK_FILE)!r}, os.O_RDONLY)\n"
+        "try:\n"
+        "    fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB); held = 'free'\n"
+        "except BlockingIOError:\n"
+        "    held = 'held'\n"
+        f"same = os.fstat({SCRIPT_LOCK_FD}).st_ino == os.fstat(probe).st_ino\n"
+        f"open({str(marker)!r}, 'w').write(held + ' ' + str(same))\n"
+        "time.sleep(2)\n"
+    )
+    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", code])
+
+    runner.start()
+
+    _wait_for(marker, "held True")
+    assert runner.state().state is UpdateState.RUNNING
 
 
 @pytest.mark.unit
@@ -76,10 +113,9 @@ def test_unknown_state_word_counts_as_idle(tmp_path: Path) -> None:
 def test_a_command_that_cannot_start_marks_the_update_failed(tmp_path: Path) -> None:
     runner = ScriptUpdateRunner(tmp_path, ["/nonexistent/command"])
 
-    with pytest.raises(OSError):  # noqa: PT011
-        runner.start()
+    runner.start()
 
-    assert runner.state().state is UpdateState.FAILED
+    _wait_for_state(runner, UpdateState.FAILED)
 
 
 def _wait_for_state(runner: ScriptUpdateRunner, state: UpdateState) -> None:
@@ -93,8 +129,8 @@ def _wait_for_state(runner: ScriptUpdateRunner, state: UpdateState) -> None:
 
 @pytest.mark.unit
 def test_a_command_that_dies_without_a_state_ends_failed_with_its_log(tmp_path: Path) -> None:
-    command = [sys.executable, "-c", "print('boom', flush=True)"]
-    runner = ScriptUpdateRunner(tmp_path, command)
+    code = f"open({str(tmp_path / LOG_FILE)!r}, 'a').write('boom\\n')"
+    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", code])
 
     runner.start()
 
@@ -104,21 +140,43 @@ def test_a_command_that_dies_without_a_state_ends_failed_with_its_log(tmp_path: 
 
 
 @pytest.mark.unit
-def test_running_with_a_dead_pid_is_failed(tmp_path: Path) -> None:
+def test_running_without_a_lock_holder_is_failed(tmp_path: Path) -> None:
     (tmp_path / ".pids").mkdir()
     (tmp_path / STATE_FILE).write_text("running")
-    (tmp_path / PID_FILE).write_text("2147483646")
+    (tmp_path / SCRIPT_LOCK_FILE).write_text("12345")
 
     assert ScriptUpdateRunner(tmp_path).state().state is UpdateState.FAILED
 
 
 @pytest.mark.unit
-def test_running_with_a_live_pid_stays_running(tmp_path: Path) -> None:
+def test_running_without_a_lock_file_is_failed(tmp_path: Path) -> None:
     (tmp_path / ".pids").mkdir()
     (tmp_path / STATE_FILE).write_text("running")
-    (tmp_path / PID_FILE).write_text(str(os.getpid()))
 
-    assert ScriptUpdateRunner(tmp_path).state().state is UpdateState.RUNNING
+    assert ScriptUpdateRunner(tmp_path).state().state is UpdateState.FAILED
+
+
+@pytest.mark.unit
+def test_running_while_the_lock_is_held_stays_running(tmp_path: Path) -> None:
+    (tmp_path / ".pids").mkdir()
+    (tmp_path / STATE_FILE).write_text("running")
+    with (tmp_path / SCRIPT_LOCK_FILE).open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+
+        assert ScriptUpdateRunner(tmp_path).state().state is UpdateState.RUNNING
+
+
+@pytest.mark.unit
+def test_start_is_refused_while_an_update_from_the_terminal_holds_the_lock(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".pids").mkdir()
+    (tmp_path / STATE_FILE).write_text("done")
+    with (tmp_path / SCRIPT_LOCK_FILE).open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+
+        with pytest.raises(UpdateAlreadyRunningError):
+            ScriptUpdateRunner(tmp_path, [sys.executable, "-c", "pass"]).start()
 
 
 @pytest.mark.unit

@@ -17,60 +17,93 @@ if TYPE_CHECKING:
 UPDATE_COMMAND = ("make", "update")
 STATE_FILE = ".pids/update.state"
 PID_FILE = ".pids/update.pid"
-LOCK_FILE = ".pids/update.lock"
+START_LOCK_FILE = ".pids/update.lock"
+SCRIPT_LOCK_FILE = ".pids/update.script.lock"
 LOG_FILE = ".logs/update.log"
 LOG_TAIL_LINES = 40
+# update.sh keeps the lock it finds open on this descriptor instead of taking its own.
+SCRIPT_LOCK_FD = 9
 
 
 class ScriptUpdateRunner(UpdateRunner):
     """Runs `make update` in the project folder, detached: the script restarts the app, so
-    it must outlive it. It reports through the state file, whose one word it ends with. An
-    update whose process is gone while the file still says `running` has failed."""
+    it must outlive it. It reports through the state file, whose one word it ends with.
+
+    The update is running exactly while the flock on the script's lock file is held. This
+    runner takes it before the script starts and hands it to the script, which holds it
+    to its end: an update whose lock is free while the state says `running` has failed."""
 
     def __init__(self, project_dir: Path, command: Sequence[str] = UPDATE_COMMAND) -> None:
         self._project_dir = project_dir
         self._command = tuple(command)
 
     def start(self) -> None:
-        state_file = self._project_dir / STATE_FILE
-        log_file = self._project_dir / LOG_FILE
-        state_file.parent.mkdir(parents=True, exist_ok=True)
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        with (self._project_dir / LOCK_FILE).open("a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        (self._project_dir / STATE_FILE).parent.mkdir(parents=True, exist_ok=True)
+        (self._project_dir / LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
+        with (self._project_dir / START_LOCK_FILE).open("a") as start_lock:
+            fcntl.flock(start_lock, fcntl.LOCK_EX)
             if self.state().state is UpdateState.RUNNING:
                 raise UpdateAlreadyRunningError
-            self._spawn(state_file, log_file)
+            script_lock = os.open(
+                self._project_dir / SCRIPT_LOCK_FILE, os.O_WRONLY | os.O_CREAT | os.O_APPEND,
+            )
+            try:
+                try:
+                    fcntl.flock(script_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as error:
+                    raise UpdateAlreadyRunningError from error
+                self._spawn(script_lock)
+            finally:
+                os.close(script_lock)
 
     def state(self) -> UpdateProgress:
         state = self._read_state()
-        if state is UpdateState.RUNNING and not self._runner_alive():
+        if state is UpdateState.RUNNING and not self._script_lock_held():
             self._write_state(UpdateState.FAILED)
             state = UpdateState.FAILED
         if state is UpdateState.FAILED:
             return UpdateProgress(state, self._log_tail())
         return UpdateProgress(state)
 
-    def _spawn(self, state_file: Path, log_file: Path) -> None:
-        # Until the child is known, this process stands in for it: a start that is cut off
-        # here leaves a pid that dies with us, and the update reads as failed.
-        self._write_pid(os.getpid())
-        state_file.write_text(UpdateState.RUNNING.value, encoding="utf-8")
+    def _spawn(self, script_lock: int) -> None:
+        self._write_state(UpdateState.RUNNING)
         try:
-            with log_file.open("ab") as log:
-                process = subprocess.Popen(  # noqa: S603 — a fixed command, no user input
-                    self._command,
-                    cwd=self._project_dir,
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    start_new_session=True,
-                )
+            process = subprocess.Popen(  # noqa: S603 — a fixed command, no user input
+                self._handing_over(script_lock),
+                cwd=self._project_dir,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                pass_fds=(script_lock,),
+                start_new_session=True,
+            )
         except OSError:
             self._write_state(UpdateState.FAILED)
             raise
-        self._write_pid(process.pid)
-        # Reaps the child if it ends while this app lives: a zombie would read as alive.
+        (self._project_dir / PID_FILE).write_text(str(process.pid), encoding="utf-8")
         threading.Thread(target=process.wait, daemon=True).start()
+
+    def _handing_over(self, script_lock: int) -> list[str]:
+        """The command run with the lock moved to the descriptor the script looks at."""
+        moves = "" if script_lock == SCRIPT_LOCK_FD else (
+            f" {SCRIPT_LOCK_FD}>&{script_lock} {script_lock}>&-"
+        )
+        return ["/bin/sh", "-c", f'exec "$@"{moves}', "update", *self._command]
+
+    def _script_lock_held(self) -> bool:
+        try:
+            probe = os.open(self._project_dir / SCRIPT_LOCK_FILE, os.O_RDONLY)
+        except FileNotFoundError:
+            return False
+        try:
+            fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        else:
+            fcntl.flock(probe, fcntl.LOCK_UN)
+            return False
+        finally:
+            os.close(probe)
 
     def _read_state(self) -> UpdateState:
         try:
@@ -81,17 +114,6 @@ class ScriptUpdateRunner(UpdateRunner):
 
     def _write_state(self, state: UpdateState) -> None:
         (self._project_dir / STATE_FILE).write_text(state.value, encoding="utf-8")
-
-    def _write_pid(self, pid: int) -> None:
-        (self._project_dir / PID_FILE).write_text(str(pid), encoding="utf-8")
-
-    def _runner_alive(self) -> bool:
-        try:
-            pid = int((self._project_dir / PID_FILE).read_text(encoding="utf-8").strip())
-            os.kill(pid, 0)
-        except (OSError, ValueError) as error:
-            return isinstance(error, PermissionError)
-        return True
 
     def _log_tail(self) -> str:
         try:

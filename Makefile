@@ -13,6 +13,7 @@ APP_PID := .pids/app.pid
 APP_LOG := .logs/app.log
 WRK_PID := .pids/worker.pid
 WRK_LOG := .logs/worker.log
+UPD_LOG := .logs/update.log
 # Сколько тиков по 0.25 с ждать остановки воркера (5 секунд).
 WORKER_STOP_TICKS := 20
 # Сколько тиков по 0.25 с ждать освобождения порта (10 секунд).
@@ -400,11 +401,12 @@ _db-snapshot: _check_setup
 _db-restore: _check_setup
 	@.venv/bin/python -m backend.cli.db_snapshot restore "$(SNAPSHOT)"
 
-logs:  ## Logs of app + worker + ai_proxy in one stream
+logs:  ## Logs of app + worker + ai_proxy + make update in one stream
 	@trap 'kill 0' INT TERM; \
 	tail -F $(APP_LOG) 2>/dev/null | sed -l 's/^/app             | /' & \
 	tail -F $(WRK_LOG) 2>/dev/null | sed -l 's/^/worker          | /' & \
 	tail -F $(AI_LOG) 2>/dev/null | sed -l 's/^/ai_proxy        | /' & \
+	tail -F $(UPD_LOG) 2>/dev/null | sed -l 's/^/update          | /' & \
 	wait
 
 logs-worktree:  ## Logs of the worktree (app + worker + ai_proxy)

@@ -6,6 +6,7 @@ import { UpdateIndicator } from './UpdateIndicator'
 import { AVAILABLE, Page } from './updatesTestKit'
 
 const POLL_MS = 2_000
+const LOG_HEIGHT = 480
 const running: UpdateRunProgress = { state: 'running', log_tail: '' }
 const failed: UpdateRunProgress = { state: 'failed', log_tail: 'make: *** [update] Error 1' }
 
@@ -19,7 +20,6 @@ describe('updating', () => {
     page = new Page()
     vi.spyOn(api, 'getUpdates').mockResolvedValue(AVAILABLE)
     vi.spyOn(api, 'startUpdate').mockResolvedValue()
-    vi.spyOn(api, 'getUpdateState').mockResolvedValue(running)
     vi.spyOn(api, 'getVersion').mockResolvedValue({ version: '1.2.0' })
   })
 
@@ -32,6 +32,7 @@ describe('updating', () => {
   const startUpdate = async () => {
     await page.render(<UpdateIndicator />, reload)
     await page.click('Update available')
+    vi.mocked(api.getUpdateState).mockResolvedValue(running)
     await page.click('Update')
   }
   const tick = () => act(async () => { await vi.advanceTimersByTimeAsync(POLL_MS) })
@@ -47,6 +48,34 @@ describe('updating', () => {
 
     expect(page.text).toContain('Updating…')
     expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('says from the start what to do if the app does not come back', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    await startUpdate()
+
+    expect(page.text).toContain('.logs/update.log')
+    expect(page.text).toContain('make up')
+    await page.click('Copy')
+    expect(writeText).toHaveBeenCalledWith('make up')
+  })
+
+  it('shows the update again when the page opens while it runs', async () => {
+    vi.mocked(api.getUpdateState).mockResolvedValue(running)
+
+    await page.render(<UpdateIndicator />, reload)
+
+    expect(page.text).toContain('Updating…')
+  })
+
+  it('does not show a finished or failed update when the page opens', async () => {
+    vi.mocked(api.getUpdateState).mockResolvedValue(failed)
+
+    await page.render(<UpdateIndicator />, reload)
+
+    expect(page.text).not.toContain('Updating…')
+    expect(page.text).not.toContain('Update failed')
   })
 
   it('reloads the page once the server is back on the new version', async () => {
@@ -92,6 +121,9 @@ describe('updating', () => {
   })
 
   it('shows why the update failed and the command to run it by hand', async () => {
+    const scrolledTo = vi.fn()
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(LOG_HEIGHT)
+    vi.spyOn(HTMLElement.prototype, 'scrollTop', 'set').mockImplementation(scrolledTo)
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
     await startUpdate()
@@ -102,6 +134,7 @@ describe('updating', () => {
     expect(page.text).not.toContain('Updating…')
     expect(page.text).toContain('make: *** [update] Error 1')
     expect(page.text).toContain('make update')
+    expect(scrolledTo).toHaveBeenLastCalledWith(LOG_HEIGHT)
     await page.click('Copy')
     expect(writeText).toHaveBeenCalledWith('make update')
     expect(page.button('Copied')).toBeDefined()
