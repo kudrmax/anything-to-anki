@@ -1,0 +1,17 @@
+/* карточка в редакторе раскладки: блоки и линии выбираются и тянутся, вёрстка — как на ревью */
+.block { position: relative; border-radius: var(--r-s); cursor: grab; touch-action: none; user-select: none; outline: var(--bw) dashed transparent; outline-offset: var(--s1); transition: outline-color var(--t), opacity var(--t); }
+.block > * { pointer-events: none; }
+.block:hover, .block:focus-visible, .divider:hover, .divider:focus-visible { outline-color: var(--tx3); }
+.selected, .selected:hover { outline-style: solid; outline-color: var(--ac); }
+.divider.selected { border-top-color: var(--ac); }
+.dragged { opacity: var(--o-dim); }
+.grabbing, .grabbing:hover { cursor: grabbing; outline-color: transparent; }
+/* название блока над ним при наведении */
+.label { position: absolute; bottom: calc(100% + var(--s2)); left: calc(-1 * var(--s1)); z-index: var(--z-block); padding: 0 var(--s2); border-radius: var(--r-s); font-size: var(--fs-xs); font-weight: var(--fw); line-height: var(--lh-label); color: var(--tx); background: var(--soft); box-shadow: var(--shadow-pop); white-space: nowrap; opacity: 0; transition: opacity var(--t); }
+.block:hover > .label, .block:focus-visible > .label { opacity: 1; }
+.grabbing > .label { opacity: 0; }
+/* линия тонкая: схватить её можно во всём зазоре до соседних строк — поле не двигает строки */
+.divider { position: relative; z-index: 1; overflow: visible; cursor: grab; touch-action: none; outline: var(--bw) dashed transparent; outline-offset: var(--s3); }
+.divider::before { content: ''; position: absolute; inset: calc(-1 * var(--card-divider-my) - var(--card-row-gap)) 0; }
+/* в пустую колонку есть куда бросить блок */
+.column { min-height: var(--layout-column-min-h); }

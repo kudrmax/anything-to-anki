@@ -35,6 +35,7 @@ from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.get_update_state import GetUpdateStateUseCase
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
+from backend.application.use_cases.manage_card_layout import ManageCardLayoutUseCase
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
 from backend.application.use_cases.manage_unknown_words import ManageUnknownWordsUseCase
@@ -168,6 +169,9 @@ from backend.infrastructure.config.prompts_loader import PromptsLoader
 from backend.infrastructure.persistence.database import app_session_factory
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
 from backend.infrastructure.persistence.session_work import SessionWork
+from backend.infrastructure.persistence.settings_card_layout_repository import (
+    SettingsCardLayoutRepository,
+)
 from backend.infrastructure.persistence.sqla_anki_sync_repository import (
     SqlaAnkiSyncRepository,
 )
@@ -1139,6 +1143,13 @@ class Container:
             threshold_resolver=self._threshold_resolver(session),
             unit_of_work=self._unit_of_work(session),
             level_change=self._level_change_launcher(session),
+        )
+
+    def manage_card_layout_use_case(self, session: Session) -> ManageCardLayoutUseCase:
+        settings_repo = SqlaSettingsRepository(session, self._change_recorder(session))
+        return ManageCardLayoutUseCase(
+            layouts=SettingsCardLayoutRepository(settings_repo),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def long_operation_progress(self) -> LongOperationProgress:

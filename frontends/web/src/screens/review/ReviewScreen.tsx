@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useCardLayout } from '@/cardLayout'
 import { backIn, backTo } from '@/lib/backLink'
 import { exportPath, parseSetScope } from '@/lib/scope'
 import { allowedInClozeMarkup, isToolAction, reviewAction, type ReviewAction } from '@/lib/hotkeys'
@@ -22,6 +23,7 @@ import { audioUrlForCandidate, useReview } from './useReview'
 import { usePictureSuggestions } from './usePictureSuggestions'
 import { useSwipe } from './useSwipe'
 import { ReviewList } from './ReviewList'
+import { VIEW_CONTROL } from './viewControl'
 import type { DecisionButton, ReviewRow, SetScope, SourceStatus } from '@/api/types'
 import css from './review.module.css'
 
@@ -50,7 +52,8 @@ export function ReviewScreen() {
   )
 }
 
-function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: number | null }) {
+/** Экран ревью набора; данные берёт из источника данных ревью — бэкенда или образца редактора раскладки. */
+export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: number | null }) {
   const navigate = useNavigate()
   const location = useLocation()
   const sourcesPath = backIn(location.state, SOURCES_PATH)
@@ -68,6 +71,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
     setPicturesShown(!picturesShown)
   }
   const suggestPictures = usePictureSuggestions(review.state, picturesShown)
+  const cardLayout = useCardLayout()
   const togglePhraseList = () => {
     phraseListShownPref.write(!phraseListShown)
     setPhraseListShown(!phraseListShown)
@@ -176,8 +180,8 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
         {review.position !== null && (
           <div className={css.stepper}>
             <span className={css.position}>{review.position} / {review.state.totalCards}</span>
-            <IconButton icon={ChevronLeft} label="Previous phrase" disabled={!review.canPrev} onClick={() => void step(-1)} />
-            <IconButton icon={ChevronRight} label="Next phrase" disabled={!review.canNext} onClick={() => void step(1)} />
+            <IconButton icon={ChevronLeft} label="Previous phrase" disabled={!review.canPrev} onClick={() => void step(-1)} {...VIEW_CONTROL} />
+            <IconButton icon={ChevronRight} label="Next phrase" disabled={!review.canNext} onClick={() => void step(1)} {...VIEW_CONTROL} />
           </div>
         )}
         {hasCards && (
@@ -188,11 +192,13 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
               icon={picturesShown ? Image : ImageOff}
               label={picturesShown ? 'Hide picture suggestions' : 'Show picture suggestions'}
               onClick={togglePictures}
+              {...VIEW_CONTROL}
             />
             <IconButton
               icon={phraseListShown ? ListChevronsDownUp : ListChevronsUpDown}
               label={phraseListShown ? 'Hide phrase list' : 'Show phrase list'}
               onClick={togglePhraseList}
+              {...VIEW_CONTROL}
             />
           </>
         )}
@@ -201,6 +207,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
             icon={sourceTextShown ? PanelRightOpen : PanelRightClose}
             label={sourceTextShown ? 'Hide source text' : 'Show source text'}
             onClick={toggleSourceText}
+            {...VIEW_CONTROL}
           />
         )}
       </div>
@@ -209,7 +216,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
       </Button>
       {hasCards && (
         <div className={`${css.headerTools} ${css.phoneOnly}`}>
-          <IconButton icon={List} label="All phrases" active={view === 'list'} onClick={() => togglePhoneView('list')} />
+          <IconButton icon={List} label="All phrases" active={view === 'list'} onClick={() => togglePhoneView('list')} {...VIEW_CONTROL} />
           <Menu items={phoneMenu} trigger={<IconButton icon={Ellipsis} label="More" />} />
         </div>
       )}
@@ -258,7 +265,7 @@ function ReviewView({ scope, requestedId }: { scope: SetScope; requestedId: numb
           onLoad={review.loadRows}
           onToggleSection={toggleSection}
           renderCard={(card, isCurrent) => isCurrent
-            ? <PhraseCard key={card.phrase_id} candidate={card} review={review} suggestPictures={suggestPictures} />
+            ? <PhraseCard key={card.phrase_id} candidate={card} review={review} layout={cardLayout} suggestPictures={suggestPictures} />
             : <PhraseRow key={card.phrase_id} candidate={card} onSelect={id => void review.goTo(id)} />}
           followKey={phraseListShown}
         />

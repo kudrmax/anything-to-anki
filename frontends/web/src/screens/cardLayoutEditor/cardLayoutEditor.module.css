@@ -1,0 +1,44 @@
+/* редактор раскладки: экран ревью на образце, поверх — окно редактора */
+.screen { display: contents; }
+
+/* окно поверх экрана: справа сверху, тянется за заголовок */
+.window { position: fixed; z-index: var(--z-editor); top: var(--s7); right: var(--s7); width: var(--layout-window-w); max-height: var(--layout-window-max-h); display: flex; flex-direction: column; transform: translate(var(--wx), var(--wy)); background: var(--card); border-radius: var(--r); box-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop); }
+.windowHead { display: flex; align-items: center; gap: var(--s1); padding: var(--s3) var(--s3) var(--s3) var(--s5); border-bottom: var(--bw) solid var(--line); cursor: move; touch-action: none; user-select: none; }
+.windowTitle { flex: 1; font-size: var(--fs-m); font-weight: var(--fw-m); }
+.windowBody { display: flex; flex-direction: column; gap: var(--s5); padding: var(--s5); overflow-y: auto; }
+.windowActions { display: flex; flex-wrap: wrap; gap: var(--s4); }
+.hint { font-size: var(--fs-s); line-height: var(--lh); color: var(--tx3); }
+.section { display: flex; flex-direction: column; gap: var(--s2); }
+.sectionLabel { font-size: var(--fs-xs); color: var(--tx3); }
+.columnRow { display: flex; align-items: center; gap: var(--s3); }
+.columnName { flex: 1; font-size: var(--fs-s); color: var(--tx2); }
+.widthSelect { width: auto; min-width: 0; height: var(--h-s); font-size: var(--fs-s); }
+
+/* выбранный блок */
+.panel { display: flex; flex-direction: column; gap: var(--s4); }
+.panelTitle { font-size: var(--fs-b); font-weight: var(--fw-m); }
+.panelHint { margin-top: calc(-1 * var(--s3)); font-size: var(--fs-s); line-height: var(--lh); color: var(--tx3); }
+.option { display: flex; flex-direction: column; gap: var(--s2); }
+.optionLabel { font-size: var(--fs-xs); color: var(--tx3); }
+.spaceGrid { display: grid; grid-template-columns: var(--layout-space-cols); gap: var(--s3); }
+.panelActions { display: flex; gap: var(--s3); }
+
+/* скрытые блоки: сюда бросают, чтобы спрятать; отсюда тянут обратно и новую линию */
+.tray { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s4); border-radius: var(--r); box-shadow: inset 0 0 0 var(--bw) var(--line); transition: box-shadow var(--t); }
+.trayActive { box-shadow: inset 0 0 0 var(--bw) var(--ac); }
+.trayItems { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.trayItem { display: inline-flex; align-items: center; gap: var(--s2); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx2); background: var(--soft); cursor: grab; touch-action: none; user-select: none; }
+.trayItem:hover { color: var(--tx); }
+.trayItem.selected { box-shadow: inset 0 0 0 var(--bw) var(--ac); }
+.trayEmpty { font-size: var(--fs-s); color: var(--tx3); }
+
+/* куда встанет то, что тянут, и что тянут */
+.dropLine { position: fixed; z-index: var(--z-drag); left: var(--x); top: var(--y); width: var(--w); height: var(--hh); border-radius: var(--r-xs); background: var(--ac); pointer-events: none; }
+.ghost { position: fixed; z-index: var(--z-drag); left: 0; top: 0; transform: translate(var(--gx), var(--gy)) translate(var(--s3), var(--s3)); padding: 0 var(--s3); border-radius: var(--r-s); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx); background: var(--soft); box-shadow: var(--dock-shadow); pointer-events: none; white-space: nowrap; }
+
+/* телефон: экран ревью в окне шириной с телефон */
+.phoneStage { display: flex; justify-content: center; padding: var(--s7) 0; }
+.phoneFrame { width: var(--phone-frame-w); height: var(--phone-frame-h); border: 0; border-radius: var(--r); box-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop); background: var(--bg); }
+
+/* вопрос при выходе со скрытыми блоками */
+.leaveList { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s3); padding-left: var(--s5); list-style: disc; font-size: var(--fs-m); }

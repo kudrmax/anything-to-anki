@@ -1,11 +1,10 @@
-import { useState } from 'react'
-import { Brackets, Check, ChevronDown, ChevronUp, Target, Volume2 } from 'lucide-react'
-import type { CandidateCloze, DecisionButton, EnrichmentStatus, PhraseOrigin, StoredCandidate } from '@/api/types'
+import { useState, type CSSProperties } from 'react'
+import { Brackets, Check } from 'lucide-react'
+import type { CandidateCloze, CardLayoutView, DecisionButton, PhraseOrigin, StoredCandidate } from '@/api/types'
+import { columnTracks, shownColumns, useCardLayoutEditing, type CardBlockContext } from '@/cardLayout'
 import { CLOZE_HINT_LABEL } from '@/lib/clozeHints'
-import { FREQ_BAND_LABEL, isDivider, meaningParts, mediaUrl, nonEmptyLines } from '@/lib/text/meaning'
-import { KEY_LABEL } from '@/lib/hotkeys'
-import { Button, Chip, Icon, Kbd, MediaThumb, Spinner, Text } from '@/ui'
-import { targetText } from '@/lib/text/phraseParts'
+import { Icon } from '@/ui'
+import { CardBody } from './CardBody'
 import { CardPhrase } from './CardPhrase'
 import { CefrTooltip } from './CefrTooltip'
 import { ClozePanel } from './ClozePanel'
@@ -15,12 +14,13 @@ import type { PictureSuggestionsLoader } from './usePictureSuggestions'
 import { audioUrlForCandidate, type Review } from './useReview'
 import { useClozeEditor } from './useClozeEditor'
 import { usePhraseEditor } from './usePhraseEditor'
-import phrase from '@/ui/phrase.module.css'
 import css from './review.module.css'
 
 interface PhraseCardProps {
   candidate: StoredCandidate
   review: Review
+  /** Раскладка тела карточки; null — ещё не загрузилась. */
+  layout: CardLayoutView | null
   /** Нет — подсказки картинок выключены. */
   suggestPictures: PictureSuggestionsLoader | null
 }
@@ -39,41 +39,13 @@ const originLabel = (origin: PhraseOrigin): string =>
 const clozeLabel = ({ hint_kind }: CandidateCloze): string =>
   hint_kind === 'none' ? 'cloze · no hint' : `cloze · hint: ${CLOZE_HINT_LABEL[hint_kind].toLowerCase()}`
 
-const isActive = (status: EnrichmentStatus | undefined): boolean => status === 'queued' || status === 'running' || status === 'failed'
-
-function RichText({ text, candidate }: { text: string; candidate: StoredCandidate }) {
-  return (
-    <>
-      {meaningParts(text, candidate.lemma, targetText(candidate.phrase)).map((part, i) =>
-        part.target ? <b key={i} className={css.target}>{part.text}</b> : part.bold ? <b key={i}>{part.text}</b> : part.text,
-      )}
-    </>
-  )
-}
-
-function StatusText({ status, labels, error }: { status: EnrichmentStatus | undefined; labels: Partial<Record<EnrichmentStatus, string>>; error?: string | null }) {
-  if (!status || !labels[status]) return null
-  return (
-    <span className={css.status} title={error ?? undefined}>
-      {status === 'running' && <Spinner />}
-      <Text tone={status === 'failed' ? 'err' : 'muted'} size="s">{labels[status]}</Text>
-    </span>
-  )
-}
-
 /**
- * Текущая фраза: сверху фраза, слева то, по чему решаешь (перевод и пересказ контекста),
- * справа справка (произношение, синонимы, определение, примеры), снизу факты и инструменты.
+ * Текущая фраза: сверху фраза, под ней тело по раскладке пользователя, снизу решения, факты и инструменты.
  */
-export function PhraseCard({ candidate, review, suggestPictures }: PhraseCardProps) {
+export function PhraseCard({ candidate, review, layout, suggestPictures }: PhraseCardProps) {
   const [cefrAnchor, setCefrAnchor] = useState<HTMLElement | null>(null)
-  // Телефон: справка свёрнута в строку Details, «Use as phrase» — только у примера, по которому тапнули.
+  // Телефон: справка свёрнута в строку Details.
   const [detailsOpen, setDetailsOpen] = useState(false)
-  const [openExample, setOpenExample] = useState<number | null>(null)
-  const { player } = review
-  const sourceId = candidate.source.id
-  const meaning = candidate.meaning
-  const media = review.mediaFor(candidate)
   const phraseEditor = usePhraseEditor(candidate, review)
   const clozeEditor = useClozeEditor(candidate, review)
   // Правка текста и разметка cloze не открываются вместе: индексы скрытых слов относятся к старому тексту.
@@ -82,39 +54,31 @@ export function PhraseCard({ candidate, review, suggestPictures }: PhraseCardPro
     phraseEditor.start()
   }
   const decided = candidate.state.buttons.find(button => button.pressed)?.button ?? null
+  const editing = useCardLayoutEditing()
+  const media = review.mediaFor(candidate)
 
-  const usUrl = mediaUrl(sourceId, candidate.pronunciation?.us_audio_path)
-  const ukUrl = mediaUrl(sourceId, candidate.pronunciation?.uk_audio_path)
-  const ttsUrl = mediaUrl(sourceId, candidate.tts?.audio_path)
-  const hasPronunciationAudio = Boolean(usUrl || ukUrl)
-
-  const usage = candidate.usage_group
-  const frequency = candidate.frequency_band ? FREQ_BAND_LABEL[candidate.frequency_band]?.toLowerCase() : null
-  const facts = [frequency, usage].filter((fact): fact is string => Boolean(fact))
-  const hasWordFacts = candidate.is_phrasal_verb || Boolean(candidate.cefr_level) || facts.length > 0
-
-  // Клавиша аудио играет основное аудио карточки: она подписана на его чипе.
-  const keyAudioUrl = audioUrlForCandidate(candidate)
-  const audioChip = (label: string, url: string | null, title: string) => url && (
-    <Chip small on={player.playingUrl === url} title={title} onClick={() => player.toggle(url)}>
-      <Icon as={Volume2} size="s" />{label}{url === keyAudioUrl && <Kbd>{KEY_LABEL.audio}</Kbd>}
-    </Chip>
-  )
-
-  const action = candidate.meaning_action
-  const hasMeta = Boolean(meaning?.ipa || usUrl || ukUrl || ttsUrl)
-    || isActive(candidate.pronunciation?.status) || isActive(candidate.tts?.status)
-  const paragraphs = meaning?.meaning ? nonEmptyLines(meaning.meaning) : []
-  // Пример уходит на место фразы как есть: его **жирные** слова — target.
-  const examples = meaning?.examples ? nonEmptyLines(meaning.examples) : []
-  const [definition, ...rest] = paragraphs
-  // Вторая строка значения пересказывает контекст фразы: по ней решают, поэтому она слева.
-  const retold = rest[0] && !isDivider(rest[0]) ? rest[0] : null
-  const more = retold ? rest.slice(1) : rest
+  const ctx: CardBlockContext = {
+    candidate,
+    media,
+    playingUrl: review.player.playingUrl,
+    togglePlay: review.player.toggle,
+    keyAudioUrl: audioUrlForCandidate(candidate),
+    generating: review.busy.generating.has(candidate.phrase_id),
+    generate: () => void review.generate(candidate.phrase_id),
+    useExample: line => void review.replaceWithExample(candidate.phrase_id, line),
+    pictureSuggestions: suggestPictures && <PictureSuggestions candidate={candidate} review={review} load={suggestPictures} />,
+    showCefr: setCefrAnchor,
+  }
+  // Пустые колонки видны, только пока в редакторе раскладки тянут блок: в них есть куда бросить.
+  const columns = layout ? shownColumns(layout, ctx, editing?.dragged != null) : null
 
   return (
     <div className={css.cardBlock}>
-      <article className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card} data-candidate-id={candidate.phrase_id}>
+      <article
+        className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card}
+        data-candidate-id={candidate.phrase_id}
+        style={{ '--card-cols': columns ? columnTracks(columns) : undefined } as CSSProperties}
+      >
         <header className={css.cardHead}>
           <div className={css.phraseRow}>
             <CardPhrase candidate={candidate} editor={phraseEditor} cloze={clozeEditor} />
@@ -125,87 +89,7 @@ export function PhraseCard({ candidate, review, suggestPictures }: PhraseCardPro
           {clozeEditor.active && <ClozePanel editor={clozeEditor} />}
         </header>
 
-        <div className={css.cardLeft}>
-          <p className={css.lemma}><b className={`${phrase.target} ${phrase.targetCurrent}`}>{candidate.lemma}</b></p>
-          {meaning?.translation && <p className={css.translation}>{meaning.translation}</p>}
-          {retold && <p className={css.retold}><RichText text={retold} candidate={candidate} /></p>}
-          {paragraphs.length === 0 && (
-            <div className={css.status}>
-              <StatusText status={meaning?.status} error={meaning?.error} labels={{ running: 'Generating...', queued: 'Queued', failed: 'Failed to generate' }} />
-              {action && (
-                <Button variant="accent-link" busy={review.busy.generating.has(candidate.phrase_id)} onClick={() => void review.generate(candidate.phrase_id)}>
-                  {action === 'retry' ? 'Retry' : 'Generate meaning'}
-                </Button>
-              )}
-            </div>
-          )}
-          <div className={css.visuals}>
-            <MediaThumb
-              screenshotUrl={media.screenshotUrl}
-              audioUrl={media.audioUrl}
-              status={isActive(candidate.media?.status) ? candidate.media?.status : undefined}
-              error={candidate.media?.error}
-              playing={player.playingUrl === media.audioUrl}
-              onToggle={player.toggle}
-              kbd={media.audioUrl === keyAudioUrl ? KEY_LABEL.audio : undefined}
-            />
-            {media.meaningImageUrl && <img className={css.meaningImage} src={media.meaningImageUrl} alt="" onError={e => { e.currentTarget.hidden = true }} />}
-          </div>
-          {suggestPictures && !media.meaningImageUrl && <PictureSuggestions candidate={candidate} review={review} load={suggestPictures} />}
-        </div>
-
-        <button type="button" className={css.detailsToggle} aria-expanded={detailsOpen} onClick={() => setDetailsOpen(open => !open)}>
-          Details<Icon as={detailsOpen ? ChevronUp : ChevronDown} size="s" />
-        </button>
-
-        <div className={detailsOpen ? css.cardRight : `${css.cardRight} ${css.collapsed}`}>
-          {(hasMeta || hasWordFacts) && (
-            <div className={css.meta}>
-              {meaning?.ipa && <Text mono>{meaning.ipa}</Text>}
-              {audioChip('US', usUrl, 'Play US pronunciation')}
-              {audioChip('UK', ukUrl, 'Play UK pronunciation')}
-              {!hasPronunciationAudio && (
-                <StatusText status={candidate.pronunciation?.status} error={candidate.pronunciation?.error} labels={{ running: 'Downloading...', queued: 'Queued', failed: 'Failed' }} />
-              )}
-              {audioChip('TTS', ttsUrl, 'Play TTS audio')}
-              {!ttsUrl && (
-                <StatusText status={candidate.tts?.status} error={candidate.tts?.error} labels={{ running: 'TTS...', queued: 'TTS queued', failed: 'TTS failed' }} />
-              )}
-              {hasWordFacts && (
-                <span className={css.wordFacts}>
-                  {candidate.is_phrasal_verb ? <span>phrasal verb</span> : candidate.cefr_level && (
-                    <span
-                      className={css.cefr}
-                      onMouseEnter={e => candidate.cefr_breakdown && setCefrAnchor(e.currentTarget)}
-                      onMouseLeave={() => setCefrAnchor(null)}
-                    >
-                      {candidate.is_sweet_spot && <Icon as={Target} size="s" />}
-                      {candidate.cefr_level}
-                    </span>
-                  )}
-                  {facts.map(fact => <span key={fact}>{fact}</span>)}
-                </span>
-              )}
-            </div>
-          )}
-          {meaning?.synonyms && <p className={css.synonyms}>{meaning.synonyms}</p>}
-          {definition && <p className={css.definition}><RichText text={definition} candidate={candidate} /></p>}
-          {more.map((paragraph, i) => isDivider(paragraph)
-            ? <hr key={i} className={phrase.divider} />
-            : <p key={i} className={css.context}><RichText text={paragraph} candidate={candidate} /></p>)}
-          {examples.length > 0 && (
-            <ul className={css.examples}>
-              {examples.map((line, i) => (
-                <li key={i} className={openExample === i ? `${css.example} ${css.exampleOpen}` : css.example} onClick={() => setOpenExample(i)}>
-                  <span><RichText text={line} candidate={candidate} /></span>
-                  <button type="button" className={css.useExample} onClick={() => void review.replaceWithExample(candidate.phrase_id, line.trim())}>
-                    Use as phrase
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {layout && columns && <CardBody view={layout} columns={columns} detailsOpen={detailsOpen} onToggleDetails={() => setDetailsOpen(open => !open)} />}
 
         <footer className={detailsOpen ? css.cardFoot : `${css.cardFoot} ${css.collapsed}`}>
           {/* Десктоп: решения — в нижней полосе карточки; на телефоне они в панели под карточкой. */}

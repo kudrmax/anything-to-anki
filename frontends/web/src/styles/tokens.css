@@ -75,7 +75,7 @@
   --thumb-h: 72px;
   --meaning-image-h: 180px;
   --image-option-ratio: 4 / 3;
-  --suggestion-cols: repeat(5, minmax(0, calc(var(--thumb-h) * 4 / 3)));
+  --suggestion-tile-w: calc(var(--thumb-h) * 4 / 3);   /* умножается на размер блока картинки */
   --field-area: 128px;
   --add-area: 96px;        /* поле карточки Add в колонке Sources */
   --add-plus: var(--icon-l);
@@ -155,12 +155,36 @@
   --usage-axis-trim: calc(var(--fs-xs) / -2);   /* подпись шкалы встаёт серединой на линию */
   --usage-table-cols: minmax(var(--usage-feature-w), 1fr) repeat(6, var(--usage-num-w)) var(--usage-share-w);
   --settings-panel-w: 720px;
+  --layout-column-min-h: calc(var(--h) * 3);   /* в пустую колонку есть куда бросить блок */
+  --layout-window-w: 340px;   /* плавающее окно редактора раскладки */
+  --layout-window-max-h: calc(100dvh - var(--s7) * 2);
+  --phone-frame-w: 375px;   /* телефон в редакторе раскладки: ширина и высота экрана iPhone */
+  --phone-frame-h: 812px;
   --section-leading-trim: calc((1 - var(--lh-tight)) * var(--fs-h1) / 2);
   --stats-cols: repeat(2, minmax(0, 1fr));
+  --layout-space-cols: repeat(2, minmax(0, 1fr));
   --dash-bw: 1.5px;
   --cloze-mark: 6px;   /* точка над скрытым словом вне target'а */
   --wide-lead: calc(var(--page-x) - var(--s4));   /* отступ карточки: вместе с полем строки даёт --page-x */
   --card-cols: minmax(0, 1fr) minmax(0, 1fr);
+  /* ширины колонок раскладки карточки — доли грида */
+  --card-col-narrow: 2fr;
+  --card-col-normal: 3fr;
+  --card-col-wide: 5fr;
+  --card-col-pt: var(--s5);       /* от линии над колонкой до первого блока */
+  --card-row-gap: var(--s4);
+  --paragraph-block-min-w: 240px;   /* уже — соседи абзаца уходят под него */
+  --block-space-s: var(--s3);   /* добавочные отступы блока раскладки */
+  --block-space-m: var(--s5);
+  --block-space-l: var(--s7);
+  --card-divider-my: calc(var(--card-col-pt) - var(--card-row-gap));   /* от линии раскладки до блоков столько же, сколько от линии над колонкой */
+  --card-left-divider-my: var(--card-divider-my);   /* левая колонка на телефоне разносит строки не зазором, а отступом сверху */
+  /* размеры картинок в раскладке карточки — множители миниатюры */
+  --thumb-scale: 1;
+  --thumb-scale-xs: .6;
+  --thumb-scale-s: .8;
+  --thumb-scale-l: 1.4;
+  --thumb-scale-xl: 2;
   --aside: 380px;
   --col-gap: 80px;
   --page-x: 44px;
@@ -203,9 +227,9 @@
   --card-cols-pb: var(--s5);         /* под колонками — линия нижней полосы, большой отступ не нужен */
   --card-left-display: flex;
   --card-left-item-mx: 0px;
-  --card-left-item-mt: 0;
+  --card-left-item-mt: 0px;
   --card-left-first-mt: 0px;
-  --card-right-pt: var(--s5);
+  --card-right-pt: var(--card-col-pt);
   --card-right-bw: var(--bw);
   --card-right-order: 0;
   --card-right-overflow: auto;
@@ -302,7 +326,7 @@
   --ls-tight: -.02em; --ls-caps: .07em; --ls-focus: -.012em;
 
   /* слои и прозрачность */
-  --z-menu: 20; --z-modal: 30; --z-toast: 40; --z-block: 50;
+  --z-menu: 20; --z-modal: 30; --z-toast: 40; --z-block: 50; --z-drag: 60; --z-editor: 55;
   --offscreen: -9999px;  /* картинка перетаскивания собирается вне экрана */
   --o-disabled: .5; --o-off: .45; --o-kbd: .6; --o-dim: .35; --o-visuals: .6;
   --shadow-pop: 0 14px 36px -12px color-mix(in srgb, black 60%, transparent);
@@ -382,6 +406,7 @@
     --card-left-display: contents;
     --card-left-item-mx: var(--card-pad);
     --card-left-item-mt: var(--s3);
+    --card-left-divider-my: calc(var(--card-col-pt) - var(--card-left-item-mt));
     --card-left-first-mt: var(--s5);
     --card-right-pt: var(--card-pad);
     --card-right-bw: 0px;

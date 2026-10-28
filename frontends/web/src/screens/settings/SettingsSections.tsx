@@ -7,6 +7,7 @@ import { autoPlayAudioPref, type ThemePref } from '@/lib/preferences'
 import { formatBytes, formatDay } from '@/lib/text/format'
 import { useTheme } from '@/lib/theme'
 import { Button, Chip, DividerRow, Empty, GroupLabel, Field, Icon, Label, Range, RemovableChip, Segmented, Select, Spinner, Stack, Switch, Text } from '@/ui'
+import { CARD_LAYOUT_PATH } from '@/screens/cardLayoutEditor/paths'
 import { unknownWordKey, type SettingsStore, type TemplatePart } from './useSettings'
 import css from './settings.module.css'
 
@@ -453,6 +454,16 @@ export function UnknownWords({ store }: { store: SettingsStore }) {
       empty="No unknown words yet. Mark them from a card: Report → More than one unknown word."
       deletingKey={store.deletingKey}
     />
+  )
+}
+
+/** Раскладку правят на самом экране ревью: раздел только открывает редактор. */
+export function CardLayout() {
+  const navigate = useNavigate()
+  return (
+    <DividerRow last label={<Text tone="muted">Arrange the review card on the review screen itself, with a sample card.</Text>}>
+      <Button onClick={() => navigate(CARD_LAYOUT_PATH)}>Open the editor</Button>
+    </DividerRow>
   )
 }
 
