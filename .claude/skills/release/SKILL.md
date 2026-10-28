@@ -9,6 +9,20 @@ Run only on Max's command. Publish without asking for approval of the text: Max 
 
 Run everything in the main checkout (`~/projects/anything-to-anki`), on master, as the git rules in the global CLAUDE.md require. Do not switch branches there.
 
+The GitHub repository is `kudrmax/anything-to-anki`:
+
+```bash
+GITHUB_REPO=kudrmax/anything-to-anki
+```
+
+Working files of the release (`entry.md`, `notes.md`) go to a folder of their own, never to the repository:
+
+```bash
+WORK=$(mktemp -d)
+```
+
+A published tag is never moved, deleted or re-tagged: copies may already be on it. To withdraw a broken release, publish a newer one that fixes it.
+
 ## 1. Preconditions
 
 ```bash
@@ -59,11 +73,20 @@ What it does for the user, in a few sentences.
 - Write for the user in plain language. Skip internal changes: refactoring, tests, migrations, docs.
 - Do not write empty sections.
 - Group commits by what the user sees, not one line per commit. Read the diff when a commit subject is unclear.
-- Insert the entry right after the intro of `CHANGELOG.md`, above older entries.
+- Insert the entry right after the intro of `CHANGELOG.md`, above older entries. Keep a copy of it, without changes, in `$WORK/entry.md` for the GitHub Release.
 
 ## 4. Screenshots
 
 Take them in the running **dev copy** in one pass for all features of the release: `http://localhost:<PORT>`, where `PORT` is in the dev copy's `.env`. Check that it is up; if not, tell Max (do not run `make up` yourself).
+
+The dev copy must serve the code you just pulled: it reads its version once, at start. Compare:
+
+```bash
+curl -s "http://localhost:$PORT/api/version"   # must equal the next line
+grep -m1 '^version' pyproject.toml
+```
+
+If they differ, ask Max to restart the dev copy and wait. Do not restart it yourself.
 
 - Use a headless browser (Playwright or similar). Never the browser pane Max is watching.
 - Every big feature and every notable item gets a screenshot.
@@ -80,8 +103,13 @@ window.__clearAnnotations()
 
 ## 5. Commit, tag, publish
 
+Bump `version` in the root `pyproject.toml` to X.Y.Z, then check that `CHANGELOG.md` parses and that its top entry is X.Y.Z. Do not tag until this passes:
+
 ```bash
-# bump `version` in the root pyproject.toml to X.Y.Z
+.venv/bin/python -m pytest backend/tests/unit/test_changelog_file.py
+```
+
+```bash
 git add pyproject.toml CHANGELOG.md docs/images/changelog/X.Y.Z
 git commit -m "chore: release vX.Y.Z"
 git tag vX.Y.Z
@@ -89,19 +117,27 @@ git push origin master
 git push origin vX.Y.Z
 ```
 
-If a push is rejected, stop and tell Max. Do not force.
+If a push is rejected, stop and tell Max. Do not force, and do not move the tag.
 
 Create the GitHub Release with the same text as the entry, without its `## X.Y.Z` heading. Rewrite image links to absolute ones:
 
 ```bash
-sed -E 's#\]\((docs/images/[^)]+)\)#](https://raw.githubusercontent.com/kudrmax/anything-to-anki/vX.Y.Z/\1)#g' entry.md > "$TMP/notes.md"
-gh release create vX.Y.Z --title X.Y.Z --notes-file "$TMP/notes.md"
+sed -E "s#\]\((docs/images/[^)]+)\)#](https://raw.githubusercontent.com/$GITHUB_REPO/vX.Y.Z/\1)#g" "$WORK/entry.md" > "$WORK/notes.md"
+gh release create vX.Y.Z --repo "$GITHUB_REPO" --title X.Y.Z --notes-file "$WORK/notes.md"
 ```
-
-Write the temporary files to the scratchpad directory, not to the repository.
 
 ## 6. Afterwards
 
-Tell Max the release URL (`gh release view vX.Y.Z --json url -q .url`).
+Tell Max the release URL (`gh release view vX.Y.Z --repo "$GITHUB_REPO" --json url -q .url`).
 
-Prod is not updated by merging or by this skill. It updates with the **Update** button in the app or with `make update` in the prod copy. If the prod copy is not on release tags yet (first release), switch it with `git checkout vX.Y.Z` there, nothing else.
+Prod is not updated by merging or by this skill. It updates with the **Update** button in the app or with `make update` in the prod copy.
+
+The first release is the exception: the prod copy predates `make update` and cannot run it. Switch it once, by hand, after Max agrees:
+
+```bash
+cd ~/projects/anything-to-anki-prod && git checkout vX.Y.Z && make down && make up
+```
+
+Every later release reaches prod through the button or `make update`.
+
+A change to `scripts/update.sh` takes effect one release later: a copy updates with the script it already has.

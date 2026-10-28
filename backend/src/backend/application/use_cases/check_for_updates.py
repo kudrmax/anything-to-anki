@@ -16,13 +16,16 @@ if TYPE_CHECKING:
     from backend.domain.services.changelog_parser import ChangelogParser
 
 UPDATE_CHECK_INTERVAL = timedelta(days=1)
+# Offline, every page load would wait on a fetch that fails; this spaces the attempts out.
+UPDATE_RETRY_INTERVAL = timedelta(hours=1)
 UPDATE_CHECKED_AT_KEY = "update_checked_at"
+UPDATE_RETRY_AT_KEY = "update_retry_at"
 UPDATE_LATEST_VERSION_KEY = "update_latest_version"
 
 
 class CheckForUpdatesUseCase:
-    """Tells whether a newer release exists. The releases are asked for at most once a day;
-    `force` asks again."""
+    """Tells whether a newer release exists. The releases are asked for at most once a day,
+    and a failed ask is tried again within the hour; `force` asks again."""
 
     def __init__(
         self,
@@ -43,7 +46,7 @@ class CheckForUpdatesUseCase:
     def execute(self, force: bool) -> UpdateStatusDTO:
         current = self._installed.version()
         fetch_failed = False
-        if not force and self._cache_is_fresh():
+        if not force and (self._cache_is_fresh() or self._retry_is_pending()):
             latest = self._cached_latest()
         else:
             fetched = self._source.latest()
@@ -61,13 +64,21 @@ class CheckForUpdatesUseCase:
         )
 
     def _cache_is_fresh(self) -> bool:
-        checked_at = self._settings_repo.get(UPDATE_CHECKED_AT_KEY)
-        if not checked_at:
-            return False
+        checked_at = self._stored_time(UPDATE_CHECKED_AT_KEY)
+        return checked_at is not None and self._clock.now() - checked_at < UPDATE_CHECK_INTERVAL
+
+    def _retry_is_pending(self) -> bool:
+        retry_at = self._stored_time(UPDATE_RETRY_AT_KEY)
+        return retry_at is not None and self._clock.now() < retry_at
+
+    def _stored_time(self, key: str) -> datetime | None:
+        stored = self._settings_repo.get(key)
+        if not stored:
+            return None
         try:
-            return self._clock.now() - datetime.fromisoformat(checked_at) < UPDATE_CHECK_INTERVAL
+            return datetime.fromisoformat(stored)
         except ValueError:
-            return False
+            return None
 
     def _cached_latest(self) -> AppVersion | None:
         stored = self._settings_repo.get(UPDATE_LATEST_VERSION_KEY)
@@ -82,9 +93,13 @@ class CheckForUpdatesUseCase:
         """Best-effort: a long operation refuses writes, and the answer is still good."""
         try:
             with self._unit_of_work.write():
-                self._settings_repo.set(UPDATE_CHECKED_AT_KEY, self._clock.now().isoformat())
-                if fetched is not None:
-                    self._settings_repo.set(UPDATE_LATEST_VERSION_KEY, str(fetched))
+                now = self._clock.now()
+                if fetched is None:
+                    retry_at = now + UPDATE_RETRY_INTERVAL
+                    self._settings_repo.set(UPDATE_RETRY_AT_KEY, retry_at.isoformat())
+                    return
+                self._settings_repo.set(UPDATE_CHECKED_AT_KEY, now.isoformat())
+                self._settings_repo.set(UPDATE_LATEST_VERSION_KEY, str(fetched))
         except LongOperationInProgressError:
             return
 

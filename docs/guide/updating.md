@@ -16,12 +16,12 @@ To look right now, open **Settings → Updates** and press **Check for updates**
 
 1. Click **Update available**. The window lists every version newer than yours, with what changed.
 2. Press **Update**.
-3. **Updating…** covers the app while it installs the release and restarts. Don't close the app.
+3. **Updating…** covers the app while it installs the release and restarts. Don't close the app. A page opened or reloaded while the update runs shows **Updating…** too.
 4. The page reloads and shows **What's new**. Close it and it won't appear again.
 
 ![The update window with the Update button](../images/updating/update-window.png)
 
-**Update** is refused while a long operation runs, such as a big import. Wait for it to finish and try again.
+While a long operation runs, such as a big import, pressing **Update** shows the long-operation window instead of updating. Wait for it to finish and press **Update** again.
 
 ## What's new and the changelog
 
@@ -31,9 +31,15 @@ To look right now, open **Settings → Updates** and press **Check for updates**
 
 ## If the update fails
 
-The window says **Update failed**, shows the last lines of the log and the command `make update` with a **Copy** button. Your copy is still on the old version and running. The full log is in `.logs/update.log`.
+The window says **Update failed**. It names the step that failed with its last lines of output, then the end of the update's log, and the command `make update` with a **Copy** button. Your copy is back on the old version and running. The full log is in `.logs/update.log`, and `make logs` shows it too.
 
 Run `make update` in the project folder to see what went wrong.
+
+### If the app does not come back
+
+While the update runs, the app's server is down, so the window can't tell a slow update from one that stopped. **Updating…** always shows a line for that case: if the app doesn't come back, run `make up` in the project folder (with a **Copy** button). The log is in `.logs/update.log`.
+
+The app stays stopped only when the way back itself failed. Then the end of `.logs/update.log` says what is left to do by hand: where the database from before the update is and the commands that finish the rollback.
 
 ## From the terminal
 
@@ -43,15 +49,17 @@ make update
 
 `make update` does what the button does:
 
-1. Refuses if you changed tracked files in the project folder. Commit or undo your changes first.
+1. Refuses if you changed tracked files in the project folder. Commit or undo your changes first. It also refuses in a git worktree: run it in the main checkout.
 2. Fetches the releases. If you already have the latest one, it prints "Already up to date" and changes nothing. This is also the case when you run the development version from `master`, which is never older than the last release.
-3. Stops the app, saves a copy of the database, switches to the latest release and installs its packages.
+3. Keeps a copy of the installed packages, stops the app, saves a copy of the database, switches to the latest release and installs its Python packages if they changed. The frontend packages are installed when the app starts.
 4. Rebuilds the macOS app if you built it and it changed.
 5. Starts the app. The database is migrated on start.
 
 ## Rollback
 
-After `make update` the copy is either on the new version and running, or on the old version and running. If a step fails, the command restores the database copy and the previous version, starts the app again and exits with an error. If it can't be sure the way back is safe, it leaves the app stopped and says what to do.
+After `make update` the copy is on the new version and running, or on the old version and running. If a step fails, the command puts back the previous version, its packages and the database copy, starts the app again and exits with an error. The way back needs no network: the packages come from the copy kept before the update.
+
+One case leaves the app stopped: a step of the way back itself fails, for example the database copy can't be restored. Starting the old version on a database it may not know would be worse, so the command stops and prints where the database copy and the kept packages are and the commands that finish the job.
 
 ## macOS app
 

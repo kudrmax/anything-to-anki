@@ -85,6 +85,10 @@ Write in English, in short sentences. Name buttons and labels exactly as the app
 
 Specs, plans and other working notes go to `internal/`, not to `docs/`.
 
+## Releases and `make update`
+
+A copy updates by running its own `scripts/update.sh`, the one it has before the update. A change to `scripts/update.sh` therefore takes effect one release later: the release that brings it is still installed by the old script. `make update` refuses to run in a worktree; test it in a separate clone.
+
 ## Worktrees
 
 You can work on several branches at once with git worktrees. `make up-worktree` starts a worktree on its own ports (`WORKTREE_PORT`, `WORKTREE_AI_PROXY_PORT` in `.env`, by default 17840 and 8770) with its own `./data`. Only one worktree runs at a time: starting another stops the previous one. `make down-worktree` stops it, and `make logs-worktree` shows its logs.

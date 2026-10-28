@@ -8,6 +8,8 @@ from backend.application.use_cases.check_for_updates import (
     UPDATE_CHECK_INTERVAL,
     UPDATE_CHECKED_AT_KEY,
     UPDATE_LATEST_VERSION_KEY,
+    UPDATE_RETRY_AT_KEY,
+    UPDATE_RETRY_INTERVAL,
     CheckForUpdatesUseCase,
 )
 from backend.domain.services.changelog_parser import ChangelogParser
@@ -140,3 +142,52 @@ def test_check_during_a_long_operation_answers_without_persisting() -> None:
 
     assert (status.latest, status.available) == ("1.2.0", True)
     assert settings.values == {}
+
+
+@pytest.mark.unit
+def test_failed_check_does_not_count_as_a_check() -> None:
+    settings = InMemorySettingsRepository()
+    old_check = (NOW - timedelta(days=2)).isoformat()
+    settings.set(UPDATE_CHECKED_AT_KEY, old_check)
+
+    _use_case(FakeReleaseSource(None), settings).execute(force=False)
+
+    assert settings.get(UPDATE_CHECKED_AT_KEY) == old_check
+    assert settings.get(UPDATE_RETRY_AT_KEY) == (NOW + UPDATE_RETRY_INTERVAL).isoformat()
+
+
+@pytest.mark.unit
+def test_after_a_failed_check_the_cache_answers_until_the_retry_time() -> None:
+    settings = InMemorySettingsRepository()
+    settings.set(UPDATE_LATEST_VERSION_KEY, "1.1.0")
+    settings.set(UPDATE_RETRY_AT_KEY, (NOW + timedelta(minutes=1)).isoformat())
+    source = FakeReleaseSource("1.2.0", REMOTE_CHANGELOG)
+
+    status = _use_case(source, settings).execute(force=False)
+
+    assert source.latest_calls == 0
+    assert status.latest == "1.1.0"
+
+
+@pytest.mark.unit
+def test_a_real_update_shows_up_at_the_retry_after_a_failed_check() -> None:
+    settings = InMemorySettingsRepository()
+    _use_case(FakeReleaseSource(None), settings).execute(force=False)
+    source = FakeReleaseSource("1.2.0", REMOTE_CHANGELOG)
+    later = FixedClock(NOW + UPDATE_RETRY_INTERVAL)
+
+    status = _use_case(source, settings, clock=later).execute(force=False)
+
+    assert source.latest_calls == 1
+    assert (status.latest, status.available) == ("1.2.0", True)
+
+
+@pytest.mark.unit
+def test_forced_check_ignores_the_retry_time() -> None:
+    settings = InMemorySettingsRepository()
+    settings.set(UPDATE_RETRY_AT_KEY, (NOW + timedelta(minutes=30)).isoformat())
+    source = FakeReleaseSource("1.2.0", REMOTE_CHANGELOG)
+
+    _use_case(source, settings).execute(force=True)
+
+    assert source.latest_calls == 1

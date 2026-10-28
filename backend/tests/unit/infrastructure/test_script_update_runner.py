@@ -10,6 +10,7 @@ import pytest
 from backend.domain.exceptions import UpdateAlreadyRunningError
 from backend.domain.value_objects.update_progress import UpdateState
 from backend.infrastructure.adapters.release.script_update_runner import (
+    ERROR_FILE,
     LOG_FILE,
     LOG_TAIL_LINES,
     SCRIPT_LOCK_FD,
@@ -99,6 +100,39 @@ def test_failed_state_carries_the_end_of_the_log(tmp_path: Path) -> None:
     assert progress.state is UpdateState.FAILED
     assert len(lines) == LOG_TAIL_LINES
     assert lines[-1] == "line 99"
+
+
+@pytest.mark.unit
+def test_failed_state_starts_with_the_cause_and_shows_only_the_last_run(tmp_path: Path) -> None:
+    (tmp_path / ".pids").mkdir()
+    (tmp_path / ".logs").mkdir()
+    (tmp_path / STATE_FILE).write_text("failed")
+    (tmp_path / ERROR_FILE).write_text("Failed step: make up\n\x1b[31mnpm ERR! network\x1b[0m\n")
+    (tmp_path / LOG_FILE).write_text(
+        "=== make update 2026-10-01T00:00:00Z ===\nold run\n"
+        "=== make update 2026-10-02T00:00:00Z ===\nUpdating to v1.1.0...\n"
+        "\x1b[1;33mRolled back to v1.0.0 and started.\x1b[0m\n",
+    )
+
+    report = ScriptUpdateRunner(tmp_path).state().log_tail
+
+    assert report == (
+        "Failed step: make up\nnpm ERR! network\n\n"
+        "=== make update 2026-10-02T00:00:00Z ===\nUpdating to v1.1.0...\n"
+        "Rolled back to v1.0.0 and started."
+    )
+
+
+@pytest.mark.unit
+def test_start_clears_the_cause_of_the_previous_failure(tmp_path: Path) -> None:
+    (tmp_path / ".pids").mkdir()
+    (tmp_path / ERROR_FILE).write_text("Failed step: make up")
+    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", "pass"])
+
+    runner.start()
+
+    _wait_for_state(runner, UpdateState.FAILED)
+    assert "make up" not in runner.state().log_tail
 
 
 @pytest.mark.unit

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import fcntl
 import os
+import re
 import subprocess
 import threading
 from typing import TYPE_CHECKING
@@ -19,8 +20,14 @@ STATE_FILE = ".pids/update.state"
 PID_FILE = ".pids/update.pid"
 START_LOCK_FILE = ".pids/update.lock"
 SCRIPT_LOCK_FILE = ".pids/update.script.lock"
+ERROR_FILE = ".pids/update.error"
 LOG_FILE = ".logs/update.log"
+# Enough of the run's end to see the rollback, short enough for the app's popup.
 LOG_TAIL_LINES = 40
+# update.sh starts every run's log with this.
+RUN_HEADER = "=== make update"
+# Colours and cursor moves of make and npm output, which a browser shows as garbage.
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 # update.sh keeps the lock it finds open on this descriptor instead of taking its own.
 SCRIPT_LOCK_FD = 9
 
@@ -62,11 +69,12 @@ class ScriptUpdateRunner(UpdateRunner):
             self._write_state(UpdateState.FAILED)
             state = UpdateState.FAILED
         if state is UpdateState.FAILED:
-            return UpdateProgress(state, self._log_tail())
+            return UpdateProgress(state, self._failure_report())
         return UpdateProgress(state)
 
     def _spawn(self, script_lock: int) -> None:
         self._write_state(UpdateState.RUNNING)
+        (self._project_dir / ERROR_FILE).write_text("", encoding="utf-8")
         try:
             process = subprocess.Popen(  # noqa: S603 — a fixed command, no user input
                 self._handing_over(script_lock),
@@ -115,9 +123,20 @@ class ScriptUpdateRunner(UpdateRunner):
     def _write_state(self, state: UpdateState) -> None:
         (self._project_dir / STATE_FILE).write_text(state.value, encoding="utf-8")
 
-    def _log_tail(self) -> str:
+    def _failure_report(self) -> str:
+        """What broke as the script summed it up, then the end of this run's log."""
+        parts = [part for part in (self._read(ERROR_FILE).strip(), self._run_tail()) if part]
+        return ANSI_ESCAPE.sub("", "\n\n".join(parts))
+
+    def _run_tail(self) -> str:
+        lines = self._read(LOG_FILE).splitlines()
+        starts = [index for index, line in enumerate(lines) if line.startswith(RUN_HEADER)]
+        run = lines[starts[-1]:] if starts else lines
+        return "\n".join(run[-LOG_TAIL_LINES:])
+
+    def _read(self, relative_path: str) -> str:
         try:
-            text = (self._project_dir / LOG_FILE).read_text(encoding="utf-8", errors="replace")
+            path = self._project_dir / relative_path
+            return path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return ""
-        return "\n".join(text.splitlines()[-LOG_TAIL_LINES:])
