@@ -20,7 +20,7 @@
 .panelHint { margin-top: calc(-1 * var(--s3)); font-size: var(--fs-s); line-height: var(--lh); color: var(--tx3); }
 .option { display: flex; flex-direction: column; gap: var(--s2); }
 .optionLabel { font-size: var(--fs-xs); color: var(--tx3); }
-.spaceGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
+.spaceGrid { display: grid; grid-template-columns: var(--layout-space-cols); gap: var(--s3); }
 .panelActions { display: flex; gap: var(--s3); }
 
 /* скрытые блоки: сюда бросают, чтобы спрятать; отсюда тянут обратно и новую линию */

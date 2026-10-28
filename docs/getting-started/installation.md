@@ -135,12 +135,7 @@ make app
 
 ## Updating
 
-```bash
-git pull
-make down
-make setup
-make up
-```
+The app tells you when a new release is out: **Update available** appears in the header. Click it, read what is new and press **Update**. You can also run `make update` in the project folder. See [Updating](../guide/updating.md).
 
 The database is migrated automatically on start. A backup is saved to `data/backups/` before each migration.
 

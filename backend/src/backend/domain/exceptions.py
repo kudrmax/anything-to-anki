@@ -536,3 +536,10 @@ class UncommittedWorkError(DomainError):
 
 class CardLayoutEditError(DomainError):
     """Raised when an edit of the card layout points outside it or would break it."""
+
+
+class UpdateAlreadyRunningError(DomainError):
+    """Raised when an update is started while the previous one still runs."""
+
+    def __init__(self) -> None:
+        super().__init__("An update is already running")

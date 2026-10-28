@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Target, Volume2 } from 'lucide-react'
 import type { CardElement, EnrichmentStatus, StoredCandidate } from '@/api/types'
 import { KEY_LABEL } from '@/lib/hotkeys'
-import { FREQ_BAND_LABEL, isDivider, mediaUrl, nonEmptyLines, primaryUsageGroup } from '@/lib/text/meaning'
+import { FREQ_BAND_LABEL, isDivider, mediaUrl, nonEmptyLines } from '@/lib/text/meaning'
 import { Button, Chip, Icon, Kbd, MediaThumb } from '@/ui'
 import type { CardBlockContext } from './CardBlockContext'
 import { Examples, RichText, StatusText } from './CardTexts'
@@ -37,7 +37,7 @@ function audioChip(ctx: CardBlockContext, label: string, url: string | null, tit
 }
 
 function wordFacts({ candidate, showCefr }: CardBlockContext): ReactNode {
-  const usage = primaryUsageGroup(candidate.usage_distribution)
+  const usage = candidate.usage_group
   const frequency = candidate.frequency_band ? FREQ_BAND_LABEL[candidate.frequency_band]?.toLowerCase() : null
   const facts = [frequency, usage].filter((fact): fact is string => Boolean(fact))
   if (!candidate.is_phrasal_verb && !candidate.cefr_level && facts.length === 0) return null

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Page, PageHeader } from '@/shell'
 import { Button, Empty, Spinner, Text } from '@/ui'
 import { AiModel, Anki, Appearance, Books, CardLayout, KnownWords, LearningWordsList, MediaStorage, Pictures, ReviewPrefs, Tts, UnknownWords, Vocabulary } from './SettingsSections'
+import { Updates } from './UpdatesSection'
 import { useSettings } from './useSettings'
 import css from './settings.module.css'
 
@@ -44,6 +45,7 @@ export function SettingsScreen() {
     { id: 'learning', title: 'Learning', content: <LearningWordsList store={store} />, count: store.learningWords.in_anki.length + store.learningWords.awaiting_export.length },
     { id: 'unknown-words', title: 'Unknown words', content: <UnknownWords store={store} />, count: store.unknownWords.length },
     { id: 'media-storage', title: 'Media storage', content: <MediaStorage store={store} /> },
+    { id: 'updates', title: 'Updates', content: <Updates /> },
   ]
   const active = sections.find(section => section.id === params.get(SECTION_PARAM)) ?? sections[0]
   const open = (id: string) => setParams({ [SECTION_PARAM]: id }, { replace: true })

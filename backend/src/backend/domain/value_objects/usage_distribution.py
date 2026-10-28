@@ -29,6 +29,11 @@ class UsageDistribution:
                 return group
         return _NEUTRAL
 
+    def label(self, order: list[str]) -> str | None:
+        """The group a card names: the primary one, none when it is neutral."""
+        group = self.primary_group(order)
+        return None if group == _NEUTRAL else group
+
     def rank(self, order: list[str]) -> int:
         """Return the sort rank (index in order) of the primary group.
 

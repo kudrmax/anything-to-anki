@@ -105,7 +105,7 @@ function card(sample: SampleCard): StoredCandidate {
     tts: sample.tts ? { audio_path: audio(sample.id, 'tts'), status: 'done', error: null, generated_at: DONE_AT } : null,
     audio_path: sample.video ? audio(sample.id, 'clip') : sample.tts ? audio(sample.id, 'tts') : null,
     frequency_band: sample.band,
-    usage_distribution: null,
+    usage_group: null,
     origin: null,
     cloze: null,
     can_edit_cloze: true,

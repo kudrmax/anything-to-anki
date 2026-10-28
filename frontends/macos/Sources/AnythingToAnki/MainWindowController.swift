@@ -8,10 +8,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     var onRetry: (() -> Void)?
     var onClose: (() -> Void)?
+    var onPageLoaded: (() -> Void)?
+    var onRestart: (() -> Void)?
 
     private let webController: WebViewController
     private let statusController = StatusViewController()
     private let backgroundStore = PageBackgroundStore()
+    private var restartBanner: RestartBanner?
     private var status: LaunchStatus?
     private var backgroundObservation: NSKeyValueObservation?
 
@@ -34,6 +37,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.delegate = self
 
         statusController.onRetry = { [weak self] in self?.onRetry?() }
+        webController.onPageLoaded = { [weak self] in self?.onPageLoaded?() }
         webController.onLoadFailed = { [weak self] message in
             self?.showStatus(.failed(message: "The page could not be loaded", details: message))
         }
@@ -82,6 +86,20 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     func openSettings() {
         guard status == nil else { return }
         webController.openSettings()
+    }
+
+    /// The page's own Check for updates; the status screen has none.
+    func checkForUpdates() {
+        guard status == nil else { return }
+        webController.checkForUpdates()
+    }
+
+    func showRestartBanner() {
+        guard let window, restartBanner == nil else { return }
+        let banner = RestartBanner()
+        banner.onRestart = { [weak self] in self?.onRestart?() }
+        window.addTitlebarAccessoryViewController(banner)
+        restartBanner = banner
     }
 
     private func setContent(_ controller: NSViewController) {

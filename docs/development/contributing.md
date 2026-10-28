@@ -75,6 +75,7 @@ The documentation in `docs/` is part of the product. **A change that adds, remov
 | Queue or Usage | [guide/queue-and-usage.md](../guide/queue-and-usage.md) |
 | A setting | [guide/settings.md](../guide/settings.md) |
 | The macOS app | [guide/macos-app.md](../guide/macos-app.md) |
+| Updates, releases, `make update` | [guide/updating.md](../guide/updating.md) |
 | Installation, `make` targets, `.env`, environment variables | [getting-started/installation.md](../getting-started/installation.md), [reference/commands.md](../reference/commands.md), [reference/configuration.md](../reference/configuration.md) |
 | Dictionary format | [reference/dictionaries.md](../reference/dictionaries.md) |
 | An error message | [reference/troubleshooting.md](../reference/troubleshooting.md) |
@@ -83,6 +84,10 @@ The documentation in `docs/` is part of the product. **A change that adds, remov
 Write in English, in short sentences. Name buttons and labels exactly as the app shows them, in **bold**. Screenshots are in `docs/images/`; retake the ones your change makes outdated.
 
 Specs, plans and other working notes go to `internal/`, not to `docs/`.
+
+## Releases and `make update`
+
+A copy updates by running its own `scripts/update.sh`, the one it has before the update. A change to `scripts/update.sh` therefore takes effect one release later: the release that brings it is still installed by the old script. `make update` refuses to run in a worktree; test it in a separate clone.
 
 ## Worktrees
 

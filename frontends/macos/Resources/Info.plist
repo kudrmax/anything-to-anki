@@ -59,6 +59,8 @@
     <string></string>
     <key>A2APort</key>
     <string></string>
+    <key>A2AMacosTree</key>
+    <string></string>
     <key>A2AMenuBarIcon</key>
     <false/>
 </dict>

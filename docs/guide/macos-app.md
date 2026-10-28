@@ -44,6 +44,12 @@ Quick Add saves a phrase you meet anywhere: in Safari, in a book, in a PDF.
 
 The phrase goes to the built-in **Saved phrases** source, and the word is marked **Learn**.
 
+## Updates
+
+The app menu has **Check for Updates…** right after **Settings…**. It does the same as **Check for updates** in Settings: it opens the update window if a new release is out.
+
+After an update, the app on disk may be newer than the window you have open. A quiet note in the title bar then says **Restart to finish the update**. Press **Restart**: the new app opens and the old window closes. The servers keep running during the restart, and the new window takes over looking after them, so quitting it later stops them as usual. See [Updating](updating.md).
+
 ## Other features
 
 - **Settings** with `⌘,`, also in the app menu.

@@ -368,7 +368,8 @@ export interface StoredCandidate {
   audio_path: string | null
   cefr_breakdown?: CEFRBreakdown | null
   frequency_band: string | null
-  usage_distribution: Record<string, number> | null
+  /** Usage-группа, которую называет карточка; по ней же идёт сортировка. Выбирает backend. */
+  usage_group: string | null
   origin: PhraseOrigin | null
   /** Разметка cloze; есть только у фраз на изучение. */
   cloze: CandidateCloze | null
@@ -1107,3 +1108,45 @@ export type CardLayoutEdit =
   | { kind: 'remove_column'; column: number }
   | { kind: 'resize_column'; column: number; width: ColumnWidth }
   | { kind: 'reset' }
+
+/** Раздел записи changelog: заголовок и тело, уже отрисованное сервером в HTML. */
+export interface ChangelogSection {
+  title: string
+  html: string
+}
+
+export interface ChangelogEntry {
+  version: string
+  /** День выхода версии, `YYYY-MM-DD`. */
+  released_on: string
+  summary: string
+  sections: ChangelogSection[]
+}
+
+/** Что копия знает о новых релизах; `entries` — изменения, которые принесёт обновление. */
+export interface UpdateStatus {
+  current: string
+  latest: string | null
+  available: boolean
+  entries: ChangelogEntry[]
+  /** Явная проверка не достучалась до релизов. */
+  check_failed: boolean
+}
+
+export type UpdateRunState = 'idle' | 'running' | 'failed' | 'done'
+
+export type UpdateStepStatus = 'done' | 'current' | 'pending' | 'failed'
+
+/** Этап обновления, как его видит пользователь: «Installing v1.2.0». */
+export interface UpdateStep {
+  title: string
+  status: UpdateStepStatus
+}
+
+export interface UpdateRunProgress {
+  state: UpdateRunState
+  /** Конец лога обновления, когда оно упало. */
+  log_tail: string
+  /** Этапы по порядку; пусто, когда неизвестны. */
+  steps: UpdateStep[]
+}

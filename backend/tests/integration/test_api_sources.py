@@ -250,7 +250,7 @@ class TestSourcesAPI:
             zipf_frequency=3.8,
             is_sweet_spot=True,
             occurrences=1,
-            usage_distribution_json=json.dumps({"informal": 0.8, "neutral": 0.2}),
+            usage_distribution_json=json.dumps({"formal": 0.8, "informal": 0.2}),
         )
         db_session.add(candidate)
         db_session.flush()
@@ -269,7 +269,7 @@ class TestSourcesAPI:
 
         c = candidates[0]
         assert c["frequency_band"] == "MID"
-        assert c["usage_distribution"] == {"informal": 0.8, "neutral": 0.2}
+        assert c["usage_group"] == "informal"
 
 
 @pytest.mark.integration

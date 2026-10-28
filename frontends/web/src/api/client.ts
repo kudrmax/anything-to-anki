@@ -59,6 +59,9 @@ import type {
   NoteTypeKind,
   UnknownWord,
   LongOperationStatus,
+  ChangelogEntry,
+  UpdateStatus,
+  UpdateRunProgress,
 } from './types'
 import { buildHeaders, reloadIfStale } from './clientBuild'
 import { ApiError, REVIEW_EXPIRED_STATUS, ReviewExpiredError } from './errors'
@@ -419,6 +422,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ source_ids: sourceIds }),
     }),
+
+  getVersion: () => req<{ version: string }>('/api/version'),
+
+  getUpdates: (force: boolean) => req<UpdateStatus>(`/api/updates?${new URLSearchParams({ force: String(force) })}`),
+
+  startUpdate: () => reqVoid('/api/update', { method: 'POST' }),
+
+  getUpdateState: () => req<UpdateRunProgress>('/api/update/state'),
+
+  getChangelog: () => req<ChangelogEntry[]>('/api/changelog'),
+
+  getUnseenChangelog: () => req<ChangelogEntry[]>('/api/changelog/unseen'),
+
+  markChangelogSeen: () => reqVoid('/api/changelog/seen', { method: 'POST' }),
 
   getBootstrapStatus: () => req<BootstrapStatus>('/api/bootstrap/status'),
 

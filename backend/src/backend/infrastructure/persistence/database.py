@@ -24,6 +24,7 @@ class Base(DeclarativeBase):
 
 
 SQLITE_FILE_URL_PREFIX = "sqlite:///"
+DB_FILE_NAME = "app.db"
 SQLITE_IN_MEMORY_PATH = ":memory:"
 SQLITE_BUSY_TIMEOUT_MS = 30_000
 MS_PER_SECOND = 1000
@@ -36,9 +37,13 @@ SQLITE_SYNCHRONOUS = "NORMAL"
 SQLITE_CACHE_SIZE_KIB = -200_000
 
 
-def default_db_url() -> str:
+def default_db_path() -> str:
     data_dir = os.path.abspath(os.getenv("DATA_DIR", "./data"))
-    return f"sqlite:///{data_dir}/app.db"
+    return os.path.join(data_dir, DB_FILE_NAME)
+
+
+def default_db_url() -> str:
+    return f"{SQLITE_FILE_URL_PREFIX}{default_db_path()}"
 
 
 def _sqlite_file(db_url: str) -> str | None:

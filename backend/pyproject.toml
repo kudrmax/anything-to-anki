@@ -19,6 +19,8 @@ dependencies = [
     # WebP-кодирование скриншотов. Внутри колеса едет своя libwebp, поэтому
     # результат не зависит от того, с какими кодеками собран системный ffmpeg.
     "pillow>=11.0",
+    # Текст записей CHANGELOG.md в HTML для экрана «Что нового».
+    "markdown-it-py>=4.2.0",
 ]
 
 [project.optional-dependencies]
