@@ -2,6 +2,13 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.3.1 — 2026-10-29
+
+Loading indicators move again.
+
+### No longer broken
+- Loading circles spin again everywhere in the app: while updating, generating cards, adding a source, loading a page. Before, they stood still, so it looked like nothing was happening.
+
 ## 1.3.0 — 2026-10-29
 
 The macOS app window loses its separate title bar.
