@@ -96,6 +96,33 @@ def test_the_script_gets_the_lock_already_taken(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
+def test_the_script_holds_the_lock_on_its_descriptor_only(tmp_path: Path) -> None:
+    """The script closes only that descriptor for the servers it starts: a copy of the lock
+    on any other one would outlive the update in them and refuse every next start."""
+    marker = tmp_path / "lock-descriptors"
+    code = (
+        "import os, time\n"
+        f"lock = os.stat({str(tmp_path / SCRIPT_LOCK_FILE)!r})\n"
+        "held = []\n"
+        "for fd in range(256):\n"
+        "    try:\n"
+        "        info = os.fstat(fd)\n"
+        "    except OSError:\n"
+        "        continue\n"
+        "    if (info.st_dev, info.st_ino) == (lock.st_dev, lock.st_ino):\n"
+        "        held.append(fd)\n"
+        f"open({str(marker)!r}, 'w').write('fds ' + ' '.join(map(str, held)) + '.')\n"
+        "time.sleep(2)\n"
+    )
+    runner = ScriptUpdateRunner(tmp_path, [sys.executable, "-c", code])
+
+    runner.start()
+
+    _wait_for(marker, ".")
+    assert marker.read_text() == f"fds {SCRIPT_LOCK_FD}."
+
+
+@pytest.mark.unit
 def test_failed_state_carries_the_end_of_the_log(tmp_path: Path) -> None:
     (tmp_path / ".pids").mkdir()
     (tmp_path / ".logs").mkdir()

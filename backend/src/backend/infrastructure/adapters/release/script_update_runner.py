@@ -117,11 +117,14 @@ class ScriptUpdateRunner(UpdateRunner):
         threading.Thread(target=process.wait, daemon=True).start()
 
     def _handing_over(self, script_lock: int) -> list[str]:
-        """The command run with the lock moved to the descriptor the script looks at."""
+        """The command run with the lock moved to the descriptor the script looks at.
+
+        The move is an `exec` of its own: macOS /bin/sh, given `exec cmd 9>&N`, keeps a
+        copy of the lock on descriptor 10 in the command, which the script never closes."""
         moves = "" if script_lock == SCRIPT_LOCK_FD else (
-            f" {SCRIPT_LOCK_FD}>&{script_lock} {script_lock}>&-"
+            f"exec {SCRIPT_LOCK_FD}>&{script_lock} {script_lock}>&-; "
         )
-        return ["/bin/sh", "-c", f'exec "$@"{moves}', "update", *self._command]
+        return ["/bin/sh", "-c", f'{moves}exec "$@"', "update", *self._command]
 
     def _script_lock_held(self) -> bool:
         try:
