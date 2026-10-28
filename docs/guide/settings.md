@@ -38,6 +38,7 @@ Changing the level or the frequent-words threshold re-analyses every source. See
 |---|---|---|
 | **Auto-play audio** | On | Plays the card's audio when it opens. Stored in the browser |
 | **Default cloze hint** | No hint | The hint preselected when you make a [cloze card](review.md#cloze-cards) |
+| **Generate next** | 100 | How many cards **Generate next** in the ✨ menu takes, from the top of the list. See [Generate](review.md#generating-card-content) |
 
 ## Card layout
 

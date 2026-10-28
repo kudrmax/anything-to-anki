@@ -268,12 +268,23 @@ export function ReviewPrefs({ store, form }: SectionProps) {
       <DividerRow label="Auto-play audio" hint="Play the card's audio when it opens (if available).">
         <Switch checked={autoPlay} onChange={toggle} label="Auto-play audio" />
       </DividerRow>
-      <DividerRow last label="Default cloze hint" hint="Preselected when you mark a phrase as Cloze. You can change it on any card.">
+      <DividerRow label="Default cloze hint" hint="Preselected when you mark a phrase as Cloze. You can change it on any card.">
         <Segmented
           value={form.cloze_default_hint}
           options={CLOZE_DEFAULT_HINT_OPTIONS}
           onChange={hint => store.setField('cloze_default_hint', hint)}
         />
+      </DividerRow>
+      <DividerRow last label="Generate next" hint="How many cards «Generate next» in the ✨ menu takes, from the top of the list.">
+        <div className={css.number}>
+          <Field
+            type="number"
+            min={1}
+            step={1}
+            value={Number.isNaN(form.generation_batch_size) ? '' : form.generation_batch_size}
+            onChange={e => store.setField('generation_batch_size', e.target.valueAsNumber)}
+          />
+        </div>
       </DividerRow>
     </>
   )

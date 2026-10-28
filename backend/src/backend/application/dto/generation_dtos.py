@@ -14,7 +14,8 @@ class GenerationKindStatusDTO(BaseModel):
     """How far one kind of generation got over the source's cards.
 
     `done + running + failed + missing == total`;
-    `missing`, `ready_missing`, `ready_all`, `all` count the cards each scope would take;
+    `next`, `missing`, `ready_next`, `ready_missing`, `ready_all`, `all` count the cards
+    each scope would take;
     `failed` counts the cards of the failed scope.
     """
 
@@ -23,7 +24,9 @@ class GenerationKindStatusDTO(BaseModel):
     done: int
     running: int
     failed: int
+    next: int
     missing: int
+    ready_next: int
     ready_missing: int
     ready_all: int
     all: int
@@ -35,3 +38,5 @@ class GenerationKindStatusDTO(BaseModel):
 class GenerationStatusDTO(BaseModel):
     kinds: list[GenerationKindStatusDTO]
     in_progress: bool
+    # How many cards the scopes that take a batch take at most.
+    batch_size: int

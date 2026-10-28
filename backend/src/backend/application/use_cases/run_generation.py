@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from backend.application.constants import GENERATION_RUN_CHUNK
+from backend.application.utils.generation_batch import generation_batch_size
 from backend.application.utils.generation_targets import CardJobs, ReadyCards, target_for
 from backend.application.utils.source_free import ensure_source_free
 from backend.domain.exceptions import (
@@ -11,7 +12,7 @@ from backend.domain.exceptions import (
     GenerationNotSupportedError,
     SourceOperationBusyError,
 )
-from backend.domain.services.generation_scope import in_scope, replaces_results
+from backend.domain.services.generation_scope import in_scope, replaces_results, takes_batch
 from backend.domain.value_objects.candidate_sort_order import CandidateSortOrder
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.review_card import ReviewCard
@@ -31,6 +32,7 @@ if TYPE_CHECKING:
     from backend.domain.exceptions import DomainError
     from backend.domain.ports.generation_stops import GenerationStops
     from backend.domain.ports.job_repository import JobRepository
+    from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.source_operation_lock import SourceOperationLock
     from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.value_objects.generation_kind import GenerationKind
@@ -58,6 +60,7 @@ class RunGenerationUseCase:
         lock: SourceOperationLock,
         unit_of_work: UnitOfWork,
         stops: GenerationStops,
+        settings_repo: SettingsRepository,
     ) -> None:
         self._unit_of_work = unit_of_work
         self._scope_resolver = scope_resolver
@@ -67,6 +70,7 @@ class RunGenerationUseCase:
         self._targets = targets
         self._lock = lock
         self._stops = stops
+        self._settings_repo = settings_repo
 
     def execute(
         self,
@@ -121,7 +125,8 @@ class RunGenerationUseCase:
         cards: GenerationScope,
         sort_order: CandidateSortOrder,
     ) -> tuple[list[Job], int]:
-        """The jobs of the run in the order chosen, and how many sources sit it out."""
+        """The jobs of the run in the order chosen, and how many sources sit it out. A scope
+        that takes a batch takes the first cards of that order."""
         sources = self._scope_resolver.reviewable_sources(scope)
         chosen: list[tuple[GenerationTarget, GenerationCard]] = []
         skipped: list[DomainError] = []
@@ -137,6 +142,8 @@ class RunGenerationUseCase:
         ordered = self._in_order(
             [card for _, card in chosen], sort_order, [s.id for s in sources if s.id is not None],
         )
+        if takes_batch(cards):
+            ordered = ordered[:generation_batch_size(self._settings_repo)]
         return [target_of[c.phrase_id].job(c) for c in ordered], len(skipped)
 
     def _chosen(

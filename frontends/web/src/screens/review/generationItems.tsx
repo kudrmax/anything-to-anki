@@ -1,4 +1,4 @@
-import { Download, Plus, RefreshCw, RotateCcw, X } from 'lucide-react'
+import { Download, ListStart, Plus, RefreshCw, RotateCcw, X } from 'lucide-react'
 import type { GenerationKind, GenerationKindStatus, GenerationScope } from '@/api/types'
 import { Spinner, StatusDot, type MenuItem } from '@/ui'
 import type { Review } from './useReview'
@@ -36,7 +36,7 @@ function videoItems(status: GenerationKindStatus, review: Review): MenuItem[] {
   ]
 }
 
-function kindItems(status: GenerationKindStatus, review: Review): MenuItem[] {
+function kindItems(status: GenerationKindStatus, batchSize: number, review: Review): MenuItem[] {
   const { run, cancel } = review.generationActions
   const blocked = status.blocked_by !== null
   const runItem = (
@@ -49,6 +49,11 @@ function kindItems(status: GenerationKindStatus, review: Review): MenuItem[] {
   })
   return [
     ...videoItems(status, review),
+    runItem('ready_next', status.ready_next, {
+      label: `Ready: generate next ${batchSize}`,
+      hint: 'From the top of the list',
+      icon: ListStart,
+    }),
     runItem('ready_missing', status.ready_missing, {
       label: 'Ready: generate missing',
       hint: 'Ready phrases that don’t have it yet',
@@ -59,11 +64,16 @@ function kindItems(status: GenerationKindStatus, review: Review): MenuItem[] {
       hint: 'Replace it on every Ready phrase',
       icon: RefreshCw,
     }),
+    runItem('next', status.next, {
+      label: `All: generate next ${batchSize}`,
+      hint: 'From the top of the list',
+      icon: ListStart,
+      separated: true,
+    }),
     runItem('missing', status.missing, {
       label: 'All: generate missing',
       hint: 'Cards that don’t have it yet',
       icon: Plus,
-      separated: true,
     }),
     runItem('all', status.all, {
       label: 'All: regenerate all',
@@ -90,11 +100,14 @@ function kindItems(status: GenerationKindStatus, review: Review): MenuItem[] {
 }
 
 /** Пункты генерации по видам: и для своего меню, и для меню «⋯» на телефоне. */
-export const generationItems = (review: Review): MenuItem[] =>
-  (review.generation?.kinds ?? []).map(status => ({
+export const generationItems = (review: Review): MenuItem[] => {
+  const generation = review.generation
+  if (!generation) return []
+  return generation.kinds.map(status => ({
     label: KIND_TEXT[status.kind].label,
     hint: KIND_TEXT[status.kind].hint,
     lead: statusLead(status),
     value: `${status.done}/${status.total}`,
-    items: kindItems(status, review),
+    items: kindItems(status, generation.batch_size, review),
   }))
+}

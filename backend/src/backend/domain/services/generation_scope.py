@@ -22,14 +22,18 @@ _ALL = frozenset({
 # Cards already being generated are left alone in every scope: their job is about to
 # deliver a fresh result anyway, and a second job would only duplicate the work.
 STATES_IN_SCOPE: Mapping[GenerationScope, frozenset[CardGenerationState]] = MappingProxyType({
+    GenerationScope.NEXT: _MISSING,
     GenerationScope.MISSING: _MISSING,
+    GenerationScope.READY_NEXT: _MISSING,
     GenerationScope.READY_MISSING: _MISSING,
     GenerationScope.FAILED: frozenset({CardGenerationState.FAILED}),
     GenerationScope.READY_ALL: _ALL,
     GenerationScope.ALL: _ALL,
 })
 _TAKES_ONLY_READY: Mapping[GenerationScope, bool] = MappingProxyType({
+    GenerationScope.NEXT: False,
     GenerationScope.MISSING: False,
+    GenerationScope.READY_NEXT: True,
     GenerationScope.READY_MISSING: True,
     GenerationScope.READY_ALL: True,
     GenerationScope.FAILED: False,
@@ -37,6 +41,7 @@ _TAKES_ONLY_READY: Mapping[GenerationScope, bool] = MappingProxyType({
 })
 
 _REPLACES_RESULTS = frozenset({GenerationScope.READY_ALL, GenerationScope.ALL})
+_TAKES_BATCH = frozenset({GenerationScope.NEXT, GenerationScope.READY_NEXT})
 
 
 def in_scope(scope: GenerationScope, state: CardGenerationState, ready: bool) -> bool:
@@ -47,6 +52,16 @@ def in_scope(scope: GenerationScope, state: CardGenerationState, ready: bool) ->
 def replaces_results(scope: GenerationScope) -> bool:
     """The scope makes the result anew: what the cards have is discarded first."""
     return scope in _REPLACES_RESULTS
+
+
+def takes_batch(scope: GenerationScope) -> bool:
+    """The scope takes a batch at most: the first cards in the list's order."""
+    return scope in _TAKES_BATCH
+
+
+def in_batch(cards: int, batch_size: int) -> int:
+    """How many of `cards` a scope that takes a batch takes."""
+    return min(cards, batch_size)
 
 
 def generation_state(*, active_job: bool, done: bool, failed_job: bool) -> CardGenerationState:

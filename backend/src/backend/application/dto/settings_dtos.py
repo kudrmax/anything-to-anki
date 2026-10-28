@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pydantic import BaseModel, field_validator, model_validator
 
-from backend.application.constants import MAX_IMAGES_PER_SOURCE, MIN_IMAGES_PER_SOURCE
+from backend.application.constants import (
+    MAX_IMAGES_PER_SOURCE,
+    MIN_GENERATION_BATCH_SIZE,
+    MIN_IMAGES_PER_SOURCE,
+)
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
 from backend.domain.value_objects.frequent_word_threshold import FrequentWordThreshold
@@ -47,6 +51,7 @@ class SettingsDTO(BaseModel):
     tts_speed: float
     anki_field_audio_tts: str
     images_per_source: int
+    generation_batch_size: int
     cloze_default_hint: str
     naming_rule: str
     source_grouping: SourceGrouping
@@ -82,6 +87,7 @@ class UpdateSettingsRequest(BaseModel):
     tts_speed: float | None = None
     anki_field_audio_tts: str | None = None
     images_per_source: int | None = None
+    generation_batch_size: int | None = None
     cloze_default_hint: str | None = None
     naming_rule: str | None = None
     source_grouping: SourceGrouping | None = None
@@ -110,6 +116,13 @@ class UpdateSettingsRequest(BaseModel):
             raise ValueError(
                 f"images_per_source must be {MIN_IMAGES_PER_SOURCE}..{MAX_IMAGES_PER_SOURCE}",
             )
+        return v
+
+    @field_validator("generation_batch_size")
+    @classmethod
+    def validate_generation_batch_size(cls, v: int | None) -> int | None:
+        if v is not None and v < MIN_GENERATION_BATCH_SIZE:
+            raise ValueError(f"generation_batch_size must be at least {MIN_GENERATION_BATCH_SIZE}")
         return v
 
     @field_validator("cloze_default_hint")
