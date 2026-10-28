@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { api } from '@/api/client'
+import { useReviewApi } from './reviewApi'
 import type { ButtonCommand, CandidateSection, CardButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationScope, ImageSearchResult, ReportReason, ReviewUpdate, SaveClozeRequest, SetScope, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { messageOf } from '@/lib/apiError'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
-import { mediaUrl } from '@/lib/text/meaning'
 import { useToast, useUndo } from '@/ui'
 import { useAudioPlayer } from '@/lib/useAudioPlayer'
 import { DECISION_LABEL } from './decisionLabel'
@@ -32,6 +31,7 @@ export const audioUrlForCandidate = candidateAudioUrl
 const UNMARKED = 'Unmarked'
 
 export function useReview(scope: SetScope, requestedId: number | null = null) {
+  const api = useReviewApi()
   const [sortOrder, setSortOrderState] = useState<SortOrder>(() => sortOrderPref.read())
   const view = useReviewWindow(scope, sortOrder, requestedId)
   const { state, mutate, cardOf, loadGeneration } = view
@@ -45,7 +45,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   const [reportReasons, setReportReasons] = useState<ReportReason[]>([])
   useEffect(() => {
     api.getReportReasons().then(setReportReasons).catch(() => {})
-  }, [])
+  }, [api])
   const player = useAudioPlayer()
 
   const setSortOrder = (order: SortOrder) => { sortOrderPref.write(order); setSortOrderState(order) }
@@ -92,7 +92,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
         }
       },
     })
-  }, [dismissUndo, showUndo, cardOf, mutate, showToast])
+  }, [api, dismissUndo, showUndo, cardOf, mutate, showToast])
 
   /** Нажатие кнопки, которую backend сказал слать: следующая карточка — сразу, ответ сверяет её и приносит изменения. */
   const mark = useCallback(async (candidateId: number, button: CardButton) => {
@@ -105,7 +105,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     } catch (e) {
       showToast(messageOf(e))
     }
-  }, [stop, showToast, mutate, offeringUndo])
+  }, [api, stop, showToast, mutate, offeringUndo])
 
   const [clozeEditingId, setClozeEditingId] = useState<number | null>(null)
   // Разметка cloze относится к одной карточке: при переходе на другую она закрывается.
@@ -140,7 +140,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     }
     setClozeEditingId(null)
     return true
-  }, [stop, showToast, mutate, offeringUndo])
+  }, [api, stop, showToast, mutate, offeringUndo])
 
   const withBusy = async (setIds: Dispatch<SetStateAction<Set<number>>>, id: number, run: () => Promise<void>) => {
     setIds(prev => new Set(prev).add(id))
@@ -164,7 +164,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
       } catch (e) {
         showToast(e instanceof Error ? e.message : action ? 'Follow-up failed' : 'Generation failed')
       }
-    }), [showToast, mutate, loadGeneration])
+    }), [api, showToast, mutate, loadGeneration])
 
   const replaceWithExample = useCallback(async (candidateId: number, exampleText: string) => {
     try {
@@ -175,7 +175,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Replace failed')
     }
-  }, [mutate, loadGeneration, showToast])
+  }, [api, mutate, loadGeneration, showToast])
 
   const replaceWithTarget = useCallback(async (candidateId: number) => {
     try {
@@ -186,7 +186,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Replace failed')
     }
-  }, [mutate, loadGeneration, showToast])
+  }, [api, mutate, loadGeneration, showToast])
 
   const runBatch = async (change: () => Promise<ReviewUpdate>, fallback: string) => {
     try {
@@ -348,9 +348,9 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
 
   // Медиа лежат у источника карточки, а не у экрана: в наборе у карточек разные источники.
   const mediaFor = (candidate: StoredCandidate): MediaRefs => ({
-    screenshotUrl: mediaUrl(candidate.source.id, candidate.media?.screenshot_path),
-    audioUrl: mediaUrl(candidate.source.id, candidate.media?.audio_path),
-    meaningImageUrl: mediaUrl(candidate.source.id, candidate.meaning_image_path),
+    screenshotUrl: api.mediaUrl(candidate.source.id, candidate.media?.screenshot_path),
+    audioUrl: api.mediaUrl(candidate.source.id, candidate.media?.audio_path),
+    meaningImageUrl: api.mediaUrl(candidate.source.id, candidate.meaning_image_path),
   })
 
   // Счётчик — Reviewed / (Reviewed + открытые Ready); числа считает backend.

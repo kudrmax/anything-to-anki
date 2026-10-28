@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { api } from '@/api/client'
+import { useReviewApi, type ReviewApi } from './reviewApi'
 import type { ImageOption } from '@/api/types'
 import type { ReviewState } from './reviewState'
 import { upcomingCards } from './upcomingCards'
@@ -24,7 +24,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
  * Картинки слова, когда сервер их нашёл; каждый запрос короткий — соединения остаются ревью.
  * Спрашивает, пока слово нужно (`wanted`): пролистанное больше не спрашивают, его спросят при следующем показе.
  */
-async function suggested(wordId: number, wanted: () => boolean): Promise<ImageOption[]> {
+async function suggested(api: ReviewApi, wordId: number, wanted: () => boolean): Promise<ImageOption[]> {
   const giveUpAt = Date.now() + SUGGESTION_WAIT_MS
   for (;;) {
     const answer = await api.suggestTargetImages(wordId)
@@ -40,6 +40,7 @@ async function suggested(wordId: number, wanted: () => boolean): Promise<ImageOp
  * Ищет их сервер в фоне: нашёл — показываем, нет — пока не показываем. Неудачный поиск не запоминается.
  */
 export function usePictureSuggestions(state: ReviewState, enabled: boolean): PictureSuggestionsLoader | null {
+  const api = useReviewApi()
   const found = useRef(new Map<number, Promise<ImageOption[]>>())
   /** Слова текущей карточки и тех, что идут следом: только их и спрашивают. */
   const wanted = useRef(new Set<number>())
@@ -47,13 +48,13 @@ export function usePictureSuggestions(state: ReviewState, enabled: boolean): Pic
   const load = useCallback<PictureSuggestionsLoader>(wordId => {
     const known = found.current.get(wordId)
     if (known) return known
-    const search = suggested(wordId, () => wanted.current.has(wordId)).catch(() => {
+    const search = suggested(api, wordId, () => wanted.current.has(wordId)).catch(() => {
       found.current.delete(wordId)
       return []
     })
     found.current.set(wordId, search)
     return search
-  }, [])
+  }, [api])
 
   useEffect(() => {
     const upcoming = upcomingCards(state, PREFETCHED_CARDS)
