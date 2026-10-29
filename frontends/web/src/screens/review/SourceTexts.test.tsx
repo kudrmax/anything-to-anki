@@ -44,12 +44,15 @@ describe('SourceTexts', () => {
   let onLoad: ReturnType<typeof vi.fn<(sourceId: number, place: TextPlace) => Promise<boolean>>>
   let ensureBlock: ReturnType<typeof vi.fn<(sourceId: number, block: number) => Promise<boolean>>>
   let selected: SelectedText[]
+  let shownColumns: number
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     vi.stubGlobal('matchMedia', () => ({ matches: false }))
     scrolls = []
     Element.prototype.scrollTo = function (options?: ScrollToOptions | number) { if (typeof options === 'object') scrolls.push(options) } as typeof Element.prototype.scrollTo
+    shownColumns = 0
+    Element.prototype.scrollIntoView = function () { shownColumns += 1 }
     onLoad = vi.fn(async () => true)
     ensureBlock = vi.fn(async () => true)
     selected = []
@@ -64,6 +67,7 @@ describe('SourceTexts', () => {
     act(() => root.unmount())
     host.remove()
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   const render = (text: TextState, editingSourceId: number | null = null, focused: StoredCandidate | null = null) => act(() => root.render(
@@ -258,6 +262,21 @@ describe('SourceTexts', () => {
     expect(selected.map(s => s.selection)).toEqual([{
       start_block: 0, start_line: 0, start_char: 0, end_block: 0, end_line: 0, end_char: 3,
     } satisfies DocumentSelection])
+  })
+
+  it('starting a boundary edit brings a text column below the screen into view once', () => {
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ top: window.innerHeight + 100 } as DOMRect)
+    render(twoTexts())
+    expect(shownColumns).toBe(0)
+    render(twoTexts(), 1)
+    render(twoTexts(), 1)
+    expect(shownColumns).toBe(1)
+  })
+
+  it('starting a boundary edit leaves a text column already on screen where it is', () => {
+    render(twoTexts())
+    render(twoTexts(), 1)
+    expect(shownColumns).toBe(0)
   })
 
   it('editing a far phrase unfolds its document, loads its chunk and scrolls to it', async () => {
