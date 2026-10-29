@@ -15,8 +15,6 @@ const GROUPS: { group: ExportGroup; title: string; hint: string; action: string;
   { group: 'incomplete', title: 'Incomplete', hint: 'Open a card to fill in what is missing', action: 'Export incomplete', variant: 'soft' },
 ]
 
-const cardsLabel = (count: number) => `${count} ${count === 1 ? 'card' : 'cards'}`
-
 /** Экспорт набора: у каждого набора свой экземпляр, состояние одного не переходит в другой. */
 export function ExportScreen() {
   const [params] = useSearchParams()
@@ -53,8 +51,8 @@ function ExportView({ scope }: { scope: SetScope }) {
     <>
       <StatGrid>
         <Stat value={`${counts.ready} / ${totalCards}`} label="ready to export" progress={totalCards > 0 ? counts.ready / totalCards : 0} wide />
-        <Stat small value={settings?.anki_deck_name ?? '—'} label="deck" />
-        <Stat small value={settings?.anki_note_type ?? '—'} label="note type" />
+        <Stat small value={settings?.anki_deck_name ?? '—'} label="deck" wide />
+        <Stat small value={settings?.anki_note_type ?? '—'} label="note type" wide />
         {exportedCount > 0 && <Stat small value={exportedCount} label="already exported" wide />}
       </StatGrid>
       {result && (
@@ -94,12 +92,12 @@ function ExportView({ scope }: { scope: SetScope }) {
             </div>
             <div className={css.exportGroupActions}>
               {group === 'incomplete' && exporter.fillState.fillable > 0 && (
-                <Button variant="soft" busy={exporter.filling} onClick={() => void exporter.fill()}>
-                  Generate missing · {cardsLabel(exporter.fillState.fillable)}
+                <Button variant="soft" busy={exporter.filling} count={exporter.fillState.fillable} onClick={() => void exporter.fill()}>
+                  Generate missing
                 </Button>
               )}
-              <Button variant={variant} busy={exporter.syncing === group} disabled={!exporter.canSync(group)} onClick={() => void exporter.sync(group)}>
-                {action} · {cardsLabel(counts[group])}
+              <Button variant={variant} busy={exporter.syncing === group} disabled={!exporter.canSync(group)} count={counts[group]} onClick={() => void exporter.sync(group)}>
+                {action}
               </Button>
             </div>
           </header>

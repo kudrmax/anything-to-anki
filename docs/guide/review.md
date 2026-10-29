@@ -99,6 +99,8 @@ Each item has a submenu:
 
 **Generate next** takes the first cards that don't have it yet, from the top of the list in its current sort order, and no more than 100 of them. Use it to try generation on a big source without spending your Claude plan on all of it. The number is set in [Settings → Cards](settings.md#cards).
 
+On a phone the ✨ menu is in **⋯**, and a submenu opens in place of the menu: the row at the top with **‹** goes back.
+
 ![The Generate menu with the Meanings submenu open](../images/review-generate.png)
 
 Generation runs in the background, and you can keep reviewing meanwhile. Cards fill in as results arrive. Progress and failures are on the [Queue](queue-and-usage.md#queue) screen.

@@ -9,7 +9,7 @@ Cards you mark **Learn** or **Cloze** go to [Anki](https://apps.ankiweb.net/) th
 1. Start Anki. It must stay open during the export.
 2. Open **Export** in the top bar to export everything. To export one source or collection, use **Export** in its menu or **Export N** on the Review screen.
 3. Check the header: it should say **Anki connected**.
-4. Press **Add to Anki · N cards**.
+4. Press **Add to Anki**. The number on the button is how many cards it sends.
 
 The result shows how many cards were **added**, how many were **already in Anki**, and how many **failed**.
 
@@ -22,7 +22,7 @@ The cards are split into two groups:
 - **Ready**: the card has a meaning and audio of the phrase (a video clip or TTS). A cloze card also needs hidden words.
 - **Incomplete**: something is missing. The row says what: **No meaning**, **No audio** or **No cloze words**. Click a row to open the card in Review and fill it in.
 
-**Generate missing · N cards** generates what the incomplete cards lack, for every source on the page at once: the meaning, and the audio of the phrase (a clip cut from the video for a video, TTS for anything else). While it runs, the rows say **Generating meaning** or **Generating audio**, and finished cards move to **Ready** on their own.
+**Generate missing** generates what the incomplete cards lack (the number on the button is how many cards it can fill), for every source on the page at once: the meaning, and the audio of the phrase (a clip cut from the video for a video, TTS for anything else). While it runs, each missing part of a row turns into **Generating meaning** or **Generating audio**, and finished cards move to **Ready** on their own.
 
 Some parts can't be generated, and the button skips them. The line under **Incomplete** counts the skipped cards, and the row says why:
 
@@ -32,7 +32,7 @@ Some parts can't be generated, and the button skips them. The line under **Incom
 - **source is busy**: the source is being processed or rebuilt. Try again when it's done.
 - **pick them on the card**: the hidden words of a cloze card are your choice. Open the card and pick them.
 
-**Export incomplete · N cards** sends incomplete cards anyway. The missing parts are left empty in Anki.
+**Export incomplete** sends incomplete cards anyway. The missing parts are left empty in Anki.
 
 ### What happens after export
 

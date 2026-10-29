@@ -95,8 +95,11 @@ describe('ExportScreen scope', () => {
     const fill = vi.spyOn(api, 'fillMissing').mockResolvedValue({ ...EXPORT, ready: [], incomplete: [incomplete] })
     await open()
     expect(container.textContent).toContain("Can't generate: 1 card without the video")
-    expect(container.textContent).toContain('Generating meaning · No audio (video not downloaded)')
-    const button = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('Generate missing · 2 cards'))
+    const parts = [...container.querySelectorAll('li')]
+    expect(parts.map(li => li.childNodes[1]?.textContent)).toEqual(['Generating meaning', 'No audio'])
+    expect(parts[1]?.lastElementChild?.textContent).toBe('video not downloaded')
+    const button = [...container.querySelectorAll('button')].find(b => b.textContent?.startsWith('Generate missing'))
+    expect(button?.lastElementChild?.textContent).toBe('2')
     await act(async () => { button?.click() })
     expect(fill).toHaveBeenCalledWith(SCOPE_ID)
   })

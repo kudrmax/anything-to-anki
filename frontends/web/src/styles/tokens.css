@@ -28,6 +28,7 @@
   --ac-underline: color-mix(in srgb, var(--ac) 50%, transparent);
   --ac-tint: color-mix(in srgb, var(--ac) 22%, transparent);
   --ac-wash: color-mix(in srgb, var(--ac) 13%, transparent);
+  --count-bg: color-mix(in srgb, currentColor 14%, transparent);   /* счётчик в кнопке: тон её же текста */
   --hover: color-mix(in srgb, var(--soft) 55%, transparent);
   --line-soft: color-mix(in srgb, var(--line) 60%, transparent);
   --glow-a: color-mix(in srgb, var(--ac-deep) var(--glow-strength), transparent);
@@ -209,6 +210,8 @@
   --modal-read: 640px;   /* окно для чтения: changelog */
   --sheet-max-h: 85dvh;
   --menu: 240px;
+  --menu-w: auto;
+  --menu-max: none;
   --polish-pop: min(440px, calc(100vw - var(--s8)));
 
   /* раскладка, которую перестраивают телефон и касание (значения — в медиа-блоках внизу) */
@@ -314,13 +317,6 @@
   --settings-voice-cols: calc(var(--h) * 3.5) minmax(0, 1fr);
   --settings-media-cols: minmax(0, 1fr) calc(var(--h) * 3) calc(var(--h) * 3) auto;
   --segmented-flex: none;
-  --submenu-position: absolute;
-  --submenu-min-w: var(--menu);
-  --submenu-w: max-content;
-  --submenu-indent: var(--s2);
-  --submenu-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop);
-  --submenu-bg: var(--card);
-  --submenu-bridge: block;
 
   /* отступы */
   --s1: 2px; --s2: 4px; --s3: 8px; --s4: 12px; --s5: 16px; --s5h: 20px; --s6: 24px; --s7: 32px; --s8: 40px;
@@ -409,6 +405,8 @@
     --modal-wide: var(--modal);
     --modal-read: var(--modal);
     --menu: min(240px, calc(100vw - var(--page-x) * 2));
+    --menu-w: max-content;               /* подменю открываются на месте меню: оно растёт под самый длинный пункт */
+    --menu-max: calc(100vw - var(--page-x) * 2);
     --source-max: 35dvh;
     --tab-px: var(--s3);
     --page-content-order: 1;
@@ -502,13 +500,6 @@
     --settings-media-cols: minmax(0, 1fr) calc(var(--h) * 2.2) calc(var(--h) * 2.2) auto;
     --control-w: 100%;
     --segmented-flex: 0 1 auto;
-    --submenu-position: static;
-    --submenu-min-w: 0px;
-    --submenu-w: auto;
-    --submenu-indent: var(--s4);
-    --submenu-shadow: none;
-    --submenu-bg: none;
-    --submenu-bridge: none;
   }
 }
 

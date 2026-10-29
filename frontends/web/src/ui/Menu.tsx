@@ -1,5 +1,6 @@
 import { useEffect, useImperativeHandle, useRef, useState, type MouseEvent, type ReactNode, type Ref } from 'react'
 import { Check, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react'
+import { usePhone } from '@/lib/device'
 import { Icon } from './Icon'
 import css from './Menu.module.css'
 
@@ -17,7 +18,7 @@ export interface MenuItem {
   hint?: string
   /** Текущее значение справа, например выбранная коллекция. */
   value?: string
-  /** Подменю: открывается сбоку при наведении. */
+  /** Подменю: открывается сбоку при наведении, на телефоне заменяет содержимое меню. */
   items?: MenuItem[]
   /** Страница: заменяет содержимое меню, когда пунктам нужно поле ввода. */
   page?: MenuPage
@@ -52,11 +53,13 @@ interface MenuProps {
 
 export function Menu({ ref, trigger, items, footer, emptyText, align = 'end', openOn = 'click' }: MenuProps) {
   const [open, setOpen] = useState(false)
-  const [pageLabel, setPageLabel] = useState<string | null>(null)
+  // Путь из названий пунктов, в которые меню провалилось: страницы и, на телефоне, подменю.
+  const [trail, setTrail] = useState<string[]>([])
+  const drill = usePhone()
   const openRef = useRef(open)
   useEffect(() => { openRef.current = open }, [open])
   useImperativeHandle(ref, () => ({
-    open: () => { setPageLabel(null); setOpen(true) },
+    open: () => { setTrail([]); setOpen(true) },
     close: () => setOpen(false),
     isOpen: () => openRef.current,
   }), [])
@@ -95,28 +98,28 @@ export function Menu({ ref, trigger, items, footer, emptyText, align = 'end', op
 
   const close = () => setOpen(false)
   const triggerProps = openOn === 'click'
-    ? { onClick: (e: MouseEvent) => { e.stopPropagation(); setPageLabel(null); setOpen(o => !o) } }
-    : { onContextMenu: (e: MouseEvent) => { e.preventDefault(); setPageLabel(null); setOpen(true) } }
-  const pageItem = pageLabel === null ? undefined : findPageItem(items, pageLabel)
-  const page = pageItem?.page
-  const shownItems = page ? page.items : items
-  const shownFooter = page ? page.footer : footer
+    ? { onClick: (e: MouseEvent) => { e.stopPropagation(); setTrail([]); setOpen(o => !o) } }
+    : { onContextMenu: (e: MouseEvent) => { e.preventDefault(); setTrail([]); setOpen(true) } }
+  const level = openedLevels(items, trail).at(-1)
+  const shownItems = level ? level.items ?? level.page?.items ?? [] : items
+  const shownFooter = level ? level.page?.footer : footer
+  const openLevel = (label: string) => setTrail(path => [...path, label])
   const side = align === 'end' ? 'left' : 'right'
 
   return (
     <span className={css.root} ref={rootRef}>
       <span className={css.trigger} {...triggerProps}>{trigger}</span>
       {open && (
-        <div key={pageLabel ?? ''} ref={placeMenu} className={`${css.menu} ${css[align]}`} role="menu" onClick={e => e.stopPropagation()}>
-          {pageItem && (
-            <button type="button" className={`${css.item} ${css.back}`} onClick={() => setPageLabel(null)}>
+        <div key={trail.join('/')} ref={placeMenu} className={`${css.menu} ${css[align]}`} role="menu" onClick={e => e.stopPropagation()}>
+          {level && (
+            <button type="button" className={`${css.item} ${css.back}`} onClick={() => setTrail(path => path.slice(0, -1))}>
               <Icon as={ChevronLeft} size="s" />
-              <span className={css.label}>{pageItem.label}</span>
+              <span className={css.label}>{level.label}</span>
             </button>
           )}
-          {shownItems.length === 0 && !page && emptyText && <div className={css.empty}>{emptyText}</div>}
+          {shownItems.length === 0 && !level && emptyText && <div className={css.empty}>{emptyText}</div>}
           {shownItems.map((item, index) => (
-            <MenuEntry key={index} item={item} side={side} onDone={close} onOpenPage={setPageLabel} />
+            <MenuEntry key={index} item={item} side={side} drill={drill} onDone={close} onOpenLevel={openLevel} />
           ))}
           {shownFooter && <div className={css.footer}>{shownFooter(close)}</div>}
         </div>
@@ -125,10 +128,23 @@ export function Menu({ ref, trigger, items, footer, emptyText, align = 'end', op
   )
 }
 
-function findPageItem(items: MenuItem[], label: string): MenuItem | undefined {
+function openedLevels(items: MenuItem[], trail: string[]): MenuItem[] {
+  const levels: MenuItem[] = []
+  let shown = items
+  for (const label of trail) {
+    const found = findLevel(shown, label)
+    if (!found) break
+    levels.push(found)
+    shown = found.items ?? found.page?.items ?? []
+  }
+  return levels
+}
+
+/** Страница может лежать и в подменю, открытом сбоку: ищем на всю глубину. */
+function findLevel(items: MenuItem[], label: string): MenuItem | undefined {
   for (const item of items) {
-    if (item.page && item.label === label) return item
-    const nested = item.items && findPageItem(item.items, label)
+    if ((item.page || item.items) && item.label === label) return item
+    const nested = item.items && findLevel(item.items, label)
     if (nested) return nested
   }
   return undefined
@@ -137,23 +153,25 @@ function findPageItem(items: MenuItem[], label: string): MenuItem | undefined {
 interface MenuEntryProps {
   item: MenuItem
   side: 'left' | 'right'
+  /** Подменю не раскрывается сбоку, а открывается вместо меню, как страница. */
+  drill: boolean
   onDone: () => void
-  onOpenPage: (label: string) => void
+  onOpenLevel: (label: string) => void
 }
 
-function MenuEntry({ item, side, onDone, onOpenPage }: MenuEntryProps) {
+function MenuEntry({ item, side, drill, onDone, onOpenLevel }: MenuEntryProps) {
   const [subOpen, setSubOpen] = useState(false)
   const classes = [css.item, item.danger && css.danger, item.items && subOpen && css.active].filter(Boolean).join(' ')
   const select = () => {
-    if (item.items) { setSubOpen(open => !open); return }
-    if (item.page) { onOpenPage(item.label); return }
+    if (item.items && !drill) { setSubOpen(open => !open); return }
+    if (item.items || item.page) { onOpenLevel(item.label); return }
     if (!item.keepOpen) onDone()
     item.onSelect?.()
   }
   return (
     <div
       className={css.entry}
-      onPointerEnter={e => e.pointerType === 'mouse' && item.items && setSubOpen(true)}
+      onPointerEnter={e => e.pointerType === 'mouse' && item.items && !drill && setSubOpen(true)}
       onPointerLeave={e => e.pointerType === 'mouse' && setSubOpen(false)}
     >
       {item.separated && <div className={css.separator} />}
@@ -161,7 +179,7 @@ function MenuEntry({ item, side, onDone, onOpenPage }: MenuEntryProps) {
         type="button"
         role="menuitem"
         aria-haspopup={item.items || item.page ? 'menu' : undefined}
-        aria-expanded={item.items ? subOpen : undefined}
+        aria-expanded={item.items && !drill ? subOpen : undefined}
         disabled={item.disabled}
         className={classes}
         onClick={select}
@@ -173,12 +191,12 @@ function MenuEntry({ item, side, onDone, onOpenPage }: MenuEntryProps) {
         </span>
         {item.value && <span className={css.value}>{item.value}</span>}
         {item.selected && <span className={css.check}><Icon as={Check} size="s" /></span>}
-        {item.items && <Icon as={side === 'left' ? ChevronLeft : ChevronRight} size="s" />}
+        {item.items && <Icon as={side === 'left' && !drill ? ChevronLeft : ChevronRight} size="s" />}
         {item.page && <Icon as={ChevronRight} size="s" />}
       </button>
-      {item.items && subOpen && (
+      {item.items && subOpen && !drill && (
         <div className={`${css.menu} ${css.submenu} ${css[side]}`} role="menu">
-          {item.items.map((child, index) => <MenuEntry key={index} item={child} side={side} onDone={onDone} onOpenPage={onOpenPage} />)}
+          {item.items.map((child, index) => <MenuEntry key={index} item={child} side={side} drill={drill} onDone={onDone} onOpenLevel={onOpenLevel} />)}
         </div>
       )}
     </div>
