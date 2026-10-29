@@ -6,9 +6,10 @@ from collections import Counter
 from typing import TYPE_CHECKING
 
 from backend.application.dto.generation_dtos import GenerationKindStatusDTO, GenerationStatusDTO
+from backend.application.utils.generation_batch import generation_batch_size
 from backend.application.utils.generation_targets import CardJobs, ReadyCards
 from backend.domain.services.generation_blocker import set_blocker
-from backend.domain.services.generation_scope import in_scope
+from backend.domain.services.generation_scope import in_batch, in_scope
 from backend.domain.value_objects.card_generation_state import CardGenerationState
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_scope import GenerationScope
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
     from backend.domain.entities.source import Source
     from backend.domain.ports.job_repository import JobRepository
+    from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.value_objects.generation_kind import GenerationKind
     from backend.domain.value_objects.source_scope import SourceScope
 
@@ -39,16 +41,20 @@ class LiveGenerationStatus:
         job_repo: JobRepository,
         candidate_sorter: CandidateSorter,
         targets: list[GenerationTarget],
+        settings_repo: SettingsRepository,
     ) -> None:
         self._scope_resolver = scope_resolver
         self._cards = cards
         self._job_repo = job_repo
         self._candidate_sorter = candidate_sorter
         self._targets = targets
+        self._settings_repo = settings_repo
 
     def execute(self, scope: SourceScope) -> GenerationStatusDTO:
+        batch_size = generation_batch_size(self._settings_repo)
         of_sources = [
-            self._of_source(source) for source in self._scope_resolver.reviewable_sources(scope)
+            self._of_source(source, batch_size)
+            for source in self._scope_resolver.reviewable_sources(scope)
         ]
         per_kind: dict[GenerationKind, list[GenerationKindStatusDTO]] = {
             target.kind: [] for target in self._targets
@@ -57,11 +63,12 @@ class LiveGenerationStatus:
             for kind in of_source.kinds:
                 per_kind[kind.kind].append(kind)
         return GenerationStatusDTO(
-            kinds=[summed(kinds) for kinds in per_kind.values() if kinds],
+            kinds=[summed(kinds, batch_size) for kinds in per_kind.values() if kinds],
             in_progress=any(of_source.in_progress for of_source in of_sources),
+            batch_size=batch_size,
         )
 
-    def _of_source(self, source: Source) -> GenerationStatusDTO:
+    def _of_source(self, source: Source, batch_size: int) -> GenerationStatusDTO:
         assert source.id is not None
         cards = self._cards.of_source(source.id)
         jobs = CardJobs.of(self._job_repo, cards)
@@ -70,13 +77,14 @@ class LiveGenerationStatus:
         )
         ready = ReadyCards.of(cards, self._candidate_sorter)
         kinds = [
-            self._kind_status(target, source, cards, jobs, ready, video_downloading)
+            self._kind_status(target, source, cards, jobs, ready, video_downloading, batch_size)
             for target in self._targets
             if target.applies_to(source)
         ]
         return GenerationStatusDTO(
             kinds=kinds,
             in_progress=video_downloading or any(k.running > 0 for k in kinds),
+            batch_size=batch_size,
         )
 
     @staticmethod
@@ -87,6 +95,7 @@ class LiveGenerationStatus:
         jobs: CardJobs,
         ready: ReadyCards,
         video_downloading: bool,
+        batch_size: int,
     ) -> GenerationKindStatusDTO:
         blocker = target.blocker(source, video_downloading)
         covered = target.cards(cards)
@@ -103,7 +112,9 @@ class LiveGenerationStatus:
             done=states[CardGenerationState.DONE],
             running=states[CardGenerationState.RUNNING],
             failed=states[CardGenerationState.FAILED],
+            next=in_batch(taken_by(GenerationScope.NEXT), batch_size),
             missing=states[CardGenerationState.MISSING],
+            ready_next=in_batch(taken_by(GenerationScope.READY_NEXT), batch_size),
             ready_missing=taken_by(GenerationScope.READY_MISSING),
             ready_all=taken_by(GenerationScope.READY_ALL),
             all=taken_by(GenerationScope.ALL),
@@ -112,16 +123,19 @@ class LiveGenerationStatus:
         )
 
 
-def summed(kinds: list[GenerationKindStatusDTO]) -> GenerationKindStatusDTO:
-    """One kind over several sources: counts add up, the videos to download too; it is held
-    back only when every source holds it back."""
+def summed(kinds: list[GenerationKindStatusDTO], batch_size: int) -> GenerationKindStatusDTO:
+    """One kind over several sources: counts add up, the videos to download too, but a
+    batch stays one batch over the set; it is held back only when every source holds it
+    back."""
     return GenerationKindStatusDTO(
         kind=kinds[0].kind,
         total=sum(k.total for k in kinds),
         done=sum(k.done for k in kinds),
         running=sum(k.running for k in kinds),
         failed=sum(k.failed for k in kinds),
+        next=in_batch(sum(k.missing for k in kinds), batch_size),
         missing=sum(k.missing for k in kinds),
+        ready_next=in_batch(sum(k.ready_missing for k in kinds), batch_size),
         ready_missing=sum(k.ready_missing for k in kinds),
         ready_all=sum(k.ready_all for k in kinds),
         all=sum(k.all for k in kinds),

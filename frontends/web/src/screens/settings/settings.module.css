@@ -27,6 +27,7 @@
 
 /* поля разделов */
 .control { flex: none; width: var(--control-w); }
+.number { flex: none; width: var(--number-w); }
 .map { display: grid; grid-template-columns: var(--settings-map-cols); gap: var(--s3) var(--s6); }
 .map label { display: flex; align-items: center; gap: var(--s4); font-size: var(--fs-s); color: var(--tx3); }
 .map span { flex: none; width: var(--settings-map-label-w); }

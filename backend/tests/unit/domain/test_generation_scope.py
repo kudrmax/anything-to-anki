@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 from backend.domain.services.card_view import wants_ready_generation
-from backend.domain.services.generation_scope import in_scope, replaces_results
+from backend.domain.services.generation_scope import (
+    in_batch,
+    in_scope,
+    replaces_results,
+    takes_batch,
+)
 from backend.domain.value_objects.candidate_section import CandidateSection
 from backend.domain.value_objects.card_generation_state import CardGenerationState
 from backend.domain.value_objects.generation_scope import GenerationScope
@@ -26,6 +31,24 @@ class TestInScope:
         assert {s for s in GenerationScope if replaces_results(s)} == {
             GenerationScope.READY_ALL, GenerationScope.ALL,
         }
+
+    def test_the_next_scopes_take_missing_cards_as_their_missing_scopes_do(self) -> None:
+        for state in CardGenerationState:
+            for ready in (True, False):
+                assert in_scope(GenerationScope.NEXT, state, ready) == in_scope(
+                    GenerationScope.MISSING, state, ready,
+                )
+                assert in_scope(GenerationScope.READY_NEXT, state, ready) == in_scope(
+                    GenerationScope.READY_MISSING, state, ready,
+                )
+
+    def test_only_the_next_scopes_take_a_batch(self) -> None:
+        assert {s for s in GenerationScope if takes_batch(s)} == {
+            GenerationScope.NEXT, GenerationScope.READY_NEXT,
+        }
+
+    def test_a_batch_takes_the_cards_up_to_its_size(self) -> None:
+        assert (in_batch(30, 100), in_batch(100, 100), in_batch(250, 100)) == (30, 100, 100)
 
     def test_missing_takes_a_missing_card_ready_or_not(self) -> None:
         assert in_scope(GenerationScope.MISSING, MISSING, ready=False)

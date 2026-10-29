@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from backend.application.dto.generation_dtos import GenerationKindStatusDTO, GenerationStatusDTO
+from backend.application.utils.generation_batch import generation_batch_size
 from backend.application.utils.live_generation_status import summed
 from backend.domain.services.card_view import wants_ready_generation
-from backend.domain.services.generation_scope import generation_counts
+from backend.domain.services.generation_scope import generation_counts, in_batch
 from backend.domain.value_objects.generation_blocker import GenerationBlocker
 from backend.domain.value_objects.generation_tally import EMPTY_GENERATION_TALLY
 from backend.domain.value_objects.job_type import JobType
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
     from backend.domain.entities.source import Source
     from backend.domain.ports.card_state_query import CardStateQuery
     from backend.domain.ports.job_repository import JobRepository
+    from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.value_objects.by_step import SectionsByStep
     from backend.domain.value_objects.generation_kind import GenerationKind
     from backend.domain.value_objects.generation_tally import GenerationTally
@@ -41,17 +43,20 @@ class GetGenerationStatusUseCase:
         job_repo: JobRepository,
         threshold_resolver: FrequentWordThresholdResolver,
         targets: Sequence[GenerationTarget],
+        settings_repo: SettingsRepository,
     ) -> None:
         self._scope_resolver = scope_resolver
         self._card_states = card_states
         self._job_repo = job_repo
         self._threshold_resolver = threshold_resolver
         self._targets = targets
+        self._settings_repo = settings_repo
 
     def execute(self, scope: SourceScope) -> GenerationStatusDTO:
         sources = self._scope_resolver.reviewable_sources(scope)
         ids = [source.id for source in sources if source.id is not None]
         step = self._threshold_resolver.resolve().zipf
+        batch_size = generation_batch_size(self._settings_repo)
 
         def ready(sections: SectionsByStep) -> bool:
             """Of a card the tallies count: one in play."""
@@ -61,7 +66,10 @@ class GetGenerationStatusUseCase:
         downloading = self._job_repo.sources_with_active_jobs(ids, _VIDEO_DOWNLOAD)
         of_sources = [
             self._of_source(
-                source, tallies.get(source.id, EMPTY_GENERATION_TALLY), source.id in downloading,
+                source,
+                tallies.get(source.id, EMPTY_GENERATION_TALLY),
+                source.id in downloading,
+                batch_size,
             )
             for source in sources if source.id is not None
         ]
@@ -72,26 +80,32 @@ class GetGenerationStatusUseCase:
             for kind in of_source.kinds:
                 per_kind[kind.kind].append(kind)
         return GenerationStatusDTO(
-            kinds=[summed(kinds) for kinds in per_kind.values() if kinds],
+            kinds=[summed(kinds, batch_size) for kinds in per_kind.values() if kinds],
             in_progress=any(of_source.in_progress for of_source in of_sources),
+            batch_size=batch_size,
         )
 
     def _of_source(
-        self, source: Source, tally: GenerationTally, video_downloading: bool,
+        self, source: Source, tally: GenerationTally, video_downloading: bool, batch_size: int,
     ) -> GenerationStatusDTO:
         kinds = [
-            _kind_status(target, source, tally, video_downloading)
+            _kind_status(target, source, tally, video_downloading, batch_size)
             for target in self._targets
             if target.applies_to(source)
         ]
         return GenerationStatusDTO(
             kinds=kinds,
             in_progress=video_downloading or any(k.running > 0 for k in kinds),
+            batch_size=batch_size,
         )
 
 
 def _kind_status(
-    target: GenerationTarget, source: Source, tally: GenerationTally, video_downloading: bool,
+    target: GenerationTarget,
+    source: Source,
+    tally: GenerationTally,
+    video_downloading: bool,
+    batch_size: int,
 ) -> GenerationKindStatusDTO:
     counts = generation_counts(tally.of(target.kind))
     blocker = target.blocker(source, video_downloading)
@@ -101,7 +115,9 @@ def _kind_status(
         done=counts.done,
         running=counts.running,
         failed=counts.failed,
+        next=in_batch(counts.missing, batch_size),
         missing=counts.missing,
+        ready_next=in_batch(counts.ready_missing, batch_size),
         ready_missing=counts.ready_missing,
         ready_all=counts.ready_all,
         all=counts.all,

@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ReviewExpiredError } from '@/api/client'
-import type { GenerationOverview, ReviewContext, ReviewUpdate } from '@/api/types'
+import type { ReviewContext, ReviewUpdate } from '@/api/types'
 import { cardRow, header, layout, REVIEW_ID, reviewCard, reviewUpdate, sectionRow } from './reviewFixtures'
 import { ReviewList } from './ReviewList'
 import { SourceTexts } from './SourceTexts'
@@ -64,7 +64,7 @@ describe('useReviewWindow', () => {
     vi.spyOn(api, 'reviewChanges').mockResolvedValue(reviewUpdate())
     vi.spyOn(api, 'reviewContents').mockResolvedValue(contents([1, 'Pilot', 50_000]))
     vi.spyOn(api, 'reviewText').mockResolvedValue(reviewUpdate({ text: CHUNK }))
-    vi.spyOn(api, 'getReviewGeneration').mockResolvedValue({ in_progress: false, kinds: [] })
+    vi.spyOn(api, 'getReviewGeneration').mockResolvedValue({ in_progress: false, kinds: [], batch_size: 100 })
     host = document.createElement('div')
     root = createRoot(host)
   })
@@ -368,7 +368,7 @@ describe('useReviewWindow', () => {
   })
 
   it('polls the changes and the generation while generation is in progress', async () => {
-    vi.mocked(api.getReviewGeneration).mockResolvedValue({ in_progress: true, kinds: [] } as GenerationOverview)
+    vi.mocked(api.getReviewGeneration).mockResolvedValue({ in_progress: true, kinds: [], batch_size: 100 })
     await render()
     const reads = vi.mocked(api.getReviewGeneration).mock.calls.length
 
@@ -377,7 +377,7 @@ describe('useReviewWindow', () => {
     expect(api.reviewChanges).toHaveBeenCalledTimes(1)
     expect(vi.mocked(api.getReviewGeneration).mock.calls.length).toBeGreaterThan(reads)
 
-    vi.mocked(api.getReviewGeneration).mockResolvedValue({ in_progress: false, kinds: [] })
+    vi.mocked(api.getReviewGeneration).mockResolvedValue({ in_progress: false, kinds: [], batch_size: 100 })
     await act(async () => { await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS) })
     await flush()
     await act(async () => { await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2) })

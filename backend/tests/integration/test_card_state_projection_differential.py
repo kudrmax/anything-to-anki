@@ -1279,9 +1279,11 @@ def _summed_status(of_sources: list[GenerationStatusDTO]) -> GenerationStatusDTO
     for status in of_sources:
         for kind in status.kinds:
             per_kind[kind.kind].append(kind)
+    (batch_size,) = {status.batch_size for status in of_sources}
     return GenerationStatusDTO(
-        kinds=[summed(kinds) for kinds in per_kind.values() if kinds],
+        kinds=[summed(kinds, batch_size) for kinds in per_kind.values() if kinds],
         in_progress=any(status.in_progress for status in of_sources),
+        batch_size=batch_size,
     )
 
 

@@ -55,6 +55,7 @@ On a phone the part of speech is left out.
 | **Card layout** | — | **Open the editor** arranges the review card, see [Card layout](#card-layout) |
 | **Auto-play audio** | On | Plays the card's audio when it opens. Saved in this browser only |
 | **Default cloze hint** | No hint | The hint preselected when you make a [cloze card](review.md#cloze-cards) |
+| **Generate next** | 100 | How many cards **Generate next** in the ✨ menu takes, from the top of the list. See [Generate](review.md#generating-card-content) |
 
 **Generated content**: what the app makes for each card. You see it in Review, and it goes to Anki.
 

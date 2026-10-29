@@ -230,9 +230,10 @@ class TestGenerationApi:
         body = response.json()
         assert [k["kind"] for k in body["kinds"]] == ["polish", "meaning", "pronunciation", "tts"]
         assert body["in_progress"] is True
+        assert body["batch_size"] == 100
         assert _meaning_status(client) == {
-            "kind": "meaning", "total": 4, "done": 1, "running": 1, "failed": 1, "missing": 1,
-            "ready_missing": 1, "ready_all": 3, "all": 3,
+            "kind": "meaning", "total": 4, "done": 1, "running": 1, "failed": 1,
+            "next": 1, "missing": 1, "ready_next": 1, "ready_missing": 1, "ready_all": 3, "all": 3,
             "blocked_by": None, "videos_to_download": 0,
         }
 

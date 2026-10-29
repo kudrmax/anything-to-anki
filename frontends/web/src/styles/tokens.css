@@ -92,6 +92,7 @@
   --progress-inline-w: calc(var(--h) * 3);
   --range-w: calc(var(--h) * 5);
   --control-w: calc(var(--h) * 7);
+  --number-w: calc(var(--h) * 2.5);
   --label-w: calc(var(--h) * 2.3);
   --trace-max: calc(var(--h) * 7);
   --option-details-max: calc(var(--h) * 8);
@@ -315,6 +316,7 @@
   --segmented-flex: none;
   --submenu-position: absolute;
   --submenu-min-w: var(--menu);
+  --submenu-w: max-content;
   --submenu-indent: var(--s2);
   --submenu-shadow: inset 0 0 0 var(--bw) var(--line), var(--shadow-pop);
   --submenu-bg: var(--card);
@@ -502,6 +504,7 @@
     --segmented-flex: 0 1 auto;
     --submenu-position: static;
     --submenu-min-w: 0px;
+    --submenu-w: auto;
     --submenu-indent: var(--s4);
     --submenu-shadow: none;
     --submenu-bg: none;

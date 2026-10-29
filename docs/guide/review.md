@@ -92,10 +92,12 @@ Processing makes the phrases, but not their meanings or audio. The **✨** menu 
 
 Each item has a submenu:
 
-- **Ready: generate missing** and **Ready: regenerate all** cover the cards in the Ready section.
-- **All: generate missing** and **All: regenerate all** cover every open card.
+- **Ready: generate next 100**, **Ready: generate missing** and **Ready: regenerate all** cover the cards in the Ready section.
+- **All: generate next 100**, **All: generate missing** and **All: regenerate all** cover every open card.
 - **Retry failed** and **Cancel**.
 - For YouTube sources, **Download video** downloads the video before media can be cut from it.
+
+**Generate next** takes the first cards that don't have it yet, from the top of the list in its current sort order, and no more than 100 of them. Use it to try generation on a big source without spending your Claude plan on all of it. The number is set in [Settings → Cards](settings.md#cards).
 
 ![The Generate menu with the Meanings submenu open](../images/review-generate.png)
 

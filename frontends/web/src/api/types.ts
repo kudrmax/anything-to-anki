@@ -582,6 +582,8 @@ export interface Settings {
   anki_field_audio_tts: string
   /** Сколько картинок берётся у каждого источника для одного target'а. */
   images_per_source: number
+  /** Сколько карточек берёт «generate next». */
+  generation_batch_size: number
   cloze_default_hint: ClozeDefaultHint
   /** Как называется источник из главы книги, например «{{book_name}} ch{{n}}». */
   naming_rule: string
@@ -643,19 +645,21 @@ export interface NoteTypeCheck {
 
 export type GenerationKind = 'polish' | 'meaning' | 'media' | 'pronunciation' | 'tts'
 
-/** missing — cards nothing was made for yet; failed — cards whose last attempt failed; all — every card, replacing results; ready_* — the same, only cards in Ready. */
-export type GenerationScope = 'missing' | 'ready_missing' | 'failed' | 'ready_all' | 'all'
+/** next — the first missing cards in list order, batch_size at most; missing — cards nothing was made for yet; failed — cards whose last attempt failed; all — every card, replacing results; ready_* — the same, only cards in Ready. */
+export type GenerationScope = 'next' | 'missing' | 'ready_next' | 'ready_missing' | 'failed' | 'ready_all' | 'all'
 
 export type GenerationBlocker = 'video_not_downloaded' | 'video_downloading'
 
-/** done + running + failed + missing === total; missing, ready_missing, ready_all, all — how many cards each scope takes */
+/** done + running + failed + missing === total; next, missing, ready_next, ready_missing, ready_all, all — how many cards each scope takes */
 export interface GenerationKindStatus {
   kind: GenerationKind
   total: number
   done: number
   running: number
   failed: number
+  next: number
   missing: number
+  ready_next: number
   ready_missing: number
   ready_all: number
   all: number
@@ -668,6 +672,8 @@ export interface GenerationKindStatus {
 export interface GenerationOverview {
   kinds: GenerationKindStatus[]
   in_progress: boolean
+  /** Сколько карточек берут next и ready_next — из настроек. */
+  batch_size: number
 }
 
 /** Что меняет Update или Re-cut — числа для человека; считает backend. */

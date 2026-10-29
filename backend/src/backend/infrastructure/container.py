@@ -1708,6 +1708,7 @@ class Container:
             job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             threshold_resolver=self._threshold_resolver(session),
             targets=self._generation_targets(session),
+            settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
         )
 
     def live_generation_status(self, session: Session) -> LiveGenerationStatus:
@@ -1718,6 +1719,7 @@ class Container:
             job_repo=SqlaJobRepository(session, self._change_recorder(session)),
             candidate_sorter=self._candidate_sorter(session),
             targets=self._generation_targets(session),
+            settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
         )
 
     def run_generation_use_case(self, session: Session) -> RunGenerationUseCase:
@@ -1731,6 +1733,7 @@ class Container:
             lock=SqlaSourceOperationLock(session),
             unit_of_work=self._unit_of_work(session),
             stops=self._generation_stops,
+            settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
         )
 
     def cancel_generation_use_case(self, session: Session) -> CancelGenerationUseCase:

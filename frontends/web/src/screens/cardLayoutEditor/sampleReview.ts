@@ -214,7 +214,7 @@ export function sampleReviewApi(parts: ReadonlySet<SamplePart>): ReviewApi {
     setReviewSection: async () => update(sample.phrase_id),
     reviewContents: async () => ({ version: 1, documents: [{ source_id: SOURCE_ID, title: HEADER.title, size_hint: TEXT.length }] }),
     reviewText: async () => update(sample.phrase_id, { text: chunkOf(sample) }),
-    getReviewGeneration: async () => ({ kinds: [], in_progress: false }),
+    getReviewGeneration: async () => ({ kinds: [], in_progress: false, batch_size: 100 }),
     suggestTargetImages: async () => ({ status: 'ready', query: sample.lemma, options: SAMPLE_PICTURES }),
     searchTargetImages: async () => ({ query: sample.lemma, options: SAMPLE_PICTURES }),
     getReportReasons: async () => [],

@@ -166,6 +166,7 @@ class _Setup:
         busy_with: SourceOperationKind | None = None,
         elsewhere: dict[str, ElsewhereStatus] | None = None,
         extra_phrases: frozenset[int] = frozenset(),
+        batch_size: int | None = None,
     ) -> None:
         self.source_repo = MagicMock()
         self.source_repo.get_by_id.return_value = source or _source()
@@ -220,11 +221,13 @@ class _Setup:
             _vocabulary_holding(elsewhere or {}),
         )
         resolver = SourceScopeResolver(self.source_repo, MagicMock(), added_order())
+        settings_repo = MagicMock()
+        settings_repo.get.return_value = None if batch_size is None else str(batch_size)
         self.stops = InMemoryGenerationStops()
         self.run = RunGenerationUseCase(
             scope_resolver=resolver, cards=generation_cards,
             job_repo=self.job_repo, candidate_sorter=sorter, targets=targets, lock=self.lock,
-            unit_of_work=MagicMock(), stops=self.stops,
+            unit_of_work=MagicMock(), stops=self.stops, settings_repo=settings_repo,
         )
         self.cancel = CancelGenerationUseCase(
             self.job_repo, resolver, MagicMock(), self.stops,
@@ -232,6 +235,7 @@ class _Setup:
         self.status = LiveGenerationStatus(
             scope_resolver=resolver, cards=generation_cards,
             job_repo=self.job_repo, candidate_sorter=sorter, targets=targets,
+            settings_repo=settings_repo,
         )
 
     def kind_status(self, kind: GenerationKind) -> GenerationKindStatusDTO:
@@ -291,6 +295,53 @@ class TestRunGeneration:
         assert queued == 1
         assert setup.queued_phrases() == [20]
         setup.meaning_repo.delete_by_phrase_id.assert_not_called()
+
+    def test_next_queues_the_first_missing_cards_in_the_order_chosen(self) -> None:
+        setup = _Setup(
+            cards=[_one(1), _one(2, meaning=True), _one(3), _one(4), _one(5)], batch_size=2,
+        )
+
+        queued = setup.run.execute(SCOPE, GenerationKind.MEANING, GenerationScope.NEXT)
+
+        assert queued == 2
+        assert setup.queued_phrases() == [50, 40]
+
+    def test_next_queues_every_missing_card_when_fewer_than_a_batch_are_left(self) -> None:
+        setup = _Setup(cards=[_one(1), _one(2, meaning=True), _one(3)], batch_size=5)
+
+        setup.run.execute(SCOPE, GenerationKind.MEANING, GenerationScope.NEXT)
+
+        assert setup.queued_phrases() == [30, 10]
+
+    def test_next_takes_a_batch_of_the_default_size_unless_set(self) -> None:
+        setup = _Setup(cards=[_one(i) for i in range(1, 121)])
+
+        assert setup.run.execute(SCOPE, GenerationKind.MEANING, GenerationScope.NEXT) == 100
+
+    def test_ready_next_takes_its_batch_of_ready_cards_only(self) -> None:
+        setup = _Setup(
+            cards=[_one(1), _one(2), _one(3), _one(4)],
+            extra_phrases=frozenset({40}),
+            batch_size=2,
+        )
+
+        setup.run.execute(SCOPE, GenerationKind.MEANING, GenerationScope.READY_NEXT)
+
+        assert setup.queued_phrases() == [30, 20]
+
+    def test_the_next_counts_are_a_batch_at_most(self) -> None:
+        setup = _Setup(
+            cards=[_one(1), _one(2), _one(3), _one(4, meaning=True)],
+            extra_phrases=frozenset({30}),
+            batch_size=2,
+        )
+
+        meaning = setup.kind_status(GenerationKind.MEANING)
+
+        assert (meaning.next, meaning.missing, meaning.ready_next, meaning.ready_missing) == (
+            2, 3, 2, 2,
+        )
+        assert setup.status.execute(SCOPE).batch_size == 2
 
     def test_ready_missing_skips_missing_cards_outside_ready(self) -> None:
         setup = _Setup(
@@ -651,6 +702,7 @@ class TestGetGenerationStatus:
                 added_order(),
             ),
             cards=cards, job_repo=job_repo, candidate_sorter=MagicMock(), targets=[MediaTarget()],
+            settings_repo=MagicMock(get=MagicMock(return_value=None)),
         )
 
         status = use_case.execute(SourceScope.collection(1))

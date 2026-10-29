@@ -28,6 +28,11 @@ MAX_IMAGES_PER_SOURCE: int = 30
 # cards) holds the writer for one chunk at a time, so a press waits well under 2 s.
 GENERATION_RUN_CHUNK: int = 5_000
 
+# How many cards a run of the next missing ones takes.
+GENERATION_BATCH_SIZE_SETTING: str = "generation_batch_size"
+DEFAULT_GENERATION_BATCH_SIZE: int = 100
+MIN_GENERATION_BATCH_SIZE: int = 1
+
 # An open review sends this many rows on each side of the card it lands on.
 REVIEW_WINDOW_AROUND: int = 30
 # The most rows one request on an open review gets.

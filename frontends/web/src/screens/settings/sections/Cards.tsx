@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { CLOZE_DEFAULT_HINT_OPTIONS } from '@/lib/clozeHints'
 import { autoPlayAudioPref } from '@/lib/preferences'
 import { CARD_LAYOUT_PATH } from '@/screens/cardLayoutEditor/paths'
-import { Button, Chip, DividerRow, Range, Segmented, Switch, Text } from '@/ui'
+import { Button, Chip, DividerRow, Field, Range, Segmented, Switch, Text } from '@/ui'
 import css from '../settings.module.css'
 import { Group } from './Group'
 import type { SectionProps } from './types'
@@ -95,12 +95,25 @@ function ReviewScreen({ store, form }: SectionProps) {
       <DividerRow label="Auto-play audio" hint="Plays the card's audio when it opens. Saved in this browser only.">
         <Switch checked={autoPlay} onChange={toggleAutoPlay} label="Auto-play audio" />
       </DividerRow>
-      <DividerRow last label="Default cloze hint" hint="Preselected when you mark a phrase as Cloze. You can change it on any card.">
+      <DividerRow label="Default cloze hint" hint="Preselected when you mark a phrase as Cloze. You can change it on any card.">
         <Segmented
           value={form.cloze_default_hint}
           options={CLOZE_DEFAULT_HINT_OPTIONS}
           onChange={hint => store.change('cloze_default_hint', hint)}
         />
+      </DividerRow>
+      <DividerRow last label="Generate next" hint="How many cards «Generate next» in the ✨ menu takes, from the top of the list.">
+        <div className={css.number}>
+          <Field
+            type="number"
+            min={1}
+            step={1}
+            value={Number.isNaN(form.generation_batch_size) ? '' : form.generation_batch_size}
+            onChange={e => store.edit('generation_batch_size', e.target.valueAsNumber)}
+            onBlur={() => void store.commit()}
+            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+          />
+        </div>
       </DividerRow>
     </Group>
   )
