@@ -150,6 +150,7 @@ READ_ONLY: frozenset[tuple[str, str]] = frozenset({
     ("WordStateRepository", "batch"),
     ("OccurrenceRepository", "by_source"),
     ("OccurrenceRepository", "projection"),
+    ("OccurrenceRepository", "word_projection"),
     ("OccurrenceRepository", "get"),
     ("OccurrenceRepository", "of_ids"),
     ("OccurrenceRepository", "of_word"),

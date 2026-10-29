@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from backend.application.utils.candidate_factory import CandidateFactory
@@ -18,7 +17,7 @@ from backend.domain.services.card_view import can_change_target, is_decided
 from backend.domain.services.document_layout import DocumentLayout
 from backend.domain.services.phrase_selection import SelectionScore, select_phrases
 from backend.domain.services.target_transfer import target_in
-from backend.domain.value_objects.card_choice import CardChoice
+from backend.domain.value_objects.card_choice import Press, is_skipped
 from backend.domain.value_objects.job_type import JobType
 from backend.domain.value_objects.new_card import NewCard
 from backend.domain.value_objects.phrase_origin_kind import ShownBy
@@ -89,6 +88,7 @@ class ChangeTargetUseCase:
         self._lock = lock
         self._card_views = card_views
         self._weight_unknown = weight_unknown
+        self._decide_phrase = decide_phrase
         self._candidate_factory = CandidateFactory(
             text_analyzer=text_analyzer,
             cefr_classifier=cefr_classifier,
@@ -136,11 +136,12 @@ class ChangeTargetUseCase:
         return made
 
     def _retire(self, old: Occurrence, state: WordState) -> None:
+        """Skipped by the press table: a card done because its word is decided elsewhere
+        stays as it is, as a decided word's selection never moves."""
         assert old.id is not None
+        if not is_skipped(state.card(old.id)):
+            self._decide_phrase.press_unless_done(old.id, Press.SKIP)
         self._occurrences.set_shown([old.id], None)
-        self._word_states.save(state.with_cards(
-            replace(state.card(old.id), choice=CardChoice.SKIP),
-        ))
         self._job_repo.cancel_for_phrases([old.id])
 
     def _make(self, old: Occurrence, shown: Phrase, source_id: int) -> int:
