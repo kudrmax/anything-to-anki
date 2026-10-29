@@ -155,7 +155,7 @@ The panel on the right shows the source text, with every target marked. The curr
 
 - Click a marked word to jump to its card.
 - **Select text** to add a word the app missed. Tap the words that make up the target, then press **Add word**. The selection becomes the card's phrase.
-- **Edit → Change boundary** uses the same panel: select the new phrase, then press **Set boundary**.
+- **Edit → Change boundary** uses the same panel: select the new phrase, then press **Set boundary**. The panel opens for it even when hidden, and in a narrow window the page scrolls down to it.
 
 ## Layout
 
