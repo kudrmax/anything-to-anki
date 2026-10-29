@@ -2,6 +2,20 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.6.2 — 2026-10-29
+
+Review keeps its toolbar in reach, and small screens stop cutting labels apart.
+
+### Improvements
+- In Review, the header with the phrase counter, the arrows, **Sort**, **✨**, the view toggles and **Export** now stays at the top while you scroll through the list. The source text on the right stays right under it.
+- Keyboard hints under the card show each key as a key cap, and the toast after a decision says what happened: *Marked sigh to learn*, *Skipped sigh*.
+- The Add source form shows the file format as a tag next to what it found in the file.
+
+### No longer broken
+- On a 320px phone the **Learn**, **Cloze**, **Know** and **Skip** buttons fit in one row.
+- Menus no longer wrap their items: on a phone a submenu opens in place of the menu with a way back.
+- In Export, button counts are badges, each missing part of a card is its own item, and deck and note type names no longer break across lines.
+
 ## 1.6.1 — 2026-10-29
 
 Calibration remembers the words you skip, and generation can start with the cards at the top of the list.
