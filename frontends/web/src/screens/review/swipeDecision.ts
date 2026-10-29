@@ -17,11 +17,16 @@ const FLING_SPEED = 0.5
 /** Короче этого броском не считается: случайный рывок пальца. */
 const FLING_MIN_PX = 40
 
-export interface Drag {
+/** Сдвиг карточки от места, где её взяли. */
+export interface Offset {
   dx: number
   dy: number
-  /** Скорость вдоль оси жеста в момент отпускания, px/ms. */
-  speed: number
+}
+
+/** Скорость пальца в момент отпускания, px/ms. */
+export interface Velocity {
+  vx: number
+  vy: number
 }
 
 export interface CardSize {
@@ -29,29 +34,34 @@ export interface CardSize {
   height: number
 }
 
-/** Ось жеста; null — палец ещё не ушёл дальше тапа. */
-export function swipeAxis(dx: number, dy: number): SwipeAxis | null {
+/** Куда пошёл палец в начале жеста; null — ещё не ушёл дальше тапа. */
+export function swipeAxis({ dx, dy }: Offset): SwipeAxis | null {
   if (Math.hypot(dx, dy) < SLOP_PX) return null
   return Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
 }
 
-/** Куда тянут карточку по оси жеста; вверх решения нет. */
-export function dragDirection(axis: SwipeAxis, { dx, dy }: Pick<Drag, 'dx' | 'dy'>): SwipeDirection | null {
-  if (axis === 'x') return dx > 0 ? 'right' : dx < 0 ? 'left' : null
-  return dy > 0 ? 'down' : null
+/**
+ * Решение, к которому сейчас сдвинута карточка: её тянут куда угодно, решает то, куда она ушла дальше всего.
+ * Вверх решения нет; вниз — только если вертикаль у свайпа, а не у прокрутки.
+ */
+export function dragDirection({ dx, dy }: Offset, vertical: boolean): SwipeDirection | null {
+  if (Math.abs(dx) >= Math.abs(dy)) return dx > 0 ? 'right' : dx < 0 ? 'left' : null
+  return vertical && dy > 0 ? 'down' : null
 }
 
-/** Насколько карточку дотянули до порога решения: 0…1. */
-export function dragProgress(axis: SwipeAxis, { dx, dy }: Pick<Drag, 'dx' | 'dy'>, size: CardSize): number {
-  const reach = axis === 'x' ? Math.abs(dx) / (size.width * HORIZONTAL_SHARE) : Math.max(dy, 0) / (size.height * VERTICAL_SHARE)
+/** Насколько карточку дотянули до порога этого решения: 0…1. */
+export function dragProgress(direction: SwipeDirection | null, { dx, dy }: Offset, size: CardSize): number {
+  if (!direction) return 0
+  const reach = direction === 'down' ? dy / (size.height * VERTICAL_SHARE) : Math.abs(dx) / (size.width * HORIZONTAL_SHARE)
   return Math.min(reach, 1)
 }
 
 /** Решение отпущенной карточки: дотянули до порога или бросили; иначе она возвращается на место. */
-export function releasedDirection(axis: SwipeAxis, drag: Drag, size: CardSize): SwipeDirection | null {
-  const direction = dragDirection(axis, drag)
+export function releasedDirection(offset: Offset, { vx, vy }: Velocity, size: CardSize, vertical: boolean): SwipeDirection | null {
+  const direction = dragDirection(offset, vertical)
   if (!direction) return null
-  const distance = axis === 'x' ? Math.abs(drag.dx) : drag.dy
-  const flung = drag.speed >= FLING_SPEED && distance >= FLING_MIN_PX
-  return dragProgress(axis, drag, size) >= 1 || flung ? direction : null
+  const distance = direction === 'down' ? offset.dy : Math.abs(offset.dx)
+  const speed = direction === 'down' ? vy : direction === 'right' ? vx : -vx
+  const flung = speed >= FLING_SPEED && distance >= FLING_MIN_PX
+  return dragProgress(direction, offset, size) >= 1 || flung ? direction : null
 }
