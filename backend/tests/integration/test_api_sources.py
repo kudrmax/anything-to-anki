@@ -132,7 +132,7 @@ class TestSourcesAPI:
         text = "She shrugged off the comment."
         response = client.post("/sources/describe-input", json={"text": text})
         assert response.json() == {
-            "kind": "phrase", "format": None, "several": None, "label": None,
+            "kind": "phrase", "format": None, "several": None, "label": None, "file_format": None,
             "problem": None, "problem_message": None, "problem_hint": None,
         }
 

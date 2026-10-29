@@ -68,9 +68,9 @@ def test_empty_input_has_no_description(text: str) -> None:
 )
 def test_youtube_link_is_a_video_source(text: str) -> None:
     described = describe(text)
-    assert (
-        described.kind, described.format, described.label, described.file_format, described.problem,
-    ) == (InputKind.SOURCE, Format.YOUTUBE, "Video", "YouTube", None)
+    shown = (described.kind, described.format, described.label, described.file_format)
+    assert shown == (InputKind.SOURCE, Format.YOUTUBE, "Video", "YouTube")
+    assert described.problem is None
 
 
 @pytest.mark.parametrize(

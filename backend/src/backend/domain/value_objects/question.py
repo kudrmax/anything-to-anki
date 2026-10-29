@@ -23,7 +23,7 @@ class OptionDetails:
 
 @dataclass(frozen=True)
 class QuestionOption:
-    """`facts` — what tells the options apart besides the label, one fact each, e.g. a word count."""
+    """`facts` — what tells options apart besides the label, one fact each, e.g. a word count."""
 
     id: str
     label: str

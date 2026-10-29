@@ -42,7 +42,9 @@ class BookHandler(KindHandler):
             label=f"{len(counts)} chapters",
             facts=(f"{_word_range(counts)} each",),
         )
-        whole = QuestionOption(id=WHOLE_OPTION_ID, label="One source", facts=(_words(sum(counts)),))
+        whole = QuestionOption(
+            id=WHOLE_OPTION_ID, label="One source", facts=(_words(sum(counts)),),
+        )
         return (
             Question(
                 id=SPLIT_QUESTION_ID,
