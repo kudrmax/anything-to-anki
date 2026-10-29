@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CLOSE_QUICK_ADD_HANDLER, FILE_DROP_EVENT, nativeHost, PICK_FILE_HANDLER, quickAddPanel, TITLEBAR_HANDLER, windowTitlebar } from './nativeHost'
+import { CLOSE_QUICK_ADD_HANDLER, FILE_DROP_EVENT, nativeHost, PICK_FILE_HANDLER, quickAddPanel, THEME_HANDLER, TITLEBAR_HANDLER, windowTheme, windowTitlebar } from './nativeHost'
 
 const hostWindow = (reply: unknown) => {
   const postMessage = vi.fn().mockResolvedValue(reply)
@@ -83,5 +83,21 @@ describe('windowTitlebar', () => {
     windowTitlebar(win)?.doubleClick()
 
     expect(postMessage.mock.calls).toEqual([['drag'], ['doubleClick']])
+  })
+})
+
+describe('windowTheme', () => {
+  it('is absent in a plain browser', () => {
+    expect(windowTheme({} as Window)).toBeNull()
+  })
+
+  it('tells the macOS app which theme the window follows', () => {
+    const postMessage = vi.fn().mockResolvedValue(null)
+    const win = { webkit: { messageHandlers: { [THEME_HANDLER]: { postMessage } } } } as unknown as Window
+
+    windowTheme(win)?.follow('system')
+    windowTheme(win)?.follow('light')
+
+    expect(postMessage.mock.calls).toEqual([['system'], ['light']])
   })
 })

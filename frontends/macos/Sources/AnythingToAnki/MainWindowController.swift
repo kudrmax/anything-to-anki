@@ -13,7 +13,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
 
     private let webController: WebViewController
     private let statusController = StatusViewController()
-    private let backgroundStore = PageBackgroundStore()
+    private let lookStore = PageLookStore()
     private var restartBanner: RestartBanner?
     private var status: LaunchStatus?
     private var backgroundObservation: NSKeyValueObservation?
@@ -49,12 +49,14 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         webController.onLoadFailed = { [weak self] message in
             self?.showStatus(.failed(message: "The page could not be loaded", details: message))
         }
-        // The window takes the page's own background, so the status screen follows the in-app theme.
-        if let color = backgroundStore.load() { window.applyPageBackground(color) }
-        backgroundObservation = webController.observeBackground { [weak window, backgroundStore] color in
-            guard let window else { return }
-            window.applyPageBackground(color)
-            backgroundStore.save(color)
+        window.applyStoredLook(from: lookStore)
+        webController.observeTheme { [weak window, lookStore] mode in
+            window?.applyThemeMode(mode)
+            lookStore.saveThemeMode(mode)
+        }
+        backgroundObservation = webController.observeBackground { [weak window, lookStore] color in
+            window?.applyPageBackground(color)
+            lookStore.saveBackground(color)
         }
     }
 

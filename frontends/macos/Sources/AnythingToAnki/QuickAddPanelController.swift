@@ -17,8 +17,10 @@ final class QuickAddPanelController: NSWindowController {
     init(config: AppConfig) {
         self.config = config
         let closeHandler = QuickAddCloseHandler()
+        let theme = ThemeBridge { [config] frame in frame.isMainFrame && frame.request.url.map(config.isAppURL) == true }
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(closeHandler, contentWorld: .page, name: QuickAddCloseHandler.name)
+        configuration.userContentController.add(theme, contentWorld: .page, name: ThemeBridge.name)
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.isInspectable = true
 
@@ -36,11 +38,12 @@ final class QuickAddPanelController: NSWindowController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
-        if let color = PageBackgroundStore().load() { panel.applyPageBackground(color) }
+        panel.applyStoredLook(from: PageLookStore())
         panel.contentView = Self.content(webView: webView, dragStripHeight: panel.frame.height - panel.contentLayoutRect.height)
         super.init(window: panel)
 
         closeHandler.onClose = { [weak self] in self?.close() }
+        theme.onChange = { [weak panel] mode in panel?.applyThemeMode(mode) }
     }
 
     @available(*, unavailable)
