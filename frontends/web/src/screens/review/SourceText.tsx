@@ -46,30 +46,24 @@ interface DocumentPoint {
   char: number
 }
 
-/** Место в документе, где проходит граница выделения: кусок строки и смещение в нём. */
-function documentPoint(node: Node, offset: number, isEnd: boolean): DocumentPoint | null {
-  let target: Node | null = node
-  let within = offset
-  if (node.nodeType !== Node.TEXT_NODE) {
-    const children = node.childNodes
-    const child = isEnd ? children[offset - 1] : children[offset]
-    if (!child) return null
-    const texts = textNodes(child)
-    target = isEnd ? texts[texts.length - 1] ?? null : texts[0] ?? null
-    within = isEnd && target ? (target.textContent ?? '').length : 0
-  }
-  const segment = target?.parentElement?.closest<HTMLElement>(SEGMENT_SELECTOR)
-  if (!target || !segment) return null
+/** Место в документе, где проходит граница выделения. Край на переносе строки, между блоками или на маркере
+ *  списка не лежит ни в одном куске строки: он сдвигается к ближайшему куску внутри выделения. */
+function documentPoint(range: Range, container: HTMLElement, isEnd: boolean): DocumentPoint | null {
+  const node = isEnd ? range.endContainer : range.startContainer
+  const segment = node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest<HTMLElement>(SEGMENT_SELECTOR) : null
+  if (segment) return pointIn(segment, isEnd ? range.endOffset : range.startOffset)
+  const touched = [...container.querySelectorAll<HTMLElement>(SEGMENT_SELECTOR)].filter(s => range.intersectsNode(s))
+  const nearest = isEnd ? touched.at(-1) : touched[0]
+  if (!nearest) return null
+  return pointIn(nearest, isEnd ? (nearest.textContent ?? '').length : 0)
+}
+
+function pointIn(segment: HTMLElement, offset: number): DocumentPoint {
   return {
     block: Number(segment.dataset.block),
     line: Number(segment.dataset.line),
-    char: Number(segment.dataset.start) + codePointOffset(target.textContent ?? '', within),
+    char: Number(segment.dataset.start) + codePointOffset(segment.textContent ?? '', offset),
   }
-}
-
-function textNodes(node: Node): Node[] {
-  if (node.nodeType === Node.TEXT_NODE) return [node]
-  return Array.from(node.childNodes).flatMap(textNodes)
 }
 
 const lineSeparator = (block: DocumentBlock): string => (block.mode === 'lines' ? '\n' : ' ')
@@ -172,8 +166,8 @@ export function SourceText({ sourceId, items, text, done, focused, onWordClick, 
     const selected = selection.toString().trim()
     if (!selected) return
     const range = selection.getRangeAt(0)
-    const start = documentPoint(range.startContainer, range.startOffset, false)
-    const end = documentPoint(range.endContainer, range.endOffset, true)
+    const start = documentPoint(range, container, false)
+    const end = documentPoint(range, container, true)
     if (!start || !end) return
     const rect = range.getBoundingClientRect()
     onTextSelected(
@@ -204,11 +198,23 @@ export function SourceText({ sourceId, items, text, done, focused, onWordClick, 
     }
   })
 
+  // Выделение тянут и за край колонки: кнопку отпускают где угодно, но начинали в этом тексте.
+  const selecting = useRef(false)
+  useEffect(() => {
+    const onMouseUp = () => {
+      if (!selecting.current) return
+      selecting.current = false
+      reportSelection()
+    }
+    window.document.addEventListener('mouseup', onMouseUp)
+    return () => window.document.removeEventListener('mouseup', onMouseUp)
+  })
+
   const inChunk = (chunk: TextChunk, position: DocumentPosition | null): boolean =>
     position !== null && chunk.first_block <= position.block && position.block < chunk.end_block
 
   return (
-    <div ref={containerRef} onMouseUp={reportSelection}>
+    <div ref={containerRef} onMouseDown={() => { selecting.current = true }}>
       {items.map(item => {
         if (isTextGap(item)) return <GapView key={`gap-${item.gap.start}`} sourceId={sourceId} gap={item.gap} />
         const { chunk } = item

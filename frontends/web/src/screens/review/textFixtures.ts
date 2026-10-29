@@ -3,6 +3,10 @@ import type { DocumentBlock, Highlight, ReviewContents, TextChunk } from '@/api/
 export const paragraph = (text: string): DocumentBlock =>
   ({ type: 'paragraph', lines: [{ text }], level: null, mode: 'flow', ordered: null, depth: null, number: null })
 
+/** Блок построчного текста — песни или субтитров: строки разделены переносом. */
+export const lines = (...texts: string[]): DocumentBlock =>
+  ({ type: 'paragraph', lines: texts.map(text => ({ text })), level: null, mode: 'lines', ordered: null, depth: null, number: null })
+
 export const listItem = (text: string, number: number | null, ordered = true): DocumentBlock =>
   ({ type: 'list_item', lines: [{ text }], level: null, mode: 'flow', ordered, depth: 0, number })
 

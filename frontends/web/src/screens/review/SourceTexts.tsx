@@ -190,6 +190,14 @@ export function SourceTexts({ text, done, focused, editingSourceId, onLoad, ensu
     // eslint-disable-next-line react-hooks/exhaustive-deps -- прокручиваем при смене фразы и начале правки, а не при каждом обновлении текста
   }, [focusId, editingStarted])
 
+  // Под узким окном текст стоит под списком фраз, ниже экрана: правка границы показывает его, чтобы было где выделять.
+  useEffect(() => {
+    const container = containerRef.current
+    if (editingStarted && container && container.getBoundingClientRect().top >= window.innerHeight) {
+      container.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
+  }, [editingStarted])
+
   // Заглушка у экрана грузит кусок с того края, что к нему обращён; пока прокрутка ждёт кусок фразы — ничего.
   useEffect(() => {
     const container = containerRef.current
