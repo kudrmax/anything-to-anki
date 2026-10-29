@@ -48,13 +48,11 @@
 .queue:has(> [data-swipe="left"]) > .underCard:not([data-under~="left"]),
 .queue:has(> [data-swipe="down"]) > .underCard:not([data-under~="down"]) { visibility: hidden; }
 
-/* телефон: пока карточку тянут, кнопки решений сменяет одна надпись — решение, которое примет свайп */
+/* телефон: пока карточку тянут, кнопки решений сменяет одна надпись — решение, которое примет свайп, в виде его кнопки */
 .dockStack { flex: 1; display: grid; }
 .dockStack > * { grid-area: 1 / 1; transition: opacity var(--t); }
-.verdict { display: flex; align-items: center; justify-content: center; height: var(--decision-h); border-radius: var(--rc); font-size: var(--fs-b); font-weight: var(--fw-b); opacity: 0; pointer-events: none; }
-.verdict[data-verdict="right"] { color: var(--ac); background: var(--ac-tint); }
-.verdict[data-verdict="left"] { color: var(--ok); background: var(--ok-tint); }
-.verdict[data-verdict="down"] { color: var(--tx2); background: var(--soft); }
+.verdict { display: flex; align-items: center; justify-content: center; height: var(--decision-h); border-radius: var(--rc); font-size: var(--fs-c); font-weight: var(--fw-m); color: var(--tx); background: var(--soft); opacity: 0; pointer-events: none; }
+.verdict[data-verdict="right"] { color: var(--on-ac); background: var(--fill); box-shadow: var(--fill-shadow); }
 .body:has(.cardBlock[data-swipe]) .dockStack > .decisions { opacity: 0; }
 .body:has(.cardBlock[data-swipe="right"]) .verdict[data-verdict="right"],
 .body:has(.cardBlock[data-swipe="left"]) .verdict[data-verdict="left"],
