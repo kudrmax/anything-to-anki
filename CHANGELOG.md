@@ -2,6 +2,26 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.5.1 — 2026-10-29
+
+Frequent words are easier to choose.
+
+### No longer broken
+- **Settings → Words → Frequent words** showed each option as a number and a line of words cut off by the edge of the dropdown. The options are now a list: each one shows its example words in full, so you can compare them at a glance. The confirmation asks with the same words.
+![](docs/images/changelog/1.5.1/frequent-words.png)
+- In **Settings → Anki**, fields missing from a note type are now shown one by one instead of in a single line.
+
+## 1.5.0 — 2026-10-29
+
+Calibration asks about the words you will actually meet.
+
+### Calibration like Review
+Calibration used to pick one random word for each level and frequency, so most rounds were rare words you seldom meet. Now it shows the words Review would suggest to you, in the same order: common words first, words of your level before harder ones. Every word you tap is one card less in your sources. Word forms such as *playing* or *known* are left out, since Review only suggests *play* and *know*. The old way is still there: switch to **Mixed** at the top of the calibration screen.
+![](docs/images/changelog/1.5.0/calibration-order.png)
+
+### No longer broken
+- Calibration no longer asks about dictionary entries that are not words, such as *10th*, *mp3* or *expect'*.
+
 ## 1.4.0 — 2026-10-29
 
 Settings are rebuilt around what you change in them.
