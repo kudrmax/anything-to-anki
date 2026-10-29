@@ -97,3 +97,9 @@ function firstOpen(
   }
   return null
 }
+
+/** Карточка, на которую перейдёт экран после такого нажатия; null — переход не известен заранее или его нет. */
+export function landingAfter(state: ReviewState, pressed: number, closes: Closes | null): number | null {
+  const landed = pressAhead(state, pressed, closes)?.ahead.landed
+  return landed === undefined || landed === pressed ? null : landed
+}

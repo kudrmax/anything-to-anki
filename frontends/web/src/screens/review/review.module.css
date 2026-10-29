@@ -34,15 +34,31 @@
 .folded > .showAll { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--fold-fade) + var(--show-all-h)); padding-top: var(--fold-fade); background: var(--fold-fade-bg); border-radius: 0 0 var(--r) var(--r); }
 .cardRight.collapsed, .cardFoot.collapsed { display: var(--details-collapsed-display); }
 
-/* телефон: свайп решения, как в Tinder — карточка едет за пальцем и наклоняется, на ней проступает метка решения */
-.cardBlock[data-drag] { position: relative; z-index: 1; transform: translate(var(--drag-x), var(--drag-y)) rotate(var(--drag-r)); user-select: none; }
+/* телефон: свайп решения, как в Tinder — карточка едет за пальцем и наклоняется */
+.cardBlock[data-drag] { transform: translate(var(--drag-x), var(--drag-y)) rotate(var(--drag-r)); user-select: none; }
 .cardBlock[data-drag="fly"], .cardBlock[data-drag="back"] { transition: transform var(--swipe-t) ease-out; }
-.swipeStamp { display: none; }
-.cardBlock[data-drag] > .swipeStamp { display: block; position: absolute; z-index: 1; top: var(--s7); padding: var(--s1) var(--s4); border: var(--stamp-bw) solid currentColor; border-radius: var(--r-s); background: var(--card); font-size: var(--fs-l); font-weight: var(--fw-b); line-height: var(--lh-label); opacity: 0; pointer-events: none; }
-.swipeStamp[data-stamp="right"] { left: var(--s5); rotate: calc(-1 * var(--stamp-tilt)); color: var(--ac); }
-.swipeStamp[data-stamp="left"] { right: var(--s5); rotate: var(--stamp-tilt); color: var(--ok); }
-.swipeStamp[data-stamp="down"] { left: 0; right: 0; width: fit-content; margin-inline: auto; color: var(--tx2); }
-.cardBlock[data-swipe="right"] > [data-stamp="right"], .cardBlock[data-swipe="left"] > [data-stamp="left"], .cardBlock[data-swipe="down"] > [data-stamp="down"] { opacity: var(--drag-p); }
+
+/* телефон: стопка — под текущей карточкой лежит та, что откроется после свайпа в эту сторону */
+.queue { position: var(--queue-position); }
+.queue > .cardBlock { position: var(--current-card-position); z-index: var(--current-card-z); }
+.queue > .underCard { display: var(--phone-flex); position: absolute; inset: 0; z-index: 0; margin: 0; visibility: hidden; }
+.queue > .underCard[data-under~="right"],
+.queue:has(> [data-swipe="left"]) > .underCard[data-under~="left"],
+.queue:has(> [data-swipe="down"]) > .underCard[data-under~="down"] { visibility: visible; }
+.queue:has(> [data-swipe="left"]) > .underCard:not([data-under~="left"]),
+.queue:has(> [data-swipe="down"]) > .underCard:not([data-under~="down"]) { visibility: hidden; }
+
+/* телефон: пока карточку тянут, кнопки решений сменяет одна надпись — решение, которое примет свайп */
+.dockStack { flex: 1; display: grid; }
+.dockStack > * { grid-area: 1 / 1; transition: opacity var(--t); }
+.verdict { display: flex; align-items: center; justify-content: center; height: var(--decision-h); border-radius: var(--rc); font-size: var(--fs-b); font-weight: var(--fw-b); opacity: 0; pointer-events: none; }
+.verdict[data-verdict="right"] { color: var(--ac); background: var(--ac-tint); }
+.verdict[data-verdict="left"] { color: var(--ok); background: var(--ok-tint); }
+.verdict[data-verdict="down"] { color: var(--tx2); background: var(--soft); }
+.body:has(.cardBlock[data-swipe]) .dockStack > .decisions { opacity: 0; }
+.body:has(.cardBlock[data-swipe="right"]) .verdict[data-verdict="right"],
+.body:has(.cardBlock[data-swipe="left"]) .verdict[data-verdict="left"],
+.body:has(.cardBlock[data-swipe="down"]) .verdict[data-verdict="down"] { opacity: 1; }
 .tools { display: flex; gap: var(--s1); margin-right: var(--icon-inset-trim); }
 
 /* решения: док у нижнего края окна, Learn залит всегда, принятое решение — с галочкой */

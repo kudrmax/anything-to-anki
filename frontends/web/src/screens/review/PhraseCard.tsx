@@ -8,7 +8,6 @@ import { Icon, Kbd } from '@/ui'
 import { CardBody } from './CardBody'
 import { CardPhrase } from './CardPhrase'
 import { CefrTooltip } from './CefrTooltip'
-import { DECISION_LABEL } from './decisionLabel'
 import { ClozePanel } from './ClozePanel'
 import { DecisionButtons, PhraseTools } from './PhraseActions'
 import { PictureSuggestions } from './PictureSuggestions'
@@ -30,10 +29,11 @@ interface PhraseCardProps {
   layout: CardLayoutView | null
   /** Нет — подсказки картинок выключены. */
   suggestPictures: PictureSuggestionsLoader | null
+  /** Телефон: карточка лежит в стопке под текущей и откроется после этих свайпов; трогать её нельзя. */
+  under?: SwipeDirection[]
 }
 
 const GENERATED_PHRASE = 'generated phrase'
-const SWIPE_DIRECTIONS: SwipeDirection[] = ['right', 'left', 'down']
 /** Цифры решений видны на кнопках, здесь — только неочевидные клавиши. */
 const KEY_HINTS: { keys: string[]; action: string }[] = [
   { keys: ['↑↓', '←→'], action: 'phrases' },
@@ -54,7 +54,7 @@ const clozeHint = ({ hint_kind }: CandidateCloze): string =>
 /**
  * Текущая фраза: сверху фраза, под ней тело по раскладке пользователя, снизу решения, факты и инструменты.
  */
-export function PhraseCard({ candidate, review, layout, suggestPictures }: PhraseCardProps) {
+export function PhraseCard({ candidate, review, layout, suggestPictures, under }: PhraseCardProps) {
   const [cefrAnchor, setCefrAnchor] = useState<HTMLElement | null>(null)
   // Телефон: карточка свёрнута в экран, Show all раскрывает её целиком — со справкой и инструментами.
   const [showAll, setShowAll] = useState(false)
@@ -80,7 +80,7 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
   const swipeButton = (direction: SwipeDirection) => candidate.state.buttons.find(b => b.button === SWIPE_DECISION[direction])
   // Уже принятое решение свайп не снимает, а оставляет и ведёт к следующей карточке.
   const swipeRef = useDecisionSwipe({
-    enabled: phone && !marking && phraseEditor.draft === null && !editing,
+    enabled: phone && !under && !marking && phraseEditor.draft === null && !editing,
     vertical: !showAll,
     canSwipe: direction => {
       const button = swipeButton(direction)
@@ -110,10 +110,13 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
   const columns = layout ? shownColumns(layout, ctx, editing?.dragged != null) : null
 
   return (
-    <div className={css.cardBlock} ref={swipeRef}>
-      {SWIPE_DIRECTIONS.map(direction => (
-        <span key={direction} className={css.swipeStamp} data-stamp={direction} aria-hidden>{DECISION_LABEL[SWIPE_DECISION[direction]]}</span>
-      ))}
+    <div
+      className={under ? `${css.cardBlock} ${css.underCard}` : css.cardBlock}
+      ref={swipeRef}
+      data-under={under?.join(' ')}
+      inert={under !== undefined}
+      aria-hidden={under !== undefined}
+    >
       <article
         className={[css.card, marking && css.clozeEditing, !showAll && css.folded].filter(Boolean).join(' ')}
         data-candidate-id={candidate.phrase_id}

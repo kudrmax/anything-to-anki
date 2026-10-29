@@ -88,7 +88,7 @@ Swipe the card to decide it:
 | Left | Know |
 | Down | Skip |
 
-The card follows your finger anywhere and shows the decision it will make: the one it has moved furthest toward. Let go past the edge, or flick, and the card flies on that way and the decision is made; let go earlier, or above where it started, and the card comes back. Cloze is a button only. Swiping a card that already has this decision keeps it and moves to the next card.
+The cards lie in a stack: under the card is the one that opens after the swipe, already loaded. The card follows your finger anywhere, and the decision buttons turn into the decision it will make: the one it has moved furthest toward. Let go past the edge, or flick, and the card flies on that way and the decision is made; let go earlier, or above where it started, and the card comes back. Cloze is a button only. Swiping a card that already has this decision keeps it and moves to the next card.
 
 The card fits the screen. When something does not fit, the bottom fades out under **Show all**. **Show all** opens the whole card, with its reference column and tools, and lets you scroll it; while it is open, swipe down does nothing, left and right still work. The next card opens folded again.
 

@@ -5,12 +5,14 @@ import { backIn, backTo } from '@/lib/backLink'
 import { exportPath, parseSetScope } from '@/lib/scope'
 import { allowedInClozeMarkup, isToolAction, reviewAction, type ReviewAction } from '@/lib/hotkeys'
 import { pastedPicture } from '@/lib/pastedPicture'
+import { usePhone } from '@/lib/device'
 import { phraseListShownPref, pictureSuggestionsShownPref, sourceTextShownPref } from '@/lib/preferences'
 import { Aside, Page, PageHeader } from '@/shell'
 import { ArrowDownWideNarrow, ChevronLeft, ChevronRight, Ellipsis, FileText, Image, ImageOff, List, ListChevronsDownUp, ListChevronsUpDown, PanelRightClose, PanelRightOpen, Sparkles, Upload } from 'lucide-react'
 import { Banner, Button, Empty, Icon, IconButton, Menu, Progress, Spinner, Toast, ToastStack, UndoToast, type MenuItem } from '@/ui'
 import { GenerateMenu } from './GenerateMenu'
 import { generationItems } from './generationItems'
+import { DECISION_LABEL } from './decisionLabel'
 import { DecisionButtons } from './PhraseActions'
 import { PhraseCard } from './PhraseCard'
 import { PhraseRow } from './PhraseRow'
@@ -19,6 +21,8 @@ import { SortMenu } from './SortMenu'
 import { sortItems, sortLabel } from './sortItems'
 import type { SelectedText, SelectionPoint } from './SourceText'
 import { SourceTexts } from './SourceTexts'
+import { SWIPE_DECISION, type SwipeDirection } from './swipeDecision'
+import { cardsUnder, SWIPE_DIRECTIONS } from './swipeStack'
 import { audioUrlForCandidate, useReview } from './useReview'
 import { usePictureSuggestions } from './usePictureSuggestions'
 import { ReviewList } from './ReviewList'
@@ -82,6 +86,7 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
   const [phoneView, setPhoneView] = useState<PhoneView>('card')
   const togglePhoneView = (view: PhoneView) => setPhoneView(prev => (prev === view ? 'card' : view))
   const hasCards = review.state.totalRows > 0
+  const phone = usePhone()
 
   const { press, step, cancelEditing, clozeEditing, targetEditing } = review
   const toggleAudio = review.player.toggle
@@ -142,6 +147,8 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
 
   // Правка границ фразы идёт по тексту источника — на телефоне показываем его.
   const view: PhoneView = editing ? 'text' : phoneView
+  // Телефон: под текущей карточкой лежит та, что откроется после свайпа, — уже загруженная.
+  const under = phone && view === 'card' && current ? cardsUnder(review.state, current) : new Map<number, SwipeDirection[]>()
 
   const showCard = (id: number) => {
     void review.goTo(id)
@@ -268,15 +275,21 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
           state={review.state}
           onLoad={review.loadRows}
           onToggleSection={toggleSection}
-          renderCard={(card, isCurrent) => isCurrent
-            ? <PhraseCard key={card.phrase_id} candidate={card} review={review} layout={cardLayout} suggestPictures={suggestPictures} />
+          renderCard={(card, isCurrent) => isCurrent || under.has(card.phrase_id)
+            ? <PhraseCard key={card.phrase_id} candidate={card} review={review} layout={cardLayout} suggestPictures={suggestPictures} under={isCurrent ? undefined : under.get(card.phrase_id)} />
             : <PhraseRow key={card.phrase_id} candidate={card} onSelect={id => void review.goTo(id)} />}
           followKey={phraseListShown}
         />
         {/* Телефон: решения — в панели под карточкой. В разметке cloze и выборе таргета у панели свои кнопки. */}
         {current && view === 'card' && !clozeEditing && !targetEditing && (
           <div className={`${css.dock} ${css.phoneOnly}`}>
-            <DecisionButtons candidate={current} review={review} />
+            {/* Пока карточку тянут, кнопки сменяет решение, которое примет свайп. */}
+            <div className={css.dockStack}>
+              <DecisionButtons candidate={current} review={review} />
+              {SWIPE_DIRECTIONS.map(direction => (
+                <span key={direction} className={css.verdict} data-verdict={direction} aria-hidden>{DECISION_LABEL[SWIPE_DECISION[direction]]}</span>
+              ))}
+            </div>
           </div>
         )}
       </div>

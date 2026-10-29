@@ -40,6 +40,7 @@
   --warn-tint: color-mix(in srgb, var(--warn) 14%, transparent);
   --warn-line: color-mix(in srgb, var(--warn) 40%, transparent);
   --ok-line: color-mix(in srgb, var(--ok) 40%, transparent);
+  --ok-tint: color-mix(in srgb, var(--ok) 18%, transparent);
   --err-tint: color-mix(in srgb, var(--err) 14%, transparent);
   --err-line: color-mix(in srgb, var(--err) 60%, transparent);
   --media-veil: color-mix(in srgb, var(--bg) 25%, transparent);
@@ -298,8 +299,9 @@
   --fold-fade: var(--s7);
   --fold-fade-bg: linear-gradient(to bottom, transparent, var(--card) var(--fold-fade));
   --swipe-t: 200ms;                   /* = ANIMATION_MS в useDecisionSwipe */
-  --stamp-bw: 2px;
-  --stamp-tilt: 8deg;
+  --queue-position: static;
+  --current-card-position: static;
+  --current-card-z: auto;
   --review-body-clip: visible;
   --dock-align: center;
   --dock-bottom: var(--s5);
@@ -500,6 +502,9 @@
     --card-folded-pb: calc(var(--fold-fade) + var(--show-all-h));
     --card-folded-touch: none;
     --review-body-clip: clip;
+    --queue-position: relative;
+    --current-card-position: relative;
+    --current-card-z: 1;
     --decision-flex: 1;
     --decision-h: 44px;
     --decision-px: var(--s3);           /* четыре решения делят ширину и на 320px */
