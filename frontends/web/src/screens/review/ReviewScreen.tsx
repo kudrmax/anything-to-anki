@@ -244,7 +244,7 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
   )
 
   return (
-    <Page fit wide immersive header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={banner || undefined}>
+    <Page fit wide immersive stickyHeader header={header} aside={aside || undefined} asideHidden={!sourceTextShown} banner={banner || undefined}>
       <div className={phraseListShown ? css.body : `${css.body} ${css.focus}`}>
         {!hasCards && <Empty>No candidates found.</Empty>}
         {view === 'text' && hasSourceText && <div className={css.textPanel}>{sourceText(showCard)}</div>}

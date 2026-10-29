@@ -205,6 +205,7 @@
   --aside-inner-w: var(--aside);
   --aside-hidden-h: none;
   --aside-position: sticky;
+  --sticky-aside-room: calc(100dvh - var(--nav-h) - var(--main-pb));   /* окно под вкладками без шапки страницы */
   --modal: 480px;
   --modal-wide: 1200px;
   --modal-read: 640px;   /* окно для чтения: changelog */
@@ -340,7 +341,7 @@
   --ls-tight: -.02em; --ls-caps: .07em; --ls-focus: -.012em;
 
   /* слои и прозрачность */
-  --z-menu: 20; --z-modal: 30; --z-toast: 40; --z-block: 50; --z-drag: 60; --z-editor: 55;
+  --z-sticky: 2; --z-menu: 20; --z-modal: 30; --z-toast: 40; --z-block: 50; --z-drag: 60; --z-editor: 55;
   --offscreen: -9999px;  /* картинка перетаскивания собирается вне экрана */
   --o-disabled: .5; --o-off: .45; --o-kbd: .6; --o-dim: .35; --o-visuals: .6;
   --shadow-pop: 0 14px 36px -12px color-mix(in srgb, black 60%, transparent);
@@ -383,6 +384,7 @@
     --aside-inner-w: auto;
     --aside-hidden-h: 0;
     --aside-position: static;
+    --sticky-aside-max: 100%;
     --fit-aside-row: after;
     --fit-aside-contain: none;
     --fit-aside-align: start;
