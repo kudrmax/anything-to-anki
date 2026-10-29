@@ -1,7 +1,10 @@
 // Capabilities of the macOS app shell (frontends/macos). Absent in a plain browser.
+import type { ThemePref } from './preferences'
+
 export const PICK_FILE_HANDLER = 'pickFile'
 export const CLOSE_QUICK_ADD_HANDLER = 'closeQuickAdd'
 export const TITLEBAR_HANDLER = 'titlebar'
+export const THEME_HANDLER = 'theme'
 export const FILE_DROP_EVENT = 'nativefiledrop'
 export const OPEN_SETTINGS_EVENT = 'nativeopensettings'
 export const CHECK_FOR_UPDATES_EVENT = 'nativecheckforupdates'
@@ -83,6 +86,25 @@ export function windowTitlebar(win: Window = window): WindowTitlebar | null {
     },
     doubleClick() {
       void handler.postMessage('doubleClick')
+    },
+  }
+}
+
+export interface WindowTheme {
+  /** Makes the window's chrome light or dark with the page, or lets both follow macOS for `system`. */
+  follow(pref: ThemePref): void
+}
+
+/**
+ * The macOS app's window appearance. WebKit answers `prefers-color-scheme` from the window's
+ * appearance, not from macOS, so the page cannot follow the system unless the window does.
+ */
+export function windowTheme(win: Window = window): WindowTheme | null {
+  const handler = (win as ShellWindow).webkit?.messageHandlers?.[THEME_HANDLER]
+  if (!handler) return null
+  return {
+    follow(pref) {
+      void handler.postMessage(pref)
     },
   }
 }

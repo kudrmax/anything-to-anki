@@ -17,6 +17,7 @@ final class WebViewController: NSViewController {
     private lazy var titlebar = TitlebarBridge(isAppFrame: isAppFrame, lastMouseDown: { [weak self] in
         self?.webView.lastMouseDown
     })
+    private lazy var theme = ThemeBridge(isAppFrame: isAppFrame)
     private lazy var webView: FileDropWebView = makeWebView()
     private let pageZoom = PageZoom()
     private var titlebarInsets: TitlebarInsets?
@@ -96,6 +97,11 @@ final class WebViewController: NSViewController {
         )
     }
 
+    func observeTheme(_ apply: @escaping (ThemeMode) -> Void) {
+        loadViewIfNeeded()
+        theme.onChange = apply
+    }
+
     func observeBackground(_ apply: @escaping (NSColor) -> Void) -> NSKeyValueObservation {
         loadViewIfNeeded()
         return webView.observe(\.underPageBackgroundColor, options: [.new]) { webView, _ in
@@ -110,6 +116,7 @@ final class WebViewController: NSViewController {
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.userContentController.addScriptMessageHandler(filePicker, contentWorld: .page, name: FilePickerBridge.name)
         configuration.userContentController.add(titlebar, contentWorld: .page, name: TitlebarBridge.name)
+        configuration.userContentController.add(theme, contentWorld: .page, name: ThemeBridge.name)
         let webView = FileDropWebView(frame: .zero, configuration: configuration)
         webView.isAppPage = { [weak webView, config] in webView?.url.map(config.isAppURL) == true }
         webView.navigationDelegate = self

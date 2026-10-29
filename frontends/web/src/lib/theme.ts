@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react'
+import { windowTheme } from './nativeHost'
 import { themeModePref, type ThemePref } from './preferences'
 
 const SYSTEM_DARK = '(prefers-color-scheme: dark)'
@@ -30,10 +31,15 @@ export function useTheme(): { pref: ThemePref; setPref: (pref: ThemePref) => voi
   return { pref, setPref: themeStore.set }
 }
 
-/** Применяет тему к документу и следит за системной. Вызывается один раз — в каркасе. */
+/**
+ * Применяет тему к документу и следит за системной. Вызывается один раз — в каркасе.
+ * В macOS-приложении окно узнаёт режим первым: пока оно само тёмное или светлое,
+ * `prefers-color-scheme` отвечает про окно, а не про систему.
+ */
 export function useApplyTheme(): void {
   const { pref } = useTheme()
   useEffect(() => {
+    windowTheme()?.follow(pref)
     const media = window.matchMedia(SYSTEM_DARK)
     const apply = () => { document.documentElement.dataset.theme = resolveTheme(pref, media.matches) }
     apply()
