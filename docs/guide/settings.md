@@ -29,7 +29,7 @@ Which words the app suggests to you.
 | Setting | Default | What it does |
 |---|---|---|
 | **Your level** | B2 | The CEFR level you are learning. Words of this level and harder are suggested |
-| **Frequent words** | Off | Words at least this common go to the bottom of the list as probably known. Each option shows example words |
+| **Frequent words** | Off | Words as common as the example words of the chosen option, or more common, go to the bottom of the list as probably known. Options higher up move more words down |
 | **Vocabulary calibration** | — | **Build word list**, then **Calibrate** to mark the words you know on it. **Rebuild list** builds it again. See [calibration](vocabulary.md#calibration) |
 
 See [Your vocabulary and level](vocabulary.md).

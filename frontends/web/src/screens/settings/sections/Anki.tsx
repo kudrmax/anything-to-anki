@@ -80,7 +80,12 @@ interface NoteTypeRowProps {
 /** Поле note type и его состояние в запущенном Anki: готов или кнопка, которая его чинит. */
 function NoteTypeRow({ store, check, name, label, hint, last = false }: NoteTypeRowProps) {
   const problem = check?.fix === 'create' ? 'Not in Anki'
-    : check?.fix === 'add_fields' ? `Missing in Anki: ${check.missing_fields.join(', ')}`
+    : check?.fix === 'add_fields' ? (
+      <span className={css.problem}>
+        Missing in Anki:
+        <span className={css.tags}>{check.missing_fields.map(field => <span key={field} className={css.tag}>{field}</span>)}</span>
+      </span>
+    )
       : null
   return (
     <DividerRow last={last} label={label} hint={problem ? <Text tone="err">{problem}</Text> : hint}>
