@@ -29,6 +29,7 @@ export const reviewCard = (changes: Partial<StoredCandidate> = {}): StoredCandid
     is_done: false,
     cloze: null,
     can_edit_cloze: false,
+    can_change_target: true,
     section: 'ready',
     source: { id: 1, has_video: false, can_polish_phrases: false },
     ...changes,

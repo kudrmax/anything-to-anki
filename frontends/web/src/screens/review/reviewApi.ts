@@ -7,7 +7,7 @@ export type ReviewApi = Pick<typeof api,
   | 'openReview' | 'reviewRows' | 'reviewAround' | 'setReviewSection' | 'reviewChanges' | 'reviewContents' | 'reviewText'
   | 'getReviewGeneration' | 'runReviewGeneration' | 'cancelReviewGeneration' | 'downloadReviewVideos'
   | 'previewCloze' | 'saveCloze' | 'decidePhrase' | 'undoDecision'
-  | 'generateMeaning' | 'regeneratePhraseMedia' | 'generatePhraseTTS' | 'replaceWithExample' | 'replaceWithTarget'
+  | 'generateMeaning' | 'regeneratePhraseMedia' | 'generatePhraseTTS' | 'replaceWithExample' | 'replaceWithTarget' | 'changeTarget'
   | 'suggestTargetImages' | 'searchTargetImages' | 'applyTargetImage' | 'pasteTargetImage'
   | 'polishPhraseAgain' | 'setPolishReverted' | 'editPhrase' | 'setPhraseBoundary' | 'addManualCandidate'
   | 'getReportReasons' | 'reportCandidate'

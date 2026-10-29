@@ -109,6 +109,7 @@ function card(sample: SampleCard): StoredCandidate {
     origin: null,
     cloze: null,
     can_edit_cloze: true,
+    can_change_target: true,
     source: { id: SOURCE_ID, has_video: true, can_polish_phrases: false },
   }
 }
@@ -231,6 +232,7 @@ export function sampleReviewApi(parts: ReadonlySet<SamplePart>): ReviewApi {
     generatePhraseTTS: unchanged,
     replaceWithExample: unchanged,
     replaceWithTarget: unchanged,
+    changeTarget: unchanged,
     applyTargetImage: unchanged,
     pasteTargetImage: unchanged,
     polishPhraseAgain: unchanged,

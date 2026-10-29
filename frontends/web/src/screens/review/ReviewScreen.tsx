@@ -87,7 +87,7 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
   // На телефоне фразы листают свайпом по карточке: влево — следующая, вправо — предыдущая.
   const swipe = useSwipe(direction => void review.step(direction === 'left' ? 1 : -1))
 
-  const { press, step, cancelEditing, clozeEditing } = review
+  const { press, step, cancelEditing, clozeEditing, targetEditing } = review
   const toggleAudio = review.player.toggle
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -97,6 +97,8 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
       if (!action || isToolAction(action)) return
       // В разметке cloze карточка остаётся на месте; оценка сначала закрывает разметку.
       if (clozeEditing && !allowedInClozeMarkup(action)) return
+      // Выбор таргета живёт своими клавишами: Enter и Esc у его панели.
+      if (targetEditing) return
       e.preventDefault()
       if (action === 'prev' || action === 'next') {
         void step(action === 'next' ? 1 : -1)
@@ -113,7 +115,7 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [current, editing, selection, press, step, cancelEditing, toggleAudio, clozeEditing])
+  }, [current, editing, selection, press, step, cancelEditing, toggleAudio, clozeEditing, targetEditing])
 
   const { pasteImage } = review
   useEffect(() => {
@@ -269,8 +271,8 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
             : <PhraseRow key={card.phrase_id} candidate={card} onSelect={id => void review.goTo(id)} />}
           followKey={phraseListShown}
         />
-        {/* Телефон: решения — в панели под карточкой. В разметке cloze у панели свои Cancel и Save. */}
-        {current && view === 'card' && !clozeEditing && (
+        {/* Телефон: решения — в панели под карточкой. В разметке cloze и выборе таргета у панели свои кнопки. */}
+        {current && view === 'card' && !clozeEditing && !targetEditing && (
           <div className={`${css.dock} ${css.phoneOnly}`}>
             <DecisionButtons candidate={current} review={review} />
           </div>

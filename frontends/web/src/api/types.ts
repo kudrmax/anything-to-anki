@@ -375,6 +375,8 @@ export interface StoredCandidate {
   cloze: CandidateCloze | null
   /** Скрытые слова cloze можно поменять: cloze ещё не в Anki. */
   can_edit_cloze: boolean
+  /** Таргет можно выбрать заново: у карточки нет решения. */
+  can_change_target: boolean
   /** Источник карточки: от него её медиа, видео и занятость. */
   source: CardSource
 }

@@ -147,7 +147,7 @@ describe('PhraseTools report', () => {
 
   it('#24: closes the menu at once and sends the report in the background', async () => {
     const { review, report, answer } = reviewWith()
-    act(() => root.render(<PhraseTools candidate={reviewCard()} review={review} onEditPhrase={() => {}} />))
+    act(() => root.render(<PhraseTools candidate={reviewCard()} review={review} onEditPhrase={() => {}} onChangeTarget={() => {}} />))
     click(host.querySelector('[aria-label="Report a problem with this card"]')!)
     click(byText('Bad phrase'))
     click(byText('Send report'))
@@ -159,7 +159,7 @@ describe('PhraseTools report', () => {
 
   it('#24: a report that failed gives back what was chosen', async () => {
     const { review, answer } = reviewWith()
-    act(() => root.render(<PhraseTools candidate={reviewCard()} review={review} onEditPhrase={() => {}} />))
+    act(() => root.render(<PhraseTools candidate={reviewCard()} review={review} onEditPhrase={() => {}} onChangeTarget={() => {}} />))
     click(host.querySelector('[aria-label="Report a problem with this card"]')!)
     click(byText('Bad phrase'))
     click(byText('Send report'))
@@ -168,9 +168,24 @@ describe('PhraseTools report', () => {
     click(host.querySelector('[aria-label="Report a problem with this card"]')!)
     expect(byText('Send report')?.hasAttribute('disabled')).toBe(false)
   })
+  it.each([
+    [true, 'Pick other words to learn'],
+    [false, 'Undo the decision first'],
+  ])('offers to change the target as the backend allows: %s', (allowed, hint) => {
+    const { review } = reviewWith()
+    const onChangeTarget = vi.fn()
+    act(() => root.render(<PhraseTools candidate={reviewCard({ can_change_target: allowed })} review={review} onEditPhrase={() => {}} onChangeTarget={onChangeTarget} />))
+    click(host.querySelector('[aria-label="Edit phrase"]')!)
+    const item = byText('Change target')
+    click(item)
+
+    expect(item?.textContent).toContain(hint)
+    expect(onChangeTarget).toHaveBeenCalledTimes(allowed ? 1 : 0)
+  })
+
   it('keeps the unknown-words reason out of the flag', () => {
     const { review } = reviewWith()
-    act(() => root.render(<PhraseTools candidate={reviewCard()} review={review} onEditPhrase={() => {}} />))
+    act(() => root.render(<PhraseTools candidate={reviewCard()} review={review} onEditPhrase={() => {}} onChangeTarget={() => {}} />))
     click(host.querySelector('[aria-label="Report a problem with this card"]')!)
 
     expect(byText('Unknown words')).toBeUndefined()
@@ -178,7 +193,7 @@ describe('PhraseTools report', () => {
 
   it('sends the words picked under their own button with their reason', async () => {
     const { review, report, answer } = reviewWith()
-    act(() => root.render(<PhraseTools candidate={reviewCard()} review={review} onEditPhrase={() => {}} />))
+    act(() => root.render(<PhraseTools candidate={reviewCard()} review={review} onEditPhrase={() => {}} onChangeTarget={() => {}} />))
     click(host.querySelector('[aria-label="Mark words you don\'t know"]')!)
     click(byText('me'))
     click(byText('He'))

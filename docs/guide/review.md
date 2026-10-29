@@ -114,7 +114,7 @@ The buttons in the card's footer:
 | Tool | Key | What it does |
 |---|---|---|
 | Picture | `I` | Search Wiktionary, Bing and Yandex for a picture of the word. You can also paste an image with `⌘V` anywhere on the screen |
-| Edit | `E` | **Edit text** fixes words in the phrase. **Change boundary** re-cuts the phrase from the source text. **Target only** replaces the phrase with the bare word |
+| Edit | `E` | **Edit text** fixes words in the phrase. **Change boundary** re-cuts the phrase from the source text. **Change target** picks other words of the phrase to learn (see below). **Target only** replaces the phrase with the bare word |
 | Regenerate | `R` | Regenerates the meaning, or asks AI a follow-up: **Give examples**, **Explain in detail**, **Explain simpler**, **How to say it**, or **Your own question**. Also **Polish**, **Speech**, and **Screenshot and clip** for video |
 | Unknown words | `U` | Marks words of the phrase you don't know (see below) |
 | Report | `F` | Reports a problem with the card (see below) |
@@ -129,6 +129,16 @@ Book and article sentences are often long and hard to understand without context
 - On a polished card, **Regenerate → Polish** opens a comparison with the original. It offers **Revert to original**, **Use polished phrase** and **Polish again**.
 - A polished phrase gets a new meaning and new speech, because the old ones described the old phrase.
 - Phrases of video sources are never polished, because the audio clip must match the phrase. Saved phrases are never polished either.
+
+### Change target
+
+**Edit → Change target** makes every word of the phrase clickable, with the current target marked. Click words to add them to the target or take them out. They don't have to stand next to each other: `gave` and `up` in "gave it up" make one target. Press **Change target** (`Enter`) to apply, or `Esc` to cancel.
+
+- You pick the words of the phrase the card shows now, so a word you wrote in with **Edit text** or one that **Polish** brought in can be the target too.
+- The card is made anew for the new target. Its meaning, speech, clip and cloze are generated again, and the new card takes the old one's place in the list.
+- The old card is gone for good, and **Rebuild** doesn't bring it back. Its word moves to its next best phrase in the source, if it has one.
+- A target from the original sentence keeps the card's place in the source text. A word that only your edited text has makes a card with no place in it.
+- A card you already decided on can't change its target. Undo the decision first.
 
 ### Unknown words
 
