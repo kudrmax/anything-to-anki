@@ -6,6 +6,7 @@ from backend.application.dto.bootstrap_dtos import BootstrapWordDTO
 from backend.application.utils.saved_level import saved_level
 from backend.domain.services.bootstrap_word_selector import BootstrapWordSelector
 from backend.domain.services.review_order_word_selector import ReviewOrderWordSelector
+from backend.domain.services.word_shape import is_plain_word
 from backend.domain.value_objects.calibration_order import CalibrationOrder
 from backend.domain.value_objects.cefr_level import CEFRLevel
 
@@ -63,7 +64,7 @@ class GetBootstrapWordsUseCase:
         self, decided_lemmas: set[str], excluded_lemmas: set[str],
     ) -> list[BootstrapWordEntry]:
         return ReviewOrderWordSelector().select_words(
-            entries=self._index_repo.get_all_entries(),
+            entries=self._words(),
             user_level=saved_level(self._settings_repo),
             frequent_zipf=self._threshold_resolver.resolve().zipf,
             decided_lemmas=decided_lemmas,
@@ -71,6 +72,10 @@ class GetBootstrapWordsUseCase:
             limit=ROUND_SIZE,
             dictionary_lemmas=self._dictionary_lemmas(),
         )
+
+    def _words(self) -> list[BootstrapWordEntry]:
+        entries = self._index_repo.get_all_entries()
+        return [entry for entry in entries if is_plain_word(entry.lemma)]
 
     def _dictionary_lemmas(self) -> set[str]:
         return {lemma for lemma, _ in self._corpus_provider.get_all_lemma_pos_pairs()}
@@ -82,7 +87,7 @@ class GetBootstrapWordsUseCase:
         if not grid_levels:
             return []
         return BootstrapWordSelector().select_words(
-            entries=self._index_repo.get_all_entries(),
+            entries=self._words(),
             grid_levels=grid_levels,
             known_lemmas=decided_lemmas,
             excluded_lemmas=excluded_lemmas,
