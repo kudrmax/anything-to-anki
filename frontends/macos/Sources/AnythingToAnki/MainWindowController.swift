@@ -39,8 +39,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.minSize = Self.minimumSize
         window.center()
-        window.setFrameAutosaveName(Self.frameName)
         super.init(window: window)
+        // Set on the controller: NSWindowController clears an autosave name set on the window itself.
+        windowFrameAutosaveName = Self.frameName
         window.delegate = self
 
         statusController.onRetry = { [weak self] in self?.onRetry?() }
