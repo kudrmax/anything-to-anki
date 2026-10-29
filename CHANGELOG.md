@@ -2,6 +2,13 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.7.1 — 2026-10-29
+
+The macOS app opens the way you left it.
+
+### No longer broken
+- The macOS app window opens at the size and place you left it. Before, it came back at its default size in the middle of the screen every time you quit and opened the app again.
+
 ## 1.7.0 — 2026-10-29
 
 Pick what a card teaches: any words of its phrase can become its target.
