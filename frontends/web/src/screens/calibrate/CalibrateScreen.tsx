@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/client'
-import type { BootstrapWord } from '@/api/types'
+import type { BootstrapWord, CalibrationOrder } from '@/api/types'
 import { Aside, Page, PageHeader } from '@/shell'
-import { Button, Chip, DividerRow, Empty, Spinner, Stack } from '@/ui'
+import { Button, Chip, DividerRow, Empty, Segmented, Spinner, Stack } from '@/ui'
 import css from './calibrate.module.css'
 
 const SETTINGS_PATH = '/settings'
+const ORDERS: { value: CalibrationOrder; label: string }[] = [
+  { value: 'review', label: 'Like Review' },
+  { value: 'spread', label: 'Mixed' },
+]
 
 export function CalibrateScreen() {
   const navigate = useNavigate()
@@ -16,18 +20,19 @@ export function CalibrateScreen() {
   const [saving, setSaving] = useState(false)
   const [round, setRound] = useState(1)
   const [checkedCount, setCheckedCount] = useState(0)
+  const [order, setOrder] = useState<CalibrationOrder>('review')
   const excludedRef = useRef<Set<string>>(new Set())
 
   const fetchWords = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await api.getBootstrapWords([...excludedRef.current])
+      const data = await api.getBootstrapWords([...excludedRef.current], order)
       setWords(data)
       setSelected(new Set())
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [order])
 
   useEffect(() => {
     void fetchWords()
@@ -64,8 +69,14 @@ export function CalibrateScreen() {
     </Aside>
   )
 
+  const header = (
+    <PageHeader title="Vocabulary calibration" back={SETTINGS_PATH}>
+      <Segmented value={order} options={ORDERS} onChange={setOrder} />
+    </PageHeader>
+  )
+
   return (
-    <Page header={<PageHeader title="Vocabulary calibration" back={SETTINGS_PATH} />} aside={aside}>
+    <Page header={header} aside={aside}>
       {loading ? <Empty><Spinner /></Empty> : (
         <div className={css.content}>
           {words.length === 0 ? (

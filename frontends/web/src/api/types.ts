@@ -561,7 +561,6 @@ export interface Settings {
   cefr_level: string
   frequent_word_threshold: string
   anki_deck_name: string
-  ai_provider: string
   ai_model: string
   anki_note_type: string
   anki_cloze_note_type: string
@@ -993,6 +992,8 @@ export interface BootstrapStatus {
   built_at: string | null
   word_count: number
 }
+
+export type CalibrationOrder = 'review' | 'spread'
 
 export interface BootstrapWord {
   lemma: string

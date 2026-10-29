@@ -9,7 +9,7 @@ from backend.application.dto.settings_dtos import (
     UpdateSettingsRequest,
 )
 from backend.application.utils.settings_writer import (
-    BOOL_KEYS,
+    ANALYSIS_KEYS,
     FLOAT_KEYS,
     INT_KEYS,
     JSON_LIST_KEYS,
@@ -44,11 +44,9 @@ class ManageSettingsUseCase:
             key: (self._settings_repo.get(key, default) or default)
             for key, default in SETTING_KEYS.items()
         }
-        values: dict[str, str | bool | float | int | list[str]] = {}
+        values: dict[str, str | float | int | list[str]] = {}
         for k, v in raw.items():
-            if k in BOOL_KEYS:
-                values[k] = v.lower() == "true"
-            elif k in JSON_LIST_KEYS:
+            if k in JSON_LIST_KEYS:
                 values[k] = json.loads(v)
             elif k in FLOAT_KEYS:
                 values[k] = float(v)
@@ -66,6 +64,11 @@ class ManageSettingsUseCase:
             with self._unit_of_work.write():
                 writer.write(request)
         return self.get_settings()
+
+    def analysis_keys(self) -> list[str]:
+        """Settings whose change analyses every source again: a long operation the user
+        should agree to before it starts."""
+        return list(ANALYSIS_KEYS)
 
     def frequent_word_threshold_options(self) -> list[FrequentWordThresholdDTO]:
         return [

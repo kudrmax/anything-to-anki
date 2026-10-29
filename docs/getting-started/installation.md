@@ -121,7 +121,7 @@ make logs
 
 ## 7. First steps
 
-1. Open **Settings → Vocabulary** and set **Your CEFR level**, the level you are learning now. Then press **Save settings**.
+1. Open **Settings → Words** and set **Your level**, the CEFR level you are learning now. Confirm with **Analyse again**.
 2. Optionally, [calibrate](../guide/vocabulary.md#calibration) your vocabulary.
 3. Add your first source: follow [Your first source](first-source.md).
 

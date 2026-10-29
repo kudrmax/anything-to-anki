@@ -11,6 +11,7 @@ import pytest
 from backend.application.dto.analysis_dtos import AnalyzeTextRequest
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
+from backend.domain.value_objects.calibration_order import CalibrationOrder
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
 from backend.infrastructure.api.app import app
@@ -111,7 +112,10 @@ def test_a_new_source_does_not_offer_the_word(
     assert LEMMA not in offered(_vocabulary(factory))
 
 
-def test_calibration_skips_the_word(client: TestClient, factory: sessionmaker[Session]) -> None:
+@pytest.mark.parametrize("order", list(CalibrationOrder))
+def test_calibration_skips_the_word(
+    client: TestClient, factory: sessionmaker[Session], order: CalibrationOrder,
+) -> None:
     del client
     index = MagicMock()
     index.get_all_entries.return_value = [
@@ -120,8 +124,14 @@ def test_calibration_skips_the_word(client: TestClient, factory: sessionmaker[Se
     ]
     settings = MagicMock()
     settings.get.return_value = "B1"
+    threshold = MagicMock()
+    threshold.resolve.return_value.zipf = None
+    corpus = MagicMock()
+    corpus.get_all_lemma_pos_pairs.return_value = []
     with factory() as session:
         vocabulary = Decisions(session).vocabulary
-        offered = GetBootstrapWordsUseCase(index, vocabulary, settings).execute([])
+        offered = GetBootstrapWordsUseCase(
+            index, vocabulary, settings, threshold_resolver=threshold, corpus_provider=corpus,
+        ).execute([], order=order)
 
     assert [word.lemma for word in offered] == ["drift"]

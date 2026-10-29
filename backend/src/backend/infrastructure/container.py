@@ -1449,6 +1449,8 @@ class Container:
             index_repo=SqlaBootstrapIndexRepository(session),
             vocabulary=self._user_vocabulary(session),
             settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
+            threshold_resolver=self._threshold_resolver(session),
+            corpus_provider=self._word_corpus_provider,
         )
 
     def media_root(self) -> str:

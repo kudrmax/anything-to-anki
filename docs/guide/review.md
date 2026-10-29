@@ -14,7 +14,7 @@ The best cards are phrases where the target is the only new thing and everything
 
 The phrase is at the top, with the target in bold. Below it, the left column holds what you decide by:
 
-- **Lemma**: the dictionary form of the target, with its **IPA** transcription, its **CEFR level** (A1–C2) or **phrasal verb**, its **frequency** in English (ultra common, common, mid, low or rare) and its **usage**, such as formal or informal, next to it: the word's group that comes first in [Usage priority](vocabulary.md#word-order-in-review), the one the word is sorted by; nothing is shown when that group is neutral. Hover the level to see how each dictionary rated it. 🎯 marks words in the "sweet spot": frequent enough to be useful, rare enough to be worth learning.
+- **Lemma**: the dictionary form of the target, with its **IPA** transcription, its **CEFR level** (A1–C2) or **phrasal verb**, its **frequency** in English (ultra common, common, mid, low or rare) and its **usage**, such as formal or informal, next to it: the word's group that comes first in [Word usage priority](vocabulary.md#word-order-in-review), the one the word is sorted by; nothing is shown when that group is neutral. Hover the level to see how each dictionary rated it. 🎯 marks words in the "sweet spot": frequent enough to be useful, rare enough to be worth learning.
 - **Translation**: a short translation of the target in this context. The translation is into **Russian**; to change the language, see [Configuration](../reference/configuration.md#translation-language).
 - A **definition** and **synonyms**.
 - **Picture** of the word, if you added one; otherwise **Suggested pictures · click to add** shows the first results of a picture search, and the Picture icon in the header turns them off. Next to it, the **video frame and clip** (video sources only): a screenshot and the audio of the phrase, cut from the video. ▶ plays it. They stand at the bottom of the column.
@@ -25,7 +25,7 @@ The right column holds the rest:
 - **Examples**. **Use as phrase** on an example makes it the card's phrase.
 - **US / UK** buttons that play a dictionary recording of the word, and **TTS** that plays the phrase read aloud by a synthetic voice, at the bottom right.
 
-This is the default layout. You can move, restyle and hide everything between the phrase and the bottom bar in the card layout editor: [Settings → Card layout](settings.md#card-layout).
+This is the default layout. You can move, restyle and hide everything between the phrase and the bottom bar in the card layout editor: [Settings → Cards → Card layout](settings.md#card-layout).
 
 The meaning, translation, synonyms, examples and IPA come from AI. Pronunciations and CEFR levels come from the [dictionaries](../reference/dictionaries.md). Everything else is computed locally.
 
@@ -95,7 +95,7 @@ Each item has a submenu:
 - **Ready: generate next 100**, **Ready: generate missing** and **Ready: regenerate all** cover the cards in the Ready section.
 - **All: generate next 100**, **All: generate missing** and **All: regenerate all** cover every open card.
 
-**Generate next** takes the first cards that don't have it yet, from the top of the list in its current sort order, and no more than 100 of them. Use it to try generation on a big source without spending your Claude plan on all of it. The number is set in [Settings → Review](settings.md#review).
+**Generate next** takes the first cards that don't have it yet, from the top of the list in its current sort order, and no more than 100 of them. Use it to try generation on a big source without spending your Claude plan on all of it. The number is set in [Settings → Cards](settings.md#cards).
 - **Retry failed** and **Cancel**.
 - For YouTube sources, **Download video** downloads the video before media can be cut from it.
 
@@ -142,7 +142,7 @@ A cloze card hides words of the phrase, and you recall them: `She was [...] to l
 
 1. Press **Cloze** (`C`). The target words are hidden by default.
 2. Click words to hide or show them.
-3. Choose a **Hint**: **No hint**, **Translation**, **Synonyms**, **First letter**, or **Custom**. The default comes from [Settings → Review](settings.md#review).
+3. Choose a **Hint**: **No hint**, **Translation**, **Synonyms**, **First letter**, or **Custom**. The default comes from [Settings → Cards → Default cloze hint](settings.md#cards).
 4. Check the **Anki front** preview, then press **Save cloze** (`Enter`).
 
 To change the hidden words later, click the phrase. You can do this until the card is exported to Anki.
@@ -195,7 +195,7 @@ Keys work in any keyboard layout. They are ignored while you type in a field or 
 
 On a phone, swipe left or right on the card to move between cards.
 
-**Auto-play audio** plays the card's audio when it opens: the video clip, else the TTS, else the US pronunciation. Turn it off in [Settings → Review](settings.md#review).
+**Auto-play audio** plays the card's audio when it opens: the video clip, else the TTS, else the US pronunciation. Turn it off in [Settings → Cards → Auto-play audio](settings.md#cards).
 
 ## When you are done
 

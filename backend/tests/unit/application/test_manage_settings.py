@@ -29,7 +29,6 @@ class TestManageSettingsUseCase:
         result = self.use_case.get_settings()
         assert result.cefr_level == "B2"
         assert result.anki_deck_name == "Default"
-        assert result.ai_provider == "claude"
         assert result.ai_model == "sonnet"
         assert result.anki_note_type == "AnythingToAnkiType"
         assert result.anki_field_sentence == "Sentence"

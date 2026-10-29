@@ -2,6 +2,34 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.4.0 — 2026-10-29
+
+Settings are rebuilt around what you change in them.
+
+### Settings you can find
+Settings now have five sections: **General**, **Words**, **Cards**, **Anki** and **Sources**. **Words** holds everything about which words the app suggests, from your level to the words you already know. **Cards** holds everything about the card: how it looks on the review screen, and the AI model, voices and pictures it is made with. Settings you rarely touch, such as Anki field names and word usage priority, are folded away until you open them.
+![](docs/images/changelog/1.4.0/settings-sections.png)
+
+### Your words as a table
+**Settings → Words → Your words** shows your **Known**, **Learning** and **Marked unknown** words as tables, newest first, with the day each word became known. The search looks through all of your words, not only the ones on screen, and the list shows 50 at a time.
+![](docs/images/changelog/1.4.0/word-table.png)
+
+### New
+- Settings save on their own, without a **Save** button. **Saved** shows next to the section title for a moment; text is saved when you leave the field.
+- Changing **Your level** or **Frequent words** asks first, because it analyses every source again.
+- Each Anki note type shows right next to its name whether it is ready in Anki, with the button that fixes it if not.
+
+![](docs/images/changelog/1.4.0/level-confirm.png)
+
+### Improvements
+- Names match the rest of the app: Anki fields are named like the parts of the card, **Pictures per site**, **Vocabulary calibration** starts with **Build word list**, **Naming rule** for sources made by one add.
+- **Speech speed** and **Voices** say they apply only to audio made after the change. **Theme** and **Auto-play audio** say they are saved in this browser only.
+- Errors in Settings read as a sentence instead of raw server text.
+
+### No longer broken
+- The selected section in the settings list has its rounded corners and padding again.
+- **Marked unknown** points to the right button on the card: **Mark words you don't know** (`U`).
+
 ## 1.3.2 — 2026-10-29
 
 The Auto option for frequent words is gone.
