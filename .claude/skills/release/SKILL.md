@@ -77,7 +77,7 @@ What it does for the user, in a few sentences.
 
 ## 4. Screenshots
 
-Take them in the running **dev copy** in one pass for all features of the release: `http://localhost:<PORT>`, where `PORT` is in the dev copy's `.env`. Check that it is up; if not, tell Max (do not run `make up` yourself).
+Take them in the running **dev copy** in one pass for all features of the release: `http://localhost:<PORT>`, where `PORT` is in the dev copy's `.env`. If it is not up, start it with `make up` in the main checkout.
 
 The dev copy must serve the code you just pulled: it reads its version once, at start. Compare:
 
@@ -86,7 +86,7 @@ curl -s "http://localhost:$PORT/api/version"   # must equal the next line
 grep -m1 '^version' pyproject.toml
 ```
 
-If they differ, ask Max to restart the dev copy and wait. Do not restart it yourself.
+If they differ, restart it with `make down && make up` in the main checkout.
 
 - Use a headless browser (Playwright or similar). Never the browser pane Max is watching.
 - Every big feature and every notable item gets a screenshot.
