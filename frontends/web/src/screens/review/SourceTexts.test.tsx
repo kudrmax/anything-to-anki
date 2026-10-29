@@ -6,7 +6,7 @@ import { reviewCard, reviewUpdate } from './reviewFixtures'
 import type { SelectedText } from './SourceText'
 import { TEXT_PX_PER_CHAR } from './textPlaceholders'
 import { SourceTexts } from './SourceTexts'
-import { contents, listItem, paragraph, textChunk } from './textFixtures'
+import { contents, lines, listItem, paragraph, textChunk } from './textFixtures'
 import { applyText, initialText, withContents, type TextState } from './textState'
 
 const noop = () => {}
@@ -164,21 +164,99 @@ describe('SourceTexts', () => {
     expect([...host.querySelectorAll('[aria-hidden]')].map(m => m.textContent).filter(Boolean)).toEqual(['1.', '2.', '3.', '•'])
   })
 
+  const select = (startNode: Node, startOffset: number, endNode: Node, endOffset: number) => {
+    Range.prototype.getBoundingClientRect = () => ({ left: 0, top: 0, bottom: 0 }) as DOMRect
+    const range = document.createRange()
+    range.setStart(startNode, startOffset)
+    range.setEnd(endNode, endOffset)
+    window.getSelection()!.removeAllRanges()
+    window.getSelection()!.addRange(range)
+  }
+  const dragInText = (element: Element) => {
+    act(() => { element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })) })
+    act(() => { element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })) })
+  }
+
   it('a selection from a block of one chunk to a block of the next reports both absolute blocks', () => {
     Range.prototype.getBoundingClientRect = () => ({ left: 0, top: 0, bottom: 0 }) as DOMRect
     render(withChunks(opened([1, 'Pilot']), textChunk(1, 0, [paragraph('first block')]), textChunk(1, 1, [paragraph('second block')])))
     const first = host.querySelector('[data-block="0"]')!.firstChild!
     const second = host.querySelector('[data-block="1"]')!.firstChild!
-    const range = document.createRange()
-    range.setStart(first, 6)
-    range.setEnd(second, 6)
-    window.getSelection()!.removeAllRanges()
-    window.getSelection()!.addRange(range)
+    select(first, 6, second, 6)
 
-    act(() => { host.querySelector('[data-text-block="0"]')!.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })) })
+    dragInText(host.querySelector('[data-text-block="0"]')!)
 
     expect(selected.map(s => s.selection)).toEqual([{
       start_block: 0, start_line: 0, start_char: 6, end_block: 1, end_line: 0, end_char: 6,
+    } satisfies DocumentSelection])
+  })
+
+  it('a selection dragged past the text column is reported where the button is released', () => {
+    render(withChunks(opened([1, 'Pilot']), textChunk(1, 0, [paragraph('first block')])))
+    select(host.querySelector('[data-block="0"]')!.firstChild!, 0, host.querySelector('[data-block="0"]')!.firstChild!, 5)
+
+    act(() => { host.querySelector('[data-text-block="0"]')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })) })
+    act(() => { document.body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })) })
+
+    expect(selected.map(s => s.text)).toEqual(['first'])
+  })
+
+  it('a click outside the text after a selection reports nothing', () => {
+    render(withChunks(opened([1, 'Pilot']), textChunk(1, 0, [paragraph('first block')])))
+    select(host.querySelector('[data-block="0"]')!.firstChild!, 0, host.querySelector('[data-block="0"]')!.firstChild!, 5)
+
+    act(() => { document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })) })
+    act(() => { document.body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })) })
+
+    expect(selected).toEqual([])
+  })
+
+  it('a song line selected with its line break ends at the end of that line', () => {
+    render(withChunks(opened([1, 'Song']), textChunk(1, 0, [lines('Hello darkness', 'my old friend')])))
+    const block = host.querySelector('[data-text-block="0"]')!
+    const lineBreak = [...block.childNodes].find(n => n.nodeType === Node.TEXT_NODE)!
+    select(host.querySelector('[data-line="0"]')!.firstChild!, 0, lineBreak, 1)
+
+    dragInText(block)
+
+    expect(selected.map(s => s.selection)).toEqual([{
+      start_block: 0, start_line: 0, start_char: 0, end_block: 0, end_line: 0, end_char: 14,
+    } satisfies DocumentSelection])
+  })
+
+  it('a selection starting on a line break starts at the next line', () => {
+    render(withChunks(opened([1, 'Song']), textChunk(1, 0, [lines('Hello darkness', 'my old friend')])))
+    const block = host.querySelector('[data-text-block="0"]')!
+    const lineBreak = [...block.childNodes].find(n => n.nodeType === Node.TEXT_NODE)!
+    select(lineBreak, 0, host.querySelector('[data-line="1"]')!.firstChild!, 2)
+
+    dragInText(block)
+
+    expect(selected.map(s => s.selection)).toEqual([{
+      start_block: 0, start_line: 1, start_char: 0, end_block: 0, end_line: 1, end_char: 2,
+    } satisfies DocumentSelection])
+  })
+
+  it('a paragraph selected up to the start of the next one ends at the end of the paragraph', () => {
+    render(withChunks(opened([1, 'Pilot']), textChunk(1, 0, [paragraph('first block'), paragraph('second block')])))
+    select(host.querySelector('[data-block="0"]')!.firstChild!, 0, host.querySelector('[data-text-block="1"]')!, 0)
+
+    dragInText(host.querySelector('[data-text-block="0"]')!)
+
+    expect(selected.map(s => s.selection)).toEqual([{
+      start_block: 0, start_line: 0, start_char: 0, end_block: 0, end_line: 0, end_char: 11,
+    } satisfies DocumentSelection])
+  })
+
+  it('a selection starting on a list marker starts at the item text', () => {
+    render(withChunks(opened([1, 'Pilot']), textChunk(1, 0, [listItem('one item', 1)])))
+    const marker = host.querySelector('[data-text-block="0"] [aria-hidden]')!.firstChild!
+    select(marker, 0, host.querySelector('[data-block="0"]')!.firstChild!, 3)
+
+    dragInText(host.querySelector('[data-text-block="0"]')!)
+
+    expect(selected.map(s => s.selection)).toEqual([{
+      start_block: 0, start_line: 0, start_char: 0, end_block: 0, end_line: 0, end_char: 3,
     } satisfies DocumentSelection])
   })
 
