@@ -188,7 +188,8 @@ def test_the_old_card_is_hidden_and_its_word_shows_its_next_phrase(bench: Bench)
     old = bench.occurrences.get(card)
     assert old is not None
     assert old.shown_by is None
-    assert old.choice is CardChoice.SKIP
+    assert old.removed_by_user
+    assert old.choice is CardChoice.NONE
     assert bench.shown_lines("glare") == [1]
 
 
@@ -200,6 +201,32 @@ def test_rebuild_never_brings_the_old_card_back(bench: Bench) -> None:
 
     assert bench.shown_lines("glare") == [1]
     assert [o.shown_by for o in _of(bench, "me")] == [ShownBy.USER]
+
+
+def test_an_undone_decision_elsewhere_never_brings_the_old_card_back(bench: Bench) -> None:
+    card = _card(bench)
+    decision = bench.phrase_on("glare", 5).id
+    bench.decide_learn("glare", decision)
+    Change(bench).to(card, ME)
+
+    bench.set_choice(decision, "none")
+    bench.rebuild().execute(SOURCE, RebuildMode.RECUT)
+
+    assert 0 not in bench.shown_lines("glare")
+
+
+def test_adding_the_old_word_back_at_its_place_makes_a_new_card(bench: Bench) -> None:
+    card = _card(bench)
+    Change(bench).to(card, ME)
+    [made] = _of(bench, "me")
+    assert made.id is not None
+
+    Change(bench).to(made.id, 1)
+
+    at_line = [o for o in _of(bench, "glare") if o.key is not None and o.key.line == 0]
+    assert [(o.id == card, o.shown_by) for o in at_line] == [
+        (True, None), (False, ShownBy.USER),
+    ]
 
 
 def test_a_card_with_a_decision_is_refused(bench: Bench) -> None:

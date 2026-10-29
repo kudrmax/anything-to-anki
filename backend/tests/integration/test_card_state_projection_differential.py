@@ -776,6 +776,20 @@ class _Projection(RuleBasedStateMachine):
                 phrase_id, example,
             ))
 
+    @rule(pick=PICK, word=st.integers(min_value=0, max_value=12))
+    def change_target(self, pick: int, word: int) -> None:
+        """Another word of the card's phrase as its target: the card made anew, the old one
+        removed; a card with a decision is refused."""
+        card = self._card(pick)
+        if card is not None and card.id is not None:
+            phrase_id = card.id
+            others = [i for i in range(len(card.phrase.words)) if i not in card.phrase.target]
+            if others:
+                target = [others[word % len(others)]]
+                self._refusable(lambda s: self.container.change_target_use_case(s).execute(
+                    phrase_id, target,
+                ))
+
     @rule(source_pick=PICK, line=st.integers(min_value=0, max_value=4),
           word=st.integers(min_value=0, max_value=12))
     def add_word_from_text(self, source_pick: int, line: int, word: int) -> None:
@@ -1627,6 +1641,7 @@ def _tour(machine: _Projection) -> None:
         lambda: machine.add_word_from_text(0, 1, 3),
         # "lighthouse", a card of source 1 already: the user's pick shows it again.
         lambda: machine.add_word_from_text(0, 0, 1),
+        lambda: machine.change_target(len(machine._live_cards()) - 1, 0),  # noqa: SLF001
         lambda: machine.rebuild(0, RebuildMode.UPDATE),
         lambda: machine.rebuild(1, RebuildMode.RECUT),
         lambda: machine.change_level("C1"),

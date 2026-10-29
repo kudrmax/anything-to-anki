@@ -85,6 +85,10 @@ class OccurrenceRepository(ABC):
     def set_shown(self, ids: list[int], shown_by: ShownBy | None) -> None: ...
 
     @abstractmethod
+    def remove_card(self, occurrence_id: int) -> None:
+        """The user removed the card: the phrase is no longer shown and never shown again."""
+
+    @abstractmethod
     def set_replaces_selection(self, occurrence_id: int, replaces: bool) -> None:
         """Mark a phrase the user put in place of the word's selection card."""
 

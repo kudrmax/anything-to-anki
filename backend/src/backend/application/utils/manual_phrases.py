@@ -24,8 +24,9 @@ class ManualPhrases:
 
     A word the source already has gets another phrase; at the place of one of its auto
     phrases, or of a manual phrase with the same text, that phrase is shown instead of a
-    duplicate (and if it was the selection card, it keeps standing for it; a skipped one is
-    unskipped by pressing Skip, unless its word is decided elsewhere: then it stays done).
+    duplicate, unless the user removed its card (and if it was the selection card, it keeps
+    standing for it; a skipped one is unskipped by pressing Skip, unless its word is
+    decided elsewhere: then it stays done).
     """
 
     def __init__(
@@ -48,8 +49,8 @@ class ManualPhrases:
         instead_of: int | None = None,
     ) -> int:
         """The shown phrase of `card`, at `key` in the document; `polished`: the text the
-        card shows instead of its phrase, final as it is; `instead_of`: a phrase the new one
-        replaces, never shown again for it. Returns the phrase."""
+        card shows instead of its phrase, final as it is; `instead_of`: the phrase the new
+        one replaces. Returns the phrase."""
         word_id = self._word_of(card.word)
         if word_id is None:
             word_id = self._candidate_repo.add_word(card.word)
@@ -72,7 +73,7 @@ class ManualPhrases:
         return next(
             (
                 o for o in self._occurrences.of_word(word_id)
-                if o.key == key and o.id != instead_of and (
+                if o.key == key and o.id != instead_of and not o.removed_by_user and (
                     o.origin is OccurrenceOrigin.AUTO
                     or (
                         o.origin is OccurrenceOrigin.MANUAL

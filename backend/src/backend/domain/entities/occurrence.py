@@ -42,7 +42,8 @@ class Occurrence:
     The meaning, media, tts, cloze and the active binding are attached by the repository.
     `choice` is the one button chosen on the card; `binding` its active binding to an Anki
     note. `replaces_selection`: the user put this phrase in place of the word's selection
-    card, so the selection shows none. `collected_from`: where a collected phrase was found —
+    card, so the selection shows none. `removed_by_user`: the user removed the card; it is
+    never shown again. `collected_from`: where a collected phrase was found —
     another source, or AI made it. `earned_section`: the section the phrase earned when it was
     added or its text last changed; never Reviewed.
     """
@@ -59,6 +60,7 @@ class Occurrence:
     choice: CardChoice = CardChoice.NONE
     edited_by_user: bool = False
     replaces_selection: bool = False
+    removed_by_user: bool = False
     polished_phrase: Phrase | None = None
     polish_reverted: bool = False
     collected_from: PhraseOrigin | None = None

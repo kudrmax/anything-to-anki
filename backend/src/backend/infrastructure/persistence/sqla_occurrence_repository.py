@@ -201,6 +201,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 fragment_score=phrase.fragment_score,
                 shows_polish=phrase.polished_phrase is not None and not phrase.polish_reverted,
                 replaces_selection=phrase.replaces_selection,
+                removed_by_user=phrase.removed_by_user,
                 phrase_hash=OccurrenceRow.hash_phrase(
                     _required(phrase.source_phrase), load_position(phrase.phrase_position),
                 ),
@@ -317,6 +318,15 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         self._session.flush()
         for occurrence_id in ids:
             self._recorder.record(PhraseChanged(occurrence_id))
+
+    def remove_card(self, occurrence_id: int) -> None:
+        self._session.execute(
+            update(PhraseModel)
+            .where(PhraseModel.id == occurrence_id)
+            .values(removed_by_user=True, shown_by=None)
+        )
+        self._session.flush()
+        self._recorder.record(PhraseChanged(occurrence_id))
 
     def set_replaces_selection(self, occurrence_id: int, replaces: bool) -> None:
         self._session.execute(
