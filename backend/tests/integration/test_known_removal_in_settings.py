@@ -149,7 +149,8 @@ def test_adding_a_word_to_known_after_an_unexported_learn_makes_the_card_known(
     with_open = _card(client, HERE, OPEN_LEARN)
     assert with_open["shown"]["status"] == "learn"
 
-    client.post("/api/bootstrap/known", json={"lemmas": ["drift", "echo"]})
+    calibrated = ["drift", "echo"]
+    client.post("/api/bootstrap/round", json={"shown": calibrated, "known": calibrated})
 
     assert _card(client, HERE, OPEN_LEARN)["shown"]["status"] == "known"
     assert _card(client, HERE, SKIPPED)["shown"]["skipped"]
