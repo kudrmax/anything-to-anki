@@ -61,6 +61,14 @@ export function useDecisionSwipe(options: DecisionSwipeOptions): (element: HTMLE
       element.style.setProperty('--drag-r', `${dx * TILT_DEG_PER_PX}deg`)
       element.style.setProperty('--drag-p', String(progress))
     }
+    // Взятая карточка встаёт над страницей на своё же место: её не обрезают края и не перекрывает шапка.
+    const lift = () => {
+      const { left, top, width, height } = element.getBoundingClientRect()
+      element.style.setProperty('--lift-left', `${left}px`)
+      element.style.setProperty('--lift-top', `${top}px`)
+      element.style.setProperty('--lift-w', `${width}px`)
+      element.style.setProperty('--lift-h', `${height}px`)
+    }
     const standStill = () => {
       element.removeAttribute(DRAG_ATTR)
       element.removeAttribute(SWIPE_ATTR)
@@ -105,6 +113,7 @@ export function useDecisionSwipe(options: DecisionSwipeOptions): (element: HTMLE
           return
         }
         gesture.dragging = true
+        lift()
         element.setPointerCapture(e.pointerId)
         window.getSelection()?.removeAllRanges()
       }

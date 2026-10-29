@@ -301,7 +301,8 @@
   --queue-position: static;
   --current-card-position: static;
   --current-card-z: auto;
-  --review-body-clip: visible;
+  --lifted-card-z: 3;                 /* над шапкой страницы (2) */
+  --dock-z: 4;                        /* панель решений — над взятой карточкой */
   --dock-align: center;
   --dock-bottom: var(--s5);
   --dock-mt: var(--s3);
@@ -500,7 +501,6 @@
     --card-folded-overflow: hidden;
     --card-folded-pb: calc(var(--fold-fade) + var(--show-all-h));
     --card-folded-touch: none;
-    --review-body-clip: clip;
     --queue-position: relative;
     --current-card-position: relative;
     --current-card-z: 1;
