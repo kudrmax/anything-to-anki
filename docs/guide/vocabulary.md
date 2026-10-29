@@ -63,6 +63,8 @@ Switching mid-round loads a new round in that order; taps on the current round a
 
 Words you don't tap are not marked at all; they may come back in a later session.
 
+Only real words are asked about: dictionary entries such as *10th*, *mp3* or *e.g.* are left out.
+
 Calibration needs the CEFR [dictionaries](../reference/dictionaries.md).
 
 ## Word order in Review

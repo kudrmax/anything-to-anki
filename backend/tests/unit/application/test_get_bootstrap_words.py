@@ -168,7 +168,7 @@ class TestGetBootstrapWordsUseCase:
         self.settings_repo.get.return_value = "B2"
         self.known_word_repo.known_lemmas.return_value = set()
         self.index_repo.get_all_entries.return_value = [
-            _entry(f"word{i}", CEFRLevel.B2, 4.0) for i in range(40)
+            _entry(f"word{'x' * i}", CEFRLevel.B2, 4.0) for i in range(40)
         ]
 
         result = self.use_case.execute(excluded_lemmas=[], order=CalibrationOrder.REVIEW)
@@ -185,5 +185,19 @@ class TestGetBootstrapWordsUseCase:
         ]
 
         lemmas = [w.lemma for w in self.use_case.execute(excluded_lemmas=[])]
+
+        assert lemmas == ["elaborate"]
+
+    @pytest.mark.parametrize("order", list(CalibrationOrder))
+    def test_skips_dictionary_entries_that_are_not_words(self, order: CalibrationOrder) -> None:
+        self.settings_repo.get.return_value = "B2"
+        self.known_word_repo.known_lemmas.return_value = set()
+        self.index_repo.get_all_entries.return_value = [
+            _entry("expect'", CEFRLevel.B2, 4.0),
+            _entry("10th", CEFRLevel.B2, 3.9),
+            _entry("elaborate", CEFRLevel.B2, 3.8),
+        ]
+
+        lemmas = [w.lemma for w in self.use_case.execute(excluded_lemmas=[], order=order)]
 
         assert lemmas == ["elaborate"]
