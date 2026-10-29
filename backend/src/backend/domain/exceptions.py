@@ -390,6 +390,15 @@ class TargetNotInPhraseError(InvalidPhraseError):
         super().__init__(message)
 
 
+class TargetChangeRefusedError(DomainError):
+    """Raised when the target of a card with a decision is changed: the decision is its
+    word's."""
+
+    def __init__(self, card_id: int) -> None:
+        super().__init__(f"Card {card_id} has a decision: undo it to change the target")
+        self.card_id = card_id
+
+
 class GenerationNotSupportedError(DomainError):
     """Raised when a source has no use for a kind of generation (e.g. TTS for a video)."""
 

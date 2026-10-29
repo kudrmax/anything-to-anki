@@ -26,6 +26,7 @@ class OccurrenceRow:
     `shows_polish`: the card shows the polished phrase, not the source one.
     `generation`: what was made for the phrase.
     `replaces_selection`: the phrase took the place of the word's selection card.
+    `removed_by_user`: the user removed the card of the phrase.
     `binding`: the card's active binding to an Anki note. `source_phrase`: the phrase cut from
     the source; `shown_phrase`: the phrase the card shows. `earned_section`: the section
     stored on the phrase.
@@ -50,6 +51,7 @@ class OccurrenceRow:
     shown_phrase: Phrase
     earned_section: CandidateSection
     replaces_selection: bool = False
+    removed_by_user: bool = False
 
     @property
     def is_shown(self) -> bool:
@@ -65,6 +67,7 @@ class OccurrenceRow:
             edited=self.edited_by_user,
             picked=self.shown_by is ShownBy.USER,
             added=self.origin is not OccurrenceOrigin.AUTO,
+            removed=self.removed_by_user,
         )
 
     @staticmethod

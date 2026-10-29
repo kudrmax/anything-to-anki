@@ -554,6 +554,9 @@ class PhraseModel(Base):
     replaces_selection: Mapped[bool] = mapped_column(
         nullable=False, default=False, server_default="0",
     )
+    removed_by_user: Mapped[bool] = mapped_column(
+        nullable=False, default=False, server_default="0",
+    )
     collected_kind: Mapped[str | None] = mapped_column(String(10), nullable=True)
     collected_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -621,6 +624,7 @@ class PhraseModel(Base):
             choice=CardChoice(self.choice),
             edited_by_user=self.edited_by_user,
             replaces_selection=self.replaces_selection,
+            removed_by_user=self.removed_by_user,
             polished_phrase=load_phrase(self.polished_phrase),
             polish_reverted=self.polish_reverted,
             collected_from=(
@@ -653,6 +657,7 @@ class PhraseModel(Base):
             choice=occurrence.choice.value,
             edited_by_user=occurrence.edited_by_user,
             replaces_selection=occurrence.replaces_selection,
+            removed_by_user=occurrence.removed_by_user,
             collected_kind=(
                 occurrence.collected_from.kind.value if occurrence.collected_from else None
             ),

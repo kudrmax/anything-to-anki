@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.application.dto.candidate_dtos import (  # noqa: TC001
+    ChangeTargetRequest,
     DecidePhraseRequest,
     EditPhraseRequest,
     ReplaceWithExampleRequest,
@@ -38,6 +39,7 @@ from backend.domain.exceptions import (
     PhrasePolishNotSupportedError,
     SourceHasNoDocumentError,
     SourceOperationBusyError,
+    TargetChangeRefusedError,
     UnknownReportReasonError,
 )
 from backend.domain.value_objects.cloze_hint_kind import ClozeHintKind
@@ -47,6 +49,7 @@ from backend.infrastructure.api.review_context import review_context, review_exp
 from backend.infrastructure.container import Container
 
 if TYPE_CHECKING:
+    from backend.application.use_cases.change_target import ChangeTargetUseCase
     from backend.application.use_cases.decide_phrase import DecidePhraseUseCase
     from backend.application.use_cases.edit_card_phrase import EditCardPhraseUseCase
     from backend.application.use_cases.enqueue_phrase_meaning import EnqueuePhraseMeaningUseCase
@@ -292,6 +295,31 @@ def replace_with_target(
     except PhraseNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except SourceOperationBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except InvalidPhraseError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.post("/{phrase_id}/change-target", status_code=201)
+def change_target(
+    phrase_id: int,
+    request: ChangeTargetRequest,
+    change: ChangeTargetUseCase = Depends(  # noqa: B008
+        use_case(Container.change_target_use_case),  # noqa: B008
+    ),
+    ctx: ReviewContext = Depends(review_context),  # noqa: B008
+    mutation: ReviewMutation = Depends(use_case(Container.review_mutation)),  # noqa: B008
+) -> ReviewUpdateDTO:
+    """The card made anew with other words of its phrase as the target: the new card takes
+    its place and the focus."""
+    try:
+        with review_expired():
+            return mutation.replace(
+                ctx, phrase_id, lambda: change.execute(phrase_id, request.target_words),
+            )
+    except PhraseNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except (SourceOperationBusyError, TargetChangeRefusedError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except InvalidPhraseError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e

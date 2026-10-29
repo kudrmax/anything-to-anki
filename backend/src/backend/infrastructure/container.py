@@ -17,6 +17,7 @@ from backend.application.use_cases.add_source import AddSourceUseCase
 from backend.application.use_cases.analyze_text import AnalyzeTextUseCase
 from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
 from backend.application.use_cases.change_level import ChangeLevelUseCase
+from backend.application.use_cases.change_target import ChangeTargetUseCase
 from backend.application.use_cases.check_for_updates import CheckForUpdatesUseCase
 from backend.application.use_cases.create_collection import CreateCollectionUseCase
 from backend.application.use_cases.create_topic import CreateTopicUseCase
@@ -940,6 +941,25 @@ class Container:
             phrase_reader=self._phrase_reader,
             card_views=self._card_views(session),
             unit_of_work=self._unit_of_work(session),
+        )
+
+    def change_target_use_case(self, session: Session) -> ChangeTargetUseCase:
+        return ChangeTargetUseCase(
+            occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
+            candidate_repo=SqlaCandidateRepository(session, self._change_recorder(session)),
+            document_repo=SqlaDocumentRepository(session),
+            job_repo=SqlaJobRepository(session, self._change_recorder(session)),
+            word_states=SqlaWordStateRepository(session, self._change_recorder(session)),
+            text_analyzer=self._text_analyzer,
+            cefr_classifier=self._cefr_classifier,
+            frequency_provider=self._frequency_provider,
+            phrasal_verb_detector=PhrasalVerbDetector(self._phrasal_verb_dictionary),
+            stamper=self._section_stamper(session),
+            lock=SqlaSourceOperationLock(session),
+            card_views=self._card_views(session),
+            decide_phrase=self.decide_phrase_use_case(session),
+            unit_of_work=self._unit_of_work(session),
+            weight_unknown=self._fragment_selection_config.scoring.weight_unknown,
         )
 
     def _phrase_replacement(self, session: Session) -> PhraseReplacement:

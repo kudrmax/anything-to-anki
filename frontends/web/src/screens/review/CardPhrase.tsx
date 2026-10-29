@@ -4,6 +4,8 @@ import { phraseParts } from '@/lib/text/phraseParts'
 import { ClozePhrase } from './ClozePhrase'
 import type { ClozeEditor } from './useClozeEditor'
 import type { PhraseEditor } from './usePhraseEditor'
+import { TargetPhrase } from './TargetPhrase'
+import type { TargetEditor } from './useTargetEditor'
 import phrase from '@/ui/phrase.module.css'
 import css from './review.module.css'
 
@@ -11,13 +13,14 @@ interface CardPhraseProps {
   candidate: StoredCandidate
   editor: PhraseEditor
   cloze: ClozeEditor
+  target: TargetEditor
 }
 
 /**
  * Фраза карточки, а в режиме правки — поле: Enter сохраняет, Esc отменяет.
- * В режиме разметки cloze слова фразы — кнопки; у cloze-карточки скрытые слова в пунктирной рамке.
+ * В режимах разметки cloze и выбора таргета слова фразы — кнопки; у cloze-карточки скрытые слова в пунктирной рамке.
  */
-export function CardPhrase({ candidate, editor, cloze }: CardPhraseProps) {
+export function CardPhrase({ candidate, editor, cloze, target }: CardPhraseProps) {
   const { draft, saving } = editor
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -47,6 +50,10 @@ export function CardPhrase({ candidate, editor, cloze }: CardPhraseProps) {
         />
       </div>
     )
+  }
+
+  if (target.active) {
+    return <TargetPhrase phrase={candidate.phrase} picked={target.picked} onToggle={target.toggleWord} />
   }
 
   if (cloze.active) {

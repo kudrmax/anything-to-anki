@@ -29,3 +29,29 @@ export const phraseWordTexts = (phrase: CardPhrase): string[] =>
 /** Изучаемое слово так, как оно написано во фразе: «gave up» для «gave it up». */
 export const targetText = (phrase: CardPhrase): string =>
   phrase.target.map(i => phrase.text.slice(...phrase.words[i])).join(' ')
+
+/**
+ * Куски фразы, сгруппированные по пробелам: слово вместе со знаками, что стоят к нему вплотную
+ * («overnight.», «"Hello,»). Пробелы в группы не входят — их место занимает отступ между группами.
+ */
+export function wordGroups(parts: readonly PhrasePart[]): PhrasePart[][] {
+  const groups: PhrasePart[][] = [[]]
+  for (const part of parts) {
+    if (part.word !== null) {
+      groups[groups.length - 1].push(part)
+      continue
+    }
+    part.text.split(/(\s+)/).forEach(piece => {
+      if (!piece) return
+      if (/^\s+$/.test(piece)) groups.push([])
+      else groups[groups.length - 1].push({ ...part, text: piece })
+    })
+  }
+  return groups.filter(group => group.length > 0)
+}
+
+/** Стоит ли к слову группы вплотную знак слева и справа. */
+export const touchesMarks = (group: readonly PhrasePart[], index: number): { before: boolean; after: boolean } => ({
+  before: index > 0 && group[index - 1].word === null,
+  after: index < group.length - 1 && group[index + 1].word === null,
+})

@@ -150,6 +150,7 @@ READ_ONLY: frozenset[tuple[str, str]] = frozenset({
     ("WordStateRepository", "batch"),
     ("OccurrenceRepository", "by_source"),
     ("OccurrenceRepository", "projection"),
+    ("OccurrenceRepository", "word_projection"),
     ("OccurrenceRepository", "get"),
     ("OccurrenceRepository", "of_ids"),
     ("OccurrenceRepository", "of_word"),
@@ -293,6 +294,13 @@ def _occurrence_set_replaces_selection(b: Bench) -> Expected:
     phrase_id = b.word(1, "glare")
     b.ready()
     b.occurrences.set_replaces_selection(phrase_id, True)
+    return {PhraseChanged(phrase_id)}
+
+
+def _occurrence_remove_card(b: Bench) -> Expected:
+    phrase_id = b.word(1, "glare")
+    b.ready()
+    b.occurrences.remove_card(phrase_id)
     return {PhraseChanged(phrase_id)}
 
 
@@ -748,6 +756,7 @@ WRITE_CASES: dict[tuple[str, str], WriteCase] = {
     ("OccurrenceRepository", "set_replaces_selection"): WriteCase(
         _occurrence_set_replaces_selection,
     ),
+    ("OccurrenceRepository", "remove_card"): WriteCase(_occurrence_remove_card),
     ("OccurrenceRepository", "set_earned_sections"): WriteCase(_occurrence_set_earned_sections),
     ("OccurrenceRepository", "apply_plan"): WriteCase(_occurrence_apply_plan),
     ("CandidateRepository", "add_word"): WriteCase(_candidate_add_word),

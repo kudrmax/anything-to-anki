@@ -62,8 +62,9 @@ def select_phrases(
     A decided word keeps its cards as they are. A frozen selection mark stays, and no other
     selection mark beside it. A word whose selection card was replaced — a shown phrase
     marked `replaces_selection` — gets none.
-    Otherwise the best auto phrase that is not skipped is selected: the lowest score, then
-    the one read first. Only selection marks are set or cleared.
+    Otherwise the best auto phrase that is not skipped and whose card the user did not
+    remove is selected: the lowest score, then the one read first. Only selection marks are
+    set or cleared.
     """
     if word_decided:
         return SelectionChange()
@@ -76,7 +77,7 @@ def select_phrases(
     candidates = [
         o for o in word_occurrences
         if o.origin is OccurrenceOrigin.AUTO and not is_skipped(o.card_state)
-        and o.shown_by is not ShownBy.USER
+        and o.shown_by is not ShownBy.USER and not o.removed_by_user
     ]
     if not candidates:
         return _keep(selected, set())

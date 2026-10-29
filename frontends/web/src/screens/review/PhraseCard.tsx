@@ -14,6 +14,8 @@ import type { PictureSuggestionsLoader } from './usePictureSuggestions'
 import { audioUrlForCandidate, type Review } from './useReview'
 import { useClozeEditor } from './useClozeEditor'
 import { usePhraseEditor } from './usePhraseEditor'
+import { TargetPanel } from './TargetPanel'
+import { useTargetEditor } from './useTargetEditor'
 import css from './review.module.css'
 
 interface PhraseCardProps {
@@ -52,11 +54,18 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
   const [detailsOpen, setDetailsOpen] = useState(false)
   const phraseEditor = usePhraseEditor(candidate, review)
   const clozeEditor = useClozeEditor(candidate, review)
-  // Правка текста и разметка cloze не открываются вместе: индексы скрытых слов относятся к старому тексту.
+  const targetEditor = useTargetEditor(candidate, review)
+  // Правка текста, разметка cloze и выбор таргета не открываются вместе: номера слов относятся к старому тексту.
   const editPhrase = () => {
     clozeEditor.cancel()
+    targetEditor.cancel()
     phraseEditor.start()
   }
+  const changeTarget = () => {
+    phraseEditor.cancel()
+    targetEditor.start()
+  }
+  const marking = clozeEditor.active || targetEditor.active
   const decided = candidate.state.buttons.find(button => button.pressed)?.button ?? null
   const editing = useCardLayoutEditing()
   const media = review.mediaFor(candidate)
@@ -79,18 +88,19 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
   return (
     <div className={css.cardBlock}>
       <article
-        className={clozeEditor.active ? `${css.card} ${css.clozeEditing}` : css.card}
+        className={marking ? `${css.card} ${css.clozeEditing}` : css.card}
         data-candidate-id={candidate.phrase_id}
         style={{ '--card-cols': columns ? columnTracks(columns) : undefined } as CSSProperties}
       >
         <header className={css.cardHead}>
           <div className={css.phraseRow}>
-            <CardPhrase candidate={candidate} editor={phraseEditor} cloze={clozeEditor} />
+            <CardPhrase candidate={candidate} editor={phraseEditor} cloze={clozeEditor} target={targetEditor} />
             {decided && (
               <span className={css.decided}><Icon as={Check} size="s" />{DECIDED_LABEL[decided]}</span>
             )}
           </div>
           {clozeEditor.active && <ClozePanel editor={clozeEditor} />}
+          {targetEditor.active && <TargetPanel editor={targetEditor} />}
         </header>
 
         {layout && columns && <CardBody view={layout} columns={columns} detailsOpen={detailsOpen} onToggleDetails={() => setDetailsOpen(open => !open)} />}
@@ -111,7 +121,7 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
               )}
               {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
             </div>
-            <PhraseTools candidate={candidate} review={review} onEditPhrase={editPhrase} />
+            <PhraseTools candidate={candidate} review={review} onEditPhrase={editPhrase} onChangeTarget={changeTarget} />
           </div>
         </footer>
 

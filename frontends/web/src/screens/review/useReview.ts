@@ -104,14 +104,25 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     }
   }, [api, stop, showToast, mutate, offeringUndo])
 
+  const [targetEditingId, setTargetEditingId] = useState<number | null>(null)
+  // Выбор таргета, как и разметка cloze, относится к одной карточке.
+  useEffect(() => { setTargetEditingId(null) }, [currentId])
   const [clozeEditingId, setClozeEditingId] = useState<number | null>(null)
   // Разметка cloze относится к одной карточке: при переходе на другую она закрывается.
   useEffect(() => { setClozeEditingId(null) }, [currentId])
   const startCloze = useCallback((candidateId: number) => {
     window.getSelection()?.removeAllRanges()
+    setTargetEditingId(null)
     setClozeEditingId(candidateId)
   }, [])
   const cancelCloze = useCallback(() => setClozeEditingId(null), [])
+
+  const startTarget = useCallback((candidateId: number) => {
+    window.getSelection()?.removeAllRanges()
+    setClozeEditingId(null)
+    setTargetEditingId(candidateId)
+  }, [])
+  const cancelTarget = useCallback(() => setTargetEditingId(null), [])
 
   /** Кнопка карточки делает то, что сказал backend: открывает разметку cloze или шлёт решение. */
   const press = useCallback(async (candidateId: number, button: CardButton) => {
@@ -182,6 +193,19 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
       await loadGeneration()
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Replace failed')
+    }
+  }, [api, mutate, loadGeneration, showToast])
+
+  /** Карточка с другим таргетом — новая карточка: встаёт на место старой. false — не вышло, ошибку показал тост. */
+  const changeTarget = useCallback(async (candidateId: number, targetWords: number[]): Promise<boolean> => {
+    try {
+      await mutate(ctx => api.changeTarget(ctx, candidateId, targetWords))
+      showToast('Target changed — generating meaning...')
+      await loadGeneration()
+      return true
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Target change failed')
+      return false
     }
   }, [api, mutate, loadGeneration, showToast])
 
@@ -364,7 +388,8 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     sortOrder, setSortOrder,
     counts: { reviewed: progressReviewed, total: progressTotal, learn: learnCount, progress: progressTotal > 0 ? progressReviewed / progressTotal : 0 },
     generation: view.generation, generationActions,
-    press, generate, replaceWithExample, replaceWithTarget,
+    press, generate, replaceWithExample, replaceWithTarget, changeTarget,
+    targetEditingId, targetEditing: targetEditingId !== null, startTarget, cancelTarget,
     clozeEditingId, clozeEditing: clozeEditingId !== null, startCloze, cancelCloze, saveCloze, generateTTS, regenerateMedia, findImages, applyImage, pasteImage, polishAgain, setPolishReverted, editPhrase,
     busy: { generating: generatingIds, media: regeneratingMediaIds, tts: generatingTTSIds, image: applyingImageIds },
     editing, startEditing, cancelEditing, setBoundary, addWord,

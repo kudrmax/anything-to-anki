@@ -116,6 +116,7 @@ class CardView:
     card_id: int
     buttons: tuple[ButtonState, ...]
     can_edit_cloze: bool
+    can_change_target: bool
     shown: Shown
     wants_generation: bool
 
@@ -263,6 +264,7 @@ def card_view(
             _button(word, card, button, shown_press, lemma, elsewhere, now) for button in Press
         ),
         can_edit_cloze=card.choice is CardChoice.CLOZE and not in_anki(card),
+        can_change_target=can_change_target(card),
         shown=status.shown,
         wants_generation=status.wants_generation,
     )
@@ -275,6 +277,12 @@ def open_elsewhere(word: WordState, lemma: LemmaKnowledge) -> ElsewhereStatus | 
 
 def is_decided(word: WordState) -> bool:
     return stored_decided(_STORED[decision_status(word)])
+
+
+def can_change_target(card: CardState) -> bool:
+    """The card's target can be picked anew: it has no decision and is not in Anki, as the
+    decision is its word's."""
+    return not card.is_decision and not in_anki(card)
 
 
 def is_protected(card: CardState, work: UserWork) -> bool:

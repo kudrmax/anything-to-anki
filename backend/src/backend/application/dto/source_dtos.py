@@ -325,6 +325,8 @@ class CardDTO(BaseModel):
     cloze: CandidateClozeDTO | None = None
     # The hidden words of the cloze can change: a cloze not in Anki yet.
     can_edit_cloze: bool = False
+    # Other words of the phrase can be picked as the target: a card with no decision.
+    can_change_target: bool = False
     # Where the source phrase stands in the source's document; none for an example
     phrase_position: DocumentPositionDTO | None = None
 
@@ -430,6 +432,7 @@ def card_to_dto(
         ),
         cloze=_cloze_dto(card),
         can_edit_cloze=view.can_edit_cloze,
+        can_change_target=view.can_change_target,
         phrase_position=(
             DocumentPositionDTO.from_position(occ.phrase_position)
             if occ.phrase_position
