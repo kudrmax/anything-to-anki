@@ -25,10 +25,24 @@
 .footDecisions { display: var(--desktop-flex); align-items: center; gap: var(--s3); }
 .footRest { flex: 1 1 auto; display: flex; align-items: center; gap: var(--s4); }
 .facts { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; justify-content: var(--facts-justify); align-items: center; gap: var(--s3); font-size: var(--fs-s); color: var(--tx3); }
-/* телефон: справка свёрнута в строку Details под тем, по чему решаешь; на десктопе её нет — справка всегда видна */
-.detailsToggle { display: var(--phone-flex); order: var(--details-toggle-order); align-items: center; justify-content: space-between; margin-top: auto; padding: var(--s4) var(--card-pad); font-size: var(--fs-m); color: var(--tx3); }
-.detailsToggle[aria-expanded="true"] { margin-top: var(--s3); color: var(--tx); }
+/* телефон: карточка свёрнута в экран и не прокручивается — что не влезло, уходит под затухание с Show all;
+   раскрытая показывает справку и инструменты и прокручивается. На десктопе свёрнутого нет — видно всё. */
+.showAll { display: var(--phone-flex); order: var(--show-all-order); flex: none; align-items: center; justify-content: space-between; height: var(--show-all-h); margin-top: auto; padding: 0 var(--card-pad); font-size: var(--fs-m); color: var(--tx3); }
+.showAll[aria-expanded="true"] { margin-top: var(--s3); color: var(--tx); }
+.card { touch-action: var(--card-touch); }
+.card.folded { position: var(--card-folded-position); overflow-y: var(--card-folded-overflow); padding-bottom: var(--card-folded-pb); touch-action: var(--card-folded-touch); }
+.folded > .showAll { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--fold-fade) + var(--show-all-h)); padding-top: var(--fold-fade); background: var(--fold-fade-bg); border-radius: 0 0 var(--r) var(--r); }
 .cardRight.collapsed, .cardFoot.collapsed { display: var(--details-collapsed-display); }
+
+/* телефон: свайп решения, как в Tinder — карточка едет за пальцем и наклоняется, на ней проступает метка решения */
+.cardBlock[data-drag] { position: relative; z-index: 1; transform: translate(var(--drag-x), var(--drag-y)) rotate(var(--drag-r)); user-select: none; }
+.cardBlock[data-drag="fly"], .cardBlock[data-drag="back"] { transition: transform var(--swipe-t) ease-out; }
+.swipeStamp { display: none; }
+.cardBlock[data-drag] > .swipeStamp { display: block; position: absolute; z-index: 1; top: var(--s7); padding: var(--s1) var(--s4); border: var(--stamp-bw) solid currentColor; border-radius: var(--r-s); background: var(--card); font-size: var(--fs-l); font-weight: var(--fw-b); line-height: var(--lh-label); opacity: 0; pointer-events: none; }
+.swipeStamp[data-stamp="right"] { left: var(--s5); rotate: calc(-1 * var(--stamp-tilt)); color: var(--ac); }
+.swipeStamp[data-stamp="left"] { right: var(--s5); rotate: var(--stamp-tilt); color: var(--ok); }
+.swipeStamp[data-stamp="down"] { left: 0; right: 0; width: fit-content; margin-inline: auto; color: var(--tx2); }
+.cardBlock[data-swipe="right"] > [data-stamp="right"], .cardBlock[data-swipe="left"] > [data-stamp="left"], .cardBlock[data-swipe="down"] > [data-stamp="down"] { opacity: var(--drag-p); }
 .tools { display: flex; gap: var(--s1); margin-right: var(--icon-inset-trim); }
 
 /* решения: док у нижнего края окна, Learn залит всегда, принятое решение — с галочкой */
@@ -39,7 +53,7 @@
 
 /* очередь */
 /* без списка карточка занимает высоту окна и сжимается под неё; со списком окно прокручивается */
-.body { display: flex; flex-direction: column; flex: 1; min-height: 100%; }
+.body { display: flex; flex-direction: column; flex: 1; min-height: 100%; overflow-x: var(--review-body-clip); }
 /* Отступы карточки отделяют её от строк списка; без списка строки скрыты, но в DOM остаются — :first-child не спасает. */
 .focus .queue > .cardBlock { flex: 1 1 auto; margin: 0; }
 /* Со списком окно прокручивается само: справка видна целиком, а не обрезается по высоте левой колонки. */

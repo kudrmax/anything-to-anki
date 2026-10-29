@@ -21,7 +21,6 @@ import type { SelectedText, SelectionPoint } from './SourceText'
 import { SourceTexts } from './SourceTexts'
 import { audioUrlForCandidate, useReview } from './useReview'
 import { usePictureSuggestions } from './usePictureSuggestions'
-import { useSwipe } from './useSwipe'
 import { ReviewList } from './ReviewList'
 import { VIEW_CONTROL } from './viewControl'
 import type { DecisionButton, ReviewRow, SetScope, SourceStatus } from '@/api/types'
@@ -83,9 +82,6 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
   const [phoneView, setPhoneView] = useState<PhoneView>('card')
   const togglePhoneView = (view: PhoneView) => setPhoneView(prev => (prev === view ? 'card' : view))
   const hasCards = review.state.totalRows > 0
-
-  // На телефоне фразы листают свайпом по карточке: влево — следующая, вправо — предыдущая.
-  const swipe = useSwipe(direction => void review.step(direction === 'left' ? 1 : -1))
 
   const { press, step, cancelEditing, clozeEditing, targetEditing } = review
   const toggleAudio = review.player.toggle
@@ -165,6 +161,13 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
     { label: 'Generate', icon: Sparkles, items: generationItems(review) },
   ]
 
+  const arrows = (
+    <>
+      <IconButton icon={ChevronLeft} label="Previous phrase" disabled={!review.canPrev} onClick={() => void step(-1)} {...VIEW_CONTROL} />
+      <IconButton icon={ChevronRight} label="Next phrase" disabled={!review.canNext} onClick={() => void step(1)} {...VIEW_CONTROL} />
+    </>
+  )
+
   const header = (
     <PageHeader
       title={set.title}
@@ -182,8 +185,7 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
         {review.position !== null && (
           <div className={css.stepper}>
             <span className={css.position}>{review.position} / {review.state.totalCards}</span>
-            <IconButton icon={ChevronLeft} label="Previous phrase" disabled={!review.canPrev} onClick={() => void step(-1)} {...VIEW_CONTROL} />
-            <IconButton icon={ChevronRight} label="Next phrase" disabled={!review.canNext} onClick={() => void step(1)} {...VIEW_CONTROL} />
+            {arrows}
           </div>
         )}
         {hasCards && (
@@ -218,6 +220,7 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
       </Button>
       {hasCards && (
         <div className={`${css.headerTools} ${css.phoneOnly}`}>
+          {review.position !== null && arrows}
           <IconButton icon={List} label="All phrases" active={view === 'list'} onClick={() => togglePhoneView('list')} {...VIEW_CONTROL} />
           <Menu items={phoneMenu} trigger={<IconButton icon={Ellipsis} label="More" />} />
         </div>
@@ -262,7 +265,6 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
         )}
         <ReviewList
           className={view === 'card' ? css.queue : `${css.queue} ${css.away}`}
-          {...swipe}
           state={review.state}
           onLoad={review.loadRows}
           onToggleSection={toggleSection}
