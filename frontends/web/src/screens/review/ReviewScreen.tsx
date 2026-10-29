@@ -147,6 +147,7 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
 
   // Правка границ фразы идёт по тексту источника — на телефоне показываем его.
   const view: PhoneView = editing ? 'text' : phoneView
+  const dockShown = current !== null && view === 'card' && !clozeEditing && !targetEditing
   // Телефон: под текущей карточкой лежит та, что откроется после свайпа, — уже загруженная.
   const under = phone && view === 'card' && current ? cardsUnder(review.state, current) : new Map<number, SwipeDirection[]>()
 
@@ -281,7 +282,7 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
           followKey={phraseListShown}
         />
         {/* Телефон: решения — в панели под карточкой. В разметке cloze и выборе таргета у панели свои кнопки. */}
-        {current && view === 'card' && !clozeEditing && !targetEditing && (
+        {dockShown && (
           <div className={`${css.dock} ${css.phoneOnly}`}>
             {/* Пока карточку тянут, кнопки сменяет решение, которое примет свайп. */}
             <div className={css.dockStack}>
@@ -303,7 +304,7 @@ export function ReviewView({ scope, requestedId }: { scope: SetScope; requestedI
           onCancel={closeSelection}
         />
       )}
-      <ToastStack>
+      <ToastStack above={phone && dockShown ? 'decisions' : null}>
         <Toast message={review.toast} />
         <UndoToast offer={review.undo.offer} onUndo={() => void review.undo.run()} />
       </ToastStack>

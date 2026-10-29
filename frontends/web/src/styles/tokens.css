@@ -344,6 +344,8 @@
   --toast-position: fixed;
   /* тосты над панелью выбора: её отступ снизу, высота и зазор */
   --toast-over-bar: calc(var(--s5) + var(--h) + 2 * var(--s3) + var(--s3));
+  /* тосты над панелью решений ревью (она — только на телефоне): её отступ снизу, высота и зазор */
+  --toast-over-dock: calc(var(--main-pb) + var(--decision-h) + 2 * var(--dock-pad) + var(--s3));
 
   /* типографика */
   --ui: 'Geist Variable', system-ui, sans-serif;

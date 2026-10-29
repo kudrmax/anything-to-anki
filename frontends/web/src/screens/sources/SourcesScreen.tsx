@@ -370,7 +370,7 @@ export function SourcesScreen() {
           onClose={() => setNaming(null)}
         />
       )}
-      <ToastStack raised={selectedIds.length > 0}>
+      <ToastStack above={selectedIds.length > 0 ? 'selection' : null}>
         <Toast message={toast} tone="warn" />
         <UndoToast offer={undo.offer} onUndo={() => void undo.run()} />
       </ToastStack>
