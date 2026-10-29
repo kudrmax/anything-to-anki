@@ -15,6 +15,8 @@ The result shows how many cards were **added**, how many were **already in Anki*
 
 The badge on **Export** in the top bar shows how many words are waiting to be exported.
 
+The panel on the right shows where the cards go: the **deck** and the **note type**. When the export has cloze cards, it also shows the **cloze note type**. A name too long for the panel ends with "…"; hover over it to see it in full.
+
 ### Ready and Incomplete
 
 The cards are split into two groups:

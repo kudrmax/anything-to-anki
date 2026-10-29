@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import type { AnkiStatus, CardPreview, ExportSection, GlobalExport, SyncResult } from '@/api/types'
+import type { AnkiStatus, Settings, CardPreview, ExportSection, GlobalExport, SyncResult } from '@/api/types'
 import { ExportScreen } from './ExportScreen'
 
 const SCOPE_ID = 12
@@ -102,6 +102,30 @@ describe('ExportScreen scope', () => {
     expect(button?.lastElementChild?.textContent).toBe('2')
     await act(async () => { button?.click() })
     expect(fill).toHaveBeenCalledWith(SCOPE_ID)
+  })
+
+  const noteTypes = async (cards: CardPreview[]) => {
+    vi.spyOn(api, 'getSettings').mockResolvedValue({
+      anki_deck_name: 'English', anki_note_type: 'AnythingToAnkiType', anki_cloze_note_type: 'AnythingToAnkiCloze',
+    } as Settings)
+    vi.spyOn(api, 'getExportCards').mockResolvedValue({ ...EXPORT, ready: [{ ...SECTION, cards }] })
+    await open()
+    return container.textContent ?? ''
+  }
+
+  it('shows the cloze note type only when cloze cards are exported', async () => {
+    expect(await noteTypes([CARD])).not.toContain('cloze note type')
+    act(() => root.unmount())
+    root = createRoot(container)
+    const text = await noteTypes([CARD, { ...CARD, candidate_id: 6, is_cloze: true }])
+    expect(text).toContain('AnythingToAnkiType')
+    expect(text).toContain('AnythingToAnkiClozecloze note type')
+  })
+
+  it('keeps the full note type name in the tooltip', async () => {
+    await noteTypes([CARD])
+    const value = [...container.querySelectorAll('b')].find(b => b.textContent === 'AnythingToAnkiType')
+    expect(value?.title).toBe('AnythingToAnkiType')
   })
 
   it('shows the empty state when everything is in Anki', async () => {
