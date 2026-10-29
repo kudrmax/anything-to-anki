@@ -2,6 +2,13 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.7.2 — 2026-10-29
+
+The System theme works in the macOS app.
+
+### No longer broken
+- **Theme: System** in the macOS app now follows macOS. Before, the app window stayed in whichever theme it was in when you chose **System**, and switching macOS between light and dark did nothing to it. The window's own controls change with the theme too, and the app opens in the right one.
+
 ## 1.7.1 — 2026-10-29
 
 The macOS app opens the way you left it.
