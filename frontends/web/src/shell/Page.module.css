@@ -26,3 +26,8 @@
 .fit > .aside > .asideInner { position: var(--aside-position); top: var(--page-top); max-height: 100%; }
 .asideSection { display: flex; flex-direction: column; min-height: 0; }
 .fit > .content { flex: 1; min-height: 0; align-self: stretch; display: var(--fit-content-display); flex-direction: column; }
+/* Шапка держится сверху при прокрутке окна. Фон — тот же, что у окна, приколотый к окну: шов не виден. */
+.stickyHeader > .full:first-child { position: sticky; top: 0; z-index: var(--z-sticky); background: var(--page-bg); background-attachment: fixed; }
+.stickyHeader > .aside, .stickyHeader.fit > .aside > .asideInner { top: var(--page-head-h, var(--page-top)); }
+/* колонка помещается между шапкой и низом окна: в конце прокрутки она не заезжает под шапку */
+.stickyHeader.fit > .aside > .asideInner { max-height: var(--sticky-aside-max, min(100%, calc(var(--sticky-aside-room) - var(--page-head-h)))); }
