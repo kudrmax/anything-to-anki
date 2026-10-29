@@ -2,6 +2,18 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.6.1 — 2026-10-29
+
+Calibration remembers the words you skip, and generation can start with the cards at the top of the list.
+
+### Skipped words stay skipped
+Calibration now remembers the words it showed you and you didn't tap, and doesn't ask about them again. A new session goes on where the last one ended instead of starting with the same words. Skipped words are not marked as known or unknown: Review still suggests them. **Settings → Words → Skipped in calibration** shows how many there are, and **Ask skipped words again** lets calibration ask about them once more. **Rebuild list** keeps them.
+![](docs/images/changelog/1.6.1/skipped-in-calibration.png)
+
+### Generate the next cards
+Every item of the **✨** menu in Review has **Ready: generate next 100** and **All: generate next 100**. They fill in the first cards that don't have it yet, from the top of the list in its current order, so you can try generation on a big source without spending your Claude plan on all of it. **Settings → Cards → Generate next** sets how many cards it takes.
+![](docs/images/changelog/1.6.1/generate-next.png)
+
 ## 1.5.1 — 2026-10-29
 
 Frequent words are easier to choose.
