@@ -2,6 +2,15 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.5.1 — 2026-10-29
+
+Frequent words are easier to choose.
+
+### No longer broken
+- **Settings → Words → Frequent words** showed each option as a number and a line of words cut off by the edge of the dropdown. The options are now a list: each one shows its example words in full, so you can compare them at a glance. The confirmation asks with the same words.
+![](docs/images/changelog/1.5.1/frequent-words.png)
+- In **Settings → Anki**, fields missing from a note type are now shown one by one instead of in a single line.
+
 ## 1.5.0 — 2026-10-29
 
 Calibration asks about the words you will actually meet.
