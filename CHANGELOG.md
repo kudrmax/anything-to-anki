@@ -2,6 +2,15 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.6.3 — 2026-10-29
+
+Export tells you where cloze cards go.
+
+### No longer broken
+- In Export, the panel on the right shows the **cloze note type** when the export has cloze cards. Before, it showed only the note type of regular cards.
+![](docs/images/changelog/1.6.3/cloze-note-type.png)
+- Deck and note type names in that panel stay on one line instead of breaking in the middle of a word. A name too long for the panel ends with "…", and hovering over it shows it in full.
+
 ## 1.6.2 — 2026-10-29
 
 Review keeps its toolbar in reach, and small screens stop cutting labels apart.
