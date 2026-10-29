@@ -6,7 +6,7 @@ import { useAudioPlayer, type AudioPlayer } from '@/lib/useAudioPlayer'
 import { Page, PageHeader } from '@/shell'
 import { Banner, Button, Empty, Spinner, Stat, StatGrid, StatusDot, Text } from '@/ui'
 import { ExportCardRow } from './ExportCardRow'
-import { fillHint } from './fillLabels'
+import { fillLines } from './fillLabels'
 import { useExport } from './useExport'
 import css from './export.module.css'
 
@@ -74,6 +74,11 @@ function ExportView({ scope }: { scope: SetScope }) {
     </>
   )
 
+  const groupLines = (group: ExportGroup, hint: string): string[] => {
+    const lines = group === 'incomplete' ? fillLines(exporter.fillState) : []
+    return lines.length > 0 ? lines : [hint]
+  }
+
   return (
     <Page wide header={header} aside={aside} banner={(exporter.error || ankiStatus?.available === false) ? banner : undefined}>
       {totalCards === 0 && (
@@ -88,7 +93,7 @@ function ExportView({ scope }: { scope: SetScope }) {
           <header className={css.exportGroupHead}>
             <div>
               <h2 className={css.exportGroupTitle}>{title}<span>{counts[group]}</span></h2>
-              <Text tone="muted" size="s">{(group === 'incomplete' && fillHint(exporter.fillState)) || hint}</Text>
+              {groupLines(group, hint).map(line => <Text key={line} tone="muted" size="s" block>{line}</Text>)}
             </div>
             <div className={css.exportGroupActions}>
               {group === 'incomplete' && exporter.fillState.fillable > 0 && (

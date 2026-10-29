@@ -20,7 +20,7 @@ const BATCH: InputDescription = { ...NOTHING, kind: 'source', label: '2 files', 
 const EMPTY_TREE = { collections: [] } as unknown as CollectionTree
 const ASK_KIND = (indexes: number[], label: string | null): Question => ({
   id: 'text.kind', prompt: 'Add as', default: 'text', input_indexes: indexes, input_label: label,
-  options: [{ id: 'text', label: 'Text', details: null }, { id: 'song', label: 'Song', details: null }],
+  options: [{ id: 'text', label: 'Text', details: null, facts: [] }, { id: 'song', label: 'Song', details: null, facts: [] }],
 })
 const NAMING: NamingRequired = {
   heading: 'Add 2 files',

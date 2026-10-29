@@ -261,9 +261,9 @@ class TestBook:
             "book.split", "Add «Flourish» as", "split",
         )
         split, whole = question.options
-        assert split.label == "2 chapters · 201–301 words each"
+        assert (split.label, split.facts) == ("2 chapters", ["201–301 words each"])
         assert split.details is None
-        assert whole.label == "One source · 502 words"
+        assert (whole.label, whole.facts) == ("One source", ["502 words"])
 
     def test_split_book_asks_how_to_name_its_chapters(
         self, add_source: AddSourceUseCase, tmp_path: Path,

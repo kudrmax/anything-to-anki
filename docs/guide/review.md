@@ -17,7 +17,7 @@ The phrase is at the top, with the target in bold. Below it, the left column hol
 - **Lemma**: the dictionary form of the target, with its **IPA** transcription, its **CEFR level** (A1–C2) or **phrasal verb**, its **frequency** in English (ultra common, common, mid, low or rare) and its **usage**, such as formal or informal, next to it: the word's group that comes first in [Word usage priority](vocabulary.md#word-order-in-review), the one the word is sorted by; nothing is shown when that group is neutral. Hover the level to see how each dictionary rated it. 🎯 marks words in the "sweet spot": frequent enough to be useful, rare enough to be worth learning.
 - **Translation**: a short translation of the target in this context. The translation is into **Russian**; to change the language, see [Configuration](../reference/configuration.md#translation-language).
 - A **definition** and **synonyms**.
-- **Picture** of the word, if you added one; otherwise **Suggested pictures · click to add** shows the first results of a picture search, and the Picture icon in the header turns them off. Next to it, the **video frame and clip** (video sources only): a screenshot and the audio of the phrase, cut from the video. ▶ plays it. They stand at the bottom of the column.
+- **Picture** of the word, if you added one; otherwise **Suggested pictures** shows the first results of a picture search (click one to add it), and the Picture icon in the header turns them off. Next to it, the **video frame and clip** (video sources only): a screenshot and the audio of the phrase, cut from the video. ▶ plays it. They stand at the bottom of the column.
 
 The right column holds the rest:
 
@@ -44,7 +44,7 @@ Each card has four buttons:
 
 To take a decision off a card, press the same button again.
 
-After every press, a toast such as **Know · give in** appears for 6 seconds. Click **Undo** in it, or press `⌘Z` (`Ctrl+Z`), to give the card back the mark it had before the press, and the screen returns to that card. Only the last press can be undone. Saving a new cloze counts as a press too.
+After every press, a toast such as **Marked give in as known** appears for 6 seconds. Click **Undo** in it, or press `⌘Z` (`Ctrl+Z`), to give the card back the mark it had before the press, and the screen returns to that card. Only the last press can be undone. Saving a new cloze counts as a press too.
 
 Undo is a press in the other direction, not a rollback, so a few things do not come back:
 

@@ -78,8 +78,9 @@ class TestVideoFileReader:
         assert (subtitle_question.id, subtitle_question.option_ids) == (
             SUBTITLE_TRACK_QUESTION_ID, ("2", "5"),
         )
-        assert subtitle_question.options[0].label == "Subs 2 — eng · subrip"
-        assert audio_question.options[1].label == "Track 1 — — · aac · 2ch"
+        named, unnamed = subtitle_question.options[0], audio_question.options[1]
+        assert (named.label, named.facts) == ("Subs 2", ("eng", "subrip"))
+        assert (unnamed.label, unnamed.facts) == ("Track 1", ("aac", "2 channels"))
 
         answers = Answers({SUBTITLE_TRACK_QUESTION_ID: "5", AUDIO_TRACK_QUESTION_ID: "1"})
         content = reader.read(video, answers)

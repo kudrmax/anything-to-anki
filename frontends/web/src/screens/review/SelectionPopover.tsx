@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { computeDiff } from '@/lib/text/diff'
 import { phraseWords, pickedIndices, pickedWords, toggled } from '@/lib/text/words'
-import { Button, Text, Tooltip, WordPicker } from '@/ui'
+import { Button, Tag, Text, Tooltip, WordPicker } from '@/ui'
 import type { SelectionPoint } from './SourceText'
 import type { Editing } from './useReview'
 import css from './review.module.css'
@@ -38,7 +38,8 @@ export function SelectionPopover({ phrase, point, editing, onSetBoundary, onAddW
       <div className={css.popover}>
         {editing ? (
           <>
-            <Text size="s"><Text tone="accent">{editing.lemma}</Text> <Text tone="muted">{editing.pos} · Edit boundary</Text></Text>
+            <Text tone="muted" size="s">Edit boundary</Text>
+            <span className={css.word}><Text tone="accent" size="s">{editing.lemma}</Text><Tag>{editing.pos}</Tag></span>
             <div>
               {computeDiff(editing.originalFragment, phrase).map((segment, i) => (
                 <span key={i} className={segment.type === 'added' ? css.added : segment.type === 'removed' ? css.removed : undefined}>{segment.text} </span>

@@ -32,6 +32,7 @@
 .tableHead { font-size: var(--fs-xs); color: var(--tx3); }
 .featureName { display: flex; align-items: center; gap: var(--s3); min-width: 0; font-size: var(--fs-m); }
 .failed { color: var(--err); }
+.none { color: var(--tx3); }
 .total { font-weight: var(--fw-m); }
 .share { display: flex; align-items: center; justify-content: flex-end; gap: var(--s3); }
 .shareTrack { flex: 1; height: var(--s2); border-radius: var(--s2); background: var(--soft); overflow: hidden; }

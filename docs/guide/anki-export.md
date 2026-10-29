@@ -24,7 +24,7 @@ The cards are split into two groups:
 
 **Generate missing** generates what the incomplete cards lack (the number on the button is how many cards it can fill), for every source on the page at once: the meaning, and the audio of the phrase (a clip cut from the video for a video, TTS for anything else). While it runs, each missing part of a row turns into **Generating meaning** or **Generating audio**, and finished cards move to **Ready** on their own.
 
-Some parts can't be generated, and the button skips them. The line under **Incomplete** counts the skipped cards, and the row says why:
+Some parts can't be generated, and the button skips them. The lines under **Incomplete** count the skipped cards, one line per reason, and the row says why:
 
 - **video not downloaded**: the video of the source was deleted or never downloaded, so there is nothing to cut the clip from. Download the video again to get the clip.
 - **video still downloading**: the clip waits for the download to finish.

@@ -159,7 +159,7 @@
   --usage-share-w: 110px;
   --usage-pop-w: 220px;
   --usage-axis-trim: calc(var(--fs-xs) / -2);   /* подпись шкалы встаёт серединой на линию */
-  --usage-table-cols: minmax(var(--usage-feature-w), 1fr) repeat(6, var(--usage-num-w)) var(--usage-share-w);
+  --usage-table-cols: minmax(var(--usage-feature-w), 1fr) repeat(7, var(--usage-num-w)) var(--usage-share-w);
   --settings-panel-w: 720px;
   --layout-column-min-h: calc(var(--h) * 3);   /* в пустую колонку есть куда бросить блок */
   --layout-window-w: 340px;   /* плавающее окно редактора раскладки */

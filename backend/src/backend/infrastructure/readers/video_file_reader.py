@@ -56,13 +56,13 @@ class VideoFileReader(FormatReader):
             if len(subtitle_tracks) > 1:
                 questions.append(_track_question(
                     SUBTITLE_TRACK_QUESTION_ID, "Subtitle track",
-                    [(track.index, _subtitle_label(track)) for track in subtitle_tracks],
+                    [_subtitle_option(track) for track in subtitle_tracks],
                 ))
         audio_tracks = self._audio_tracks(video.path)
         if len(audio_tracks) > 1:
             questions.append(_track_question(
                 AUDIO_TRACK_QUESTION_ID, "Audio track",
-                [(track.index, _audio_label(track)) for track in audio_tracks],
+                [_audio_option(track) for track in audio_tracks],
             ))
         return tuple(questions)
 
@@ -113,13 +113,8 @@ def _video(source_input: SourceInput) -> LocalFile:
     return source_input
 
 
-def _track_question(question_id: str, prompt: str, tracks: list[tuple[int, str]]) -> Question:
-    return Question(
-        id=question_id,
-        prompt=prompt,
-        options=tuple(QuestionOption(id=str(index), label=label) for index, label in tracks),
-        default=str(tracks[0][0]),
-    )
+def _track_question(question_id: str, prompt: str, options: list[QuestionOption]) -> Question:
+    return Question(id=question_id, prompt=prompt, options=tuple(options), default=options[0].id)
 
 
 def _track_index(answers: Answers, question_id: str) -> int:
@@ -130,17 +125,18 @@ def _track_index(answers: Answers, question_id: str) -> int:
     return int(answer)
 
 
-def _subtitle_label(track: SubtitleTrackInfo) -> str:
-    return _label(track.index, track.title, track.language, track.codec, None)
+def _subtitle_option(track: SubtitleTrackInfo) -> QuestionOption:
+    return _track_option(track.index, track.title, track.language, track.codec, None)
 
 
-def _audio_label(track: AudioTrackInfo) -> str:
-    return _label(track.index, track.title, track.language, track.codec, track.channels)
+def _audio_option(track: AudioTrackInfo) -> QuestionOption:
+    return _track_option(track.index, track.title, track.language, track.codec, track.channels)
 
 
-def _label(
+def _track_option(
     index: int, title: str | None, language: str | None, codec: str, channels: int | None,
-) -> str:
+) -> QuestionOption:
     name = title or language or f"Track {index}"
-    suffix = f" · {channels}ch" if channels else ""
-    return f"{name} — {language or '—'} · {codec}{suffix}"
+    shown_language = language if title and language else None
+    facts = (shown_language, codec, f"{channels} channels" if channels else None)
+    return QuestionOption(id=str(index), label=name, facts=tuple(f for f in facts if f))

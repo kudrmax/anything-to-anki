@@ -42,7 +42,8 @@
 .scopeTitleLine { position: relative; min-width: 0; }
 .scopeMeasureBox { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; }
 .scopeMeasure { width: max-content; }
-.scopeProgress { display: flex; align-items: center; gap: var(--s3); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); }
+.scopeProgress { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s5); font-size: var(--fs-s); line-height: var(--lh-label); color: var(--tx3); }
+.scopeFact { display: inline-flex; align-items: center; gap: var(--s3); }
 .scopeSlot { width: var(--h); height: var(--h); flex: none; }
 .scopeActions { display: flex; align-items: center; gap: var(--gap); flex: none; }
 

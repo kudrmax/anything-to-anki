@@ -1,7 +1,7 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import { BookOpen, Clapperboard, Ellipsis, FileText, Globe, Music, Sparkles, type LucideIcon } from 'lucide-react'
 import type { GenerationStatus, SetOperation, SourceSummary } from '@/api/types'
-import { formatDate } from '@/lib/text/format'
+import { formatDate, TOOLTIP_LINE } from '@/lib/text/format'
 import { Button, Field, Icon, IconButton, Menu, Progress, Spinner, Text } from '@/ui'
 import { SOURCES_MIME } from './CollectionTree'
 import { setStackDragImage } from './dragStack'
@@ -131,7 +131,11 @@ export function SourceRow({ source, selected, showPath, primary, onProcess, onGe
 
   const classes = [css.row, source.can_review && !editing && css.clickable, source.status === 'reviewed' && css.done, selected && css.selected].filter(Boolean).join(' ')
   const look = lookOf(source)
-  const tooltip = `${TYPE_LABEL[look]} · added ${formatDate(source.created_at)}${source.collection_path.length ? ` · ${source.collection_path.join(' / ')}` : ''}`
+  const tooltip = [
+    TYPE_LABEL[look],
+    `Added ${formatDate(source.created_at)}`,
+    ...(source.collection_path.length ? [source.collection_path.join(' / ')] : []),
+  ].join(TOOLTIP_LINE)
 
   const cancelPress = () => {
     if (pressTimer.current) clearTimeout(pressTimer.current)

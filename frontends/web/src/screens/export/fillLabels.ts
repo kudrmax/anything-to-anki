@@ -45,12 +45,9 @@ export function missingParts(card: CardPreview): MissingPartView[] {
   })
 }
 
-/** Подпись секции неполных: что генерируется и что догенерация пропустит. */
-export function fillHint(fill: ExportFill): string | null {
-  const parts: string[] = []
-  if (fill.generating > 0) parts.push(`Generating ${cardsLabel(fill.generating)}…`)
-  if (fill.skipped.length > 0) {
-    parts.push(`Can't generate: ${fill.skipped.map(s => `${cardsLabel(s.cards)} ${SECTION_SKIP_LABEL[s.reason]}`).join(', ')}`)
-  }
-  return parts.length > 0 ? parts.join(' ') : null
+/** Подпись секции неполных, по строке на факт: что генерируется и что догенерация пропустит. */
+export function fillLines(fill: ExportFill): string[] {
+  const generating = fill.generating > 0 ? [`Generating ${cardsLabel(fill.generating)}…`] : []
+  const skipped = fill.skipped.map(s => `Can't generate ${cardsLabel(s.cards)} ${SECTION_SKIP_LABEL[s.reason]}`)
+  return [...generating, ...skipped]
 }

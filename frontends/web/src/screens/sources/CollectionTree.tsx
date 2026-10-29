@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, type DragEvent, type KeyboardEvent } fro
 import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, FolderPlus, Inbox, Layers, Plus, Star, type LucideIcon } from 'lucide-react'
 import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts, SetOperation } from '@/api/types'
 import { useCollapsed } from '@/hooks/useCollapsed'
+import { TOOLTIP_LINE } from '@/lib/text/format'
 import { collectionDrop, findNode, zoneAt, type DropZone } from '@/lib/treeDrop'
 import { Icon, IconButton, Menu, Progress } from '@/ui'
 import { collectionMenuItems } from './scopeMenu'
@@ -15,7 +16,7 @@ function Stats({ counts }: { counts: ScopeCounts }) {
   const { total, progress: { decided, total: candidates } } = counts
   const sources = `${total} ${total === 1 ? 'source' : 'sources'}`
   return (
-    <span className={css.stats} title={candidates > 0 ? `${decided} of ${candidates} decided · ${sources}` : sources}>
+    <span className={css.stats} title={candidates > 0 ? `${decided} of ${candidates} decided${TOOLTIP_LINE}${sources}` : sources}>
       {candidates > 0 && <>
         <Progress inline value={decided / candidates} />
         <span className={css.percent}>{Math.round((decided / candidates) * 100)}%</span>

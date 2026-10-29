@@ -40,6 +40,6 @@ AI runs through your Claude Code login, so it counts against your Claude plan's 
 - **Period**: **Today**, **7 days**, **30 days** or **All time**.
 - **Tokens**, **AI runs** and **Tokens per meaning**, with a comparison to the previous period.
 - A chart of tokens per hour or day, split by feature.
-- **What AI did**: a table by feature (**Generate meanings**, **Explain / give examples**, **Polish phrases**, **Topic: generate words**) with runs and tokens.
+- **What AI did**: a table by feature (**Generate meanings**, **Explain / give examples**, **Polish phrases**, **Topic: generate words**) with runs, failed runs and tokens.
 
 The app shows tokens only, not money. To use less of your plan, choose a smaller model in [Settings → Cards → AI model](settings.md#cards).
