@@ -52,7 +52,7 @@ Start with the **Ready** section: phrases where the target is the only new word.
 
 1. Start Anki.
 2. Press **Export N** in the Review header, or open **Export** in the top bar.
-3. Press **Add to Anki · N cards**.
+3. Press **Add to Anki**.
 
 The cards are in Anki's `Default` deck, with the tag `anything-to-anki`.
 

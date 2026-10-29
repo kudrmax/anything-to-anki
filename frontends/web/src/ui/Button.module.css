@@ -8,3 +8,4 @@
 .accent-link { color: var(--ac); }
 .danger-link { color: var(--err); }
 .wide { width: 100%; justify-content: center; }
+.count { min-width: var(--badge-h); height: var(--badge-h); padding: 0 var(--s2); border-radius: var(--badge-h); background: var(--count-bg); font: var(--fw-b) var(--fs-xs)/var(--badge-h) var(--ui); text-align: center; }

@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import type { CardPreview } from '@/api/types'
 import { reviewPath, sourceScope } from '@/lib/scope'
 import type { AudioPlayer } from '@/lib/useAudioPlayer'
-import { Badge, MediaThumb } from '@/ui'
+import { Badge, MediaThumb, StatusDot } from '@/ui'
 import phrase from '@/ui/phrase.module.css'
 import css from './export.module.css'
-import { missingLine } from './fillLabels'
+import { missingParts } from './fillLabels'
 
 /** Backend отдаёт значение готовым HTML: определение, затем пояснения через <br>. */
 const PARAGRAPH_BREAK = /<br\s*\/?>/i
@@ -37,7 +37,15 @@ export function ExportCardRow({ card, sourceId, withMedia, player }: ExportCardR
         </div>
         {definition && <p className={css.definition} dangerouslySetInnerHTML={{ __html: definition }} />}
         {card.missing.length > 0 && (
-          <p className={css.missing}>{missingLine(card)}</p>
+          <ul className={css.missing}>
+            {missingParts(card).map(item => (
+              <li key={item.part} className={item.generating ? `${css.missingPart} ${css.generating}` : css.missingPart}>
+                <StatusDot tone={item.generating ? 'run' : 'warn'} />
+                {item.label}
+                {item.reason && <span className={css.missingReason}>{item.reason}</span>}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
       <div className={css.translation}>{card.translation}</div>

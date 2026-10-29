@@ -23,13 +23,26 @@ const SECTION_SKIP_LABEL: Record<CardFillSkip, string> = {
 
 const cardsLabel = (count: number) => `${count} ${count === 1 ? 'card' : 'cards'}`
 
-/** Строка под карточкой: чего нет, что генерируется и почему часть не догенерировать. */
-export function missingLine(card: CardPreview): string {
+export interface MissingPartView {
+  part: MissingCardPart
+  label: string
+  generating: boolean
+  /** Почему эту часть не догенерировать; null — догенерируется. */
+  reason: string | null
+}
+
+/** Чего нет у карточки: у каждой части своё состояние и своя причина. */
+export function missingParts(card: CardPreview): MissingPartView[] {
   return card.missing.map(part => {
-    if (card.generating.includes(part)) return GENERATING_LABEL[part]
-    const skip = card.cannot_fill.find(s => s.part === part)
-    return skip ? `${MISSING_LABEL[part]} (${CARD_SKIP_LABEL[skip.reason]})` : MISSING_LABEL[part]
-  }).join(' · ')
+    const generating = card.generating.includes(part)
+    const skip = generating ? undefined : card.cannot_fill.find(s => s.part === part)
+    return {
+      part,
+      generating,
+      label: generating ? GENERATING_LABEL[part] : MISSING_LABEL[part],
+      reason: skip ? CARD_SKIP_LABEL[skip.reason] : null,
+    }
+  })
 }
 
 /** Подпись секции неполных: что генерируется и что догенерация пропустит. */

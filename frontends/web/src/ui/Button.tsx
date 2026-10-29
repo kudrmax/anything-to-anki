@@ -10,14 +10,17 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   busy?: boolean
   kbd?: string
   wide?: boolean
+  /** Сколько штук затронет нажатие: счётчик в кнопке, а не текст в подписи. */
+  count?: number
 }
 
-export function Button({ variant = 'soft', busy = false, kbd, wide = false, disabled, children, className, ...rest }: ButtonProps) {
+export function Button({ variant = 'soft', busy = false, kbd, wide = false, count, disabled, children, className, ...rest }: ButtonProps) {
   const classes = [css.button, css[variant], wide && css.wide, className].filter(Boolean).join(' ')
   return (
     <button type="button" className={classes} disabled={disabled || busy} {...rest}>
       {busy && <Spinner />}
       {children}
+      {count !== undefined && <span className={css.count}>{count}</span>}
       {kbd && <Kbd>{kbd}</Kbd>}
     </button>
   )
