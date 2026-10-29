@@ -256,7 +256,7 @@
   --card-foot-bw: var(--bw);
   --card-foot-pad: var(--s3) var(--card-pad) var(--s3) var(--s3);   /* слева кнопки решений: им свой небольшой отступ */
   --facts-justify: flex-end;
-  --details-toggle-order: 0;
+  --show-all-order: 0;
   --details-collapsed-display: flex;
   --phrase-row-dir: row;
   --phrase-row-gap: var(--s5);
@@ -289,6 +289,20 @@
   --fit-aside-align: stretch;
   --card-flex: 0 1 auto;
   --card-overflow: visible;
+  --card-touch: auto;
+  --card-folded-position: static;
+  --card-folded-overflow: var(--card-overflow);
+  --card-folded-pb: 0px;
+  --card-folded-touch: auto;
+  --show-all-h: calc(var(--h) + var(--s3));
+  --fold-fade: var(--s7);
+  --fold-fade-bg: linear-gradient(to bottom, transparent, var(--card) var(--fold-fade));
+  --swipe-t: 200ms;                   /* = ANIMATION_MS в useDecisionSwipe */
+  --queue-position: static;
+  --current-card-position: static;
+  --current-card-z: auto;
+  --lifted-card-z: 3;                 /* над шапкой страницы (2) */
+  --dock-z: 4;                        /* панель решений — над взятой карточкой */
   --dock-align: center;
   --dock-bottom: var(--s5);
   --dock-mt: var(--s3);
@@ -330,6 +344,8 @@
   --toast-position: fixed;
   /* тосты над панелью выбора: её отступ снизу, высота и зазор */
   --toast-over-bar: calc(var(--s5) + var(--h) + 2 * var(--s3) + var(--s3));
+  /* тосты над панелью решений ревью (она — только на телефоне): её отступ снизу, высота и зазор */
+  --toast-over-dock: calc(var(--main-pb) + var(--decision-h) + 2 * var(--dock-pad) + var(--s3));
 
   /* типографика */
   --ui: 'Geist Variable', system-ui, sans-serif;
@@ -443,7 +459,7 @@
     --card-foot-bw: 0px;
     --card-foot-pad: var(--s3) var(--card-pad);
     --facts-justify: flex-start;
-    --details-toggle-order: 1;
+    --show-all-order: 1;
     --details-collapsed-display: none;
     --phrase-row-dir: column;
     --phrase-row-gap: var(--s3);
@@ -481,6 +497,15 @@
     --fit-aside-display: none;
     --card-flex: 1;
     --card-overflow: auto;
+    /* раскрытую карточку листают пальцем по вертикали; свёрнутую — нет: вертикаль у свайпа Skip */
+    --card-touch: pan-y;
+    --card-folded-position: relative;
+    --card-folded-overflow: hidden;
+    --card-folded-pb: calc(var(--fold-fade) + var(--show-all-h));
+    --card-folded-touch: none;
+    --queue-position: relative;
+    --current-card-position: relative;
+    --current-card-z: 1;
     --decision-flex: 1;
     --decision-h: 44px;
     --decision-px: var(--s3);           /* четыре решения делят ширину и на 320px */

@@ -1,8 +1,9 @@
 import { useState, type CSSProperties } from 'react'
-import { Brackets, Check } from 'lucide-react'
+import { Brackets, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import type { CandidateCloze, CardLayoutView, DecisionButton, PhraseOrigin, StoredCandidate } from '@/api/types'
 import { columnTracks, shownColumns, useCardLayoutEditing, type CardBlockContext } from '@/cardLayout'
 import { CLOZE_HINT_LABEL } from '@/lib/clozeHints'
+import { usePhone } from '@/lib/device'
 import { Icon, Kbd } from '@/ui'
 import { CardBody } from './CardBody'
 import { CardPhrase } from './CardPhrase'
@@ -13,9 +14,12 @@ import { PictureSuggestions } from './PictureSuggestions'
 import type { PictureSuggestionsLoader } from './usePictureSuggestions'
 import { audioUrlForCandidate, type Review } from './useReview'
 import { useClozeEditor } from './useClozeEditor'
+import { useDecisionSwipe } from './useDecisionSwipe'
 import { usePhraseEditor } from './usePhraseEditor'
 import { TargetPanel } from './TargetPanel'
 import { useTargetEditor } from './useTargetEditor'
+import { SWIPE_DECISION, type SwipeDirection } from './swipeDecision'
+import { VIEW_CONTROL } from './viewControl'
 import css from './review.module.css'
 
 interface PhraseCardProps {
@@ -25,6 +29,8 @@ interface PhraseCardProps {
   layout: CardLayoutView | null
   /** Нет — подсказки картинок выключены. */
   suggestPictures: PictureSuggestionsLoader | null
+  /** Телефон: карточка лежит в стопке под текущей и откроется после этих свайпов; трогать её нельзя. */
+  under?: SwipeDirection[]
 }
 
 const GENERATED_PHRASE = 'generated phrase'
@@ -48,10 +54,10 @@ const clozeHint = ({ hint_kind }: CandidateCloze): string =>
 /**
  * Текущая фраза: сверху фраза, под ней тело по раскладке пользователя, снизу решения, факты и инструменты.
  */
-export function PhraseCard({ candidate, review, layout, suggestPictures }: PhraseCardProps) {
+export function PhraseCard({ candidate, review, layout, suggestPictures, under }: PhraseCardProps) {
   const [cefrAnchor, setCefrAnchor] = useState<HTMLElement | null>(null)
-  // Телефон: справка свёрнута в строку Details.
-  const [detailsOpen, setDetailsOpen] = useState(false)
+  // Телефон: карточка свёрнута в экран, Show all раскрывает её целиком — со справкой и инструментами.
+  const [showAll, setShowAll] = useState(false)
   const phraseEditor = usePhraseEditor(candidate, review)
   const clozeEditor = useClozeEditor(candidate, review)
   const targetEditor = useTargetEditor(candidate, review)
@@ -70,6 +76,24 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
   const editing = useCardLayoutEditing()
   const media = review.mediaFor(candidate)
 
+  const phone = usePhone()
+  const swipeButton = (direction: SwipeDirection) => candidate.state.buttons.find(b => b.button === SWIPE_DECISION[direction])
+  // Уже принятое решение свайп не снимает, а оставляет и ведёт к следующей карточке.
+  const swipeRef = useDecisionSwipe({
+    enabled: phone && !under && !marking && phraseEditor.draft === null && !editing,
+    vertical: !showAll,
+    canSwipe: direction => {
+      const button = swipeButton(direction)
+      return button !== undefined && button.command !== null && (!button.pressed || review.canNext)
+    },
+    onSwipe: async direction => {
+      const button = swipeButton(direction)
+      if (!button) return
+      if (button.pressed) await review.step(1)
+      else await review.press(candidate.phrase_id, button)
+    },
+  })
+
   const ctx: CardBlockContext = {
     candidate,
     media,
@@ -86,9 +110,15 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
   const columns = layout ? shownColumns(layout, ctx, editing?.dragged != null) : null
 
   return (
-    <div className={css.cardBlock}>
+    <div
+      className={under ? `${css.cardBlock} ${css.underCard}` : css.cardBlock}
+      ref={swipeRef}
+      data-under={under?.join(' ')}
+      inert={under !== undefined}
+      aria-hidden={under !== undefined}
+    >
       <article
-        className={marking ? `${css.card} ${css.clozeEditing}` : css.card}
+        className={[css.card, marking && css.clozeEditing, !showAll && css.folded].filter(Boolean).join(' ')}
         data-candidate-id={candidate.phrase_id}
         style={{ '--card-cols': columns ? columnTracks(columns) : undefined } as CSSProperties}
       >
@@ -103,9 +133,12 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
           {targetEditor.active && <TargetPanel editor={targetEditor} />}
         </header>
 
-        {layout && columns && <CardBody view={layout} columns={columns} detailsOpen={detailsOpen} onToggleDetails={() => setDetailsOpen(open => !open)} />}
+        {layout && columns && <CardBody view={layout} columns={columns} showAll={showAll} />}
+        <button type="button" className={css.showAll} aria-expanded={showAll} {...VIEW_CONTROL} onClick={() => setShowAll(open => !open)}>
+          {showAll ? 'Show less' : 'Show all'}<Icon as={showAll ? ChevronUp : ChevronDown} size="s" />
+        </button>
 
-        <footer className={detailsOpen ? css.cardFoot : `${css.cardFoot} ${css.collapsed}`}>
+        <footer className={showAll ? css.cardFoot : `${css.cardFoot} ${css.collapsed}`}>
           {/* Десктоп: решения — в нижней полосе карточки; на телефоне они в панели под карточкой. */}
           <div className={css.footDecisions}>
             <DecisionButtons candidate={candidate} review={review} />

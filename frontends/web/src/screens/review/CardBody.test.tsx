@@ -51,13 +51,13 @@ describe('CardBody', () => {
   afterEach(() => act(() => root.unmount()))
 
   const render = (layout: CardLayoutView) =>
-    act(() => root.render(<CardBody view={layout} columns={shownColumns(layout, ctx())} detailsOpen={false} onToggleDetails={() => {}} />))
+    act(() => root.render(<CardBody view={layout} columns={shownColumns(layout, ctx())} showAll={false} />))
   const shown = (column: Element) => Array.from(column.querySelectorAll('[data-element]')).map(block => block.getAttribute('data-element'))
 
   it('shows the elements where the layout puts them, rows of blocks side by side', () => {
     render(view([blocks('translation'), { kind: 'divider', sticks: 'below' }, blocks('target')], [blocks('transcription', 'synonyms')]))
 
-    const [first, , second] = Array.from(host.children)
+    const [first, second] = Array.from(host.children)
     expect(shown(first)).toEqual(['translation', 'target'])
     expect(first.querySelector('hr')).not.toBeNull()
     expect(shown(second)).toEqual(['transcription', 'synonyms'])
@@ -93,7 +93,7 @@ describe('CardBody', () => {
     const editedView = view([blocks('target'), { kind: 'divider', sticks: 'below' }, blocks('translation')])
     act(() => root.render(
       <CardLayoutEditingContext.Provider value={editing}>
-        <CardBody view={editedView} columns={shownColumns(editedView, ctx())} detailsOpen={false} onToggleDetails={() => {}} />
+        <CardBody view={editedView} columns={shownColumns(editedView, ctx())} showAll={false} />
       </CardLayoutEditingContext.Provider>,
     ))
 

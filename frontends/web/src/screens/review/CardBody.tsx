@@ -1,13 +1,10 @@
-import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { CardLayoutView } from '@/api/types'
 import {
   BLOCK_ATTR, COLUMN_ATTR, CardBlock, ROW_ATTR, ROW_KIND_ATTR, isSelectedBlock, isSelectedDivider, selectOnKey,
   useCardLayoutEditing, type CardLayoutEditing, type DragItem, type ShownColumn, type ShownRow,
 } from '@/cardLayout'
-import { Icon } from '@/ui'
 import layoutCss from '@/cardLayout/cardLayout.module.css'
 import editable from '@/cardLayout/editable.module.css'
-import { VIEW_CONTROL } from './viewControl'
 
 /** Отсюда строки колонки прижаты к её низу. */
 const TO_BOTTOM_ATTR = 'data-to-bottom'
@@ -17,8 +14,8 @@ interface CardBodyProps {
   view: CardLayoutView
   /** Что из раскладки карточка показывает: без пустых блоков, строк, колонок и лишних линий. */
   columns: ShownColumn[]
-  detailsOpen: boolean
-  onToggleDetails: () => void
+  /** Телефон: показаны ли колонки справки; свёрнутые раскрывает Show all карточки. */
+  showAll: boolean
 }
 
 interface RowProps {
@@ -76,9 +73,9 @@ function Row({ row, toBottom, column, view, editing }: RowProps) {
 
 /**
  * Тело карточки по раскладке пользователя. Первая колонка — то, по чему решаешь: на телефоне она видна сразу,
- * остальные колонки свёрнуты в строку Details. В редакторе раскладки блоки и линии ещё и выбираются и тянутся.
+ * остальные колонки свёрнуты под Show all карточки. В редакторе раскладки блоки и линии ещё и выбираются и тянутся.
  */
-export function CardBody({ view, columns, detailsOpen, onToggleDetails }: CardBodyProps) {
+export function CardBody({ view, columns, showAll }: CardBodyProps) {
   const editing = useCardLayoutEditing()
   const [first, ...rest] = columns
   const columnAttrs = (column: ShownColumn) => (editing ? { [COLUMN_ATTR]: column.index } : {})
@@ -94,13 +91,8 @@ export function CardBody({ view, columns, detailsOpen, onToggleDetails }: CardBo
       >
         {rows(first)}
       </div>
-      {rest.length > 0 && (
-        <button type="button" className={css.detailsToggle} aria-expanded={detailsOpen} {...VIEW_CONTROL} onClick={onToggleDetails}>
-          Details<Icon as={detailsOpen ? ChevronUp : ChevronDown} size="s" />
-        </button>
-      )}
       {rest.map(column => (
-        <div key={column.index} className={columnClass(detailsOpen ? css.cardRight : `${css.cardRight} ${css.collapsed}`)} {...columnAttrs(column)}>
+        <div key={column.index} className={columnClass(showAll ? css.cardRight : `${css.cardRight} ${css.collapsed}`)} {...columnAttrs(column)}>
           {rows(column)}
         </div>
       ))}

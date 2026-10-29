@@ -78,6 +78,22 @@ The sort menu in the header offers:
 
 The cards of one word always stand together.
 
+### On a phone
+
+Swipe the card to decide it:
+
+| Swipe | Decision |
+|---|---|
+| Right | Learn |
+| Left | Know |
+| Down | Skip |
+
+The cards lie in a stack: under the card is the one that opens after the swipe, already loaded. The card follows your finger anywhere, and the decision buttons turn into the decision it will make: the one it has moved furthest toward. Let go past the edge, or flick, and the card flies on that way and the decision is made; let go earlier, or above where it started, and the card comes back. Cloze is a button only. Swiping a card that already has this decision keeps it and moves to the next card.
+
+The card fits the screen. When something does not fit, the bottom fades out under **Show all**. **Show all** opens the whole card, with its reference column and tools, and lets you scroll it; while it is open, swipe down does nothing, left and right still work. The next card opens folded again.
+
+**‹** and **›** in the header move between cards.
+
 ## Generating card content
 
 Processing makes the phrases, but not their meanings or audio. The **✨** menu in the header generates them for the whole set:
@@ -204,8 +220,6 @@ Keys work in any keyboard layout. They are ignored while you type in a field or 
 | `⌘Z` | Undo the last press, while its toast is shown |
 | `Esc` | Cancel editing, cloze or boundary change |
 | `Enter` | Save the cloze or the edited text |
-
-On a phone, swipe left or right on the card to move between cards.
 
 **Auto-play audio** plays the card's audio when it opens: the video clip, else the TTS, else the US pronunciation. Turn it off in [Settings → Cards → Auto-play audio](settings.md#cards).
 
