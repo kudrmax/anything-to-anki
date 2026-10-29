@@ -33,6 +33,7 @@ export function Words({ store, form, list, onList }: WordsProps) {
           <Segmented value={form.cefr_level} options={CEFR_LEVELS} onChange={level => store.change('cefr_level', level)} />
         </DividerRow>
         <Calibration store={store} form={form} />
+        <SkippedInCalibration store={store} form={form} />
       </Group>
       <FrequentWords store={store} form={form} />
       <UsagePriority store={store} form={form} />
@@ -117,7 +118,7 @@ function Calibration({ store }: SectionProps) {
   const bootstrap = store.bootstrapStatus
   return (
     <DividerRow
-      last
+      last={store.calibrationSkipped === 0}
       label="Vocabulary calibration"
       hint={
         bootstrap?.status === 'ready' ? `Mark the words you already know on a list of ${bootstrap.word_count.toLocaleString()} words${bootstrap.built_at ? `, built ${new Date(bootstrap.built_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}.`
@@ -134,6 +135,37 @@ function Calibration({ store }: SectionProps) {
           <Button variant="link" onClick={() => void store.buildBootstrap()}>Rebuild list</Button>
           <Button onClick={() => navigate('/calibrate')}>Calibrate</Button>
         </div>
+      )}
+    </DividerRow>
+  )
+}
+
+/** Слова, которые калибровка показала и которые не нажали: она их больше не спрашивает, пока их не забыть. */
+function SkippedInCalibration({ store }: SectionProps) {
+  const [confirming, setConfirming] = useState(false)
+  const count = store.calibrationSkipped
+  if (count === 0) return null
+  const words = `${count.toLocaleString()} ${count === 1 ? 'word' : 'words'}`
+  const forget = () => {
+    setConfirming(false)
+    void store.forgetCalibrationSkipped()
+  }
+  return (
+    <DividerRow last label="Skipped in calibration" hint={`${words} you didn't tap. Calibration doesn't ask about them again.`}>
+      <Button variant="link" onClick={() => setConfirming(true)}>Ask skipped words again</Button>
+      {confirming && (
+        <Modal
+          title="Ask skipped words again?"
+          onClose={() => setConfirming(false)}
+          footer={
+            <>
+              <Button variant="link" onClick={() => setConfirming(false)}>Cancel</Button>
+              <Button variant="fill" onClick={forget}>Ask again</Button>
+            </>
+          }
+        >
+          <Text tone="soft">Calibration will show the {words} you didn't tap again. Words you marked as known stay known.</Text>
+        </Modal>
       )}
     </DividerRow>
   )

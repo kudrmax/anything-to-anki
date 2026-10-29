@@ -8,7 +8,7 @@ import type { SettingsStore } from './useSettings'
 const STORE = {
   loading: false, form: { usage_group_order: [] }, saveError: null, saving: false, saved: false,
   knownWords: [], unknownWords: [], learningWords: { in_anki: [], awaiting_export: [] }, deletingKey: null,
-  frequentWordThresholds: [], bootstrapStatus: null, confirming: null, savedAt: null, noteTypes: [], noteTypesError: null, mediaStats: [], mediaStatsLoading: false,
+  frequentWordThresholds: [], bootstrapStatus: null, calibrationSkipped: 0, confirming: null, savedAt: null, noteTypes: [], noteTypesError: null, mediaStats: [], mediaStatsLoading: false,
 } as unknown as SettingsStore
 
 vi.mock('./useSettings', () => ({ useSettings: () => STORE, unknownWordKey: (id: number) => `unknown:${id}` }))
@@ -54,5 +54,47 @@ describe('Settings sections', () => {
     open('')
 
     expect(current()).toBe('General')
+  })
+})
+
+describe('Words skipped in calibration', () => {
+  let host: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    host = document.createElement('div')
+    document.body.appendChild(host)
+    root = createRoot(host)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    host.remove()
+    Object.assign(STORE, { calibrationSkipped: 0, forgetCalibrationSkipped: undefined })
+  })
+
+  const open = () =>
+    act(() => root.render(<MemoryRouter initialEntries={['/settings?section=words']}><SettingsScreen /></MemoryRouter>))
+  const button = (name: string) =>
+    [...document.querySelectorAll('button')].find(b => b.textContent === name)
+
+  it('is hidden when calibration skipped nothing', () => {
+    open()
+
+    expect(button('Ask skipped words again')).toBeUndefined()
+  })
+
+  it('asks them again after a confirmation', () => {
+    const forget = vi.fn()
+    Object.assign(STORE, { calibrationSkipped: 312, forgetCalibrationSkipped: forget })
+    open()
+
+    expect(host.textContent).toContain("312 words you didn't tap")
+    act(() => button('Ask skipped words again')?.click())
+    expect(forget).not.toHaveBeenCalled()
+    act(() => button('Ask again')?.click())
+
+    expect(forget).toHaveBeenCalledOnce()
   })
 })

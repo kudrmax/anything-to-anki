@@ -23,12 +23,15 @@ class TestGetBootstrapWordsUseCase:
         self.threshold_resolver.resolve.return_value.zipf = None
         self.corpus_provider = MagicMock()
         self.corpus_provider.get_all_lemma_pos_pairs.return_value = []
+        self.skipped_words = MagicMock()
+        self.skipped_words.lemmas.return_value = set()
         self.use_case = GetBootstrapWordsUseCase(
             index_repo=self.index_repo,
             vocabulary=user_vocabulary(self.known_word_repo),
             settings_repo=self.settings_repo,
             threshold_resolver=self.threshold_resolver,
             corpus_provider=self.corpus_provider,
+            skipped_words=self.skipped_words,
         )
 
     def test_computes_grid_levels_from_settings(self) -> None:
@@ -41,7 +44,7 @@ class TestGetBootstrapWordsUseCase:
             _entry("run", CEFRLevel.A1, 5.2),
         ]
 
-        result = self.use_case.execute(excluded_lemmas=[], order=CalibrationOrder.SPREAD)
+        result = self.use_case.execute(order=CalibrationOrder.SPREAD)
 
         lemmas = {w.lemma for w in result}
         assert "elaborate" in lemmas
@@ -57,7 +60,7 @@ class TestGetBootstrapWordsUseCase:
             _entry("nuance", CEFRLevel.C1, 4.2),
         ]
 
-        result = self.use_case.execute(excluded_lemmas=[], order=CalibrationOrder.SPREAD)
+        result = self.use_case.execute(order=CalibrationOrder.SPREAD)
 
         lemmas = {w.lemma for w in result}
         assert "elaborate" not in lemmas
@@ -72,7 +75,7 @@ class TestGetBootstrapWordsUseCase:
             _entry("elaborate", CEFRLevel.B2, 3.8),
         ]
 
-        result = self.use_case.execute(excluded_lemmas=[], order=CalibrationOrder.SPREAD)
+        result = self.use_case.execute(order=CalibrationOrder.SPREAD)
         lemmas = {w.lemma for w in result}
 
         assert "run" in lemmas
@@ -86,7 +89,7 @@ class TestGetBootstrapWordsUseCase:
             _entry("nuance", CEFRLevel.C1, 4.2),
         ]
 
-        result = self.use_case.execute(excluded_lemmas=[])
+        result = self.use_case.execute()
 
         lemmas = {w.lemma for w in result}
         assert "elaborate" not in lemmas
@@ -104,24 +107,26 @@ class TestGetBootstrapWordsUseCase:
             settings_repo=self.settings_repo,
             threshold_resolver=self.threshold_resolver,
             corpus_provider=self.corpus_provider,
+            skipped_words=self.skipped_words,
         )
 
-        lemmas = {w.lemma for w in use_case.execute(excluded_lemmas=[])}
+        lemmas = {w.lemma for w in use_case.execute()}
 
         assert lemmas == {"elaborate"}
 
-    def test_passes_excluded_lemmas(self) -> None:
+    @pytest.mark.parametrize("order", list(CalibrationOrder))
+    def test_skips_words_skipped_in_calibration_before(self, order: CalibrationOrder) -> None:
         self.settings_repo.get.return_value = "B2"
         self.known_word_repo.known_lemmas.return_value = set()
+        self.skipped_words.lemmas.return_value = {"elaborate"}
         self.index_repo.get_all_entries.return_value = [
             _entry("elaborate", CEFRLevel.B2, 3.8),
             _entry("nuance", CEFRLevel.C1, 4.2),
         ]
 
-        result = self.use_case.execute(excluded_lemmas=["elaborate"])
+        lemmas = {w.lemma for w in self.use_case.execute(order=order)}
 
-        lemmas = {w.lemma for w in result}
-        assert "elaborate" not in lemmas
+        assert lemmas == {"nuance"}
 
     def test_returns_bootstrap_word_dtos(self) -> None:
         self.settings_repo.get.return_value = "B2"
@@ -130,7 +135,7 @@ class TestGetBootstrapWordsUseCase:
             _entry("elaborate", CEFRLevel.B2, 3.8),
         ]
 
-        result = self.use_case.execute(excluded_lemmas=[])
+        result = self.use_case.execute()
 
         assert len(result) == 1
         dto = result[0]
@@ -147,7 +152,7 @@ class TestGetBootstrapWordsUseCase:
             _entry("nuance", CEFRLevel.C1, 4.2),
         ]
 
-        lemmas = [w.lemma for w in self.use_case.execute(excluded_lemmas=[])]
+        lemmas = [w.lemma for w in self.use_case.execute()]
 
         assert lemmas == ["elaborate", "nuance", "ubiquitous"]
 
@@ -160,7 +165,7 @@ class TestGetBootstrapWordsUseCase:
             _entry("elaborate", CEFRLevel.B2, 3.8),
         ]
 
-        lemmas = [w.lemma for w in self.use_case.execute(excluded_lemmas=[])]
+        lemmas = [w.lemma for w in self.use_case.execute()]
 
         assert lemmas == ["elaborate", "career"]
 
@@ -171,7 +176,7 @@ class TestGetBootstrapWordsUseCase:
             _entry(f"word{'x' * i}", CEFRLevel.B2, 4.0) for i in range(40)
         ]
 
-        result = self.use_case.execute(excluded_lemmas=[], order=CalibrationOrder.REVIEW)
+        result = self.use_case.execute(order=CalibrationOrder.REVIEW)
 
         assert len(result) == 15
 
@@ -184,7 +189,7 @@ class TestGetBootstrapWordsUseCase:
             _entry("elaborate", CEFRLevel.B2, 3.8),
         ]
 
-        lemmas = [w.lemma for w in self.use_case.execute(excluded_lemmas=[])]
+        lemmas = [w.lemma for w in self.use_case.execute()]
 
         assert lemmas == ["elaborate"]
 
@@ -198,6 +203,6 @@ class TestGetBootstrapWordsUseCase:
             _entry("elaborate", CEFRLevel.B2, 3.8),
         ]
 
-        lemmas = [w.lemma for w in self.use_case.execute(excluded_lemmas=[], order=order)]
+        lemmas = [w.lemma for w in self.use_case.execute(order=order)]
 
         assert lemmas == ["elaborate"]

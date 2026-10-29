@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/api/client'
 import type { BootstrapWord, CalibrationOrder } from '@/api/types'
@@ -21,12 +21,11 @@ export function CalibrateScreen() {
   const [round, setRound] = useState(1)
   const [checkedCount, setCheckedCount] = useState(0)
   const [order, setOrder] = useState<CalibrationOrder>('review')
-  const excludedRef = useRef<Set<string>>(new Set())
 
   const fetchWords = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await api.getBootstrapWords([...excludedRef.current], order)
+      const data = await api.getBootstrapWords(order)
       setWords(data)
       setSelected(new Set())
     } finally {
@@ -48,9 +47,8 @@ export function CalibrateScreen() {
   const saveAndContinue = async (finish: boolean) => {
     setSaving(true)
     try {
-      if (selected.size > 0) await api.saveBootstrapKnown([...selected])
-      for (const word of words) excludedRef.current.add(word.lemma)
-      setCheckedCount(excludedRef.current.size)
+      await api.saveCalibrationRound(words.map(word => word.lemma), [...selected])
+      setCheckedCount(count => count + words.length)
       if (finish) {
         navigate(SETTINGS_PATH)
       } else {

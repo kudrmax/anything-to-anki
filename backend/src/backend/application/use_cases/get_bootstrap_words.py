@@ -17,6 +17,9 @@ if TYPE_CHECKING:
     from backend.application.utils.user_vocabulary import UserVocabulary
     from backend.domain.entities.bootstrap_word_entry import BootstrapWordEntry
     from backend.domain.ports.bootstrap_index_repository import BootstrapIndexRepository
+    from backend.domain.ports.calibration_skipped_word_repository import (
+        CalibrationSkippedWordRepository,
+    )
     from backend.domain.ports.settings_repository import SettingsRepository
     from backend.domain.ports.word_corpus_provider import WordCorpusProvider
 
@@ -26,7 +29,8 @@ ROUND_SIZE = 15
 
 
 class GetBootstrapWordsUseCase:
-    """Returns up to 15 words for the bootstrap calibration screen, in the order asked."""
+    """Returns up to 15 words for the bootstrap calibration screen, in the order asked.
+    Words the user decided on or skipped in calibration before are not asked again."""
 
     def __init__(
         self,
@@ -35,22 +39,23 @@ class GetBootstrapWordsUseCase:
         settings_repo: SettingsRepository,
         threshold_resolver: FrequentWordThresholdResolver,
         corpus_provider: WordCorpusProvider,
+        skipped_words: CalibrationSkippedWordRepository,
     ) -> None:
         self._index_repo = index_repo
         self._vocabulary = vocabulary
         self._settings_repo = settings_repo
         self._threshold_resolver = threshold_resolver
         self._corpus_provider = corpus_provider
+        self._skipped_words = skipped_words
 
-    def execute(
-        self, excluded_lemmas: list[str], order: CalibrationOrder = CalibrationOrder.REVIEW,
-    ) -> list[BootstrapWordDTO]:
+    def execute(self, order: CalibrationOrder = CalibrationOrder.REVIEW) -> list[BootstrapWordDTO]:
         vocabulary = self._vocabulary.snapshot()
         decided_lemmas = set(vocabulary.known | vocabulary.unknown | vocabulary.learning)
+        skipped_lemmas = self._skipped_words.lemmas()
         if order is CalibrationOrder.REVIEW:
-            selected = self._in_review_order(decided_lemmas, set(excluded_lemmas))
+            selected = self._in_review_order(decided_lemmas, skipped_lemmas)
         else:
-            selected = self._spread(decided_lemmas, set(excluded_lemmas))
+            selected = self._spread(decided_lemmas, skipped_lemmas)
         return [
             BootstrapWordDTO(
                 lemma=entry.lemma,

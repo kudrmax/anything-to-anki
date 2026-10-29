@@ -25,13 +25,19 @@ class BootstrapWordDTO(BaseModel):
 
 
 class GetBootstrapWordsRequest(BaseModel):
-    """Request for bootstrap words: the order to pick them in and the words to skip."""
+    """Request for bootstrap words: the order to pick them in."""
 
-    excluded: list[str] = []
     order: CalibrationOrder = CalibrationOrder.REVIEW
 
 
-class SaveBootstrapWordsRequest(BaseModel):
-    """Request to save bootstrap words as known."""
+class SaveCalibrationRoundRequest(BaseModel):
+    """The words a calibration round showed and the ones the user tapped as known."""
 
-    lemmas: list[str]
+    shown: list[str]
+    known: list[str]
+
+
+class CalibrationSkippedWordsDTO(BaseModel):
+    """How many words calibration showed, the user did not tap, and it will not ask again."""
+
+    count: int

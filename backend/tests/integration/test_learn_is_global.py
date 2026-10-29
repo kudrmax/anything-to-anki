@@ -128,10 +128,13 @@ def test_calibration_skips_the_word(
     threshold.resolve.return_value.zipf = None
     corpus = MagicMock()
     corpus.get_all_lemma_pos_pairs.return_value = []
+    skipped = MagicMock()
+    skipped.lemmas.return_value = set()
     with factory() as session:
         vocabulary = Decisions(session).vocabulary
         offered = GetBootstrapWordsUseCase(
             index, vocabulary, settings, threshold_resolver=threshold, corpus_provider=corpus,
-        ).execute([], order=order)
+            skipped_words=skipped,
+        ).execute(order=order)
 
     assert [word.lemma for word in offered] == ["drift"]

@@ -5,6 +5,7 @@ import type {
   BootstrapStatus,
   BootstrapWord,
   CalibrationOrder,
+  CalibrationSkippedWords,
   CandidateSection,
   CandidateSortOrder,
   CardLayoutEdit,
@@ -448,15 +449,19 @@ export const api = {
   startBootstrapBuild: () =>
     req<{ status: string }>('/api/bootstrap/build', { method: 'POST' }),
 
-  getBootstrapWords: (excluded: string[], order: CalibrationOrder) =>
+  getBootstrapWords: (order: CalibrationOrder) =>
     req<BootstrapWord[]>('/api/bootstrap/words', {
       method: 'POST',
-      body: JSON.stringify({ excluded, order }),
+      body: JSON.stringify({ order }),
     }),
 
-  saveBootstrapKnown: (lemmas: string[]) =>
-    req<{ saved: number }>('/api/bootstrap/known', {
+  saveCalibrationRound: (shown: string[], known: string[]) =>
+    reqVoid('/api/bootstrap/round', {
       method: 'POST',
-      body: JSON.stringify({ lemmas }),
+      body: JSON.stringify({ shown, known }),
     }),
+
+  getCalibrationSkippedWords: () => req<CalibrationSkippedWords>('/api/bootstrap/skipped'),
+
+  forgetCalibrationSkippedWords: () => reqVoid('/api/bootstrap/skipped', { method: 'DELETE' }),
 }
