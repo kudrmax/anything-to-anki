@@ -2,6 +2,20 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.8.0 — 2026-10-30
+
+Review on a phone by swiping cards, like a stack you sort through.
+
+### Swipe to decide
+On a phone, swipe the card right to **Learn**, left to **Know**, down to **Skip**. The card follows your finger anywhere, over the header and past the screen's edges, and the decision buttons turn into the one decision it will make. Let go past the edge, or flick, and the card flies off; let go earlier, or above where it started, and it comes back. Under the card lies the next one, already loaded, so the next card is there the moment you swipe. Cloze stays a button.
+![](docs/images/changelog/1.8.0/swipe.png)
+
+### Improvements
+- On a phone the card fits the screen. What does not fit fades out under **Show all**, which opens the whole card with its reference column and tools. The old **Details** row is gone: **Show all** does its job.
+![](docs/images/changelog/1.8.0/show-all.png)
+- **‹** and **›** in the phone header move between cards. Swiping no longer does that.
+- On a phone the **Undo** notice sits above the decision buttons instead of over the card's text.
+
 ## 1.7.2 — 2026-10-29
 
 The System theme works in the macOS app.
