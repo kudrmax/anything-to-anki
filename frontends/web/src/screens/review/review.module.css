@@ -34,7 +34,7 @@
 /* решения: док у нижнего края окна, Learn залит всегда, принятое решение — с галочкой */
 .dock { position: sticky; bottom: var(--dock-bottom); z-index: 1; flex: none; align-self: var(--dock-align); display: flex; align-items: center; gap: var(--s3); margin: var(--dock-mt) 0 var(--dock-bottom); padding: var(--dock-pad); border-radius: var(--r); background: var(--dock-bg); box-shadow: var(--dock-shadow); }
 .decisions { flex: var(--decision-flex); display: flex; flex-wrap: nowrap; gap: var(--s3); }
-.decisions > button { flex: var(--decision-flex); justify-content: center; height: var(--decision-h); }
+.decisions > button { flex: var(--decision-flex); min-width: 0; justify-content: center; height: var(--decision-h); padding-inline: var(--decision-px); }
 .chosen { box-shadow: inset 0 0 0 var(--bw) var(--tx2); }
 
 /* очередь */

@@ -297,6 +297,7 @@
   --dock-reserve: calc(var(--main-pb) + var(--s5));   /* отступ снизу, до которого список докручивает текущую карточку */
   --decision-flex: none;
   --decision-h: var(--h);
+  --decision-px: var(--s5);
   --cloze-cols: auto minmax(0, 1fr);
   --source-row-cols: var(--h-word) minmax(0, 1fr) var(--source-progress-w) var(--source-action-w) var(--h);
   --source-row-areas: "type name progress action more";
@@ -480,6 +481,7 @@
     --card-overflow: auto;
     --decision-flex: 1;
     --decision-h: 44px;
+    --decision-px: var(--s3);           /* четыре решения делят ширину и на 320px */
     --cloze-cols: minmax(0, 1fr);
 
     --source-row-cols: var(--h-word) minmax(0, 1fr) auto var(--h);
