@@ -35,8 +35,9 @@ function ExportView({ scope }: { scope: SetScope }) {
 
   const { ankiStatus, groups, counts, totalCards, exportedCount, settings, result } = exporter
   // Колонка превью нужна всем строкам, если видео есть хоть у одной: иначе колонки разъезжаются.
-  const withMedia = [...groups.ready, ...groups.incomplete]
-    .some(section => section.cards.some(card => card.screenshot_url || card.audio_url))
+  const cards = [...groups.ready, ...groups.incomplete].flatMap(section => section.cards)
+  const withMedia = cards.some(card => card.screenshot_url || card.audio_url)
+  const withCloze = cards.some(card => card.is_cloze)
   const ankiLabel = ankiStatus === null ? 'Checking…' : ankiStatus.available ? 'Anki connected' : 'Anki unavailable'
 
   const header = (
@@ -53,6 +54,7 @@ function ExportView({ scope }: { scope: SetScope }) {
         <Stat value={`${counts.ready} / ${totalCards}`} label="ready to export" progress={totalCards > 0 ? counts.ready / totalCards : 0} wide />
         <Stat small value={settings?.anki_deck_name ?? '—'} label="deck" wide />
         <Stat small value={settings?.anki_note_type ?? '—'} label="note type" wide />
+        {withCloze && <Stat small value={settings?.anki_cloze_note_type ?? '—'} label="cloze note type" wide />}
         {exportedCount > 0 && <Stat small value={exportedCount} label="already exported" wide />}
       </StatGrid>
       {result && (

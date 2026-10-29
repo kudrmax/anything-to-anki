@@ -8,7 +8,7 @@ interface StatProps {
   /** Доля 0..1 — шкала под подписью. */
   progress?: number
   hint?: ReactNode
-  /** Текстовое значение вместо крупного числа. */
+  /** Текстовое значение вместо крупного числа: в одну строку, длинное обрезается, целиком — в подсказке. */
   small?: boolean
   /** Плитка на всю ширину сетки. */
   wide?: boolean
@@ -21,7 +21,7 @@ export function StatGrid({ children }: { children: ReactNode }) {
 export function Stat({ value, label, progress, hint, small = false, wide = false }: StatProps) {
   return (
     <div className={wide ? `${css.stat} ${css.wide}` : css.stat}>
-      <b className={small ? `${css.value} ${css.small}` : css.value}>{value}</b>
+      <b className={small ? `${css.value} ${css.small}` : css.value} title={small && typeof value === 'string' ? value : undefined}>{value}</b>
       <span className={css.label}>{label}</span>
       {progress !== undefined && <Progress value={progress} />}
       {hint && <span className={css.hint}>{hint}</span>}
