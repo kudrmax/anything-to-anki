@@ -2,15 +2,13 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GripVertical } from 'lucide-react'
 import type { FrequentWordThresholdOption } from '@/api/types'
-import { Button, DividerRow, Icon, Modal, Segmented, Select, Spinner, Text } from '@/ui'
+import { Button, DividerRow, Icon, Modal, Segmented, Spinner, Text } from '@/ui'
 import css from '../settings.module.css'
 import { Group } from './Group'
 import { MyWords, type WordListKind } from './MyWords'
 import type { SectionProps } from './types'
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(level => ({ value: level, label: level }))
-const frequentWordThresholdLabel = ({ value, examples }: FrequentWordThresholdOption) =>
-  examples.length > 0 ? `${value} — ${examples.join(', ')}` : 'Off'
 const USAGE_GROUPS: Record<string, { name: string; description: string }> = {
   neutral: { name: 'Neutral', description: 'Standard, unmarked words' },
   informal: { name: 'Informal', description: 'Slang, casual speech' },
@@ -34,18 +32,9 @@ export function Words({ store, form, list, onList }: WordsProps) {
         <DividerRow label="Your level" hint="The CEFR level you are learning now. Words of this level and harder are suggested; easier ones count as known.">
           <Segmented value={form.cefr_level} options={CEFR_LEVELS} onChange={level => store.change('cefr_level', level)} />
         </DividerRow>
-        <DividerRow
-          label="Frequent words"
-          hint="Words at least this common go to the bottom of the list as probably known. Each option shows examples; a lower value moves more words down."
-        >
-          <Select value={form.frequent_word_threshold} onChange={e => store.change('frequent_word_threshold', e.target.value)}>
-            {store.frequentWordThresholds.map(option => (
-              <option key={option.value} value={option.value}>{frequentWordThresholdLabel(option)}</option>
-            ))}
-          </Select>
-        </DividerRow>
         <Calibration store={store} form={form} />
       </Group>
+      <FrequentWords store={store} form={form} />
       <UsagePriority store={store} form={form} />
       <Group title="Your words">
         <MyWords store={store} list={list} onList={onList} />
@@ -60,12 +49,9 @@ function AnalysisConfirm({ store }: { store: SectionProps['store'] }) {
   const { confirming } = store
   if (!confirming) return null
   const option = store.frequentWordThresholds.find(o => o.value === confirming.value)
-  const title = confirming.key === 'cefr_level' ? `Change your level to ${String(confirming.value)}?`
-    : option ? `Set frequent words to ${frequentWordThresholdLabel(option)}?`
-      : 'Apply the new value?'
   return (
     <Modal
-      title={title}
+      title={confirming.key === 'cefr_level' ? `Change your level to ${String(confirming.value)}?` : 'Change frequent words?'}
       onClose={store.cancelChange}
       footer={
         <>
@@ -74,8 +60,55 @@ function AnalysisConfirm({ store }: { store: SectionProps['store'] }) {
         </>
       }
     >
+      {option && option.examples.length > 0 && (
+        <div className={css.confirmChoice}>
+          <Text tone="soft">Words as common as these, or more common, go to the bottom of the list:</Text>
+          <ThresholdChoice option={option} />
+        </div>
+      )}
+      {option && option.examples.length === 0 && (
+        <div className={css.confirmChoice}><Text tone="soft">Frequent words stay in place in the list.</Text></div>
+      )}
       <Text tone="soft">Every source is analysed again with the new value. It takes a while; the progress is shown on screen.</Text>
     </Modal>
+  )
+}
+
+/** Порог частотности: варианты от «вниз уходит больше всего» до «ничего», каждый показан словами-примерами. */
+export function FrequentWords({ store, form }: SectionProps) {
+  return (
+    <Group title="Frequent words" hint="Words as common as the examples, or more common, go to the bottom of the list as probably known.">
+      <div role="radiogroup" aria-label="Frequent words">
+        {store.frequentWordThresholds.map(option => (
+          <label key={option.value} className={css.choice}>
+            <input
+              type="radio"
+              name="frequent_word_threshold"
+              className={css.radio}
+              checked={form.frequent_word_threshold === option.value}
+              onChange={() => store.change('frequent_word_threshold', option.value)}
+            />
+            <ThresholdChoice option={option} />
+          </label>
+        ))}
+      </div>
+    </Group>
+  )
+}
+
+function ThresholdChoice({ option }: { option: FrequentWordThresholdOption }) {
+  if (option.examples.length === 0) {
+    return (
+      <span className={css.offChoice}>
+        Off
+        <Text tone="muted" size="s">Frequent words stay in place</Text>
+      </span>
+    )
+  }
+  return (
+    <span className={css.tags}>
+      {option.examples.map(word => <span key={word} className={css.tag}>{word}</span>)}
+    </span>
   )
 }
 

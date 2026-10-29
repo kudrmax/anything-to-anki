@@ -30,6 +30,16 @@
 .map { display: grid; grid-template-columns: var(--settings-map-cols); gap: var(--s3) var(--s6); }
 .map label { display: flex; align-items: center; gap: var(--s4); font-size: var(--fs-s); color: var(--tx3); }
 .map span { flex: none; width: var(--settings-map-label-w); }
+/* выбор одного варианта списком: у варианта нет имени, его показывают метки-примеры */
+.choice { display: flex; align-items: center; gap: var(--gap); min-height: var(--h-row-s); padding: var(--s2) 0; border-bottom: var(--bw) solid var(--line); cursor: pointer; }
+.choice:last-child { border-bottom: 0; }
+.radio { flex: none; margin: 0; accent-color: var(--ac); cursor: pointer; }
+.tags { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.tag { display: inline-flex; align-items: center; height: var(--h-s); padding: 0 var(--s3); border-radius: var(--r-s); background: var(--soft); font-size: var(--fs-c); color: var(--tx2); }
+.choice:has(:checked) .tag { color: var(--tx); }
+.problem { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); }
+.offChoice { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s4); }
+.confirmChoice { display: flex; flex-direction: column; gap: var(--s3); margin-bottom: var(--s4); }
 .named { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap); }
 .name { flex: none; width: var(--name-w); }
 
