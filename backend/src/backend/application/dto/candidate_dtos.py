@@ -62,6 +62,12 @@ class EditPhraseRequest(BaseModel):
     phrase: str
 
 
+class ChangeTargetRequest(BaseModel):
+    """Words of the phrase a card shows, by their numbers, picked as its new target."""
+
+    target_words: list[int]
+
+
 class DecidePhraseRequest(BaseModel):
     """A press of a decision button on a card. Cloze on a card that is no cloze yet is
     pressed by saving its markup."""

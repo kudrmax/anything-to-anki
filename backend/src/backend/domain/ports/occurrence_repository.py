@@ -29,6 +29,10 @@ class OccurrenceRepository(ABC):
         """Every phrase of the source, light."""
 
     @abstractmethod
+    def word_projection(self, candidate_id: int) -> list[OccurrenceRow]:
+        """Every phrase of the word, light, in the order they were made."""
+
+    @abstractmethod
     def get(self, occurrence_id: int) -> Occurrence | None: ...
 
     @abstractmethod

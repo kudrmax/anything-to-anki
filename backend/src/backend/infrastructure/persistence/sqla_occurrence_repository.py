@@ -141,6 +141,12 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
         return self._occurrences(self._of_source(source_id))
 
     def projection(self, source_id: int) -> list[OccurrenceRow]:
+        return self._rows(self._of_source(source_id))
+
+    def word_projection(self, candidate_id: int) -> list[OccurrenceRow]:
+        return self._rows(PhraseModel.candidate_id == candidate_id)
+
+    def _rows(self, where: ColumnElement[bool]) -> list[OccurrenceRow]:
         has_meaning = exists().where(
             CandidateMeaningModel.phrase_id == PhraseModel.id,
             CandidateMeaningModel.meaning.is_not(None),
@@ -171,7 +177,7 @@ class SqlaOccurrenceRepository(OccurrenceRepository):
                 self._has_active_job().label("has_active_job"),
             )
             .outerjoin(AnkiSyncedCardModel, self._active_binding())
-            .where(self._of_source(source_id)).order_by(PhraseModel.id)
+            .where(where).order_by(PhraseModel.id)
         ).all()
         return [
             OccurrenceRow(
