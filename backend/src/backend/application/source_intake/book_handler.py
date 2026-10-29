@@ -39,9 +39,10 @@ class BookHandler(KindHandler):
         counts = [count_words(chapter.document.text) for chapter in book.chapters]
         split = QuestionOption(
             id=SPLIT_OPTION_ID,
-            label=f"{len(counts)} chapters · {_word_range(counts)} each",
+            label=f"{len(counts)} chapters",
+            facts=(f"{_word_range(counts)} each",),
         )
-        whole = QuestionOption(id=WHOLE_OPTION_ID, label=f"One source · {_words(sum(counts))}")
+        whole = QuestionOption(id=WHOLE_OPTION_ID, label="One source", facts=(_words(sum(counts)),))
         return (
             Question(
                 id=SPLIT_QUESTION_ID,

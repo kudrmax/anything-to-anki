@@ -76,7 +76,7 @@ describe('useReview', () => {
     await render()
 
     await act(async () => { await latest.press(1, buttons()[0]) })
-    expect(latest.undo.offer?.message).toBe('Learn · glare')
+    expect(latest.undo.offer?.message).toBe('Marked glare to learn')
     expect(latest.currentId).toBe(2)
 
     await act(async () => { await latest.undo.run() })
@@ -94,7 +94,7 @@ describe('useReview', () => {
 
     await act(async () => { await latest.press(1, buttons({ learn: { pressed: true } })[0]) })
 
-    expect(latest.undo.offer?.message).toBe('Unmarked · glare')
+    expect(latest.undo.offer?.message).toBe('Unmarked glare')
   })
 
   it('offers no undo of a press whose answer came after a later press began', async () => {

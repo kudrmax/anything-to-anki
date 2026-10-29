@@ -3,7 +3,7 @@ import { Brackets, Check } from 'lucide-react'
 import type { CandidateCloze, CardLayoutView, DecisionButton, PhraseOrigin, StoredCandidate } from '@/api/types'
 import { columnTracks, shownColumns, useCardLayoutEditing, type CardBlockContext } from '@/cardLayout'
 import { CLOZE_HINT_LABEL } from '@/lib/clozeHints'
-import { Icon } from '@/ui'
+import { Icon, Kbd } from '@/ui'
 import { CardBody } from './CardBody'
 import { CardPhrase } from './CardPhrase'
 import { CefrTooltip } from './CefrTooltip'
@@ -27,7 +27,11 @@ interface PhraseCardProps {
 
 const GENERATED_PHRASE = 'generated phrase'
 /** Цифры решений видны на кнопках, здесь — только неочевидные клавиши. */
-const KEYS_HINT = '↑↓ ←→ phrases · Space learn · ⌘V paste a picture'
+const KEY_HINTS: { keys: string[]; action: string }[] = [
+  { keys: ['↑↓', '←→'], action: 'phrases' },
+  { keys: ['Space'], action: 'learn' },
+  { keys: ['⌘V'], action: 'paste a picture' },
+]
 
 /** Подпись нажатой кнопки рядом с фразой; какая нажата, решает backend. */
 const DECIDED_LABEL: Record<DecisionButton, string> = { learn: 'Learn', cloze: 'Cloze', known: 'Known', skip: 'Skipped' }
@@ -36,8 +40,8 @@ const DECIDED_LABEL: Record<DecisionButton, string> = { learn: 'Learn', cloze: '
 const originLabel = (origin: PhraseOrigin): string =>
   origin.kind === 'source' && origin.source_title ? `from ${origin.source_title}` : GENERATED_PHRASE
 
-const clozeLabel = ({ hint_kind }: CandidateCloze): string =>
-  hint_kind === 'none' ? 'cloze · no hint' : `cloze · hint: ${CLOZE_HINT_LABEL[hint_kind].toLowerCase()}`
+const clozeHint = ({ hint_kind }: CandidateCloze): string =>
+  hint_kind === 'none' ? 'no hint' : `hint: ${CLOZE_HINT_LABEL[hint_kind].toLowerCase()}`
 
 /**
  * Текущая фраза: сверху фраза, под ней тело по раскладке пользователя, снизу решения, факты и инструменты.
@@ -100,7 +104,10 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
           <div className={css.footRest}>
             <div className={css.facts}>
               {candidate.cloze && (
-                <span className={css.clozeFact}><Icon as={Brackets} size="s" />{clozeLabel(candidate.cloze)}</span>
+                <>
+                  <span className={css.clozeFact}><Icon as={Brackets} size="s" />cloze</span>
+                  <span>{clozeHint(candidate.cloze)}</span>
+                </>
               )}
               {candidate.origin && <span>{originLabel(candidate.origin)}</span>}
             </div>
@@ -113,7 +120,14 @@ export function PhraseCard({ candidate, review, layout, suggestPictures }: Phras
         )}
       </article>
       {/* Клавиши без своей кнопки — под карточкой, а не в ней. */}
-      <p className={css.keysHint}>{KEYS_HINT}</p>
+      <p className={css.keysHint}>
+        {KEY_HINTS.map(hint => (
+          <span key={hint.action} className={css.keyHint}>
+            {hint.keys.map(key => <Kbd key={key}>{key}</Kbd>)}
+            {hint.action}
+          </span>
+        ))}
+      </p>
     </div>
   )
 }

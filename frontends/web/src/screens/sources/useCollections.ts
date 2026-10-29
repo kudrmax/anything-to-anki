@@ -65,7 +65,7 @@ export function useCollections(props: Callbacks) {
     if (!deleted) return false
     callbacks.current.onSourcesMoved()
     callbacks.current.onUndo({
-      message: deleted.evicted_source_count ? `Deleted ${deleted.name} · ${sourcesWord(deleted.evicted_source_count)} kept` : `Deleted ${deleted.name}`,
+      message: deleted.evicted_source_count ? `Deleted ${deleted.name}, kept its ${sourcesWord(deleted.evicted_source_count)}` : `Deleted ${deleted.name}`,
       undo: async () => { await guarded(() => api.restoreCollection(id)); callbacks.current.onSourcesMoved() },
     })
     return true

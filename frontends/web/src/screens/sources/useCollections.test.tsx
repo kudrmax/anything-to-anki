@@ -62,7 +62,7 @@ describe('useCollections', () => {
 
     expect(removed).toBe(true)
     const offer = onUndo.mock.calls[0][0]
-    expect(offer.message).toBe('Deleted Films · 1 source kept')
+    expect(offer.message).toBe('Deleted Films, kept its 1 source')
 
     await act(async () => offer.undo())
 

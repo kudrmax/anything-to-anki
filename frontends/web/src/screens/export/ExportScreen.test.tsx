@@ -94,7 +94,7 @@ describe('ExportScreen scope', () => {
     })
     const fill = vi.spyOn(api, 'fillMissing').mockResolvedValue({ ...EXPORT, ready: [], incomplete: [incomplete] })
     await open()
-    expect(container.textContent).toContain("Can't generate: 1 card without the video")
+    expect(container.textContent).toContain("Can't generate 1 card without the video")
     const parts = [...container.querySelectorAll('li')]
     expect(parts.map(li => li.childNodes[1]?.textContent)).toEqual(['Generating meaning', 'No audio'])
     expect(parts[1]?.lastElementChild?.textContent).toBe('video not downloaded')

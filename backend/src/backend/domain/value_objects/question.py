@@ -23,9 +23,12 @@ class OptionDetails:
 
 @dataclass(frozen=True)
 class QuestionOption:
+    """`facts` — what tells the options apart besides the label, one fact each, e.g. a word count."""
+
     id: str
     label: str
     details: OptionDetails | None = None
+    facts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -21,7 +21,7 @@ const hideBrokenTile = (e: SyntheticEvent<HTMLImageElement>) => {
 export function PictureSuggestionsView({ options, placeholders, applying, onPick }: PictureSuggestionsViewProps) {
   return (
     <div className={css.block}>
-      <p className={css.label}>Suggested pictures · click to add</p>
+      <p className={css.label}>Suggested pictures</p>
       <div className={css.grid}>
         {options
           ? options.map(option => (

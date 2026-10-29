@@ -28,6 +28,7 @@ class QuestionOptionDTO(BaseModel):
     id: str
     label: str
     details: OptionDetailsDTO | None
+    facts: list[str]
 
     @staticmethod
     def from_option(option: QuestionOption) -> QuestionOptionDTO:
@@ -41,6 +42,7 @@ class QuestionOptionDTO(BaseModel):
             )
             if details
             else None,
+            facts=list(option.facts),
         )
 
 
@@ -137,6 +139,7 @@ class InputDescriptionDTO(BaseModel):
     format: Format | None = None
     several: bool | None = None
     label: str | None = None
+    file_format: str | None = None
     problem: InputProblem | None = None
     problem_message: str | None = None
     problem_hint: str | None = None

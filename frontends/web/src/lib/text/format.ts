@@ -26,3 +26,6 @@ export function formatBytes(bytes: number): string {
   }
   return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`
 }
+
+/** Перенос строки в подсказке `title`: каждый факт — своей строкой. */
+export const TOOLTIP_LINE = '\n'

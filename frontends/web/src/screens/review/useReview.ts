@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { useReviewApi } from './reviewApi'
-import type { ButtonCommand, CandidateSection, CardButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationScope, ImageSearchResult, ReportReason, ReviewUpdate, SaveClozeRequest, SetScope, StoredCandidate } from '@/api/types'
+import type { ButtonCommand, CandidateSection, CardButton, DecisionButton, DocumentSelection, FollowUpAction, GenerationKind, GenerationScope, ImageSearchResult, ReportReason, ReviewUpdate, SaveClozeRequest, SetScope, StoredCandidate } from '@/api/types'
 import { autoPlayAudioPref, sortOrderPref, type SortOrder } from '@/lib/preferences'
 import { messageOf } from '@/lib/apiError'
 import { candidateAudioUrl } from '@/lib/candidateAudio'
 import { useToast, useUndo } from '@/ui'
 import { useAudioPlayer } from '@/lib/useAudioPlayer'
-import { DECISION_LABEL } from './decisionLabel'
+import { decisionDone } from './decisionLabel'
 import type { SelectedText } from './SourceText'
 import { useReviewWindow } from './useReviewWindow'
 
@@ -26,9 +26,6 @@ export interface Editing {
 }
 
 export const audioUrlForCandidate = candidateAudioUrl
-
-/** Тост нажатия, которое сняло отметку с карточки. */
-const UNMARKED = 'Unmarked'
 
 export function useReview(scope: SetScope, requestedId: number | null = null) {
   const api = useReviewApi()
@@ -75,7 +72,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   const { show: showUndo, dismiss: dismissUndo } = undo
   const lastPress = useRef(0)
   /** Отменить можно только последнее нажатие: каждое новое сменяет предложение, которое принёс ответ на прошлое. */
-  const offeringUndo = useCallback(async (label: string, candidateId: number, send: () => Promise<ReviewUpdate>) => {
+  const offeringUndo = useCallback(async (button: DecisionButton | null, candidateId: number, send: () => Promise<ReviewUpdate>) => {
     const press = ++lastPress.current
     dismissUndo()
     // Слово — с карточки до нажатия: после него она может уйти в свёрнутый участок и выгрузиться.
@@ -83,7 +80,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     const offer = (await send()).undo
     if (!offer || press !== lastPress.current) return
     showUndo({
-      message: lemma ? `${label} · ${lemma}` : label,
+      message: decisionDone(button, lemma),
       undo: async () => {
         try {
           await mutate(ctx => api.undoDecision(ctx, offer.phrase_id, offer.button))
@@ -99,7 +96,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
     stop()
     try {
       await offeringUndo(
-        button.pressed ? UNMARKED : DECISION_LABEL[button.button], candidateId,
+        button.pressed ? null : button.button, candidateId,
         () => mutate(ctx => api.decidePhrase(ctx, candidateId, button.button), { phraseId: candidateId, closes: button.closes }),
       )
     } catch (e) {
@@ -133,7 +130,7 @@ export function useReview(scope: SetScope, requestedId: number | null = null) {
   const saveCloze = useCallback(async (candidateId: number, request: SaveClozeRequest): Promise<boolean> => {
     stop()
     try {
-      await offeringUndo(DECISION_LABEL.cloze, candidateId, () => mutate(ctx => api.saveCloze(ctx, candidateId, request)))
+      await offeringUndo('cloze', candidateId, () => mutate(ctx => api.saveCloze(ctx, candidateId, request)))
     } catch (e) {
       showToast(messageOf(e))
       return false

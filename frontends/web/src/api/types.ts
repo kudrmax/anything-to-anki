@@ -827,6 +827,8 @@ export interface QuestionOption {
   label: string
   /** К чему приведёт выбор, например главы, на которые разделится книга. */
   details: { title: string; items: DetailItem[] } | null
+  /** Чем вариант отличается кроме названия, по факту на метку: число слов, язык, кодек. */
+  facts: string[]
 }
 
 export interface Question {
@@ -897,6 +899,8 @@ export interface InputDescription {
   /** Несколько файлов разом. */
   several?: boolean | null
   label: string | null
+  /** Формат файла или ссылки: markdown, epub, mkv, YouTube. */
+  file_format?: string | null
   problem: InputProblem | null
   problem_message: string | null
   problem_hint: string | null

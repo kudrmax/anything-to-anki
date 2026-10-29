@@ -6,7 +6,7 @@ import { messageOf } from '@/lib/apiError'
 import { nativeHost } from '@/lib/nativeHost'
 import { PATH_SEPARATOR, withDroppedPaths } from '@/lib/text/sourceInput'
 import { phraseWords, pickedIndices, toggled } from '@/lib/text/words'
-import { Button, Field, Icon, Segmented, Spinner, Text, TextArea, WordPicker } from '@/ui'
+import { Button, Field, Icon, Segmented, Spinner, Tag, Text, TextArea, WordPicker } from '@/ui'
 import css from './AddSourceForm.module.css'
 import { PathField } from './PathField'
 import { NamingModal } from './NamingModal'
@@ -230,7 +230,12 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
           <>
             <div className={css.modeRow}>
               <Segmented value={mode} options={MODES} onChange={setChosen} />
-              {describing ? <Spinner /> : modeDetail && <Text tone="muted">{modeDetail}</Text>}
+              {describing ? <Spinner /> : modeDetail && (
+                <span className={css.modeDetail}>
+                  <Text tone="muted">{modeDetail}</Text>
+                  {mode === 'source' && described?.file_format && <Tag>{described.file_format}</Tag>}
+                </span>
+              )}
             </div>
             {mode !== 'phrase' && !several && (
               <Field value={title} placeholder="Title (optional)" onChange={e => setTitle(e.target.value)} />

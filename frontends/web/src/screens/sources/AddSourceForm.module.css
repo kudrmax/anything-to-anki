@@ -6,6 +6,7 @@
 .choose { height: auto; }
 .area { height: var(--add-area); }
 .dropZone { display: grid; place-items: center; height: var(--add-area); padding: var(--s4); border: var(--dash-bw) dashed var(--ac); border-radius: var(--rc); background: var(--soft); color: var(--ac); font-size: var(--fs-s); }
+.modeDetail { display: inline-flex; align-items: center; gap: var(--s3); }
 .modeRow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3) var(--s4); }
 /* ввод заведомо не добавится: поле подсвечено, под ним — что не так и что сделать */
 .problemField { box-shadow: inset 0 0 0 var(--bw) var(--err-line); }

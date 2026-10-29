@@ -1,5 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronRight, Ellipsis } from 'lucide-react'
+import { ChevronRight, Ellipsis, ListChecks } from 'lucide-react'
 import type { CollectionNode, ScopeCounts, SetOperation } from '@/api/types'
 import { Button, Icon, IconButton, Menu, Progress, type MenuItem } from '@/ui'
 import { offersProcess } from './processOffer'
@@ -104,8 +104,14 @@ export function ScopeHeader({ title, ancestors, counts, node, processing, onOpen
         <span className={css.scopeProgress}>
           {counts && (counts.total > 0
             ? <>
-                <Progress inline value={counts.review_fraction} />
-                {`${counts.reviewed} of ${counts.total} reviewed · ${counts.progress_caption}`}
+                <span className={css.scopeFact}>
+                  <Progress inline value={counts.review_fraction} />
+                  {counts.progress_caption}
+                </span>
+                <span className={css.scopeFact} title="Sources reviewed">
+                  <Icon as={ListChecks} size="s" />
+                  {`${counts.reviewed} of ${counts.total} ${counts.total === 1 ? 'source' : 'sources'}`}
+                </span>
               </>
             : 'No sources yet')}
         </span>

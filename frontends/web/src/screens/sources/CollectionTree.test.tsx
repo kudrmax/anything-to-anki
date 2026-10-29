@@ -258,7 +258,8 @@ describe('CollectionTree', () => {
     act(() => root.render(<CollectionTree tree={{ ...tree, collections: [progressed] }} scope="all" draggable {...handlers} />))
 
     expect(item('Books').textContent).toContain('4%')
-    expect(item('Books').querySelector('[title="41 of 1070 decided · 2 sources"]')).not.toBeNull()
+    const titles = [...item('Books').querySelectorAll('[title]')].map(e => e.getAttribute('title'))
+    expect(titles).toContain('41 of 1070 decided\n2 sources')
     expect(item('All').textContent).not.toContain('%')
   })
 })

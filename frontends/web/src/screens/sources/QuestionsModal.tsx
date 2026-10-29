@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Question } from '@/api/types'
-import { Button, Chip, Label, Modal, Stack, Text } from '@/ui'
+import { Button, Chip, Label, Modal, Stack, Tag, Text } from '@/ui'
 import css from './QuestionsModal.module.css'
 
 interface QuestionsModalProps {
@@ -55,6 +55,7 @@ export function QuestionsModal({ questions, onCancel, onConfirm }: QuestionsModa
                 {question.options.map(option => (
                   <Chip key={option.id} outlined on={answers[key] === option.id} onClick={() => choose(key, option.id)}>
                     {option.label}
+                    {option.facts.map(fact => <Tag key={fact}>{fact}</Tag>)}
                   </Chip>
                 ))}
               </Stack>

@@ -32,12 +32,19 @@ FILE_NOT_FOUND_HINT = "Check the path or choose the file again."
 
 _LABELS: dict[Format, str] = {
     Format.PLAIN: "Text",
-    Format.MARKDOWN: "Text · markdown",
-    Format.HTML: "Text · html",
-    Format.EPUB: "Book · epub",
-    Format.SRT: "Subtitles · srt",
+    Format.MARKDOWN: "Text",
+    Format.HTML: "Text",
+    Format.EPUB: "Book",
+    Format.SRT: "Subtitles",
     Format.VIDEO_FILE: "Video",
-    Format.YOUTUBE: "Video · YouTube",
+    Format.YOUTUBE: "Video",
+}
+_FILE_FORMATS: dict[Format, str] = {
+    Format.MARKDOWN: "markdown",
+    Format.HTML: "html",
+    Format.EPUB: "epub",
+    Format.SRT: "srt",
+    Format.YOUTUBE: "YouTube",
 }
 # A file's own extension says more than the format's name.
 _LABELLED_BY_EXTENSION: frozenset[Format] = frozenset({Format.PLAIN, Format.VIDEO_FILE})
@@ -93,11 +100,15 @@ class DescribeInputUseCase:
                 problem_hint=FILE_NOT_FOUND_HINT,
             )
         source_format = self._detector.detect(LocalFile(path=path))
-        label = _LABELS[source_format]
+        file_format = _FILE_FORMATS.get(source_format)
         if source_format in _LABELLED_BY_EXTENSION:
-            extension = PurePath(path).suffix.lstrip(".").lower()
-            label = f"{label} · {extension or PLAIN_TEXT_EXTENSION}"
-        return InputDescriptionDTO(kind=InputKind.SOURCE, format=source_format, label=label)
+            file_format = PurePath(path).suffix.lstrip(".").lower() or PLAIN_TEXT_EXTENSION
+        return InputDescriptionDTO(
+            kind=InputKind.SOURCE,
+            format=source_format,
+            label=_LABELS[source_format],
+            file_format=file_format,
+        )
 
     def _describe_files(self, files: list[LocalFile]) -> InputDescriptionDTO:
         for file in files:
@@ -126,5 +137,8 @@ class DescribeInputUseCase:
     @staticmethod
     def _source(source_format: Format) -> InputDescriptionDTO:
         return InputDescriptionDTO(
-            kind=InputKind.SOURCE, format=source_format, label=_LABELS[source_format],
+            kind=InputKind.SOURCE,
+            format=source_format,
+            label=_LABELS[source_format],
+            file_format=_FILE_FORMATS.get(source_format),
         )

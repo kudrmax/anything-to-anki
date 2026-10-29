@@ -68,9 +68,9 @@ def test_empty_input_has_no_description(text: str) -> None:
 )
 def test_youtube_link_is_a_video_source(text: str) -> None:
     described = describe(text)
-    assert (described.kind, described.format, described.label, described.problem) == (
-        InputKind.SOURCE, Format.YOUTUBE, "Video · YouTube", None,
-    )
+    assert (
+        described.kind, described.format, described.label, described.file_format, described.problem,
+    ) == (InputKind.SOURCE, Format.YOUTUBE, "Video", "YouTube", None)
 
 
 @pytest.mark.parametrize(
@@ -91,20 +91,22 @@ def test_link_nobody_reads_is_a_problem(text: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("text", "label"),
+    ("text", "label", "file_format"),
     [
-        ("/Users/max/Books/Twig.epub", "Book · epub"),
-        ("'/Users/max/Books/Twig.epub'", "Book · epub"),
-        ('"/Users/max/Books/Twig.epub"', "Book · epub"),
-        ("/Users/max/Movies/Friends\\ s01e01.mkv", "Video · mkv"),
-        ("/Users/max/notes.md", "Text · markdown"),
-        ("/Users/max/lyrics.txt", "Text · txt"),
-        ("/Users/max/show.srt", "Subtitles · srt"),
+        ("/Users/max/Books/Twig.epub", "Book", "epub"),
+        ("'/Users/max/Books/Twig.epub'", "Book", "epub"),
+        ('"/Users/max/Books/Twig.epub"', "Book", "epub"),
+        ("/Users/max/Movies/Friends\\ s01e01.mkv", "Video", "mkv"),
+        ("/Users/max/notes.md", "Text", "markdown"),
+        ("/Users/max/lyrics.txt", "Text", "txt"),
+        ("/Users/max/show.srt", "Subtitles", "srt"),
     ],
 )
-def test_existing_file_is_a_source(text: str, label: str) -> None:
+def test_existing_file_is_a_source(text: str, label: str, file_format: str) -> None:
     described = describe(text)
-    assert (described.kind, described.label, described.problem) == (InputKind.SOURCE, label, None)
+    assert (described.kind, described.label, described.file_format, described.problem) == (
+        InputKind.SOURCE, label, file_format, None,
+    )
 
 
 @pytest.mark.parametrize(
