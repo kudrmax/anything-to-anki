@@ -23,6 +23,7 @@ export type TemplatePart = 'front' | 'back' | 'cloze_front' | 'cloze_back' | 'cs
 
 export function useSettings() {
   const [bootstrapStatus, setBootstrapStatus] = useState<BootstrapStatus | null>(null)
+  const [calibrationSkipped, setCalibrationSkipped] = useState(0)
   const [form, setForm] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -70,6 +71,19 @@ export function useSettings() {
     }, BOOTSTRAP_POLL_MS)
     return () => clearInterval(timer)
   }, [isBuilding])
+
+  useEffect(() => {
+    api.getCalibrationSkippedWords().then(skipped => setCalibrationSkipped(skipped.count)).catch(() => {})
+  }, [])
+
+  const forgetCalibrationSkipped = async () => {
+    try {
+      await api.forgetCalibrationSkippedWords()
+      setCalibrationSkipped(0)
+    } catch (e) {
+      alert(messageOf(e))
+    }
+  }
 
   const buildBootstrap = async () => {
     try {
@@ -237,7 +251,7 @@ export function useSettings() {
     knownWords, knownError, deletingKey, deleteWord, unknownWords, deleteUnknownWord, learningWords,
     noteTypes, noteTypesError, fixingNoteType, fixNoteType,
     copiedTemplate, copyTemplate,
-    bootstrapStatus, buildBootstrap,
+    bootstrapStatus, buildBootstrap, calibrationSkipped, forgetCalibrationSkipped,
     mediaStats, mediaStatsLoading, loadMediaStats, cleanupMedia,
     frequentWordThresholds,
   }

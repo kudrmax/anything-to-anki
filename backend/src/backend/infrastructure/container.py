@@ -35,6 +35,9 @@ from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.get_update_state import GetUpdateStateUseCase
 from backend.application.use_cases.list_collections import ListCollectionsUseCase
+from backend.application.use_cases.manage_calibration_skipped_words import (
+    ManageCalibrationSkippedWordsUseCase,
+)
 from backend.application.use_cases.manage_card_layout import ManageCardLayoutUseCase
 from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
 from backend.application.use_cases.manage_settings import ManageSettingsUseCase
@@ -58,6 +61,7 @@ from backend.application.use_cases.restore_collection import RestoreCollectionUs
 from backend.application.use_cases.review_mutation import ReviewMutation
 from backend.application.use_cases.review_window import ReviewWindowUseCase
 from backend.application.use_cases.run_generation_job import MeaningGenerationUseCase
+from backend.application.use_cases.save_calibration_round import SaveCalibrationRoundUseCase
 from backend.application.use_cases.save_cloze import SaveClozeUseCase
 from backend.application.use_cases.scope_operation import ScopeOperationUseCase
 from backend.application.use_cases.set_phrase_boundary import SetPhraseBoundaryUseCase
@@ -177,6 +181,9 @@ from backend.infrastructure.persistence.sqla_anki_sync_repository import (
 )
 from backend.infrastructure.persistence.sqla_bootstrap_index_repository import (
     SqlaBootstrapIndexRepository,
+)
+from backend.infrastructure.persistence.sqla_calibration_skipped_word_repository import (
+    SqlaCalibrationSkippedWordRepository,
 )
 from backend.infrastructure.persistence.sqla_candidate_cloze_repository import (
     SqlaCandidateClozeRepository,
@@ -1451,6 +1458,22 @@ class Container:
             settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
             threshold_resolver=self._threshold_resolver(session),
             corpus_provider=self._word_corpus_provider,
+            skipped_words=SqlaCalibrationSkippedWordRepository(session),
+        )
+
+    def save_calibration_round_use_case(self, session: Session) -> SaveCalibrationRoundUseCase:
+        return SaveCalibrationRoundUseCase(
+            vocabulary=self._user_vocabulary(session),
+            skipped_words=SqlaCalibrationSkippedWordRepository(session),
+            unit_of_work=self._unit_of_work(session),
+        )
+
+    def manage_calibration_skipped_words_use_case(
+        self, session: Session,
+    ) -> ManageCalibrationSkippedWordsUseCase:
+        return ManageCalibrationSkippedWordsUseCase(
+            skipped_words=SqlaCalibrationSkippedWordRepository(session),
+            unit_of_work=self._unit_of_work(session),
         )
 
     def media_root(self) -> str:

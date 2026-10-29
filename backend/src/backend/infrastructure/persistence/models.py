@@ -1227,6 +1227,14 @@ class BootstrapWordCellModel(Base):
         )
 
 
+class CalibrationSkippedWordModel(Base):
+    """A word calibration showed and the user did not tap."""
+
+    __tablename__ = "calibration_skipped_word"
+
+    lemma: Mapped[str] = mapped_column(String(100), primary_key=True)
+
+
 class AIUsageModel(Base):
     """SQLAlchemy model for the history of AI calls and the tokens they consumed."""
 

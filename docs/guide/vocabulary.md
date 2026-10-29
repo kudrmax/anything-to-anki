@@ -61,7 +61,7 @@ The switch at the top of the screen picks which words you get:
 
 Switching mid-round loads a new round in that order; taps on the current round are dropped.
 
-Words you don't tap are not marked at all; they may come back in a later session.
+Words you don't tap are not marked as known or unknown, and Review still suggests them. Calibration only remembers that it asked about them and doesn't show them again, in either order. **Settings → Words → Skipped in calibration** shows how many there are; **Ask skipped words again** forgets them, so calibration asks about them again. **Rebuild list** keeps them.
 
 Only real words are asked about: dictionary entries such as *10th*, *mp3* or *e.g.* are left out.
 

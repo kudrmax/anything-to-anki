@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.application.dto.bootstrap_dtos import (  # noqa: TC001
     BootstrapStatusDTO,
     BootstrapWordDTO,
+    CalibrationSkippedWordsDTO,
     GetBootstrapWordsRequest,
-    SaveBootstrapWordsRequest,
+    SaveCalibrationRoundRequest,
 )
 from backend.domain.exceptions import LongOperationInProgressError
 from backend.infrastructure.api.dependencies import (
@@ -24,7 +25,10 @@ from backend.infrastructure.container import Container
 if TYPE_CHECKING:
     from backend.application.use_cases.build_bootstrap_index import BuildBootstrapIndexUseCase
     from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
-    from backend.application.use_cases.manage_known_words import ManageKnownWordsUseCase
+    from backend.application.use_cases.manage_calibration_skipped_words import (
+        ManageCalibrationSkippedWordsUseCase,
+    )
+    from backend.application.use_cases.save_calibration_round import SaveCalibrationRoundUseCase
 
 router = APIRouter(prefix="/api/bootstrap", tags=["bootstrap"])
 
@@ -65,15 +69,32 @@ def get_bootstrap_words(
         use_case(Container.get_bootstrap_words_use_case),  # noqa: B008
     ),
 ) -> list[BootstrapWordDTO]:
-    return words.execute(excluded_lemmas=request.excluded, order=request.order)
+    return words.execute(order=request.order)
 
 
-@router.post("/known")
-def save_bootstrap_known(
-    request: SaveBootstrapWordsRequest,
-    known_words: ManageKnownWordsUseCase = Depends(  # noqa: B008
-        use_case(Container.manage_known_words_use_case),  # noqa: B008
+@router.post("/round", status_code=204)
+def save_calibration_round(
+    request: SaveCalibrationRoundRequest,
+    round_: SaveCalibrationRoundUseCase = Depends(  # noqa: B008
+        use_case(Container.save_calibration_round_use_case),  # noqa: B008
     ),
-) -> dict[str, int]:
-    known_words.add_bulk(request.lemmas)
-    return {"saved": len(request.lemmas)}
+) -> None:
+    round_.execute(shown=request.shown, known=request.known)
+
+
+@router.get("/skipped")
+def get_calibration_skipped_words(
+    skipped: ManageCalibrationSkippedWordsUseCase = Depends(  # noqa: B008
+        use_case(Container.manage_calibration_skipped_words_use_case),  # noqa: B008
+    ),
+) -> CalibrationSkippedWordsDTO:
+    return skipped.summary()
+
+
+@router.delete("/skipped", status_code=204)
+def forget_calibration_skipped_words(
+    skipped: ManageCalibrationSkippedWordsUseCase = Depends(  # noqa: B008
+        use_case(Container.manage_calibration_skipped_words_use_case),  # noqa: B008
+    ),
+) -> None:
+    skipped.forget()

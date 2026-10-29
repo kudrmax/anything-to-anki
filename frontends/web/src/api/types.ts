@@ -980,6 +980,10 @@ export interface QueueActionResult {
   affected: number
 }
 
+export interface CalibrationSkippedWords {
+  count: number
+}
+
 export interface BootstrapStatus {
   status: 'none' | 'building' | 'ready' | 'error'
   error: string | null
