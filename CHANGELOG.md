@@ -2,6 +2,20 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.7.0 — 2026-10-29
+
+Pick what a card teaches: any words of its phrase can become its target.
+
+### Change target
+**Edit → Change target** makes every word of the phrase clickable. Click the words you want to learn instead: one word, a few in a row, or words apart like `gave` and `up` in "gave it up". Press **Change target** (`Enter`) and the card is made anew for them, with a new meaning, speech and cloze, in the old card's place in the list. Words you wrote in with **Edit text** or that **Polish** brought in can be picked too. The old card is gone for good: **Rebuild** doesn't bring it back, and its word moves on to its next best phrase.
+![](docs/images/changelog/1.7.0/change-target.png)
+
+### No longer broken
+- **Edit → Change boundary** opens the source text if it was hidden or sat below the phrase list in a narrow window. Before, it asked you to select in a panel you couldn't see.
+![](docs/images/changelog/1.7.0/boundary-source-text.png)
+- Selecting text in the source text always opens **Add word**, even when the selection ends outside the text column, on a line break, between paragraphs or on a list marker.
+- In the cloze editor, punctuation stays next to its word instead of standing apart.
+
 ## 1.6.3 — 2026-10-29
 
 Export tells you where cloze cards go.
