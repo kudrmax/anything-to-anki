@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseScope, parseSetScope, reviewPath, scopeQuery, sourceScope } from './scope'
+import { parseScope, parseSetScope, parseView, reviewPath, scopeQuery, sourceScope, viewPath } from './scope'
 
 describe('parseScope', () => {
   it('reads all, unsorted and ids', () => {
@@ -10,6 +10,23 @@ describe('parseScope', () => {
   it('falls back to all on garbage', () => {
     expect(parseScope('-3')).toBe('all')
     expect(parseScope('abc')).toBe('all')
+  })
+})
+
+describe('parseView', () => {
+  it('opens Recent without a scope and the named scope otherwise', () => {
+    expect(parseView(null)).toBe('recent')
+    expect(parseView('all')).toBe('all')
+    expect(parseView('unsorted')).toBe('unsorted')
+    expect(parseView('12')).toBe(12)
+  })
+})
+
+describe('viewPath', () => {
+  it('names every scope and leaves Recent bare', () => {
+    expect(viewPath('recent')).toBe('/')
+    expect(viewPath('all')).toBe('/?scope=all')
+    expect(viewPath(12)).toBe('/?scope=12')
   })
 })
 

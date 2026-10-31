@@ -32,6 +32,7 @@ from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsU
 from backend.application.use_cases.get_changelog import GetChangelogUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
+from backend.application.use_cases.get_recent import GetRecentUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
 from backend.application.use_cases.get_stats import GetStatsUseCase
 from backend.application.use_cases.get_update_state import GetUpdateStateUseCase
@@ -225,6 +226,7 @@ from backend.infrastructure.persistence.sqla_occurrence_repository import (
     SqlaOccurrenceRepository,
 )
 from backend.infrastructure.persistence.sqla_parse_cache import SqlaParseCache
+from backend.infrastructure.persistence.sqla_recent_use_repository import SqlaRecentUseRepository
 from backend.infrastructure.persistence.sqla_settings_repository import (
     SqlaSettingsRepository,
 )
@@ -564,7 +566,10 @@ class Container:
             ),
             normalizer=self._document_normalizer,
             file_reader=self._file_reader,
-            group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(session)),
+            group_writer=SourceGroupWriter(
+                writer, SqlaCollectionRepository(session),
+                SqlaRecentUseRepository(session), self._clock,
+            ),
             settings_repo=SqlaSettingsRepository(session, self._change_recorder(session)),
             unit_of_work=self._unit_of_work(session),
         )
@@ -583,6 +588,8 @@ class Container:
     def create_topic_use_case(self, session: Session) -> CreateTopicUseCase:
         return CreateTopicUseCase(
             source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
+            recent_uses=SqlaRecentUseRepository(session),
+            clock=self._clock,
             unit_of_work=self._unit_of_work(session),
         )
 
@@ -615,6 +622,14 @@ class Container:
             lock=SqlaSourceOperationLock(session),
         )
 
+    def get_recent_use_case(self, session: Session) -> GetRecentUseCase:
+        return GetRecentUseCase(
+            recent_uses=SqlaRecentUseRepository(session),
+            source_repo=SqlaSourceRepository(session, self._change_recorder(session)),
+            sources=self.get_sources_use_case(session),
+            collections=self.list_collections_use_case(session),
+        )
+
     def open_review_use_case(self, session: Session) -> OpenReviewUseCase:
         return OpenReviewUseCase(
             scope_resolver=self._scope_resolver(session),
@@ -622,6 +637,8 @@ class Container:
             store=self._review_order_store,
             answer=self._review_answer(session),
             text=self._review_text(session),
+            recent_uses=SqlaRecentUseRepository(session),
+            clock=self._clock,
             unit_of_work=self._unit_of_work(session),
         )
 

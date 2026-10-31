@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
-import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, FolderPlus, Inbox, Layers, Plus, Star, type LucideIcon } from 'lucide-react'
-import type { CollectionNode, CollectionTree as Tree, Scope, ScopeCounts, SetOperation } from '@/api/types'
+import { ChevronDown, ChevronRight, Ellipsis, Folder, FolderOpen, FolderPlus, History, Inbox, Layers, Plus, Star, type LucideIcon } from 'lucide-react'
+import type { CollectionNode, CollectionTree as Tree, ScopeCounts, SetOperation, SourcesView } from '@/api/types'
 import { useCollapsed } from '@/hooks/useCollapsed'
 import { TOOLTIP_LINE } from '@/lib/text/format'
 import { collectionDrop, findNode, zoneAt, type DropZone } from '@/lib/treeDrop'
@@ -31,8 +31,8 @@ type Hover = { id: number | 'unsorted' | `favorite-${number}`; zone: DropZone } 
 
 interface CollectionTreeProps {
   tree: Tree
-  scope: Scope
-  onSelect: (scope: Scope) => void
+  scope: SourcesView
+  onSelect: (view: SourcesView) => void
   onCreate: (name: string, parentId: number | null) => void
   onRename: (id: number, name: string) => void
   onMove: (id: number, parentId: number | null, position: number) => void
@@ -219,7 +219,8 @@ export function CollectionTree(props: CollectionTreeProps) {
     )
   }
 
-  const fixed = (key: 'all' | 'unsorted', label: string, icon: LucideIcon, counts: ScopeCounts) => (
+  /** Recent без счётчика: в нём не область, а то, с чем работали. */
+  const fixed = (key: 'recent' | 'all' | 'unsorted', label: string, icon: LucideIcon, counts?: ScopeCounts) => (
     <div
       className={[css.row, scope === key && css.on, key === 'unsorted' && hover?.id === 'unsorted' && css.inside].filter(Boolean).join(' ')}
       role="treeitem"
@@ -233,7 +234,7 @@ export function CollectionTree(props: CollectionTreeProps) {
     >
       <span className={css.icon}><Icon as={icon} size="s" /></span>
       <span className={css.name}>{label}</span>
-      <span className={css.trail}><Stats counts={counts} /></span>
+      {counts && <span className={css.trail}><Stats counts={counts} /></span>}
     </div>
   )
 
@@ -274,6 +275,7 @@ export function CollectionTree(props: CollectionTreeProps) {
 
   return (
     <nav className={css.tree} role="tree" aria-label="Collections">
+      {fixed('recent', 'Recent', History)}
       {fixed('all', 'All', Layers, tree.all)}
       {fixed('unsorted', 'Unsorted', Inbox, tree.unsorted)}
       {favorites.length > 0 && <>

@@ -29,6 +29,7 @@ from backend.application.dto.collection_dtos import (  # noqa: TC001
     SourceIdsRequest,
     StartedSourcesDTO,
 )
+from backend.application.dto.recent_dtos import RecentBoardDTO  # noqa: TC001
 from backend.application.dto.review_dtos import (  # noqa: TC001 — FastAPI's at runtime
     ReviewContext,
     ReviewUpdateDTO,
@@ -84,6 +85,7 @@ if TYPE_CHECKING:
     from backend.application.use_cases.create_topic import CreateTopicUseCase
     from backend.application.use_cases.delete_source import DeleteSourceUseCase
     from backend.application.use_cases.delete_sources import DeleteSourcesUseCase
+    from backend.application.use_cases.get_recent import GetRecentUseCase
     from backend.application.use_cases.get_sources import GetSourcesUseCase
     from backend.application.use_cases.place_sources import PlaceSourcesUseCase
     from backend.application.use_cases.process_source import ProcessSourceUseCase
@@ -229,6 +231,14 @@ def get_source_board(
         return sources.board(parse_scope(scope), query)
     except CollectionNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/recent")
+def get_recent(
+    query: str = "",
+    recent: GetRecentUseCase = Depends(use_case(Container.get_recent_use_case)),  # noqa: B008
+) -> RecentBoardDTO:
+    return recent.board(query)
 
 
 @router.post("/placements")

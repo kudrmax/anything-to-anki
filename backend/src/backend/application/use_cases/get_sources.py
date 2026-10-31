@@ -55,14 +55,14 @@ class GetSourcesUseCase:
         self._lock = lock
 
     def list_all(self) -> list[SourceDTO]:
-        return self._summaries(self._source_repo.list_all())
+        return self.summaries(self._source_repo.list_all())
 
     def board(self, scope: SourceScope, query: str = "") -> SourceBoardDTO:
         """The scope's sources in the user's order, split into its groups. The stages the
         summaries read decide the groups, so the cards are read once."""
         key = query.strip().casefold()
         sources = [s for s in self._scope_resolver.members(scope) if _matches(s, key)]
-        summaries = {summary.id: summary for summary in self._summaries(sources)}
+        summaries = {summary.id: summary for summary in self.summaries(sources)}
         groups = self._scope_resolver.arrange(
             sources, {i: SourceStage(summary.stage) for i, summary in summaries.items()},
         )
@@ -77,7 +77,8 @@ class GetSourcesUseCase:
             ],
         )
 
-    def _summaries(self, sources: list[Source]) -> list[SourceDTO]:
+    def summaries(self, sources: list[Source]) -> list[SourceDTO]:
+        """The list rows of these sources, in their order."""
         tree = self._scope_resolver.tree()
         ids = [s.id for s in sources if s.id is not None]
         progress = self._review_progress.of_sources(ids)

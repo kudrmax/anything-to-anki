@@ -6,9 +6,14 @@ from unittest.mock import MagicMock
 import pytest
 from backend.application.use_cases.create_topic import CreateTopicUseCase
 from backend.domain.exceptions import InvalidSourceInputError
+from backend.domain.value_objects.recent_use import RecentUse
 from backend.domain.value_objects.source_role import SourceRole
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.infrastructure.persistence.session_change_recorder import SessionChangeRecorder
+from backend.infrastructure.persistence.sqla_recent_use_repository import SqlaRecentUseRepository
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
+
+from tests.decision_support import NOW, FixedClock
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -19,7 +24,7 @@ pytestmark = pytest.mark.integration
 def test_topic_keeps_its_query(db_session: Session) -> None:
     use_case = CreateTopicUseCase(SqlaSourceRepository(
         db_session, SessionChangeRecorder(db_session),
-    ), MagicMock())
+    ), SqlaRecentUseRepository(db_session), FixedClock(), MagicMock())
     topic = use_case.execute("job interviews")
 
     assert topic.id is not None
@@ -30,10 +35,13 @@ def test_topic_keeps_its_query(db_session: Session) -> None:
     assert (stored.role, stored.topic_query, stored.title) == (
         SourceRole.TOPIC, "job interviews", "job interviews",
     )
+    assert SqlaRecentUseRepository(db_session).list_all() == [
+        RecentUse(scope=SourceScope.source(topic.id), used_at=NOW),
+    ]
 
 
 def test_empty_topic(db_session: Session) -> None:
     with pytest.raises(InvalidSourceInputError):
         CreateTopicUseCase(SqlaSourceRepository(
             db_session, SessionChangeRecorder(db_session),
-        ), MagicMock()).execute("  ")
+        ), SqlaRecentUseRepository(db_session), FixedClock(), MagicMock()).execute("  ")

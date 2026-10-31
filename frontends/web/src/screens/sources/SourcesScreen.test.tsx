@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import type { CollectionTree, InputDescription, Scope, ScopeCounts, Settings, SourceBoard, SourceSummary, Stats } from '@/api/types'
+import type { CollectionTree, InputDescription, RecentBoard, Scope, ScopeCounts, Settings, SourceBoard, SourceSummary, Stats } from '@/api/types'
 import { SourcesScreen } from './SourcesScreen'
 
 const counts: ScopeCounts = {
@@ -74,7 +74,8 @@ describe('SourcesScreen', () => {
     for (let i = 0; i < 5; i++) await new Promise(resolve => setTimeout(resolve, 0))
   })
 
-  const render = async (url = '/') => {
+  const ALL = '/?scope=all'
+  const render = async (url = ALL) => {
     act(() => root.render(
       <MemoryRouter initialEntries={[url]}>
         <Routes>
@@ -135,7 +136,7 @@ describe('SourcesScreen', () => {
 
     expect(addSource).toHaveBeenCalledWith('Some text to learn from.', '', '', [], undefined)
     expect(vi.mocked(api.getSourceBoard).mock.calls.length).toBeGreaterThan(loads)
-    expect(seen.location).toBe('/')
+    expect(seen.location).toBe(ALL)
     expect(addForm()!.querySelector('textarea')!.value).toBe('')
   })
 
@@ -217,6 +218,60 @@ describe('SourcesScreen', () => {
     expect(rows()).toHaveLength(2)
   })
 
+  describe('Recent', () => {
+    const reviewable = { ...counts, status: 'partially_reviewed' as const, can_review: true, review_fraction: 0.5, progress_caption: '12 of 24 decided' }
+    const recent: RecentBoard = {
+      items: [
+        { kind: 'collection', used_at: '2026-10-31T10:00:00Z', collection: { ...tree.collections[0].children[0], counts: reviewable }, path: ['Friends'] },
+        { kind: 'source', used_at: '2026-10-30T10:00:00Z', source: { ...source(3, 'Finale', 'reviewed'), collection_id: 10, collection_path: ['Friends'] } },
+      ],
+    }
+    beforeEach(() => {
+      vi.spyOn(api, 'getRecent').mockResolvedValue(recent)
+      vi.mocked(api.getCollectionTree).mockResolvedValue({
+        ...tree, collections: [{ ...tree.collections[0], children: [{ ...tree.collections[0].children[0], counts: reviewable }] }],
+      })
+    })
+    const treeItem = (label: string) => [...host.querySelectorAll<HTMLElement>('[role="treeitem"]')].find(el => el.querySelector('[class*="name"]')?.textContent === label)!
+
+    it('opens by default above All, with the worked-with items latest first', async () => {
+      await render('/')
+      expect(treeItem('Recent').getAttribute('aria-selected')).toBe('true')
+      expect(treeItem('Recent').nextElementSibling?.textContent).toContain('All')
+      expect(host.querySelector('h1')?.textContent).toBe('Recent')
+      expect(rows().map(el => el.querySelector('[class*="title"]')?.textContent)).toEqual(['Season 1', 'Finale'])
+      expect(api.getSourceBoard).not.toHaveBeenCalled()
+    })
+
+    it('has no actions over the whole list: no review, export, grouping or sort', async () => {
+      await render('/')
+      const header = host.querySelector('header')!
+      expect(header.querySelector('button[aria-label="Actions"]')).toBeNull()
+      expect(button('Continue', header)).toBeUndefined()
+    })
+
+    it('continues the review of a collection from its row and comes back to Recent', async () => {
+      await render('/')
+      act(() => row('Season 1').click())
+      expect(seen.location).toBe('/review?scope=11')
+      expect(seen.state).toEqual({ back: '/' })
+    })
+
+    it('names the collection above each item', async () => {
+      await render('/')
+      expect(row('Season 1').textContent).toContain('Friends')
+      expect(row('Finale').textContent).toContain('Friends')
+    })
+
+    it('opens All with its scope in the address', async () => {
+      await render('/')
+      act(() => treeItem('All').click())
+      await settle()
+      expect(seen.location).toBe(ALL)
+      expect(api.getSourceBoard).toHaveBeenLastCalledWith('all', '', expect.anything())
+    })
+  })
+
   it('keeps one header layout for every scope: nothing moves when switching', async () => {
     const shape = () => {
       const header = host.querySelector('header')!
@@ -228,7 +283,7 @@ describe('SourcesScreen', () => {
         search: !!host.querySelector('input[type="search"]'),
       }
     }
-    await render('/')
+    await render(ALL)
     const all = shape()
     act(() => root.unmount())
     root = createRoot(host)
@@ -245,11 +300,12 @@ describe('SourcesScreen', () => {
     expect(seen.location).toBe('/?scope=10')
   })
 
-  it('falls back to All when the scope in the URL does not exist', async () => {
+  it('falls back to Recent when the scope in the URL does not exist', async () => {
+    const getRecent = vi.spyOn(api, 'getRecent').mockResolvedValue({ items: [] })
     await render('/?scope=999')
     await settle()
     expect(seen.location).toBe('/')
-    expect(api.getSourceBoard).toHaveBeenLastCalledWith('all', '', expect.anything())
+    expect(getRecent).toHaveBeenLastCalledWith('', expect.anything())
     expect(toasts()).toBe('')
   })
 
@@ -259,7 +315,7 @@ describe('SourcesScreen', () => {
 
     act(() => row('Second').dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true })))
     expect(row('Second').getAttribute('aria-selected')).toBe('true')
-    expect(seen.location).toBe('/')
+    expect(seen.location).toBe(ALL)
 
     act(() => button('Move to…', host.querySelector('[role="toolbar"]')!).click())
     const dialog = document.body.querySelector('[role="dialog"]')!

@@ -8,27 +8,41 @@ from backend.application.dto.add_source_dtos import SourcesCreated
 from backend.domain.entities.collection import Collection
 from backend.domain.services.collection_tree import CollectionTree
 from backend.domain.value_objects.collection_choice import CollectionChoice
+from backend.domain.value_objects.source_scope import SourceScope
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from backend.application.source_intake.source_draft import SourceDraft
     from backend.application.source_intake.source_writer import SourceWriter
+    from backend.domain.ports.clock import Clock
     from backend.domain.ports.collection_repository import CollectionRepository
+    from backend.domain.ports.recent_use_repository import RecentUseRepository
 
 logger = logging.getLogger(__name__)
 
 
 class SourceGroupWriter:
-    """Stores drafts as sources: one as it is, several titled and gathered together."""
+    """Stores drafts as sources: one as it is, several titled and gathered together. What an
+    add made is used now: the source, else the collection the group went into, else each
+    source of the group."""
 
-    def __init__(self, writer: SourceWriter, collection_repo: CollectionRepository) -> None:
+    def __init__(
+        self,
+        writer: SourceWriter,
+        collection_repo: CollectionRepository,
+        recent_uses: RecentUseRepository,
+        clock: Clock,
+    ) -> None:
         self._writer = writer
         self._collection_repo = collection_repo
+        self._recent_uses = recent_uses
+        self._clock = clock
 
     def write_one(self, draft: SourceDraft, title: str | None) -> SourcesCreated:
         source_id = self._write(draft, title or draft.own_title, None, None)
         logger.info("Created %s source id=%s from %s", draft.kind, source_id, draft.label)
+        self._recent_uses.mark([SourceScope.source(source_id)], self._clock.now())
         return SourcesCreated(source_ids=[source_id])
 
     def write_group(
@@ -45,6 +59,11 @@ class SourceGroupWriter:
             for draft, title in zip(drafts, titles, strict=True)
         ]
         logger.info("Created %d sources in collection id=%s", len(source_ids), collection_id)
+        used = (
+            [SourceScope.collection(collection_id)] if collection_id is not None
+            else [SourceScope.source(i) for i in source_ids]
+        )
+        self._recent_uses.mark(used, self._clock.now())
         return SourcesCreated(source_ids=source_ids, collection_id=collection_id)
 
     def resolve(self, name: str) -> CollectionChoice:

@@ -48,6 +48,7 @@ from backend.infrastructure.persistence.sqla_collection_repository import (
     SqlaCollectionRepository,
 )
 from backend.infrastructure.persistence.sqla_document_repository import SqlaDocumentRepository
+from backend.infrastructure.persistence.sqla_recent_use_repository import SqlaRecentUseRepository
 from backend.infrastructure.persistence.sqla_settings_repository import SqlaSettingsRepository
 from backend.infrastructure.persistence.sqla_source_repository import SqlaSourceRepository
 from backend.infrastructure.readers.epub_format_reader import EpubFormatReader
@@ -58,6 +59,7 @@ from backend.infrastructure.readers.srt_reader import SrtReader
 from backend.infrastructure.readers.video_file_reader import VideoFileReader
 from backend.infrastructure.readers.youtube_reader import YouTubeReader
 
+from tests.decision_support import FixedClock
 from tests.unit.infrastructure.epub.epub_builder import EpubBuilder, TocLink, page, prose
 from tests.unit.infrastructure.readers.fakes import (
     YOUTUBE_URL,
@@ -109,7 +111,10 @@ def add_source(db_session: Session, tmp_path: Path) -> AddSourceUseCase:
         ),
         normalizer=DocumentNormalizer(RegexTextCleaner(), SlangNormalizer()),
         file_reader=files,
-        group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(db_session)),
+        group_writer=SourceGroupWriter(
+            writer, SqlaCollectionRepository(db_session),
+            SqlaRecentUseRepository(db_session), FixedClock(),
+        ),
         settings_repo=SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session)),
         unit_of_work=MagicMock(),
     )
@@ -413,7 +418,10 @@ def test_youtube_without_subtitles_is_reported(db_session: Session, tmp_path: Pa
         handlers=(SingleSourceHandler(Kind.SUBTITLES),),
         normalizer=DocumentNormalizer(RegexTextCleaner(), SlangNormalizer()),
         file_reader=LocalFileReader(),
-        group_writer=SourceGroupWriter(writer, SqlaCollectionRepository(db_session)),
+        group_writer=SourceGroupWriter(
+            writer, SqlaCollectionRepository(db_session),
+            SqlaRecentUseRepository(db_session), FixedClock(),
+        ),
         settings_repo=SqlaSettingsRepository(db_session, SessionChangeRecorder(db_session)),
         unit_of_work=MagicMock(),
     )
