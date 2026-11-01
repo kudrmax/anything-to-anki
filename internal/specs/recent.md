@@ -17,6 +17,8 @@ A **use** is a moment the user worked with a source or a collection:
 | Add several sources into a collection (a book split into chapters) | that collection |
 | Add several sources without a collection | each of them |
 | Open the review of a collection or a source | that collection or source |
+| Any change on an open review: a decision, its undo, an added or replaced word, an edit of a card | the review's collection or source |
+| Save a phrase (extension, Quick Add) | Saved phrases |
 
 Opening a collection in the tree, opening All or Unsorted, and reviewing All are not uses.
 Recording a use is a timestamp, not work: nothing is processed or generated.
@@ -34,12 +36,15 @@ Recording a use is a timestamp, not work: nothing is processed or generated.
 - `SourceGroupWriter` marks what an add made (table above); `CreateTopicUseCase` marks the
   topic.
 - `OpenReviewUseCase` marks a collection or source scope.
+- `ReviewMutation` marks the review's scope after every change it runs: in a collection's
+  review the collection rises, not the chapter the card came from.
+- `AddSavedPhraseUseCase` marks the Saved phrases source.
 - `GetRecentUseCase.board(query)` → `RecentBoardDTO.items`, latest first. Each item is a
   source (the same `SourceDTO` the lists show) or a collection (the same
   `CollectionNodeDTO` the tree shows, plus the names of its ancestors). `query` filters by
   title or name. API: `GET /api/sources/recent?query=`.
-- The collection tree's node building moves to one shared helper used by the tree and
-  Recent.
+- `GetRecentUseCase` reads the rows through `GetSourcesUseCase.summaries` and the nodes
+  through `ListCollectionsUseCase`, so they match the lists and the tree.
 
 ## Migration (0072)
 

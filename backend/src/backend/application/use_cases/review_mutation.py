@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from backend.application.dto.review_dtos import UndoPressDTO
 from backend.application.utils.review_updates import Placement
 from backend.domain.services.review_layout import focus_after_press
+from backend.domain.value_objects.source_scope import SourceScope
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -14,6 +15,8 @@ if TYPE_CHECKING:
     from backend.application.utils.open_review import OpenReview
     from backend.application.utils.review_updates import ReviewUpdates
     from backend.domain.ports.card_state_query import CardStateQuery
+    from backend.domain.ports.clock import Clock
+    from backend.domain.ports.recent_use_repository import RecentUseRepository
     from backend.domain.ports.review_order_store import ReviewOrderStore
     from backend.domain.ports.unit_of_work import UnitOfWork
     from backend.domain.services.decision_rules import ChoiceChange
@@ -29,18 +32,24 @@ class ReviewMutation:
     A press, a replacement and an added word run under the review's lock, so the focus
     reads the review as their own write left it; any other change runs without it, the
     review pinned until it answers: it stays held and does not count against the reviews
-    the store keeps (REVIEWS_KEPT)."""
+    the store keeps (REVIEWS_KEPT).
+
+    Every change is work on the review's set: a collection or a source is used by it."""
 
     def __init__(
         self,
         store: ReviewOrderStore[OpenReview],
         updates: ReviewUpdates,
         card_states: CardStateQuery,
+        recent_uses: RecentUseRepository,
+        clock: Clock,
         unit_of_work: UnitOfWork,
     ) -> None:
         self._store = store
         self._updates = updates
         self._card_states = card_states
+        self._recent_uses = recent_uses
+        self._clock = clock
         self._unit_of_work = unit_of_work
 
     def press(
@@ -52,6 +61,7 @@ class ReviewMutation:
             with self._unit_of_work.read():
                 was_done = self._card_states.done_of_phrases([phrase_id]).get(phrase_id, False)
             change = action()
+            self._used(review)
 
             def focus(order: ReviewOrder, is_done: Mapping[int, bool]) -> int | None:
                 return focus_after_press(order, phrase_id, was_done, is_done)
@@ -68,6 +78,7 @@ class ReviewMutation:
         card, and nothing is offered to undo the undo."""
         with self._store.hold(ctx.review_id) as review:
             action()
+            self._used(review)
             return self._updates.build(ctx, review, focus_id=phrase_id)
 
     def replace(
@@ -77,6 +88,7 @@ class ReviewMutation:
         the focus."""
         with self._store.hold(ctx.review_id) as review:
             card = action()
+            self._used(review)
             return self._updates.build(
                 ctx, review, focus_id=card.phrase_id,
                 placement=Placement(old_id=old_id, new_id=card.phrase_id),
@@ -86,6 +98,7 @@ class ReviewMutation:
         """A word added: its card joins the order and takes the focus."""
         with self._store.hold(ctx.review_id) as review:
             card = action()
+            self._used(review)
             return self._updates.build(ctx, review, focus_id=card.phrase_id)
 
     def edit[T](
@@ -96,4 +109,9 @@ class ReviewMutation:
         with self._store.pin(ctx.review_id):
             result = action()
             with self._store.hold(ctx.review_id) as review:
+                self._used(review)
                 return result, self._updates.build(ctx, review)
+
+    def _used(self, review: OpenReview) -> None:
+        with self._unit_of_work.write():
+            self._recent_uses.mark([SourceScope.parse(review.scope_token)], self._clock.now())

@@ -531,6 +531,8 @@ class Container:
             occurrence_repo=SqlaOccurrenceRepository(session, self._change_recorder(session)),
             card_views=self._card_views(session),
             decide_phrase=self.decide_phrase_use_case(session),
+            recent_uses=SqlaRecentUseRepository(session),
+            clock=self._clock,
             unit_of_work=self._unit_of_work(session),
         )
 
@@ -665,6 +667,8 @@ class Container:
             store=self._review_order_store,
             updates=self._review_updates(session),
             card_states=self._card_state_query(session),
+            recent_uses=SqlaRecentUseRepository(session),
+            clock=self._clock,
             unit_of_work=self._unit_of_work(session),
         )
 

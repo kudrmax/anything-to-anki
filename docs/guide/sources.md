@@ -162,7 +162,8 @@ The Sources screen opens on **Recent**, at the top of the tree. It lists the sou
 An item moves to the top when you:
 
 - add it. Several sources added into one collection, such as a book split into chapters, show up as that one collection;
-- open its review.
+- open its review, or decide or edit a card in it. In a collection's review, the collection moves up, not the source the card came from;
+- save a phrase to it. Saving a phrase with the browser extension or [Quick Add](macos-app.md#quick-add) moves **Saved phrases** up.
 
 Opening a collection in the tree, opening **All** or **Unsorted**, and reviewing **All** don't count.
 

@@ -24,11 +24,14 @@ from backend.domain.value_objects.cefr_breakdown import CEFRBreakdown
 from backend.domain.value_objects.cefr_level import CEFRLevel
 from backend.domain.value_objects.phrase_origin_kind import DecisionKind, OccurrenceOrigin
 from backend.domain.value_objects.source_role import SourceRole
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.word_status import WordStatus
 
 from tests.candidate_sorter_support import no_settings, section_stamper
 from tests.card_support import CARD_SOURCE, card, occurrence, word
+from tests.decision_support import NOW, FixedClock
 from tests.phrase_support import phrase
+from tests.unit.application.recent_use_fakes import InMemoryRecentUseRepository
 
 if TYPE_CHECKING:
     from backend.domain.entities.occurrence import Occurrence
@@ -93,6 +96,7 @@ class _Setup:
         detector.detect.return_value = []
         reader = MagicMock()
         reader.read_picked.side_effect = _read_picked
+        self.recent_uses = InMemoryRecentUseRepository()
         self.use_case = AddSavedPhraseUseCase(
             source_repo=self.source_repo,
             collected_phrases=CollectedPhrases(
@@ -108,6 +112,8 @@ class _Setup:
             occurrence_repo=self.occurrence_repo,
             card_views=self.card_views,
             decide_phrase=self.decide_phrase,
+            recent_uses=self.recent_uses,
+            clock=FixedClock(),
             unit_of_work=MagicMock(),
         )
 
@@ -183,3 +189,11 @@ def test_a_saved_phrase_is_stamped() -> None:
     setup.use_case.execute(PHRASE, [1])
 
     assert setup.saved_phrase().earned_section is CandidateSection.READY
+
+
+def test_saving_a_phrase_uses_saved_phrases() -> None:
+    setup = _Setup(existing=_saved_phrases())
+
+    setup.use_case.execute(PHRASE, [1])
+
+    assert setup.recent_uses.uses == {SourceScope.source(SAVED_PHRASES_ID): NOW}

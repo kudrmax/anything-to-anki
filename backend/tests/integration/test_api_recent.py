@@ -156,3 +156,19 @@ def test_a_deleted_collection_and_source_leave_recent(
     client.delete(f"/sources/{OUTSIDE}")
 
     assert _recent(client) == []
+
+
+def test_a_decision_in_a_review_uses_its_set_again(client: TestClient) -> None:
+    show = _collection(client, "Show")
+    _place(client, PILOT, show)
+    review = open_review(client, str(show))
+    open_review(client, f"source-{OUTSIDE}")
+
+    card = review["focus_id"]
+    decided = client.post(
+        f"/phrases/{card}/decision", json={"button": "learn"},
+        params={"review_id": review["review_id"], "since": review["revision"], "current": card},
+    )
+
+    assert decided.status_code == 200, decided.text
+    assert [item["kind"] for item in _recent(client)] == ["collection", "source"]
