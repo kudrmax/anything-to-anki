@@ -2,6 +2,14 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.9.0 — 2026-11-01
+
+The Sources screen now opens on what you worked with last.
+
+### Recent
+The Sources screen opens on **Recent**, above All and Unsorted in the tree. It lists the sources and collections you added or reviewed, the latest first. A book added as chapters shows up as one row for its collection, and its **Continue** picks up the review of the whole book where you left off. A source or collection moves to the top when you add it, open its review or decide a card in it; saving a phrase with the browser extension or Quick Add moves **Saved phrases** up. Recent keeps its own order, so **Group** and **Sort** still apply to All, Unsorted and every collection.
+![](docs/images/changelog/1.9.0/recent.png)
+
 ## 1.8.0 — 2026-10-30
 
 Review on a phone by swiping cards, like a stack you sort through.
