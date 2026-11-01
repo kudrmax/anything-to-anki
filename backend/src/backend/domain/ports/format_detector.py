@@ -14,3 +14,7 @@ class FormatDetector(ABC):
     @abstractmethod
     def detect(self, source_input: SourceInput) -> Format:
         """Raises UnsupportedUrlError for a link no reader can follow."""
+
+    @abstractmethod
+    def extensions(self, source_format: Format) -> tuple[str, ...]:
+        """The file extensions, without the dot, that a file of this format has."""

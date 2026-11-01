@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { CollectionTree, InputDescription, InputKind, Naming, NamingRequired, Question } from '@/api/types'
+import type { CollectionTree, FileTypes, InputDescription, InputKind, Naming, NamingRequired, Question } from '@/api/types'
 import { Plus } from 'lucide-react'
 import { messageOf } from '@/lib/apiError'
 import { nativeHost } from '@/lib/nativeHost'
-import { PATH_SEPARATOR, withDroppedPaths } from '@/lib/text/sourceInput'
+import { NO_FILE_TYPES, PATH_SEPARATOR, withDroppedPaths } from '@/lib/text/sourceInput'
 import { phraseWords, pickedIndices, toggled } from '@/lib/text/words'
 import { Button, Field, Icon, Segmented, Spinner, Tag, Text, TextArea, WordPicker } from '@/ui'
 import css from './AddSourceForm.module.css'
@@ -25,7 +25,6 @@ const INPUT_PLACEHOLDER = 'Paste a link or text, type a topic or a phrase — or
 const TOPIC_HINT = 'AI picks targets, phrases come from your sources'
 const PHRASE_HINT = 'Tap the words you want to learn'
 const PHRASE_SAVED = 'Phrase saved'
-const SUBTITLE_EXTENSIONS = ['srt']
 const NO_SUBTITLES_ERROR = 'subtitles_not_available'
 const DROP_HINT = 'Drop the file here'
 const BROWSER_DROP_ERROR = 'Dropped files reach the app only in the macOS app — enter the path instead'
@@ -43,6 +42,7 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
   const [input, setInput] = useState('')
   const [title, setTitle] = useState('')
   const [srtPath, setSrtPath] = useState('')
+  const [fileTypes, setFileTypes] = useState<FileTypes>(NO_FILE_TYPES)
   const [described, setDescribed] = useState<InputDescription | null>(null)
   const [describing, setDescribing] = useState(false)
   const [phraseTarget, setPhraseTarget] = useState<Set<number>>(new Set())
@@ -90,13 +90,17 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
   })
   const resetFileDrag = fileDrag.reset
 
+  useEffect(() => {
+    api.getFileTypes().then(setFileTypes).catch(() => {})
+  }, [])
+
   useEffect(() => host?.onFileDrop(paths => {
     resetFileDrag()
     setError(null)
-    const chosenPaths = withDroppedPaths({ filePath: input, srtPath }, paths)
+    const chosenPaths = withDroppedPaths({ filePath: input, srtPath }, paths, fileTypes)
     replace(chosenPaths.filePath)
     setSrtPath(chosenPaths.srtPath)
-  }), [host, input, srtPath, resetFileDrag, replace])
+  }), [host, input, srtPath, fileTypes, resetFileDrag, replace])
 
   // Что станет из ввода, решает backend; пока ответ в пути, на экране остаётся прежний.
   useEffect(() => {
@@ -241,7 +245,7 @@ export function AddSourceForm({ onReload, onToast }: AddSourceFormProps) {
               <Field value={title} placeholder="Title (optional)" onChange={e => setTitle(e.target.value)} />
             )}
             {mode === 'source' && isVideo && (
-              <PathField value={srtPath} placeholder="/path/to/subtitles.srt (optional)" extensions={SUBTITLE_EXTENSIONS} onChange={setSrtPath} onError={setError} />
+              <PathField value={srtPath} placeholder="/path/to/subtitles (optional)" extensions={fileTypes.subtitle_extensions} onChange={setSrtPath} onError={setError} />
             )}
             {mode === 'phrase' && (
               <WordPicker words={phraseWords(input)} selected={phraseTarget} onToggle={i => setPhraseTarget(prev => toggled(prev, i))} />

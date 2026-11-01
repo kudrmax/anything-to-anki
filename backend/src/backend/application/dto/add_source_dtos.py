@@ -128,6 +128,13 @@ class SourcesCreated(BaseModel):
     collection_id: int | None = None
 
 
+class FileTypesDTO(BaseModel):
+    """File extensions, without the dot: of videos and of subtitles attached to them."""
+
+    video_extensions: list[str]
+    subtitle_extensions: list[str]
+
+
 class InputDescriptionDTO(BaseModel):
     """What the Add screen input becomes: its kind, how a source will be read, or why it
     can't be added.

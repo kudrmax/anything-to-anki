@@ -136,6 +136,11 @@ class TestSourcesAPI:
             "problem": None, "problem_message": None, "problem_hint": None,
         }
 
+    def test_file_types_name_videos_and_their_subtitles(self, client: TestClient) -> None:
+        types = client.get("/sources/file-types").json()
+        assert "avi" in types["video_extensions"]
+        assert {"srt", "ass"} <= set(types["subtitle_extensions"])
+
     def test_describe_input_reports_a_missing_file(self, client: TestClient) -> None:
         response = client.post("/sources/describe-input", json={"text": "/no/such/notes.md"})
         assert (response.json()["kind"], response.json()["problem"]) == (None, "file_not_found")

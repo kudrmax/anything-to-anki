@@ -31,6 +31,7 @@ from backend.application.use_cases.get_anki_status import GetAnkiStatusUseCase
 from backend.application.use_cases.get_bootstrap_words import GetBootstrapWordsUseCase
 from backend.application.use_cases.get_changelog import GetChangelogUseCase
 from backend.application.use_cases.get_export_cards import GetExportCardsUseCase
+from backend.application.use_cases.get_file_types import GetFileTypesUseCase
 from backend.application.use_cases.get_learning_words import GetLearningWordsUseCase
 from backend.application.use_cases.get_recent import GetRecentUseCase
 from backend.application.use_cases.get_sources import GetSourcesUseCase
@@ -578,6 +579,9 @@ class Container:
 
     def render_names_use_case(self) -> RenderNamesUseCase:
         return RenderNamesUseCase()
+
+    def get_file_types_use_case(self) -> GetFileTypesUseCase:
+        return GetFileTypesUseCase(self._format_detector)
 
     def describe_input_use_case(self) -> DescribeInputUseCase:
         return DescribeInputUseCase(

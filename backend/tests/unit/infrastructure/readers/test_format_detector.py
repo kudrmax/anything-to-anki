@@ -21,6 +21,9 @@ class TestFormatDetector:
             ("/n/notes.markdown", Format.MARKDOWN),
             ("/p/page.htm", Format.HTML),
             ("/s/show.srt", Format.SRT),
+            ("/s/show.ASS", Format.SRT),
+            ("/s/show.vtt", Format.SRT),
+            ("/s/show.sub", Format.SRT),
             ("/v/movie.mkv", Format.VIDEO_FILE),
             ("/t/lyrics.txt", Format.PLAIN),
             ("/t/README", Format.PLAIN),
@@ -34,6 +37,9 @@ class TestFormatDetector:
         ("text", "expected"),
         [
             ("1\n00:00:01,000 --> 00:00:02,000\nHello", Format.SRT),
+            ("WEBVTT\n\n00:01.000 --> 00:02.000\nHello", Format.SRT),
+            ("[Script Info]\nScriptType: v4.00+\n", Format.SRT),
+            ("Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Hello\n", Format.SRT),
             ("<p>Hello <b>there</b></p>", Format.HTML),
             ("# Title\n\nText", Format.MARKDOWN),
             ("See [the docs](https://x.org).", Format.MARKDOWN),
@@ -46,6 +52,10 @@ class TestFormatDetector:
     )
     def test_pasted_text_by_markup(self, text: str, expected: Format) -> None:
         assert DETECTOR.detect(PastedText(text)) is expected
+
+    def test_extensions_of_a_format(self) -> None:
+        assert DETECTOR.extensions(Format.VIDEO_FILE) == ("mp4", "mkv", "avi", "mov")
+        assert {"srt", "ass", "ssa", "vtt"} <= set(DETECTOR.extensions(Format.SRT))
 
     def test_youtube_link(self) -> None:
         assert DETECTOR.detect(Url(YOUTUBE_URL)) is Format.YOUTUBE

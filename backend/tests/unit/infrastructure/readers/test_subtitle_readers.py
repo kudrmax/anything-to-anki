@@ -17,7 +17,13 @@ from backend.infrastructure.readers.video_file_reader import (
 )
 from backend.infrastructure.readers.youtube_reader import YouTubeReader
 
-from tests.unit.infrastructure.readers.fakes import YOUTUBE_URL, FakeVideoTracks, FakeYouTube, srt
+from tests.unit.infrastructure.readers.fakes import (
+    YOUTUBE_URL,
+    FakeVideoTracks,
+    FakeYouTube,
+    ass,
+    srt,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -54,6 +60,25 @@ class TestSrtReader:
     def test_subtitles_with_nothing_to_read_are_an_error(self) -> None:
         with pytest.raises(InvalidSourceInputError):
             SrtReader(FILES).read(PastedText(srt((1, "[music]"))), NO_ANSWERS)
+
+    @pytest.mark.parametrize(
+        ("name", "text"),
+        [
+            ("show.ass", ass((1, "{\\i1}I told him{\\i0}\\Nthat we were"))),
+            ("show.vtt", "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nI told him\nthat we were\n"),
+            ("show.sub", "{1}{1}25\n{25}{50}I told him|that we were\n"),
+        ],
+    )
+    def test_reads_subtitle_files_of_other_formats(
+        self, tmp_path: Path, name: str, text: str,
+    ) -> None:
+        path = tmp_path / name
+        path.write_text(text)
+        content = SrtReader(FILES).read(LocalFile(str(path)), NO_ANSWERS)
+        assert content.document == subtitles(  # type: ignore[union-attr]
+            Line("I told him", 1000, 2000),
+            Line("that we were", 1000, 2000),
+        )
 
 
 @pytest.mark.unit
@@ -97,9 +122,33 @@ class TestVideoFileReader:
         content = reader.read(video, NO_ANSWERS)
         assert content.document == subtitles(Line("Attached", 1000, 2000))  # type: ignore[union-attr]
 
-    def test_video_without_subtitles_asks_for_an_srt(self) -> None:
+    def test_attached_subtitles_of_another_format(self, tmp_path: Path) -> None:
+        attached = tmp_path / "movie.ass"
+        attached.write_text(ass((1, "Attached")))
         tracks = FakeVideoTracks({})
-        with pytest.raises(InvalidSourceInputError, match="attach a .srt"):
+        reader = VideoFileReader(FILES, tracks, tracks)
+        video = LocalFile("/v/movie.avi", subtitles_path=str(attached))
+        assert reader.questions(video) == ()
+        content = reader.read(video, NO_ANSWERS)
+        assert content.document == subtitles(Line("Attached", 1000, 2000))  # type: ignore[union-attr]
+
+    def test_attached_microdvd_is_timed_by_the_video_frame_rate(self, tmp_path: Path) -> None:
+        attached = tmp_path / "movie.sub"
+        attached.write_text("{25}{50}Attached\n")
+        tracks = FakeVideoTracks({}, fps=25)
+        video = LocalFile("/v/movie.avi", subtitles_path=str(attached))
+        content = VideoFileReader(FILES, tracks, tracks).read(video, NO_ANSWERS)
+        assert content.document == subtitles(Line("Attached", 1000, 2000))  # type: ignore[union-attr]
+
+    def test_reads_an_ass_track(self) -> None:
+        tracks = FakeVideoTracks({0: ass((1, "{\\an8}Hi\\hthere"))}, codec="ass")
+        reader = VideoFileReader(FILES, tracks, tracks)
+        content = reader.read(LocalFile("/v/movie.mkv"), NO_ANSWERS)
+        assert content.document == subtitles(Line("Hi there", 1000, 2000))  # type: ignore[union-attr]
+
+    def test_video_without_subtitles_asks_for_a_subtitle_file(self) -> None:
+        tracks = FakeVideoTracks({})
+        with pytest.raises(InvalidSourceInputError, match="attach a subtitle file"):
             VideoFileReader(FILES, tracks, tracks).questions(LocalFile("/v/movie.mkv"))
 
 

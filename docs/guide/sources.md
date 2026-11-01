@@ -12,8 +12,8 @@ A **source** is anything you want to learn words from: an article, a book, a son
 | Markdown file | `.md`, `.markdown` | Markup is dropped, headings and lists are kept |
 | HTML file or pasted HTML | `.html`, `.htm`, or HTML tags in pasted text | Headings, paragraphs and list items are kept |
 | Plain text file | Any other extension, e.g. `.txt` | UTF-8, UTF-16 with BOM, or Windows-1252 |
-| Subtitles | `.srt` file, or pasted SRT text | Rolling YouTube-style captions are de-duplicated |
-| Video file | `.mp4`, `.mkv`, `.avi`, `.mov` | Needs subtitles: an attached `.srt` or an embedded text track |
+| Subtitles | A subtitle file (see [Subtitle formats](#subtitle-formats)), or pasted SRT, WebVTT or ASS text | Rolling YouTube-style captions are de-duplicated |
+| Video file | `.mp4`, `.mkv`, `.avi`, `.mov` | Needs subtitles: an attached subtitle file or an embedded text track |
 | YouTube link | `youtube.com`, `m.youtube.com`, `youtu.be` | Needs English subtitles (auto-generated ones are fine) |
 | EPUB book | `.epub` | Can be split into one source per chapter |
 
@@ -45,8 +45,22 @@ A video file stays where it is. The app stores only its path, so do not move or 
 
 The app takes subtitles from one of two places:
 
-- **An attached `.srt` file.** When you enter a video, a second field for its `.srt` appears.
-- **A subtitle track inside the video.** It is read with `ffmpeg`. If the video has several subtitle or audio tracks, the app asks which one to use. Image-based subtitle tracks (PGS, VobSub) can't be read; attach an `.srt` instead.
+- **An attached subtitle file.** When you enter a video, a second field for its subtitles appears.
+- **A subtitle track inside the video.** It is read with `ffmpeg`. If the video has several subtitle or audio tracks, the app asks which one to use. Image-based subtitle tracks (PGS, VobSub, DVB) can't be read and are not offered; attach a subtitle file instead.
+
+### Subtitle formats
+
+| Format | Extension | Notes |
+|---|---|---|
+| SubRip | `.srt` | |
+| Advanced SubStation Alpha, SubStation Alpha | `.ass`, `.ssa` | Only dialogue is read: comments and drawn signs are skipped |
+| WebVTT | `.vtt` | |
+| MicroDVD | `.sub` | Timed by the frame rate the file declares, otherwise by the video's; without either, by 23.976 fps |
+| YouTube SBV | `.sbv` | |
+| SAMI | `.smi`, `.sami` | |
+| TTML, DFXP | `.ttml`, `.dfxp` | |
+
+The same formats work as a source of their own, without a video. A VobSub `.sub` (it comes with an `.idx`) holds pictures, not text, and can't be read.
 
 For a **YouTube** video, only the subtitles are downloaded when you add it. The video itself is downloaded later, when you ask for screenshots and clips (see [Generating card content](review.md#generating-card-content)). It is downloaded at up to 1080p and deleted automatically once every card has its screenshot.
 
@@ -82,7 +96,7 @@ The Add box also creates **topics** and saves single **phrases**. The app sugges
 
 In the [macOS app](macos-app.md), you can drop files anywhere on the window, or use **Choose file…** in the Add box. In a regular browser, type or paste the file's path instead: the browser can't hand dropped files to the app.
 
-Dropping a video together with its `.srt` attaches the subtitles to the video.
+Dropping a video together with its subtitle file attaches the subtitles to the video.
 
 ### Several files at once
 

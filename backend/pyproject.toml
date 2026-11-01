@@ -21,6 +21,8 @@ dependencies = [
     "pillow>=11.0",
     # Текст записей CHANGELOG.md в HTML для экрана «Что нового».
     "markdown-it-py>=4.2.0",
+    # Субтитры не в SRT (ASS/SSA, WebVTT, MicroDVD, SAMI, TTML) — в SRT.
+    "pysubs2>=1.9",
 ]
 
 [project.optional-dependencies]
