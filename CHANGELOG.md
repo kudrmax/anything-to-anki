@@ -2,6 +2,22 @@
 
 What changed in each release of AnythingToAnki, newest first.
 
+## 1.10.0 — 2026-11-01
+
+Subtitles in any common text format, not only `.srt`.
+
+### Subtitles in any format
+A video takes subtitles in ASS/SSA (`.ass`, `.ssa`), WebVTT (`.vtt`), MicroDVD (`.sub`), YouTube SBV (`.sbv`), SAMI (`.smi`, `.sami`) and TTML (`.ttml`, `.dfxp`), as well as `.srt`. Attach the file in the subtitles field, choose it with **Choose…**, or drop it together with the video. The same files can also be added on their own, without a video. From ASS subtitles only the dialogue is read: translators' comments and drawn signs are skipped.
+![](docs/images/changelog/1.10.0/subtitle-formats.png)
+
+### Improvements
+- An ASS subtitle track inside a video is read the same way, so its drawn signs no longer turn into stray words.
+- MicroDVD subtitles that don't say their frame rate are timed by the video's.
+- Pasted WebVTT or ASS text is recognised as subtitles.
+
+### No longer broken
+- A video whose subtitle tracks include image-based ones (PGS, VobSub) no longer fails when such a track is chosen: only text tracks are offered.
+
 ## 1.9.0 — 2026-11-01
 
 The Sources screen now opens on what you worked with last.
