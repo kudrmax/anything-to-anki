@@ -122,7 +122,7 @@ describe('useSourceBoard', () => {
 
     await render('all')
     await flush()
-    await act(async () => latest.processPending())
+    await act(async () => latest.processPending('all'))
 
     expect(callbacks.onError).not.toHaveBeenCalled()
   })

@@ -6,6 +6,7 @@ from backend.domain.entities.source import Source
 from backend.domain.exceptions import InvalidPhraseError
 from backend.domain.value_objects.card_choice import Press
 from backend.domain.value_objects.source_role import SourceRole
+from backend.domain.value_objects.source_scope import SourceScope
 
 if TYPE_CHECKING:
     from backend.application.dto.source_dtos import CardDTO
@@ -14,7 +15,9 @@ if TYPE_CHECKING:
     from backend.application.utils.card_views import CardViews
     from backend.application.utils.collected_phrases import CollectedPhrases
     from backend.application.utils.phrase_reader import PhraseReader
+    from backend.domain.ports.clock import Clock
     from backend.domain.ports.occurrence_repository import OccurrenceRepository
+    from backend.domain.ports.recent_use_repository import RecentUseRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.unit_of_work import UnitOfWork
 
@@ -27,6 +30,7 @@ class AddSavedPhraseUseCase:
     The phrase goes to the built-in "Saved phrases" source; a word new there is pressed
     Learn: the user chose it, there is nothing to review. That press goes by the press
     table, as any Learn: a word Known or learned in another source only shows that (Q4).
+    Saving uses "Saved phrases", as adding a source uses it.
     """
 
     def __init__(
@@ -38,9 +42,13 @@ class AddSavedPhraseUseCase:
         occurrence_repo: OccurrenceRepository,
         card_views: CardViews,
         decide_phrase: DecidePhraseUseCase,
+        recent_uses: RecentUseRepository,
+        clock: Clock,
         unit_of_work: UnitOfWork,
     ) -> None:
         self._unit_of_work = unit_of_work
+        self._recent_uses = recent_uses
+        self._clock = clock
         self._source_repo = source_repo
         self._decide_phrase = decide_phrase
         self._occurrences = occurrence_repo
@@ -65,6 +73,7 @@ class AddSavedPhraseUseCase:
             [collected] = self._collected.add(source_id, [card])
             if collected.new_word:
                 self._decide_phrase.press_unless_done(collected.phrase_id, Press.LEARN)
+            self._recent_uses.mark([SourceScope.source(source_id)], self._clock.now())
         return self._card_views.one(collected.phrase_id)
 
     def _saved_phrases_source_id(self) -> int:

@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from backend.application.utils.review_ordering import ReviewOrdering
     from backend.application.utils.review_text import ReviewText
     from backend.application.utils.source_scope_resolver import SourceScopeResolver
+    from backend.domain.ports.clock import Clock
+    from backend.domain.ports.recent_use_repository import RecentUseRepository
     from backend.domain.ports.review_order_store import ReviewOrderStore
     from backend.domain.ports.unit_of_work import UnitOfWork
 
@@ -21,7 +23,7 @@ class OpenReviewUseCase:
     """Opens the review of a set of sources: its order is computed once, from the stored card
     states, and held under a new review id. The answer lands on the card asked for, else the
     first one not done, with the rows around it, and the marks of the chunks of text the
-    client holds from before."""
+    client holds from before. Opening the review of a collection or a source uses it."""
 
     def __init__(
         self,
@@ -30,6 +32,8 @@ class OpenReviewUseCase:
         store: ReviewOrderStore[OpenReview],
         answer: ReviewAnswer,
         text: ReviewText,
+        recent_uses: RecentUseRepository,
+        clock: Clock,
         unit_of_work: UnitOfWork,
     ) -> None:
         self._scope_resolver = scope_resolver
@@ -37,6 +41,8 @@ class OpenReviewUseCase:
         self._store = store
         self._answer = answer
         self._text = text
+        self._recent_uses = recent_uses
+        self._clock = clock
         self._unit_of_work = unit_of_work
 
     def execute(self, request: OpenReviewRequest) -> ReviewUpdateDTO:
@@ -63,8 +69,12 @@ class OpenReviewUseCase:
             # let it go before the answer, and no other request knows its id yet.
             highlights = self._text.register(review, request.text_chunks)
             review_id = self._store.open(review)
-            return self._answer.of(
+            answer = self._answer.of(
                 review_id, review,
                 window=window_around(review.layout(), focus), replace=True, focus_id=focus,
                 highlights=highlights,
             )
+        # After the read: a scope that names no set fails there and is never used.
+        with self._unit_of_work.write():
+            self._recent_uses.mark([scope], self._clock.now())
+        return answer

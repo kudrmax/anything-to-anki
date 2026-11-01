@@ -26,6 +26,7 @@ import type {
   ReviewUpdate,
   TextPlace,
   Scope,
+  RecentBoard,
   SourceBoard,
   SourcePlacement,
   ExportGroup,
@@ -412,6 +413,9 @@ export const api = {
 
   getSourceBoard: (scope: Scope, query: string, signal?: AbortSignal) =>
     req<SourceBoard>(`/sources/board?${new URLSearchParams({ scope: String(scope), query })}`, { signal }),
+
+  getRecent: (query: string, signal?: AbortSignal) =>
+    req<RecentBoard>(`/sources/recent?${new URLSearchParams({ query })}`, { signal }),
 
   placeSources: (placements: SourcePlacement[]) =>
     req<{ previous: SourcePlacement[] }>('/sources/placements', {

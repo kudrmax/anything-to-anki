@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { onLongOperationFinished } from '@/api/longOperationSignal'
 import { api } from '@/api/client'
-import type { Scope, SourceBoard } from '@/api/types'
+import type { RecentBoard, Scope, SourceBoard, SourceSummary, SourcesView } from '@/api/types'
 import { messageOf } from '@/lib/apiError'
 
 const POLL_INTERVAL_MS = 2000
@@ -18,8 +18,15 @@ interface Callbacks {
   onChanged: () => void
 }
 
-export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
-  const [board, setBoard] = useState<SourceBoard | null>(null)
+/** Источники на экране: группы доски области или строки Recent. */
+function sourcesOf(loaded: SourceBoard | RecentBoard | null): SourceSummary[] {
+  if (!loaded) return []
+  if ('groups' in loaded) return loaded.groups.flatMap(g => g.sources)
+  return loaded.items.flatMap(item => (item.kind === 'source' ? [item.source] : []))
+}
+
+export function useSourceBoard(view: SourcesView, query: string, props: Callbacks) {
+  const [loaded, setLoaded] = useState<SourceBoard | RecentBoard | null>(null)
   const [boardKey, setBoardKey] = useState<string | null>(null)
   const callbacks = useRef(props)
   useLayoutEffect(() => {
@@ -28,14 +35,16 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
   const inFlight = useRef<AbortController | null>(null)
 
   /** Только последний запрос вправе обновить доску; фоновые опросы молчат об ошибках. */
-  const key = `${String(scope)}\u0000${query}`
+  const key = `${String(view)}\u0000${query}`
   const load = useCallback(async (quiet = false) => {
     inFlight.current?.abort()
     const controller = new AbortController()
     inFlight.current = controller
     try {
-      const loaded = await api.getSourceBoard(scope, query, controller.signal)
-      if (!controller.signal.aborted) { setBoard(loaded); setBoardKey(key) }
+      const next = view === 'recent'
+        ? await api.getRecent(query, controller.signal)
+        : await api.getSourceBoard(view, query, controller.signal)
+      if (!controller.signal.aborted) { setLoaded(next); setBoardKey(key) }
     } catch (e) {
       if (controller.signal.aborted) return
       if (e instanceof Error && e.message.startsWith(NOT_FOUND)) callbacks.current.onMissingScope()
@@ -43,7 +52,7 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
     } finally {
       if (inFlight.current === controller) inFlight.current = null
     }
-  }, [scope, query, key])
+  }, [view, query, key])
 
   useEffect(() => {
     const timer = setTimeout(() => void load(), query ? SEARCH_DELAY_MS : 0)
@@ -55,7 +64,7 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
   /** Долгая операция над источниками закончилась: доска показывает её итог. */
   useEffect(() => onLongOperationFinished(() => void reload()), [reload])
 
-  const sources = board?.groups.flatMap(g => g.sources) ?? []
+  const sources = sourcesOf(loaded)
   const anyBusy = sources.some(s => s.busy_with !== null || s.generation_status === 'queued' || s.generation_status === 'running')
   useEffect(() => {
     if (!anyBusy) return
@@ -81,12 +90,13 @@ export function useSourceBoard(scope: Scope, query: string, props: Callbacks) {
   })
 
   return {
-    board,
-    /** На экране ещё прошлая область: новая грузится, пустого кадра не бывает. */
-    stale: board !== null && boardKey !== key,
+    board: loaded && 'groups' in loaded ? loaded : null,
+    recent: loaded && 'items' in loaded ? loaded : null,
+    /** На экране ещё прошлый раздел: новый грузится, пустого кадра не бывает. */
+    stale: loaded !== null && boardKey !== key,
     reload,
     process: (id: number) => act(() => api.processSource(id)),
-    processPending: () => start(() => api.processPending(scope)),
+    processPending: (scope: Scope) => start(() => api.processPending(scope)),
     processSelected: (ids: number[]) => start(() => api.processSources(ids)),
     deleteSelected: (ids: number[]) => act(async () => {
       const { skipped } = await api.deleteSources(ids)

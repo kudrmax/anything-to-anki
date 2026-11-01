@@ -72,8 +72,10 @@ from backend.domain.value_objects.meaning_follow_up import MeaningFollowUp
 from backend.domain.value_objects.phrase import Phrase, Word
 from backend.domain.value_objects.phrase_origin import PhraseOrigin, PhraseOriginKind
 from backend.domain.value_objects.phrase_origin_kind import OccurrenceOrigin, ShownBy
+from backend.domain.value_objects.recent_use import RecentUse
 from backend.domain.value_objects.source_eviction import SourceEviction
 from backend.domain.value_objects.source_role import SourceRole
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 from backend.domain.value_objects.token_usage import TokenUsage
 from backend.domain.value_objects.usage_distribution import UsageDistribution
@@ -238,6 +240,31 @@ class CollectionEvictionModel(Base):
             moved_to_collection_id=self.moved_to_collection_id,
         )
 
+
+class RecentUseModel(Base):
+    """The last use of one source or one collection."""
+
+    __tablename__ = "recent_uses"
+    __table_args__ = (
+        CheckConstraint(
+            "(source_id IS NULL) != (collection_id IS NULL)", name="ck_recent_uses_one_item",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("sources.id", ondelete="CASCADE"), nullable=True, unique=True,
+    )
+    collection_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("collections.id", ondelete="CASCADE"), nullable=True, unique=True,
+    )
+    used_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+
+    def to_value(self) -> RecentUse:
+        if self.source_id is not None:
+            return RecentUse(scope=SourceScope.source(self.source_id), used_at=self.used_at)
+        assert self.collection_id is not None
+        return RecentUse(scope=SourceScope.collection(self.collection_id), used_at=self.used_at)
 
 class SourceModel(Base):
     """SQLAlchemy model for text sources."""

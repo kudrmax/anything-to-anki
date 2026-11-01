@@ -15,6 +15,8 @@ export type CandidateSortOrder = 'relevance' | 'chronological' | 'key_words'
 export type Scope = 'all' | 'unsorted' | number
 /** Набор источников на ревью и экспорте: область или один источник (`source-<id>`). */
 export type SetScope = Scope | `source-${number}`
+/** Раздел экрана источников: Recent или область. */
+export type SourcesView = 'recent' | Scope
 export type SourceStage = 'in_progress' | 'preparing' | 'ready' | 'reviewed'
 
 /** Один на всё приложение выбор порядка источников: группировка и сортировка внутри групп. */
@@ -522,6 +524,27 @@ export interface SourceGroup {
 export interface SourceBoard {
   title: string
   groups: SourceGroup[]
+}
+
+/** Recent: источники и коллекции, с которыми работали, сверху последние. */
+export interface RecentSourceItem {
+  kind: 'source'
+  used_at: string
+  source: SourceSummary
+}
+
+export interface RecentCollectionItem {
+  kind: 'collection'
+  used_at: string
+  collection: CollectionNode
+  /** Имена коллекций над ней, от корня. */
+  path: string[]
+}
+
+export type RecentItem = RecentSourceItem | RecentCollectionItem
+
+export interface RecentBoard {
+  items: RecentItem[]
 }
 
 export interface ExportSection {

@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import type { Scope, SetScope } from '@/api/types'
+import type { Scope, SetScope, SourcesView } from '@/api/types'
 
 const PARAM = 'scope'
 const CANDIDATE_PARAM = 'candidate'
@@ -8,12 +8,19 @@ const REVIEW_PATH = '/review'
 const EXPORT_PATH = '/export'
 const ID = /^\d+$/
 const SOURCE = /^source-(\d+)$/
+const SOURCES_PATH = '/'
 
 export function parseScope(raw: string | null): Scope {
   if (raw === 'unsorted') return 'unsorted'
   if (raw !== null && ID.test(raw)) return Number(raw)
   return 'all'
 }
+
+/** Раздел экрана источников из ссылки: без параметра — Recent. */
+export const parseView = (raw: string | null): SourcesView => (raw === null ? 'recent' : parseScope(raw))
+
+/** Адрес раздела экрана источников: у Recent параметра нет, у All он есть. */
+export const viewPath = (view: SourcesView): string => (view === 'recent' ? SOURCES_PATH : `${SOURCES_PATH}?${PARAM}=${view}`)
 
 export const sourceScope = (id: number): SetScope => `source-${id}`
 
@@ -40,19 +47,19 @@ export function reviewPath(scope: SetScope, candidateId?: number): string {
 
 interface ScopeChange { replace?: boolean }
 
-/** Открытая область живёт в URL: ссылка на коллекцию открывается напрямую, назад из Review — туда же. */
-export function useScope(): [Scope, (next: Scope, change?: ScopeChange) => void] {
+/** Открытый раздел живёт в URL: ссылка на коллекцию открывается напрямую, назад из Review — туда же. */
+export function useView(): [SourcesView, (next: SourcesView, change?: ScopeChange) => void] {
   const [params, setParams] = useSearchParams()
-  const scope = parseScope(params.get(PARAM))
-  const setScope = useCallback((next: Scope, change: ScopeChange = {}) => {
+  const view = parseView(params.get(PARAM))
+  const setView = useCallback((next: SourcesView, change: ScopeChange = {}) => {
     setParams(previous => {
       const updated = new URLSearchParams(previous)
-      if (next === 'all') updated.delete(PARAM)
+      if (next === 'recent') updated.delete(PARAM)
       else updated.set(PARAM, String(next))
       return updated
     }, { replace: change.replace })
   }, [setParams])
-  return [scope, setScope]
+  return [view, setView]
 }
 
 /** Адрес экспорта набора. */

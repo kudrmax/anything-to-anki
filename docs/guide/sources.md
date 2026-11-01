@@ -155,6 +155,22 @@ A **topic** is a source made from a request instead of a text, for example `phra
 
 Later, **Refresh…** in the topic's menu looks for its words in sources you added since. It only adds new phrases; your decisions and cards stay as they are.
 
+## Recent
+
+The Sources screen opens on **Recent**, at the top of the tree. It lists the sources and collections you worked with, the latest first, so you can go back to what you were doing in one click.
+
+An item moves to the top when you:
+
+- add it. Several sources added into one collection, such as a book split into chapters, show up as that one collection;
+- open its review, or decide or edit a card in it. In a collection's review, the collection moves up, not the source the card came from;
+- save a phrase to it. Saving a phrase with the browser extension or [Quick Add](macos-app.md#quick-add) moves **Saved phrases** up.
+
+Opening a collection in the tree, opening **All** or **Unsorted**, and reviewing **All** don't count.
+
+A collection in Recent looks like a source: its progress, its main button (**Review** or **Continue**), and its **…** menu. Clicking it opens the review of the whole collection.
+
+Recent has its own order, so **Group** and **Sort** don't apply to it. It has no review or export of the whole list.
+
 ## Collections
 
 Collections are folders for sources. They can be nested up to 5 levels deep.
@@ -199,8 +215,8 @@ The selection bar offers **Move to…**, **Process** and **Delete**.
 
 ### Search, group and sort
 
-- The search box filters the open collection by title.
-- The **…** menu at the top of the list has **Group** (**By status** or **None**) and **Sort** (**Date added**, **Name** or **Last studied**). The choice applies to every collection.
+- The search box filters the open collection, or Recent, by title.
+- The **…** menu at the top of the list has **Group** (**By status** or **None**) and **Sort** (**Date added**, **Name** or **Last studied**). The choice applies to **All**, **Unsorted** and every collection; [Recent](#recent) keeps its own order.
 
 ## Saved phrases
 

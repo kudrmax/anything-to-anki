@@ -11,8 +11,11 @@ from backend.domain.value_objects.collection_choice import CollectionChoice
 from backend.domain.value_objects.content import Kind
 from backend.domain.value_objects.document import Document
 from backend.domain.value_objects.format import Format
+from backend.domain.value_objects.source_scope import SourceScope
 
+from tests.decision_support import NOW, FixedClock
 from tests.unit.application.collection_fakes import InMemoryCollectionRepository
+from tests.unit.application.recent_use_fakes import InMemoryRecentUseRepository
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -55,10 +58,11 @@ def _draft(own_title: str | None) -> SourceDraft:
 type _Setup = tuple[SourceGroupWriter, _RecordingWriter, InMemoryCollectionRepository]
 
 
-def _setup(*collections: Collection) -> _Setup:
+def _setup(*collections: Collection, recent: InMemoryRecentUseRepository | None = None) -> _Setup:
     writer = _RecordingWriter()
     repo = InMemoryCollectionRepository(collections)
-    return SourceGroupWriter(writer, repo), writer, repo
+    uses = recent or InMemoryRecentUseRepository()
+    return SourceGroupWriter(writer, repo, uses, FixedClock()), writer, repo
 
 
 TWO = (_draft("a"), _draft("b"))
@@ -112,6 +116,26 @@ class TestWriteGroup:
         group.write_group(TWO, CollectionChoice(new_name="Dune"), ["1", "2"])
         assert writer.collection_ids[0] not in (1, 2)
         assert len(repo.list_all()) == 3
+
+
+class TestRecentUse:
+    def test_one_source_is_used(self) -> None:
+        recent = InMemoryRecentUseRepository()
+        group, _, _ = _setup(recent=recent)
+        group.write_one(_draft("own"), None)
+        assert recent.uses == {SourceScope.source(1): NOW}
+
+    def test_a_group_in_a_collection_uses_the_collection(self) -> None:
+        recent = InMemoryRecentUseRepository()
+        group, _, _ = _setup(Collection(id=7, name="Dune"), recent=recent)
+        group.write_group(TWO, CollectionChoice(existing_id=7), ["1", "2"])
+        assert recent.uses == {SourceScope.collection(7): NOW}
+
+    def test_a_group_without_a_collection_uses_each_source(self) -> None:
+        recent = InMemoryRecentUseRepository()
+        group, _, _ = _setup(recent=recent)
+        group.write_group(TWO, CollectionChoice(), ["1", "2"])
+        assert recent.uses == {SourceScope.source(1): NOW, SourceScope.source(2): NOW}
 
 
 class TestResolve:

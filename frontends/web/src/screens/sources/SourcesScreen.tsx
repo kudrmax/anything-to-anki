@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { CollectionNode, Scope, SetOperation, SetScope, SourceStage } from '@/api/types'
+import type { CollectionNode, RecentCollectionItem, Scope, SetOperation, SetScope, SourcesView, SourceStage, SourceSummary } from '@/api/types'
 import { statsStore, useStats } from '@/hooks/useStats'
 import { backTo } from '@/lib/backLink'
 import { usePhone } from '@/lib/device'
 import { OVERLAY } from '@/lib/hotkeys'
-import { exportPath, reviewPath, scopeQuery, sourceScope, useScope } from '@/lib/scope'
+import { exportPath, reviewPath, sourceScope, useView, viewPath } from '@/lib/scope'
 import { clickSelect, EMPTY_SELECTION, pruned, selectAll, type Selection } from '@/lib/selection'
 import { findNode } from '@/lib/treeDrop'
 import { typingIn } from '@/lib/typing'
@@ -16,7 +16,9 @@ import { CollectionTree } from './CollectionTree'
 import { MoveToModal } from './MoveToModal'
 import { NameModal } from './NameModal'
 import { RebuildDialog } from './RebuildDialog'
+import { RecentCollectionRow } from './RecentCollectionRow'
 import { ScopeHeader } from './ScopeHeader'
+import { collectionMenuItems } from './scopeMenu'
 import { ScopePicker } from './ScopePicker'
 import { SelectionBar } from './SelectionBar'
 import { sourceOrderItems } from './sourceOrderMenu'
@@ -32,7 +34,7 @@ const STAGE_LABEL: Record<SourceStage, string> = {
   ready: 'Ready to review',
   reviewed: 'Reviewed',
 }
-const SCOPE_TITLE = { all: 'All sources', unsorted: 'Unsorted' } as const
+const VIEW_TITLE = { recent: 'Recent', all: 'All sources', unsorted: 'Unsorted' } as const
 const UNSORTED = 'Unsorted'
 // Backend ставит коллекцию в конец, если позиция больше числа соседей.
 const END_POSITION = Number.MAX_SAFE_INTEGER
@@ -52,7 +54,9 @@ function ancestorsOf(collections: CollectionNode[], node: CollectionNode): Colle
 }
 
 export function SourcesScreen() {
-  const [scope, setScope] = useScope()
+  const [view, setView] = useView()
+  // Recent — не область: у него нет ни ревью, ни экспорта, ни порядка целиком.
+  const scope: Scope | null = view === 'recent' ? null : view
   const [query, setQuery] = useState('')
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION)
   const [moveTarget, setMoveTarget] = useState<MoveTarget>(null)
@@ -60,6 +64,7 @@ export function SourcesScreen() {
   const [operating, setOperating] = useState<Operating>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [processingAll, setProcessingAll] = useState(false)
+  const [processingCollection, setProcessingCollection] = useState<number | null>(null)
   const [toast, showToast] = useToast()
   const undo = useUndo()
   const stats = useStats()
@@ -67,10 +72,10 @@ export function SourcesScreen() {
   const isPhone = usePhone()
   const listLabel = useId()
 
-  // Выбор и поиск принадлежат области: любая её смена (дерево, ссылка, «назад») их сбрасывает.
-  const [shownScope, setShownScope] = useState<Scope>(scope)
-  if (shownScope !== scope) {
-    setShownScope(scope)
+  // Выбор и поиск принадлежат разделу: любая его смена (дерево, ссылка, «назад») их сбрасывает.
+  const [shownView, setShownView] = useState<SourcesView>(view)
+  if (shownView !== view) {
+    setShownView(view)
     setSelection(EMPTY_SELECTION)
     setQuery('')
   }
@@ -78,8 +83,8 @@ export function SourcesScreen() {
   const onError = useCallback((message: string) => showToast(message), [showToast])
   const boardReload = useRef<() => Promise<void>>(async () => {})
   const collections = useCollections({ onUndo: undo.show, onError, onSourcesMoved: () => void boardReload.current() })
-  const board = useSourceBoard(scope, query, {
-    onMissingScope: () => setScope('all', { replace: true }),
+  const board = useSourceBoard(view, query, {
+    onMissingScope: () => setView('recent', { replace: true }),
     onError,
     onChanged: () => void collections.reload(),
   })
@@ -90,12 +95,15 @@ export function SourcesScreen() {
 
   const tree = collections.tree
   const reloadBoard = useCallback(() => void boardReload.current(), [])
-  const open = (next: Scope) => {
+  const open = (next: SourcesView) => {
     setPickerOpen(false)
-    setScope(next)
+    setView(next)
   }
 
-  const order = useMemo(() => board.board?.groups.flatMap(g => g.sources.map(s => s.id)) ?? [], [board.board])
+  const order = useMemo(() => {
+    if (board.recent) return board.recent.items.flatMap(item => (item.kind === 'source' ? [item.source.id] : []))
+    return board.board?.groups.flatMap(g => g.sources.map(s => s.id)) ?? []
+  }, [board.board, board.recent])
   const visibleSelection = pruned(selection, order)
   const selectedIds = order.filter(id => visibleSelection.ids.has(id))
 
@@ -119,10 +127,14 @@ export function SourcesScreen() {
   }
   const addForm = <AddSourceForm onReload={added} onToast={showToast} />
 
-  const node = typeof scope === 'number' && tree ? findNode(tree.collections, scope) : null
+  const node = typeof view === 'number' && tree ? findNode(tree.collections, view) : null
   const ancestors = tree && node ? ancestorsOf(tree.collections, node) : []
-  const counts = !tree ? null : typeof scope === 'number' ? node?.counts ?? null : scope === 'unsorted' ? tree.unsorted : tree.all
-  const title = node?.name ?? board.board?.title ?? (typeof scope === 'number' ? '' : SCOPE_TITLE[scope])
+  const counts = (() => {
+    if (!tree || scope === null) return null
+    if (typeof scope === 'number') return node?.counts ?? null
+    return scope === 'unsorted' ? tree.unsorted : tree.all
+  })()
+  const title = node?.name ?? (typeof view === 'number' ? board.board?.title ?? '' : VIEW_TITLE[view])
   const nameOf = (collectionId: number | null) =>
     collectionId === null ? UNSORTED : (tree && findNode(tree.collections, collectionId)?.name) ?? ''
 
@@ -136,18 +148,27 @@ export function SourcesScreen() {
   const longPress = (id: number) => setSelection(clickSelect(visibleSelection, order, id, { toggle: true, range: false }))
   const dragIds = (id: number) => (visibleSelection.ids.has(id) ? selectedIds : [id])
 
-  // Ревью и экспорт возвращают на открытую область.
-  const backHere = backTo(`/${scopeQuery(scope)}`)
+  // Ревью и экспорт возвращают на открытый раздел.
+  const backHere = backTo(viewPath(view))
   const review = (id: number) => navigate(reviewPath(sourceScope(id)), { state: backHere })
   const exportSet = (set: SetScope) => navigate(exportPath(set), { state: backHere })
   const operate = (set: SetScope, setTitle: string, operation: SetOperation) => setOperating({ scope: set, title: setTitle, operation })
 
   const processAll = async () => {
+    if (scope === null) return
     setProcessingAll(true)
     try {
-      await board.processPending()
+      await board.processPending(scope)
     } finally {
       setProcessingAll(false)
+    }
+  }
+  const processCollection = async (id: number) => {
+    setProcessingCollection(id)
+    try {
+      await board.processPending(id)
+    } finally {
+      setProcessingCollection(null)
     }
   }
 
@@ -162,7 +183,7 @@ export function SourcesScreen() {
   const processSelected = () => void board.processSelected(selectedIds).then(clearSelection)
 
   const deleteCollection = (id: number) => {
-    void collections.remove(id).then(deleted => { if (deleted && scope === id) setScope('all', { replace: true }) })
+    void collections.remove(id).then(deleted => { if (deleted && view === id) setView('recent', { replace: true }) })
   }
   const placeSources = (ids: number[], collectionId: number | null) => {
     const moved = new Set(ids)
@@ -198,7 +219,7 @@ export function SourcesScreen() {
       {tree && (
         <CollectionTree
           tree={tree}
-          scope={scope}
+          scope={view}
           onSelect={open}
           onCreate={(name, parentId) => void collections.create(name, parentId)}
           onRename={(id, name) => void collections.rename(id, name)}
@@ -216,8 +237,9 @@ export function SourcesScreen() {
   )
 
   const groups = board.board?.groups.filter(g => g.sources.length > 0) ?? []
+  const recentItems = board.recent?.items ?? []
   const empty = (() => {
-    if (!board.board || !tree || groups.length > 0) return null
+    if ((!board.board && !board.recent) || !tree || groups.length > 0 || recentItems.length > 0) return null
     if (query.trim()) return <Empty flush>Nothing matches “{query.trim()}”</Empty>
     if (node) {
       // Внутри пустой коллекции перетаскивать нечего: источники берут в другом разделе.
@@ -231,6 +253,7 @@ export function SourcesScreen() {
         </Empty>
       )
     }
+    if (board.recent && tree.all.total > 0) return <Empty flush>Sources and collections you add or review show up here</Empty>
     if (tree.all.total === 0) {
       return (
         <Empty flush>
@@ -242,6 +265,57 @@ export function SourcesScreen() {
     }
     return <Empty flush>{scope === 'unsorted' ? 'Every source is in a collection' : 'No sources here'}</Empty>
   })()
+
+  const sourceRow = (source: SourceSummary, showPath: boolean, primary: boolean) => (
+    <SourceRow
+      key={source.id}
+      source={source}
+      selected={visibleSelection.ids.has(source.id)}
+      showPath={showPath}
+      primary={primary}
+      onProcess={id => void board.process(id)}
+      onGenerate={id => void board.generate(id)}
+      onCancelGeneration={id => void board.cancelGeneration(id)}
+      onRetryGeneration={id => void board.retryGeneration(id)}
+      onReview={review}
+      onExport={id => exportSet(sourceScope(id))}
+      onDelete={deleteSource}
+      onRename={(id, newTitle) => void board.rename(id, newTitle)}
+      onOperation={(id, operation) => operate(sourceScope(id), source.title, operation)}
+      onRowClick={rowClick}
+      onMoveTo={id => setMoveTarget({ kind: 'sources', ids: [id] })}
+      dragIds={() => dragIds(source.id)}
+      draggable={!isPhone}
+      onLongPress={longPress}
+    />
+  )
+
+  const recentCollectionRow = (item: RecentCollectionItem) => {
+    // Дерево перечитывается после любой правки коллекций, поэтому имя, счётчики и путь берутся из него.
+    const fresh = tree ? findNode(tree.collections, item.collection.id) : item.collection
+    if (!fresh) return null
+    const path = tree ? ancestorsOf(tree.collections, fresh).map(a => a.name) : item.path
+    const menuItems = collectionMenuItems(fresh, {
+      onExport: () => exportSet(fresh.id),
+      onOperation: operation => operate(fresh.id, fresh.name, operation),
+      onRename: () => setNaming({ kind: 'rename', node: fresh }),
+      onNewSubcollection: () => setNaming({ kind: 'create', parent: fresh }),
+      onMoveTo: () => setMoveTarget({ kind: 'collection', id: fresh.id }),
+      onFavorite: () => void collections.setFavorite(fresh.id, !fresh.favorite),
+      onDelete: () => deleteCollection(fresh.id),
+    })
+    return (
+      <RecentCollectionRow
+        key={`collection-${fresh.id}`}
+        node={fresh}
+        path={path}
+        processing={processingCollection === fresh.id}
+        menuItems={menuItems}
+        onProcess={() => void processCollection(fresh.id)}
+        onReview={() => navigate(reviewPath(fresh.id), { state: backHere })}
+      />
+    )
+  }
 
   const movingCollection = moveTarget?.kind === 'collection' && tree ? findNode(tree.collections, moveTarget.id) : null
 
@@ -267,15 +341,15 @@ export function SourcesScreen() {
             node={node}
             processing={processingAll}
             onProcessAll={() => void processAll()}
-            onReview={() => navigate(reviewPath(scope), { state: backHere })}
-            onExport={() => exportSet(scope)}
-            onOperation={operation => operate(scope, title, operation)}
+            onReview={() => { if (scope !== null) navigate(reviewPath(scope), { state: backHere }) }}
+            onExport={() => { if (scope !== null) exportSet(scope) }}
+            onOperation={operation => { if (scope !== null) operate(scope, title, operation) }}
             onRename={() => node && setNaming({ kind: 'rename', node })}
             onNewSubcollection={() => node && setNaming({ kind: 'create', parent: node })}
             onMoveTo={() => node && setMoveTarget({ kind: 'collection', id: node.id })}
             onFavorite={() => node && void collections.setFavorite(node.id, !node.favorite)}
             onDelete={() => node && deleteCollection(node.id)}
-            viewItems={sourceOrder.order
+            viewItems={sourceOrder.order && view !== 'recent'
               ? sourceOrderItems(sourceOrder.order, {
                 onGrouping: grouping => void sourceOrder.setGrouping(grouping),
                 onSort: sort => void sourceOrder.setSort(sort),
@@ -294,6 +368,14 @@ export function SourcesScreen() {
           />
           <div className={board.stale ? `${css.listArea} ${css.stale}` : css.listArea} aria-busy={board.stale}>
           {empty}
+          {recentItems.length > 0 && (
+            <div role="listbox" aria-multiselectable="true" aria-labelledby={listLabel}>
+              <span id={listLabel} hidden>{title}</span>
+              <section className={css.group} role="group" aria-labelledby={listLabel}>
+                {recentItems.map(item => (item.kind === 'source' ? sourceRow(item.source, true, false) : recentCollectionRow(item)))}
+              </section>
+            </div>
+          )}
           {groups.length > 0 && (
             <div role="listbox" aria-multiselectable="true" aria-labelledby={listLabel}>
               <span id={listLabel} hidden>{title}</span>
@@ -302,28 +384,10 @@ export function SourcesScreen() {
                 return (
                   <section key={group.stage ?? 'all'} className={css.group} role="group" aria-labelledby={group.stage ? headingId : listLabel}>
                     {group.stage && <h2 id={headingId} className={css.groupTitle}>{STAGE_LABEL[group.stage]}<span>{group.sources.length}</span></h2>}
-                    {group.sources.map((source, index) => (
-                      <SourceRow
-                        key={source.id}
-                        source={source}
-                        selected={visibleSelection.ids.has(source.id)}
-                        showPath={scope === 'all' || (typeof scope === 'number' && source.collection_id !== scope)}
-                        primary={group.stage === 'in_progress' && index === 0}
-                        onProcess={id => void board.process(id)}
-                        onGenerate={id => void board.generate(id)}
-                        onCancelGeneration={id => void board.cancelGeneration(id)}
-                        onRetryGeneration={id => void board.retryGeneration(id)}
-                        onReview={review}
-                        onExport={id => exportSet(sourceScope(id))}
-                        onDelete={deleteSource}
-                        onRename={(id, newTitle) => void board.rename(id, newTitle)}
-                        onOperation={(id, operation) => operate(sourceScope(id), source.title, operation)}
-                        onRowClick={rowClick}
-                        onMoveTo={id => setMoveTarget({ kind: 'sources', ids: [id] })}
-                        dragIds={() => dragIds(source.id)}
-                        draggable={!isPhone}
-                        onLongPress={longPress}
-                      />
+                    {group.sources.map((source, index) => sourceRow(
+                      source,
+                      scope === 'all' || (typeof scope === 'number' && source.collection_id !== scope),
+                      group.stage === 'in_progress' && index === 0,
                     ))}
                   </section>
                 )

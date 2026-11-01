@@ -6,9 +6,12 @@ from typing import TYPE_CHECKING
 from backend.domain.entities.source import Source
 from backend.domain.exceptions import InvalidSourceInputError
 from backend.domain.value_objects.source_role import SourceRole
+from backend.domain.value_objects.source_scope import SourceScope
 from backend.domain.value_objects.source_status import SourceStatus
 
 if TYPE_CHECKING:
+    from backend.domain.ports.clock import Clock
+    from backend.domain.ports.recent_use_repository import RecentUseRepository
     from backend.domain.ports.source_repository import SourceRepository
     from backend.domain.ports.unit_of_work import UnitOfWork
 
@@ -21,9 +24,17 @@ EMPTY_TOPIC_MESSAGE = "Topic cannot be empty"
 class CreateTopicUseCase:
     """A topic: targets are generated for the query, phrases are found in other sources."""
 
-    def __init__(self, source_repo: SourceRepository, unit_of_work: UnitOfWork) -> None:
+    def __init__(
+        self,
+        source_repo: SourceRepository,
+        recent_uses: RecentUseRepository,
+        clock: Clock,
+        unit_of_work: UnitOfWork,
+    ) -> None:
         self._unit_of_work = unit_of_work
         self._source_repo = source_repo
+        self._recent_uses = recent_uses
+        self._clock = clock
 
     def execute(self, query: str, title: str | None = None) -> Source:
         if not query.strip():
@@ -37,5 +48,7 @@ class CreateTopicUseCase:
                     topic_query=query,
                 )
             )
+            assert source.id is not None
+            self._recent_uses.mark([SourceScope.source(source.id)], self._clock.now())
         logger.info("Created topic source id=%s query=%r", source.id, query)
         return source
