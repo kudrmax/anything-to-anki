@@ -18,6 +18,7 @@ import type {
   Collection,
   CollectionTree,
   DeletedCollection,
+  FileTypes,
   MovedCollection,
   RenamedCollection,
   OpenReviewRequest,
@@ -141,6 +142,8 @@ export const api = {
       body: JSON.stringify({ rule, collection_name: collectionName, own_titles: ownTitles, number_digits: numberDigits }),
       signal,
     }),
+
+  getFileTypes: () => req<FileTypes>('/sources/file-types'),
 
   describeInput: (text: string, signal?: AbortSignal) =>
     req<InputDescription>('/sources/describe-input', { method: 'POST', body: JSON.stringify({ text }), signal }),

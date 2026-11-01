@@ -29,6 +29,7 @@ EXISTING_FILES = frozenset({
     "/Users/max/notes.md",
     "/Users/max/lyrics.txt",
     "/Users/max/show.srt",
+    "/Users/max/show.ass",
 })
 
 
@@ -100,6 +101,7 @@ def test_link_nobody_reads_is_a_problem(text: str) -> None:
         ("/Users/max/notes.md", "Text", "markdown"),
         ("/Users/max/lyrics.txt", "Text", "txt"),
         ("/Users/max/show.srt", "Subtitles", "srt"),
+        ("/Users/max/show.ass", "Subtitles", "ass"),
     ],
 )
 def test_existing_file_is_a_source(text: str, label: str, file_format: str) -> None:

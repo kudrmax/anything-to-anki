@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class SrtReader(FormatReader):
-    """Subtitles without a video."""
+    """Subtitles of any text format without a video."""
 
     def __init__(self, file_reader: FileReader) -> None:
         self._file_reader = file_reader
@@ -31,8 +31,8 @@ class SrtReader(FormatReader):
         return ()
 
     def read(self, source_input: SourceInput, answers: Answers) -> Content:
-        srt_text = input_text(source_input, self._file_reader)
+        subtitles_text = input_text(source_input, self._file_reader)
         return SubtitlesContent(
             title=input_title(source_input),
-            document=subtitles_document(srt_text, self._parser),
+            document=subtitles_document(subtitles_text, self._parser),
         )

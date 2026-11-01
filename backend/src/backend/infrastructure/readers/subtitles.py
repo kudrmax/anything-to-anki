@@ -1,4 +1,5 @@
-"""Subtitles as a document: one flowing paragraph of their lines, each with its subtitle's time."""
+"""Subtitles of any text format as a document: one flowing paragraph of their lines, each with
+its subtitle's time."""
 
 from __future__ import annotations
 
@@ -6,12 +7,20 @@ from typing import TYPE_CHECKING
 
 from backend.domain.exceptions import InvalidSourceInputError
 from backend.domain.value_objects.document import Document, Line, Paragraph, ParagraphMode
+from backend.infrastructure.adapters.pysubs2_subtitle_converter import Pysubs2SubtitleConverter
 from backend.infrastructure.adapters.regex_srt_parser import SrtCue
 
 if TYPE_CHECKING:
     from backend.infrastructure.adapters.regex_srt_parser import RegexSrtParser
 
-def subtitles_document(srt_text: str, parser: RegexSrtParser) -> Document:
+_CONVERTER = Pysubs2SubtitleConverter()
+
+
+def subtitles_document(
+    subtitles_text: str, parser: RegexSrtParser, fps: float | None = None,
+) -> Document:
+    """`fps` — the frame rate of the video the subtitles belong to, if any."""
+    srt_text = _CONVERTER.to_srt(subtitles_text, fps)
     lines = tuple(
         Line(text, start_ms=cue.start_ms, end_ms=cue.end_ms)
         for cue in _without_rolling_repeats(parser.parse_cues(srt_text))

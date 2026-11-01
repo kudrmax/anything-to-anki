@@ -11,6 +11,7 @@ from backend.application.dto.add_source_dtos import (
     CollectionChoiceDTO,
     CreateTopicRequest,
     DescribeInputRequest,
+    FileTypesDTO,
     InputDescriptionDTO,
     NamingDTO,
     NamingRequired,
@@ -177,6 +178,14 @@ def _naming(dto: NamingDTO | None) -> Naming | None:
         titles=dto.titles,
         number_format=NumberFormat(dto.number_digits),
     )
+
+
+@router.get("/file-types")
+def get_file_types(
+    container: Container = Depends(get_container),  # noqa: B008
+) -> FileTypesDTO:
+    """Which files the Add screen takes as videos and which as their subtitles."""
+    return container.get_file_types_use_case().execute()
 
 
 @router.post("/describe-input")

@@ -44,7 +44,7 @@ The AI proxy finds `claude` on your `PATH`, or at `/opt/homebrew/bin/claude`. If
 | **Subtitles are not available for this video** | The YouTube video has no English subtitles, not even auto-generated ones |
 | **No file at this path** | Check the path. It must be absolute, like `/Users/you/file.epub` |
 | `Not a text file` | The file's type is not supported. See [What you can add](../guide/sources.md#what-you-can-add) |
-| `No subtitles found in video. Please attach a .srt file.` | The video has no text subtitle track. Attach an `.srt` file. If you are sure the video has one, check that `ffprobe` works: `ffprobe -version` |
+| `No text subtitles found in video. Please attach a subtitle file.` | The video has no text subtitle track: none at all, or only image-based ones (PGS, VobSub). Attach a subtitle file, see [Subtitle formats](../guide/sources.md#subtitle-formats). If you are sure the video has a text track, check that `ffprobe` works: `ffprobe -version` |
 | **Dropped files reach the app only in the macOS app** | In a browser, paste the file's path instead, or use the [macOS app](../guide/macos-app.md) |
 | **Processing failed** | The reason is in `make logs`. Press **Retry** |
 

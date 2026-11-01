@@ -29,7 +29,7 @@ Everything runs locally on your Mac. AI features use your own [Claude Code](http
 
 ## Features
 
-- **Many sources:** plain text, song lyrics, Markdown, HTML, `.srt` subtitles, video files (`.mp4`, `.mkv`, `.avi`, `.mov`), YouTube videos, and EPUB books split into chapters.
+- **Many sources:** plain text, song lyrics, Markdown, HTML, subtitles (`.srt`, `.ass`, `.vtt` and other formats), video files (`.mp4`, `.mkv`, `.avi`, `.mov`), YouTube videos, and EPUB books split into chapters.
 - **Topics:** ask for `phrasal verbs with get`; AI picks the words and the app finds real phrases for them in your sources.
 - **Phrase-first cards:** each word is shown in a real sentence from your source, chosen so that the rest of it is familiar.
 - **Words and phrasal verbs** are found automatically, including separated ones like `give … up`. Collocations such as `make a decision` can be added by hand or come from topics.

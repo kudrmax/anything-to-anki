@@ -918,6 +918,12 @@ export type InputKind = 'source' | 'topic' | 'phrase'
 export type InputProblem = 'unsupported_link' | 'file_not_found'
 
 /** Что backend сказал про ввод экрана Add; у пустого ввода все поля пустые. */
+/** Расширения без точки: видео и субтитров, которые к нему прикладываются. */
+export interface FileTypes {
+  video_extensions: string[]
+  subtitle_extensions: string[]
+}
+
 export interface InputDescription {
   kind: InputKind | null
   format: SourceFormat | null

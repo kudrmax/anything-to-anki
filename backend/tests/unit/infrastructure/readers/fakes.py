@@ -10,6 +10,19 @@ from backend.domain.value_objects.subtitle_track_info import SubtitleTrackInfo
 YOUTUBE_URL = "https://www.youtube.com/watch?v=abc"
 
 
+def ass(*cues: tuple[int, str]) -> str:
+    """ASS dialogue a second long each, starting at the given second."""
+    header = (
+        "[Script Info]\nScriptType: v4.00+\n\n[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize\nStyle: Default,Arial,20\n\n[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    )
+    return header + "".join(
+        f"Dialogue: 0,0:00:{start:02d}.00,0:00:{start + 1:02d}.00,Default,,0,0,0,,{text}\n"
+        for start, text in cues
+    )
+
+
 def srt(*cues: tuple[int, str]) -> str:
     """Cues a second long each, starting at the given second."""
     return "\n\n".join(
@@ -19,18 +32,29 @@ def srt(*cues: tuple[int, str]) -> str:
 
 
 class FakeVideoTracks(SubtitleExtractor, AudioTrackLister):
-    def __init__(self, subtitles: dict[int, str], audio_tracks: int = 1) -> None:
+    def __init__(
+        self,
+        subtitles: dict[int, str],
+        audio_tracks: int = 1,
+        codec: str = "subrip",
+        fps: float | None = None,
+    ) -> None:
         self._subtitles = subtitles
         self._audio_tracks = audio_tracks
+        self._codec = codec
+        self._fps = fps
 
     def list_tracks(self, video_path: str) -> list[SubtitleTrackInfo]:
         return [
-            SubtitleTrackInfo(index=i, language="eng", title=f"Subs {i}", codec="subrip")
+            SubtitleTrackInfo(index=i, language="eng", title=f"Subs {i}", codec=self._codec)
             for i in self._subtitles
         ]
 
-    def extract(self, video_path: str, track_index: int) -> str:
-        return self._subtitles[track_index]
+    def extract(self, video_path: str, track: SubtitleTrackInfo) -> str:
+        return self._subtitles[track.index]
+
+    def frame_rate(self, video_path: str) -> float | None:
+        return self._fps
 
     def list_audio_tracks(self, video_path: str) -> list[AudioTrackInfo]:
         return [

@@ -6,8 +6,8 @@ from backend.domain.value_objects.source_input import LocalFile, PastedText, Sou
 
 URL_SCHEMES = ("http://", "https://")
 PATH_START = "/"
-SUBTITLES_NEED_VIDEO_MESSAGE = "A .srt file can only be attached to a video"
-SUBTITLES_NEED_ONE_VIDEO_MESSAGE = "A .srt file can only be attached to one video"
+SUBTITLES_NEED_VIDEO_MESSAGE = "Subtitles can only be attached to a video"
+SUBTITLES_NEED_ONE_VIDEO_MESSAGE = "Subtitles can only be attached to one video"
 
 
 def typed_input(text: str, subtitles_path: str | None = None) -> SourceInput:

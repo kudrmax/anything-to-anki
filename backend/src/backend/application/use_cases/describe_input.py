@@ -47,7 +47,9 @@ _FILE_FORMATS: dict[Format, str] = {
     Format.YOUTUBE: "YouTube",
 }
 # A file's own extension says more than the format's name.
-_LABELLED_BY_EXTENSION: frozenset[Format] = frozenset({Format.PLAIN, Format.VIDEO_FILE})
+_LABELLED_BY_EXTENSION: frozenset[Format] = frozenset(
+    {Format.PLAIN, Format.SRT, Format.VIDEO_FILE},
+)
 
 
 class DescribeInputUseCase:

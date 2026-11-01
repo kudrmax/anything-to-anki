@@ -13,6 +13,9 @@ if TYPE_CHECKING:
     from backend.domain.ports.url_source_fetcher import UrlSourceFetcher
     from backend.domain.value_objects.source_input import SourceInput
 
+SUBTITLE_EXTENSIONS = (
+    ".srt", ".ass", ".ssa", ".vtt", ".sub", ".sbv", ".smi", ".sami", ".ttml", ".dfxp",
+)
 # Any other file is read as plain text.
 FORMAT_BY_EXTENSION: dict[str, Format] = {
     ".md": Format.MARKDOWN,
@@ -20,14 +23,19 @@ FORMAT_BY_EXTENSION: dict[str, Format] = {
     ".html": Format.HTML,
     ".htm": Format.HTML,
     ".epub": Format.EPUB,
-    ".srt": Format.SRT,
+    **dict.fromkeys(SUBTITLE_EXTENSIONS, Format.SRT),
     ".mp4": Format.VIDEO_FILE,
     ".mkv": Format.VIDEO_FILE,
     ".avi": Format.VIDEO_FILE,
     ".mov": Format.VIDEO_FILE,
 }
 
-_SRT_TIMECODE_RE = re.compile(r"^\s*\d{1,2}:\d{2}:\d{2}[,.]\d{3}\s*-->", re.MULTILINE)
+_SUBTITLES_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*\d{1,2}:\d{2}:\d{2}[,.]\d{3}\s*-->", re.MULTILINE),
+    re.compile(r"^\ufeff?WEBVTT\b"),
+    re.compile(r"^\[Script Info\]", re.MULTILINE),
+    re.compile(r"^Dialogue:\s*\d+,\d+:\d{2}:\d{2}", re.MULTILINE),
+)
 _HTML_TAG_RE = re.compile(
     r"<(?:p|div|br|h[1-6]|ul|ol|li|span|a|em|strong|b|i|html|body|article|section|"
     r"blockquote|table)\b[^>]*>",
@@ -50,6 +58,13 @@ class RegexFormatDetector(FormatDetector):
     def __init__(self, url_fetcher: UrlSourceFetcher) -> None:
         self._url_fetcher = url_fetcher
 
+    def extensions(self, source_format: Format) -> tuple[str, ...]:
+        return tuple(
+            extension.lstrip(".")
+            for extension, extension_format in FORMAT_BY_EXTENSION.items()
+            if extension_format is source_format
+        )
+
     def detect(self, source_input: SourceInput) -> Format:
         match source_input:
             case LocalFile():
@@ -64,7 +79,7 @@ class RegexFormatDetector(FormatDetector):
                 raise UnsupportedUrlError(f"No fetcher for URL: {source_input.url}")
 
     def _pasted_format(self, text: str) -> Format:
-        if _SRT_TIMECODE_RE.search(text):
+        if any(pattern.search(text) for pattern in _SUBTITLES_RES):
             return Format.SRT
         if _HTML_TAG_RE.search(text):
             return Format.HTML
